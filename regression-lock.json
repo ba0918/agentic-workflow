@@ -2,37 +2,38 @@
   "coverage_exempt": {},
   "skills": {
     "ba0918-brainstorm": {
+      "carried_note": "opencode-go/deepseek-v4-flash process route; median, recovery/conflict, and wrap/readiness passed with worktree evidence",
       "file_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "e3df33e31fb479312332f2f375433619cfc2bca760287a0ff2b6f0107f5383e3",
-        "skills/ba0918-brainstorm/references/session.md": "9938cc27a86302f1aaa1856172674ddc56c5347b7dc73b7f96525ff048f109c7",
-        "skills/ba0918-brainstorm/references/state.md": "fe737493b24459022ebef5d412ab90335e09b1b1affa1540679b382b51382fb9",
-        "skills/ba0918-brainstorm/references/wrap-readiness.md": "1699b9009c55d5478e26a3c69f4d116a9025698f8a7c8b7ef9edc1d92450052b",
-        "skills/ba0918-brainstorm/scripts/state.py": "061597484c0a42a1230c03496b94ead93b51d1b0ee3b30f18221e4cd68f060ea"
+        "skills/ba0918-brainstorm/SKILL.md": "62b0e73042d872a218f027aafa24e8893e0b215951fc08dc8c14e01255cf4740",
+        "skills/ba0918-brainstorm/references/session.md": "7c922cb520b5c8aeb987c3eb7b035f424f4b2de8bac22f2cfbf7f8598821197e",
+        "skills/ba0918-brainstorm/references/state.md": "92e6ee9fe11c12361eef9eeaf08873206bd70a005c6580f51765883c13b398c2",
+        "skills/ba0918-brainstorm/references/wrap-readiness.md": "762651a9da85a09c1cae3273e375f309602703d4cdf651d47eefb07739daf9e7",
+        "skills/ba0918-brainstorm/scripts/state.py": "d19cd3df348c55584e31479ee90826617f7cf5c17b01b79edbb17494aaaf4a73"
       },
-      "note": "opencode-go/deepseek-v4-flash process route; median, recovery/conflict, and wrap/readiness passed with worktree evidence",
+      "note": "opencode-go/deepseek-v4-flash; all three scenarios rerun after final contract hardening; zero baseline drift",
       "result": "pass",
       "scenarios": {
         "broad-request-decomposition": {
           "result": "pass",
           "scenario_sha256": "7a1f5c4eb7f135bd7d462da97fa5a2796d3e835d2590bcded65aaba0a8d2166e",
-          "verified": "2026-08-21"
+          "verified": "2026-08-22"
         },
         "recovery-and-conflict": {
           "result": "pass",
           "scenario_sha256": "0d0c0926adc696aebe5f2b849ad8a097cc35dd9b30c135678b9f651595819df9",
-          "verified": "2026-08-21"
+          "verified": "2026-08-22"
         },
         "wrap-language-readiness": {
           "result": "pass",
           "scenario_sha256": "292d9b468cb382ae30942a3b63022e602c5016ebf37807ed85553403f3b8e74e",
-          "verified": "2026-08-21"
+          "verified": "2026-08-22"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "706d3b2da1ad279d09206f16673cecdc0f0ccfb8328c73f98edb808a3eed32f2",
+        "skills/ba0918-brainstorm/SKILL.md": "3df92516d76739348f24307d0bd3955074149d7572fc80617f060762bf140ba5",
         "skills/ba0918-brainstorm/references/session.md": "5a6151d4faa50531348365a1f0e771699ddc20446c02d04fbaff1f75ebbde9a1",
-        "skills/ba0918-brainstorm/references/state.md": "6d792721e096b2f0d09ddded11932b10d832ee39f599ff08779328e0f3c79b08",
-        "skills/ba0918-brainstorm/references/wrap-readiness.md": "24d3e75e81600b9be0f8db85de828531130088b41c93f9a42c21ab7ed5e9daa9"
+        "skills/ba0918-brainstorm/references/state.md": "b4b7be6157b05302192c85404d36381bdb0c88fd25c0ce30da6677ebe61a2934",
+        "skills/ba0918-brainstorm/references/wrap-readiness.md": "8b31b5b96615c5bb5693b02e2749aad74a3e15e568425200eeac62a101e3c57d"
       },
       "surface": [
         "skills/ba0918-brainstorm/SKILL.md",
@@ -41,8 +42,8 @@
         "skills/ba0918-brainstorm/references/wrap-readiness.md",
         "skills/ba0918-brainstorm/scripts/state.py"
       ],
-      "surface_sha256": "3ee3c493535045c2dd796b04c104bcc3c1fb90eecb20f2ab281a74ae5030d0ca",
-      "verified": "2026-08-21"
+      "surface_sha256": "60056c72ba9db4ac103e05e67efd0a1d1319e457cd90037db43ac728cdb93a69",
+      "verified": "2026-08-22"
     }
   },
   "version": 1

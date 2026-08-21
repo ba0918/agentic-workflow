@@ -1,6 +1,6 @@
 ---
 name: ba0918-brainstorm
-description: Turn broad change requests and unsettled ideas into human-approved phases, requirements, a specification set or roadmap, and a plan-readiness decision. Does not create plans or implement changes.
+description: Use when a broad change request or unsettled idea needs human-approved phases, requirements, a specification set or roadmap, and a plan-readiness decision. Does not create plans or implement changes.
 ---
 
 # Brainstorm

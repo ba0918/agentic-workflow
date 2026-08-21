@@ -149,6 +149,16 @@ def decode_markdown(text: str) -> dict[str, Any]:
 
 def _progress_directory(project_root: Path) -> Path:
     root = project_root.resolve()
+    policy = root / ".agents/artifacts.yml"
+    if policy.exists() or policy.is_symlink():
+        raise UnsafeProgress(
+            "explicit artifact policy is unsupported; resolve the canonical local path before saving"
+        )
+    legacy = root / "docs/ideas"
+    if legacy.exists() or legacy.is_symlink():
+        raise UnsafeProgress(
+            "legacy idea store coexists with the canonical path; migrate or select one store before saving"
+        )
     relative = Path(".agents/artifacts/ideas/progress")
     cursor = root
     for part in relative.parts:

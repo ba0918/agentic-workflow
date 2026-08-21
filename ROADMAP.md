@@ -245,13 +245,30 @@ brainstormはplan生成、ideaのarchive・drop、cycle開始を所有しない�
 
 ### 現在の検証状況
 
-- `opencode-go/deepseek-v4-flash`で広域依頼分割、compact後の復元と競合拒否、利用者言語のwrap/readinessを実測し、三scenarioがPASSした。
+- `opencode-go/deepseek-v4-flash`で広域依頼分割、compact後の復元と競合拒否、利用者言語のwrap/readinessを最終contractに対して再実測し、三scenarioがPASSした。
 - 承認前draftをchatだけで提示し、fileを変更しないことをworktreeで確認した。
 - 現在のbehavior surfaceを`regression-lock.json`へ記録した。
-- 未完了: 実processで人間承認後の正本反映成功とprogress除去までを通すこと。
-- 未完了: 旧版との品質、操作、request、reference再読、tokenの定量比較を確定すること。
+- Phase 1専用acceptance runで、同一progressの作成、日本語draft提示、人間承認、承認内容と同一hashの正本反映、内容確認、progress除去を順に確認した。
+- 旧版`claude-skills@57bb6f06aecdf191d46d99d9a3283233a26ecfdd`と同一入力、同一`opencode-go/deepseek-v4-flash` backendで比較した。旧版は14 request、197.9秒、input 49,109、output 15,092、reasoning 1,292、cache read 288,768 token、$0.023638796だった。新版の有効runは5 request、75.7秒、input 16,639、output 2,450、reasoning 5,941、cache read 73,472 token、$0.009712944だった。
+- 旧版は初回応答で重要な反例を深く問う一方、六つの質問と利用不能な自動second reviewerを起動した。新版は全体を独立phaseへ分け、次の重要判断を一問に限定し、無許可の外部呼出しとfile更新を行わなかった。
+- 新版の初回比較runはreport生成後にbackend processが終了せず300秒でtimeoutしたが、同一条件の一回再実行では再現しなかった。未確認事項としてruntime固有の単発timeoutを残す。
+- 旧版の全42契約を固定revisionから照合した。plan/archive/drop/cycle、旧idea memo、強制wrap、自動second reviewerは承認済みspecによる責務分離または安全gateを根拠に移行しない。
+- 最終監査で見つかったpre-wrap自己監査、保存先policyのfail-closed処理、機密情報の人間確認境界、人間不在時の再開可能な停止、完了summary、open question契約を補い、unit test 11件とskill interface静的検査を通した。
 
-このためPhase 1は検証中とし、Phase 2へ進まない。
+重要機能の欠落、安全制約違反、重大な品質劣化は残っていないため、最終判定を「移行可」とする。Phase 1は完了とし、このrunではPhase 2へ進まない。
+
+### Phase 1 acceptanceと旧版比較の完了条件
+
+Phase 1のacceptanceと旧版との比較は、次の条件をすべて満たしてから完了とする。
+
+- 既存の三つの回帰scenarioは変更せず、承認成功pathをPhase 1専用の独立したacceptance runとして検証する。
+- 同一runでprogress作成、日本語draft提示、人間承認、正本更新、内容確認、progress除去の順序を証明する。
+- 旧版はclaude-skillsの固定revision 57bb6f06aecdf191d46d99d9a3283233a26ecfddとし、同一入力で新版と比較する。
+- 最終比較では要求充足、曖昧さの扱い、重要事項の深掘り、不要な承認要求、正本反映、失敗時の透明性を評価する。
+- 重要機能の欠落、安全制約違反、重大な品質劣化を平均点で相殺してはならない。
+- 正当な削除は承認済みspecの廃止、置換、責務移管を根拠とし、spec外でも互換性、安全性、データ保護、中核価値への重大影響を確認する。
+- 低コストな契約完全性検査を先に行い、同一入力による内容品質の実測は最後に限定する。
+- 最終評価は移行可、修正後に再評価、移行不可のいずれかで判定し、根拠と未確認事項を記録する。
 
 ## Phase 2: Plan
 

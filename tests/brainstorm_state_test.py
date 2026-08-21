@@ -78,6 +78,29 @@ class StateValidationTest(unittest.TestCase):
 
 
 class ProgressStoreTest(unittest.TestCase):
+    def test_explicit_nonlocal_artifact_policy_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            policy = root / ".agents/artifacts.yml"
+            policy.parent.mkdir(parents=True)
+            policy.write_text("mode: repository\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(state.UnsafeProgress, "artifact policy"):
+                state.save_progress(root, semantic_state(), expected_revision=0)
+
+            self.assertFalse((root / ".agents/artifacts/ideas/progress").exists())
+
+    def test_legacy_idea_store_coexistence_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            legacy = root / "docs/ideas"
+            legacy.mkdir(parents=True)
+
+            with self.assertRaisesRegex(state.UnsafeProgress, "legacy idea store"):
+                state.save_progress(root, semantic_state(), expected_revision=0)
+
+            self.assertFalse((root / ".agents/artifacts/ideas/progress").exists())
+
     def test_unchanged_meaning_does_not_rewrite_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

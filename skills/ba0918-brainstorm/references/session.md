@@ -8,7 +8,7 @@
 4. Obtain human approval for the phase map and the first phase to detail.
 5. Detail only that approved phase. Do not design later phases early.
 
-Ask for one decision at a time. Do not ask again about settled matters. Separate facts, inferences, and unverified matters. Challenge the leading proposal with objections and counterexamples; agreement is not mere absence of objection.
+Ask one open, natural-language question about the next material decision at a time. Do not reduce discovery to a serial yes/no questionnaire, and do not ask again about settled matters. Separate facts, inferences, and unverified matters. Challenge the leading proposal with objections and counterexamples; agreement is not mere absence of objection.
 
 ## Semantic change
 
