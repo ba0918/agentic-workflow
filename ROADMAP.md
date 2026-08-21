@@ -285,6 +285,10 @@ Phase 1が完了し、brainstormが生成するspec、検証契約、反例の�
 - 承認済み条項、検証契約、反例からplanを生成する。
 - 正本planは現在の利用者の言語で、変更箇所、変更しない箇所、外部影響、主要リスク、完了証拠を示す。
 - 未決定事項、証拠不足、依存関係不明をplan作成前に拒否する。
+- 正本と同一内容の草稿を人間が確認した後にだけ、正本planを書き込む。
+- plan本文を進捗更新に使わず、後続工程が必要証拠から進捗を導出できるようにする。
+- 未完了planを履歴全体から探さずに済む、再構築可能な内部索引を持つ。
+- 現在対象planの切替では人間確認を必須とし、dirty worktreeを再開可能に隔離できない場合は停止する。
 
 ### 対象外
 
@@ -292,13 +296,42 @@ Phase 1が完了し、brainstormが生成するspec、検証契約、反例の�
 - 実装
 - review
 - 複数planの並列実行
+- TDD、branch、worktree操作
+- resume、checkpoint、完了判定
+- 手書きstatus、session history、plan本文の進捗checkbox
 
 ### 完了条件
 
 - 一つの小規模fixtureをplanへ変換できる。
 - 全plan項目がspec条項と検証条件へ追跡できる。
-- 人間向け表示だけで変更範囲を判断できる。
+- 人間が正本plan全体だけで変更範囲、非変更範囲、外部影響、主要risk、完了証拠を判断できる。
+- 人間確認前に正本planと未完了plan索引を変更せず、確認内容と同じidentityのplanだけを正本化する。
+- runnerがstatus更新を省略しても、証拠がない項目を未完了として安全に扱える。
+- 既存planの無言の置換、自動abandoned、dirty worktreeからの変更持越しを拒否する。
+- 旧planのstatus、session history、resume、checkpoint、TDD、caller-supplied modeの処遇がsource auditから追跡できる。
 - plan内部表現は、実測上の必要性が出るまで大規模な共有runtimeにしない。
+
+### 現在の設計状況
+
+- Phase 2固有の承認済み仕様と旧planのsource auditを`docs/spec/plan-skill-migration.md`へ記録した。
+- plan skillはplan作成と手順revisionに限定し、TDDと実装をPhase 3、resumeとcheckpointをPhase 5へ移す。
+- `status.md`、`session-history.md`、plan本文の進捗checkbox、headless自動abandonedを移植しない。
+- 通常の実行対象は一件とするが、保留中の未完了planは複数保持できる。並列実行は明示的な別経路が所有する。
+- 正本plan全体を現在の利用者の言語で書き、LLMだけが読む規範層を作らない。
+
+### 現在の検証状況
+
+- `ba0918-plan`を薄い`SKILL.md`、選択的に読む三つのreference、決定的なartifact helperとして実装した。通常の作成pathは136行、既存plan切替を含むpathでも174行のinstructionを読む。
+- Python `unittest`は既存11件とplan用9件の合計20件がPASSした。identity不一致、path traversal、symlink、既存planの確認なし切替、dirty worktree、revisionのin-place変更を拒否する。
+- `validate_repo.py`、三つのfixture schema、Markdown参照、`regression-lock.json`のfreshnessとcoverageを検証した。`skills-ref`実行体は環境に存在しないため、その名称での検証だけは未実施である。
+- `opencode-go/deepseek-v4-flash`で、完全入力の日本語plan、不完全入力のbrainstorm返却、既存planとdirty worktreeの保護を再実測した。全critical条件をartifactとbaseline hashから再判定し、三scenarioをPASSとして現在のbehavior surfaceをlockへ記録した。
+- 回帰中に、確認前のscratch draft作成、正本本文外へのplan ID/revision表示、仕様外の入力class追加を検出した。各原因を修正し、影響scenarioだけを再実行して固定した。
+- skill単体の受入では、第一clientが正本全文、保存先、identityを提示してfileを変更せず停止し、確認済みbytesを受け取ったpublication clientが正本化、索引登録、読戻しidentity確認、一時file削除まで完走した。正本と索引は`sha256:53754da436ec3538ec1ed25887364c15eb52d3cae5b0a73ddacfea89eed93d9a`で一致し、`status.md`と`session-history.md`は作られなかった。
+- OpenCode 1.18.18の`--session`による同一session継続は二回とも無出力でtimeoutした。部分書込みはなかった。確認済みbytesとidentityを明示した新規clientではpublicationが成功したため、skillのpublication契約とは分離したclient runtimeの未確認事項として残す。
+- 同一入力・同一backendで固定revision`claude-skills@57bb6f06aecdf191d46d99d9a3283233a26ecfdd`の旧planと比較した。旧版は264.9秒、38 tool call、input 53,630、output 5,815、reasoning 25,343、cache read 1,147,392 token、約$0.040394624だった。新版の成功した草稿提示とpublicationの合計は86.2秒、25 tool call、input 56,553、output 6,664、reasoning 1,649、cache read 326,400 token、約$0.02021304だった。
+- 旧版は質問なしでplanを書いたが、人間確認前に`status.md`、artifact policy、workspace policy、`.gitignore`と複数artifact directoryまで作成した。新版は人間が読む同一正本を確認対象にし、status、session history、TDD、resume、checkpointを移植せず、仕様外の意味を追加しなかった。
+
+重要機能の欠落、安全制約違反、重大な品質劣化は残っていないため、最終判定を「移行可」とする。Phase 2は完了とし、このrunではPhase 3へ進まない。
 
 ## Phase 3: Implement and Cycle
 

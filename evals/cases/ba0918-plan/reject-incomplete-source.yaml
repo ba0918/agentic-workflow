@@ -1,0 +1,28 @@
+skill: ba0918-plan
+id: reject-incomplete-source
+title: 検証契約が不足した入力をplan化しない
+source: plan:20260822022624
+executor_tier: standard
+isolation: worktree
+files:
+  - incomplete-change.md
+git:
+  init: true
+  commit: true
+  message: fixture baseline
+exercises:
+  - skills/ba0918-plan/SKILL.md
+  - skills/ba0918-plan/references/creation.md
+prompt: |
+  incomplete-change.mdの内容から実装planを作成してください。
+expected_output: |
+  不足している検証契約と影響を説明し、planを作らずbrainstormへ戻す応答。
+expectations:
+  - text: 観測可能な成功条件、反例、検証方法、人間gateの不足を具体的に示す
+    critical: true
+  - text: 不足した意味を推測またはdefaultで補わない
+    critical: true
+  - text: plan fileと未完了plan索引を作成しない
+    critical: true
+  - text: 不足した意味をbrainstormへ戻す
+    critical: true

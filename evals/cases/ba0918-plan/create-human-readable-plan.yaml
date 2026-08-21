@@ -1,0 +1,35 @@
+skill: ba0918-plan
+id: create-human-readable-plan
+title: 完全な仕様から正本と同一の日本語plan草稿を提示する
+source: plan:20260822022624
+executor_tier: standard
+isolation: worktree
+files:
+  - small-approved-change.md
+git:
+  init: true
+  commit: true
+  message: fixture baseline
+exercises:
+  - skills/ba0918-plan/SKILL.md
+  - skills/ba0918-plan/references/creation.md
+  - skills/ba0918-plan/references/readability.md
+prompt: |
+  small-approved-change.mdにある承認済み仕様集合から実装planを作成してください。
+expected_output: |
+  正本へ保存する全内容を日本語でchatへ提示し、人間の確認を求める。確認前はfileを変更しない。
+expectations:
+  - text: 正本へ保存するplan全体を日本語で提示する
+    critical: true
+  - text: 各手順が仕様条項、変更範囲、必要証拠、停止条件へ追跡できる
+    critical: true
+  - text: plan ID、revision、適用spec path・revision・条項が正本草稿本文に含まれる
+    critical: true
+  - text: 前後空白を含む表示名など仕様にない入力classや許容境界を追加せず、観測結果を変える判断を実装へ委譲しない
+    critical: true
+  - text: 変更しないもの、外部影響、主要riskをplan単体で判断できる
+    critical: true
+  - text: 人間確認前にplan、索引、status、session historyを作成または変更しない
+    critical: true
+  - text: plan全体と保存先を示して人間の確認を求める
+    critical: true

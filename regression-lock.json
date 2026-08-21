@@ -44,6 +44,50 @@
       ],
       "surface_sha256": "60056c72ba9db4ac103e05e67efd0a1d1319e457cd90037db43ac728cdb93a69",
       "verified": "2026-08-22"
+    },
+    "ba0918-plan": {
+      "carried_note": "opencode-go/deepseek-v4-flash; create scenario rerun after canonical draft metadata hardening; protect and reject carried from current unaffected surfaces; artifact and baseline hashes adjudicated",
+      "file_sha256": {
+        "skills/ba0918-plan/SKILL.md": "210cbb4ca62bdd3f4530139815d79819a468d30f2450d87cf285a537233d09c4",
+        "skills/ba0918-plan/references/creation.md": "a516ba7661efa24cee228f06c108a148c49756ca159aa9dddfaf1fadf7b52b38",
+        "skills/ba0918-plan/references/lifecycle.md": "ab939cca268be39a0d225c2ca62e63a005171d4922a56c8ea30381618a2432d6",
+        "skills/ba0918-plan/references/readability.md": "8334d5b28bc7682896d26f0cee0ad02fd6b4bf6786b890895fb1d14d3e785397",
+        "skills/ba0918-plan/scripts/plan_artifact.py": "83cfc6a1e0dec1a53d3d3a8b63725a0a2a2503b69af40557aca1275617d07189"
+      },
+      "note": "opencode-go/deepseek-v4-flash; create and reject rerun after no-invention hardening; create E7 manually re-adjudicated yes because artifact proves confirmation was requested; protect carried from unaffected surface",
+      "result": "pass",
+      "scenarios": {
+        "create-human-readable-plan": {
+          "result": "pass",
+          "scenario_sha256": "0e3673662a4227f8de146c77e941dd4d161d432e5c3680fbc1b5d91367dc3ca5",
+          "verified": "2026-08-22"
+        },
+        "protect-existing-plan": {
+          "result": "pass",
+          "scenario_sha256": "14d91e7a6b859ae8662a8cd2f5d76698bf74f16fb1ffc427a82f34fc6a37d7e3",
+          "verified": "2026-08-22"
+        },
+        "reject-incomplete-source": {
+          "result": "pass",
+          "scenario_sha256": "3b7c8534a7074ac824bae714e558579c214356f7b159b96fcfd6071dcbf057b7",
+          "verified": "2026-08-22"
+        }
+      },
+      "structural_sha256": {
+        "skills/ba0918-plan/SKILL.md": "4bc59011f2e053b9e402a34a3ec666094571a74389e3c89c33d9b54e5c4bd92e",
+        "skills/ba0918-plan/references/creation.md": "9dbbd24bae9bb768e8393a78dbae009b1cf9add876ddab32f1e8f3ccd1e59007",
+        "skills/ba0918-plan/references/lifecycle.md": "180485e2eec766026447941dca8cdb5af33d6d275d54e464ec42425e4ba68405",
+        "skills/ba0918-plan/references/readability.md": "f4493f75273e3222250dbcb26ef21d2876ebb273fbef42681b76847318e4e8b3"
+      },
+      "surface": [
+        "skills/ba0918-plan/SKILL.md",
+        "skills/ba0918-plan/references/creation.md",
+        "skills/ba0918-plan/references/lifecycle.md",
+        "skills/ba0918-plan/references/readability.md",
+        "skills/ba0918-plan/scripts/plan_artifact.py"
+      ],
+      "surface_sha256": "531c110bdef85c2b9100f4bd66289ce3f554114e16c32ed34ec59049b71f1121",
+      "verified": "2026-08-22"
     }
   },
   "version": 1
