@@ -1,0 +1,6 @@
+{
+  "dependencies": {},
+  "devDependencies": {
+    "@ba0918-dev/agentic-skill-vendor": "^0.2.0"
+  }
+}
