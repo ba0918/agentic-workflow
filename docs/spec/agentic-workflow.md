@@ -1,223 +1,295 @@
 # Agentic Workflow
 
-## Purpose
+## 目的
 
-`WF-001` This project MUST provide a domain-independent workflow that turns an idea into an implemented and reviewed change without allowing an agent to invent missing product meaning.
+`WF-001` このプロジェクトは、agentが不足している製品上の意味を勝手に補わず、アイデアを実装・review済みの変更へ変換する、domain非依存のworkflowを提供しなければならない。
 
-`WF-002` The workflow MUST optimize for mechanically verifiable correctness before token efficiency. A cheaper configuration MUST NOT be accepted when representative fixtures show worse completion quality, serious-omission detection, or gate integrity.
+`WF-002` workflowは、token効率より先に機械検証可能な正しさを最適化しなければならない。代表fixtureで完了品質、重大な漏れの検出、またはgateの完全性が悪化する安価な構成を採用してはならない。
 
-`WF-003` The primary workflow MUST be:
+`WF-003` 主workflowは次でなければならない。
 
-`brainstorm -> spec -> verification and RED -> plan -> implement -> GREEN -> review -> done`
+`brainstorm -> spec -> verification contract -> plan -> RED -> implement -> GREEN -> review -> done`
 
-## Scope
+`WF-004` 複数の独立した利用者価値、複数の実装フェーズ、または先行結果へ依存する後続判断を含む依頼を、一つの実装planへ直接変換してはならない。
 
-`WF-010` The core MUST own phase transitions, common artifact states, missing-specification escalation, stopping and resumption, invalidation, human gates, review control, and domain-extension boundaries.
+`WF-005` 広い依頼では、brainstormが全体を独立した利用者価値ごとのフェーズへ分け、人間へ全体構成と最初に詳細化する一フェーズを提示しなければならない。
 
-`WF-011` UI mockups, pixel comparison, browser execution, accessibility policy, and UX rubrics MUST remain outside the core workflow.
+`WF-006` 人間がフェーズ構成と最初の一フェーズを承認するまで、詳細spec、plan、実装へ進んではならない。
 
-`WF-012` A domain-specific workflow MAY connect through the extension contract without changing core workflow logic.
+`WF-007` 後続フェーズは、先行フェーズの完了、実測、人間確認なしに自動開始してはならない。
 
-## Authority
+## 対象範囲
 
-`WF-020` Brainstorm MUST be the only phase allowed to settle missing product meaning.
+`WF-010` workflowの共通責務には、工程遷移、意味状態、仕様不足の差し戻し、停止と再開、失効、人間gate、review制御、拡張境界が含まれる。この「共通責務」は、共有runtime、package、plugin全体、または特定言語の実装を意味しない。
 
-`WF-021` Outside brainstorm, an agent MAY identify a missing decision and explain its consequences, but MUST NOT select a value by inference.
+`WF-011` UI mockup、pixel比較、browser実行、accessibility policy、UX rubricは共通workflowの対象外でなければならない。
 
-`WF-022` Silence, lack of objection, and an agent's own proposal MUST NOT grant implementation authority.
+`WF-012` domain固有workflowは、共通workflowのlogicを変更せず、拡張契約を通じて接続してよい。
 
-`WF-023` An undecided item and a delegated implementation choice MUST remain distinct states.
+## 権限
 
-`WF-024` After human approval, the specification MUST become the sole source of implementation truth. Brainstorm state MUST become frozen provenance rather than a second source of authority.
+`WF-020` 不足している製品上の意味を確定できる工程はbrainstormだけでなければならない。
 
-`WF-025` Tests, plans, implementation evidence, reviews, and approvals MUST identify the specification revision and clauses they support.
+`WF-021` brainstorm以外のagentは不足判断とその影響を説明してよいが、推測で値を選んではならない。
+
+`WF-022` 沈黙、異議がないこと、agent自身の提案は実装権限を与えない。
+
+`WF-023` 未決定事項と、実装へ明示的に委任した選択を別の状態として保持しなければならない。
+
+`WF-024` 人間の承認後、その変更へ適用される承認済み仕様文書と条項の集合だけを実装上の正本とする。brainstorm progressを第二の正本として使用してはならない。
+
+`WF-025` test、plan、実装証拠、review、承認は、対応する仕様revisionと条項を識別しなければならない。
 
 ## Brainstorm
 
-`WF-030` Brainstorm MUST derive design obligations from the requirements and MUST inspect at least state, persistence, ownership, concurrency, transactions, authentication, authorization, external systems, failure behavior, migration, security, operations, recovery, release, and irreducible human judgment when relevant.
+`WF-030` brainstormは要求から設計上の義務を導き、該当する場合は少なくとも状態、永続化、所有権、同時実行、transaction、authentication、authorization、外部system、失敗時動作、migration、security、運用、復旧、release、人間にしか判断できない事項を調べなければならない。
 
-`WF-031` The completeness check MUST expose missing decisions and MUST NOT fill them.
+`WF-031` 完全性確認は不足判断を明示しなければならず、勝手に補ってはならない。
 
-`WF-032` Brainstorm MUST NOT seek convergence through a sequence of narrow Yes/No questions.
+`WF-032` 狭いYes/No質問の連続によって、見かけ上の収束を作ってはならない。
 
-`WF-033` Before authority moves to the specification, the human-facing confirmation MUST show representative scenarios, high-impact decisions, prohibitions, agent-added assumptions, rejected strong alternatives, residual risks, unresolved matters, delegated choices, downstream automation, and the boundary that requires renewed brainstorm.
+`WF-033` 正本specを承認する前に、代表scenario、高影響判断、禁止、agentが追加した仮定、有力だが却下した代案、残るrisk、未解決事項、委任事項、後続の自動処理、brainstormを再開すべき境界を人間へ提示しなければならない。
 
-`WF-034` Human confirmation MUST first invite correction of the largest mismatch and the most harmful missing scenario before asking the human to delegate the stated scope.
+`WF-034` 人間へ委任承認を求める前に、最大の認識違いと、最も有害な不足scenarioの訂正を促さなければならない。
 
-## Agreement State and Compaction
+`WF-035` 戦略brainstormは全体の目的、責務境界、フェーズ、依存関係、開始条件、完了条件をROADMAPへまとめ、直接実装planへ変換してはならない。
 
-`WF-040` Brainstorm MUST maintain an internal append-only semantic state. A turn MUST be classified as no semantic change, add, revise, retract, or resolve.
+`WF-036` 実装brainstormは、次に実行する一つの独立した利用者価値だけを詳細化しなければならない。
 
-`WF-041` A turn with no semantic change MUST NOT rewrite the stored state.
+`WF-037` brainstormは、対話、意味状態、フェーズ分割、適用される仕様集合、人間承認、plan readiness判定までを所有する。plan生成、ideaのarchive・drop、cycle開始は所有しない。
 
-`WF-042` The state MUST distinguish agreed, delegated, undecided, forbidden, rejected, and superseded meanings with stable identities and revisions.
+`WF-038` 必要なsource auditが完了していない場合、名前や概要だけから責務や移植先を決めてはならない。
 
-`WF-043` The latest checkpoint plus later semantic events MUST restore agreements, prohibitions, undecided matters, delegated authority, rejected alternatives, revision relationships, and the next unresolved topic after compaction or interruption.
+`WF-039` brainstorm中に製品code、plan、未承認の正本specまたはROADMAPを変更してはならない。そのbrainstorm自身のprogress保存と、読み取り専用調査だけを許可する。
 
-`WF-044` Restoration MUST reject duplicate identities, broken references, unresolved contradictions, missing prohibitions, stale generations, and content-identity mismatches.
+## 合意状態とcompact
 
-`WF-045` If required meaning cannot be restored, the workflow MUST reopen the affected matter and MUST NOT claim convergence.
+`WF-040` brainstormは追記型の意味状態を維持しなければならない。各turnを、意味変更なし、追加、改訂、撤回、解決のいずれかとして扱わなければならない。
 
-## Decision Evidence
+`WF-041` 意味が変わらないturnで保存状態を書き換えてはならない。
 
-`WF-050` A high-impact architecture or technology choice MUST record considered alternatives, the selection, selection and rejection reasons, evidence provenance, confidence, impact, and an observable reconsideration condition.
+`WF-042` 状態は、合意、委任、未決定、禁止、却下、置換済みの意味を、安定IDとrevisionで区別しなければならない。
 
-`WF-051` Decision evidence MUST support provenance and re-evaluation but MUST NOT become a second implementation source of truth.
+`WF-043` 最新checkpointとそれ以降の意味eventから、compactまたは中断後に、合意、禁止、未決定、委任権限、却下案、revision関係、次の未解決論点を復元できなければならない。
 
-`WF-052` The standalone agreement-ledger and decision-journal workflows MUST NOT be required. Their necessary state and evidence functions MUST be integrated into brainstorm.
+`WF-044` 復元時は、ID重複、壊れた参照、未解決の矛盾、禁止事項の欠落、古いgeneration、内容identityの不一致を拒否しなければならない。
 
-## Specification
+`WF-045` 必要な意味を復元できない場合、影響する論点をbrainstormへ戻し、収束済みと主張してはならない。
 
-`WF-060` Each normative specification clause MUST have a stable identity and revision.
+`WF-046` 意味状態が変わったturnの終了時に、sessionごとのprogressを耐久化しなければならない。
 
-`WF-061` The specification MUST distinguish selected behavior, allowed variation, forbidden behavior, unresolved behavior, and explicitly delegated implementation choices.
+`WF-047` progressは少なくとも、合意、禁止、未決定、委任、却下と理由、改訂関係、現在のフェーズ、次の論点を復元できなければならない。
 
-`WF-062` A blocking unresolved item MUST prevent downstream planning.
+`WF-048` 保存直前にrevisionが変化していた場合、更新を上書きまたは自動mergeしてはならない。競合する内容を人間へ提示して停止しなければならない。
 
-`WF-063` The specification MUST NOT silently turn a missing value into a default.
+`WF-049` ROADMAPまたは仕様集合への昇格と人間承認が成功した後、途中progressを削除しなければならない。wrapまたは承認が失敗した場合は、再開可能なprogressを保持しなければならない。
 
-## Verification and RED
+## 判断証拠
 
-`WF-070` Each specification clause MUST be assigned the strongest appropriate verification method: property-based test, example test, static analysis, type check, state or model check, measurement, visual comparison, or human judgment.
+`WF-050` 高影響のarchitectureまたは技術選択では、検討した代案、採用案、採否理由、証拠の出所、確信度、影響、観測可能な再検討条件を記録しなければならない。
 
-`WF-071` Property-based testing SHOULD be preferred only when it expresses the contract faithfully.
+`WF-051` 判断証拠は出所確認と再評価に使えるようにしなければならないが、第二の実装正本にしてはならない。
 
-`WF-072` A human-judgment criterion MUST remain visible and MUST block completion until its required human gate is recorded.
+`WF-052` 独立したagreement ledgerまたはdecision journal workflowを必須にしてはならない。必要な状態と証拠の責務をbrainstormへ統合しなければならない。
 
-`WF-073` A generated check SHOULD demonstrate defect-detection power through a mutation, counterexample, known violation, or equivalent evidence when practical.
+## 仕様
 
-`WF-074` RED MUST occur before implementation planning.
+`WF-060` 規範的な仕様条項は、安定したIDとrevisionを持たなければならない。
 
-`WF-075` RED evidence MUST reference an approved clause, fail before implementation, and fail for the expected unmet contract. An unrelated command failure MUST NOT count as RED.
+`WF-061` 仕様は、選択済み動作、許容する差異、禁止動作、未解決動作、実装へ明示的に委任した選択を区別しなければならない。
+
+`WF-062` blockingな未解決事項がある場合、後続planを作成してはならない。
+
+`WF-063` 不足値を暗黙のdefaultへ変換してはならない。
+
+`WF-064` 仕様文書とplanの一対一対応を要求してはならない。一つのplanが複数仕様文書を参照してよく、一つの仕様文書が複数planへ適用されてもよい。
+
+`WF-065` workflowは仕様のfile構成を一律に固定してはならない。既存のproject契約または人間の合意がない場合、AIが追記先や新規file構成を決めてはならない。
+
+`WF-066` 正本spec、正本plan、ROADMAPの規範的説明は現在の利用者の言語で記述しなければならない。安定ID、状態名、schema fieldなどの機械識別子には英語を使用してよい。
+
+`WF-067` 利用者が読めない言語の正本に対する翻訳要約だけの承認を、正本の承認として扱ってはならない。
+
+`WF-068` agentが実行時に読むskill本体と内部referenceは、token効率のため英語で記述してよい。これは利用者が承認する規範的成果物の言語要件を変更しない。
+
+## 検証とRED
+
+`WF-070` 各仕様条項について、そのprojectの言語、既存toolchain、riskに適した検証方法を選ばなければならない。最も重い方法ではなく、対象の失敗を十分に検出できる最小の方法を選ばなければならない。候補にはproperty-based test、example test、静的解析、type check、状態またはmodel検査、測定、visual比較、人間判断を含む。
+
+`WF-071` property-based testは、既存環境で契約を忠実に表せ、example testより有意な欠陥検出力を持つ場合だけ採用してよい。導入自体を目的にしてはならない。
+
+`WF-072` 人間判断の条件は見える状態を保ち、必要な人間gateが記録されるまで完了を止めなければならない。
+
+`WF-073` plan前には、条項ごとの観測可能な成功条件、反例または既知の失敗、検証方法、人間gateを確定しなければならない。実行可能な検査の実装までは要求しない。
+
+`WF-074` 実行可能なREDはproduction実装前に確認しなければならない。実装plan作成前であることは要求しない。
+
+`WF-075` RED証拠は承認済み条項を参照し、未実装の期待契約を理由として失敗しなければならない。無関係なcommand失敗や検証基盤の設定失敗をREDとして扱ってはならない。
 
 ## Plan
 
-`WF-080` The canonical plan MUST be a machine-readable execution graph.
+`WF-080` 正本planは、追跡、依存判定、停止、再開に必要な最小限の実行構造を持たなければならない。実測上の必要性なしに汎用graph、共有runtime、独自schemaを要求してはならない。
 
-`WF-081` Each plan node MUST identify its specification clauses, verification contracts, decision dependencies, predecessor nodes, expected artifacts, write scope, required evidence, and delegated authority.
+`WF-081` 各plan項目は、対応する仕様条項、検証契約、判断依存、先行項目、期待成果物、書き込み範囲、必要証拠、委任権限を識別しなければならない。
 
-`WF-082` The human-facing plan MUST be a short change forecast that shows expected changes, expected non-changes, external effects, major risks, and completion evidence.
+`WF-082` 正本planは利用者の言語で、変更するもの、変更しないもの、外部影響、主要risk、完了証拠を直接確認できるようにしなければならない。
 
-`WF-083` The plan MUST NOT become a second requirements proposal.
+`WF-083` planは第二の要件提案またはarchitecture設計工程になってはならない。未合意の設計が必要になった場合はbrainstormへ戻さなければならない。
 
-## Implementation and GREEN
+`WF-084` brainstormはplanへ渡す前に、少なくとも次を確認しなければならない。
 
-`WF-090` GREEN MUST require fresh evidence for every applicable contract against the approved specification revision.
+- 一つの実行・検証可能な変更単位である
+- 対象と対象外が明示されている
+- 適用される承認済み仕様条項を特定できる
+- blockingな未決定事項がない
+- 配布、実行、状態、寿命、外部I/Oが決定済みか非該当である
+- 必要なsource auditが完了している
+- 完了oracleと必要な人間gateがある
+- planが新しい製品設計を補う必要がない
+- 一回の実装、検証、reviewで終わる根拠がある
 
-`WF-091` GREEN MUST be rejected when the specification or a generated check was weakened without renewed approval, affected checks were omitted, required human evidence is absent, or evidence belongs to an older revision.
+`WF-085` readinessを満たさない場合、planを大きくしてはならない。不足した意味はbrainstormへ戻し、広すぎる範囲は複数フェーズへ分けなければならない。
 
-`WF-092` Dependency-specific representations and behavior MUST remain inside their declared architecture boundary.
+## 実装とGREEN
 
-`WF-093` Replacing an infrastructure adapter MAY preserve domain evidence only when static dependency checks, shared contract tests, behavioral contracts, and operational contracts prove isolation.
+`WF-090` GREENには、承認済み仕様revisionに対する全該当契約の新しい証拠を要求しなければならない。
 
-`WF-094` Unexpectedly broad impact from a supposedly isolated change MUST be treated as an architecture failure.
+`WF-091` 仕様または生成検査が再承認なしに弱められた、影響する検査が省略された、必要な人間証拠がない、または証拠が古いrevisionに属する場合、GREENを拒否しなければならない。
 
-## Specification Gaps and Invalidation
+`WF-092` 依存固有の表現と動作は、宣言したarchitecture境界内に閉じ込めなければならない。
 
-`WF-100` A downstream phase MAY report a specification gap but MUST return the missing meaning to brainstorm.
+`WF-093` infrastructure adapterの置換時にdomain証拠を維持してよいのは、静的依存検査、共有contract test、動作契約、運用契約が分離を証明する場合だけである。
 
-`WF-101` Unrelated work MAY continue only when code, behavioral, and operational dependencies prove independence from the gap. Without proof, the workflow MUST stop fully.
+`WF-094` 分離されているはずの変更が予想外に広い影響を持つ場合、architecture失敗として扱わなければならない。
 
-`WF-102` Foundational gaps, including persistence, authentication, authorization, data ownership, public interfaces, and transaction behavior, MUST default to a full stop unless independence is demonstrated.
+## 仕様不足と失効
 
-`WF-103` A stopped workflow MUST record the missing decision, affected clauses and graph nodes, preserved evidence, stale evidence, and exact resume point.
+`WF-100` 後続工程は仕様不足を報告してよいが、不足した意味をbrainstormへ戻さなければならない。
 
-`WF-104` An approved specification revision MUST mark every dependent check, plan node, implementation result, review, and approval stale.
+`WF-101` 無関係な作業を継続してよいのは、code、動作、運用上の依存関係が仕様不足から独立していることを証明する場合だけである。証明がなければ全体を停止しなければならない。
+
+`WF-102` 永続化、authentication、authorization、data ownership、公開interface、transaction動作などの基礎的不足は、独立性が証明されない限り全体停止としなければならない。
+
+`WF-103` 停止時は、不足判断、影響する条項とplan項目、維持する証拠、古くなる証拠、正確な再開地点を記録しなければならない。
+
+`WF-104` 承認済み仕様のrevisionは、依存する検査、plan項目、実装結果、review、承認を失効させなければならない。
 
 ## Review
 
-`WF-110` The first review MUST create findings with stable identities, severity, required action, affected clauses, evidence, state, and resolution or supersession evidence.
+`WF-110` 初回reviewは、安定ID、severity、必要action、影響条項、証拠、状態、解決または置換証拠を持つfindingを作らなければならない。
 
-`WF-111` Finding severity and required action MUST be separate fields. Supported actions MUST include automatic fix, fix and verify, human judgment, and record only.
+`WF-111` findingのseverityと必要actionを別fieldにしなければならない。actionは少なくとも、自動修正、修正と検証、人間判断、記録のみを表せなければならない。
 
-`WF-112` Actionable BLOCK and WARN findings MUST remain open until fixed, explicitly ruled on by a human, or superseded by an approved specification revision. INFO findings SHOULD be recorded without creating a fix loop.
+`WF-112` 対応可能なBLOCKとWARNは、修正、人間の明示判断、または承認済み仕様revisionによる置換までopenでなければならない。INFOはfix loopを作らず記録すべきである。
 
-`WF-113` Related findings SHOULD be fixed by shared root cause in one batch.
+`WF-113` 関連findingは、共通の根本原因ごとにまとめて修正すべきである。
 
-`WF-114` Later review MUST focus on unresolved findings, the relevant fix diff, affected evidence, and new risk introduced by the fixes. It MUST NOT repeat every specialist review by default.
+`WF-114` 後続reviewは、未解決finding、関連する修正diff、影響する証拠、修正が追加した新riskに限定しなければならない。既定で全専門reviewを反復してはならない。
 
-`WF-115` A full review MAY run again only when the change invalidates earlier review assumptions or coverage.
+`WF-115` 変更が以前のreview前提またはcoverageを失効させた場合だけ、全体reviewを再実行してよい。
 
-## Independent and Mandatory Review
+## 独立reviewerと必須review
 
-`WF-120` An optional independent reviewer MUST run only when the current command carries an explicit option or the human explicitly requests it in the current interaction.
+`WF-120` 任意の独立reviewerは、現在のcommandに明示optionがある場合、または現在の対話で人間が明示的に要求した場合だけ起動しなければならない。
 
-`WF-121` The grant MUST apply only to the current command, permit at most one invocation, permit no automatic retry or duplicate, and MUST NOT carry into another command or phase.
+`WF-121` 許可は現在のcommandだけに適用し、最大一回とし、自動再試行または重複起動を許さず、別commandまたは工程へ持ち越してはならない。
 
-`WF-122` The workflow MUST NOT depend on an agent being able to inspect remaining model quota.
+`WF-122` workflowは、agentが残りmodel quotaを確認できることへ依存してはならない。
 
-`WF-123` If an explicitly required reviewer is unavailable, the workflow MUST pause for human direction rather than continue silently.
+`WF-123` 明示的に必須とされたreviewerが利用不能な場合、黙って続行せず、人間の判断を待って停止しなければならない。
 
-`WF-124` Mandatory security and release reviews MUST remain separate from optional second opinions. An unavailable mandatory review MUST leave the workflow incomplete and resumable at that gate.
+`WF-124` 必須security・release reviewを、任意のsecond opinionと分離しなければならない。必須reviewが利用不能な場合、そのgateで未完了かつ再開可能な状態を残さなければならない。
 
-## Human-Facing Language and Approval
+## 利用者向け言語と承認
 
-`WF-130` Machine-facing artifacts MUST use English stable identifiers, states, dependencies, and evidence references.
+`WF-130` 機械処理に必要な安定ID、状態、依存関係、証拠参照は英語を使用してよい。
 
-`WF-131` Human-facing views MUST use the current user's language and plain words.
+`WF-131` 人間向けの規範文書と表示は、現在の利用者の言語と平易な表現を使用しなければならない。
 
-`WF-132` The human-readable writing contract MUST be owned by `agentic-rules`, distributed through `agentic-skill-vendor`, and consumed without locally editing the vendored source.
+`WF-132` 人間向け文章契約は`agentic-rules`が所有し、`agentic-skill-vendor`を通じて配布し、vendor化されたsourceをlocal編集せず利用しなければならない。
 
-`WF-133` The workflow MUST prove that every required clause is represented in the human-facing approval view and that every displayed item maps back to its source clauses.
+`WF-133` 人間の承認対象は、利用者の言語で記述された正本specそのものでなければならない。
 
-`WF-134` The human MUST approve the meaning shown in the human-facing view, not claim to have read a machine-facing language they cannot understand.
+`WF-134` 読みやすい確認表示を補助として使ってよいが、その表示だけへの承認を、別内容または別言語の正本specへの承認として扱ってはならない。
 
-`WF-135` Approval evidence MUST identify the specification revision and approval-view revision. A meaning-changing update MUST invalidate approval for the affected clauses.
+`WF-135` 承認証拠は、承認対象となった仕様集合のrevisionと条項を識別しなければならない。意味を変更した場合、影響する承認を失効させなければならない。
 
-`WF-136` Unnecessary internal names, paths, and states MUST be omitted from the normal human view. An unavoidable technical term MUST be explained through a concrete consequence.
+`WF-136` 通常の人間向け表示から、不要な内部名、path、状態を除かなければならない。避けられない技術用語は具体的な影響で説明しなければならない。
 
-## Extension Contract
+## 拡張契約
 
-`WF-140` A domain extension MAY register artifact types and validators, verification methods, common-format evidence, domain-specific human gates, invalidation dependencies, an extension version, and content identity.
+`WF-140` domain拡張は、artifact typeとvalidator、検証方法、共通形式の証拠、domain固有の人間gate、失効依存、拡張version、内容identityを登録してよい。
 
-`WF-141` A minimal non-UI fixture MUST demonstrate extension without changing core workflow logic.
+`WF-141` 最小の非UI fixtureで、共通workflow logicを変更せず拡張できることを示さなければならない。
 
-## Migration
+## 移行
 
-`WF-150` Migration MUST implement the optimized workflow directly. The legacy workflow MUST be used only as requirements, incident evidence, fixed fixtures, and comparison evidence.
+`WF-150` 移行では改善後のworkflowを直接実装しなければならない。旧workflowは要求、事故証拠、固定fixture、比較証拠としてだけ使用しなければならない。
 
-`WF-151` Full compatibility with legacy command names, arguments, artifacts, and in-progress runs MUST NOT be a goal.
+`WF-151` 旧command名、引数、artifact、進行中runとの完全互換を目標にしてはならない。
 
-`WF-152` A legacy artifact MAY be converted only when its meaning is unambiguous and the conversion is validated. An ambiguous artifact MUST be rejected or returned for human re-adjudication.
+`WF-152` 旧artifactを変換してよいのは、意味が一意で変換を検証できる場合だけである。曖昧なartifactは拒否するか、人間の再判断へ戻さなければならない。
 
-## Failure and Recovery
+`WF-153` 旧idea memoを新しい意味状態へ自動変換してはならない。必要な内容は新しいbrainstormで再度合意しなければならない。
 
-`WF-160` An unavailable required human, reviewer, provider, piece of evidence, valid artifact, or concurrency resolution MUST produce an incomplete resumable state rather than success.
+## 失敗と復旧
 
-`WF-161` Failure evidence MUST identify what completed, what remains valid, what became stale, and the exact resume point.
+`WF-160` 必須の人間、reviewer、provider、証拠、有効なartifact、競合解決が利用不能な場合、成功ではなく未完了かつ再開可能な状態を作らなければならない。
 
-## Cost and Quality Evaluation
+`WF-161` 失敗証拠は、完了したもの、有効なままのもの、古くなったもの、正確な再開地点を識別しなければならない。
 
-`WF-170` Optimization MUST begin with fixed representative fixtures and MUST measure successful completion, known serious-omission detection, model input, review invocation count, repeated context volume, and omission-driven rework.
+## 費用と品質の評価
 
-`WF-171` Initial numeric limits MAY be selected during implementation from measured fixtures, but MUST NOT weaken the semantic contracts in this specification.
+`WF-170` 最適化は固定した代表fixtureから始め、完了率、既知の重大な漏れの検出、model入力、reviewer起動回数、再読context量、漏れによる手戻りを測定しなければならない。
 
-`WF-172` Caching, context isolation, narrow tool results, and targeted rereading MAY be adopted only when measurements show that required quality is preserved.
+`WF-171` 初期数値上限は、測定したfixtureから実装時に選んでよいが、この仕様の意味契約を弱めてはならない。
 
-## Required Regression Scenarios
+`WF-172` caching、context isolation、狭いtool結果、対象限定再読は、必要品質を維持する測定結果がある場合だけ採用してよい。
 
-`WF-180` The regression suite MUST stop an agent that attempts to choose JSON file persistence while persistence remains undecided.
+`WF-173` 評価単位は一応答のtoken量ではなく、必須品質を満たして完了したtask一件あたりの総費用でなければならない。
 
-`WF-181` The regression suite MUST preserve prohibitions and undecided matters across context compaction.
+`WF-174` 一度の効率化実験では一つの施策だけを変更し、複数回の実行で比較しなければならない。重大な漏れまたはgate迂回を再発させる施策を採用してはならない。
 
-`WF-182` The regression suite MUST prove that no independent reviewer starts without current explicit authority.
+## 必須回帰scenario
 
-`WF-183` The regression suite MUST prove that a local specification gap stops only work whose independence is demonstrated.
+`WF-180` 永続化が未決定の状態でJSON fileを選ぼうとするagentを停止しなければならない。
 
-`WF-184` The regression suite MUST distinguish an isolated database-adapter replacement from a change that leaks storage semantics into domain behavior.
+`WF-181` context compact後も禁止事項と未決定事項を保持しなければならない。
 
-`WF-185` The regression suite MUST make affected GREEN evidence and approvals stale after a specification revision.
+`WF-182` 現在の明示権限なしに独立reviewerが起動しないことを証明しなければならない。
 
-`WF-186` The regression suite MUST preserve unresolved review findings while targeting re-review.
+`WF-183` 局所的な仕様不足では、独立性を証明した作業だけが継続することを証明しなければならない。
 
-`WF-187` The regression suite MUST leave an unavailable mandatory gate incomplete and resumable.
+`WF-184` 分離されたdatabase adapter置換と、storageの意味がdomain動作へ漏れた変更を区別しなければならない。
 
-`WF-188` The regression suite MUST reject ambiguous legacy conversion.
+`WF-185` 仕様revision後、影響するGREEN証拠と承認を古い状態にしなければならない。
 
-`WF-189` The regression suite MUST integrate a domain extension without modifying the core state machine.
+`WF-186` 未解決review findingを保持したまま、対象限定の再reviewを行わなければならない。
 
-## Completion
+`WF-187` 必須gateが利用不能な場合、未完了かつ再開可能な状態を残さなければならない。
 
-`WF-190` The workflow MUST reach done only when every blocking clause has current evidence, no actionable review finding remains unresolved, every required human and policy gate is recorded, and no required artifact or approval is stale.
+`WF-188` 曖昧な旧artifact変換を拒否しなければならない。
 
-`WF-191` The final human-facing summary MUST state what changed, what was verified, and which non-blocking concerns remain.
+`WF-189` 共通workflowの状態遷移を変更せず、domain拡張を統合しなければならない。
+
+`WF-200` 広い依頼を一つのplanへ変換せず、フェーズ分割と最初の一フェーズを提示することを証明しなければならない。
+
+`WF-201` compact後に、合意、禁止、未決定、委任、却下、改訂関係、次の論点を復元しなければならない。
+
+`WF-202` 同時更新を上書きせず、競合として停止することを証明しなければならない。
+
+`WF-203` wrap成功時にprogressを除去し、失敗時に保持することを証明しなければならない。
+
+`WF-204` 利用可能かつ人間が許可した実process backendごとに同じscenarioを実行し、結果をbackend別の独立した証拠として記録しなければならない。利用不能なbackendを現在phaseの完了条件にしてはならない。
+
+`WF-207` 初回の実測は、利用者が指定した低コストの`opencode --auto` backend一つに限定しなければならない。Claudeは利用可能になるまで保留し、Codexを実測に使う場合は`gpt-5.6-luna`を明示しなければならず、既定modelまたは`gpt-5.6-sol`で実行してはならない。
+
+`WF-205` 利用者が日本語の場合、正本spec、正本plan、ROADMAPの規範的説明が日本語で生成されることを証明しなければならない。
+
+`WF-206` 旧idea memoを新形式へ自動変換せず、合意済み状態としてplanへ渡さないことを証明しなければならない。
+
+## 完了
+
+`WF-190` 全blocking条項へ現在有効な証拠があり、対応可能なreview findingが未解決でなく、必須の人間・policy gateが記録され、必須artifactまたは承認が古くない場合だけdoneへ進まなければならない。
+
+`WF-191` 最終的な人間向けsummaryは、変更内容、検証内容、残る非blocking事項を示さなければならない。

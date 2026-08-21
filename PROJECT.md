@@ -20,8 +20,11 @@ The languages, frameworks and services in use, and where the significant directo
 
 ## Conventions specific to this project
 
-Only what differs from the general rules referenced in `AGENTS.md`. If a convention would apply
-to any project, it does not belong here.
+- Write LLM-facing instructions in English. This includes `AGENTS.md`, `PROJECT.md`, `SKILL.md`,
+  and internal files under a skill's `references/` directory.
+- Write human-facing artifacts in Japanese. This includes specifications, plans, roadmaps,
+  decisions, reviews, and guides. Stable IDs, schema fields, code identifiers, and quoted external
+  interfaces may remain in English.
 
 ## Constraints
 
