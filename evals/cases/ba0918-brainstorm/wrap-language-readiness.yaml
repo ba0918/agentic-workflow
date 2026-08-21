@@ -1,0 +1,35 @@
+skill: ba0918-brainstorm
+id: wrap-language-readiness
+title: 利用者言語のwrapとplan readiness
+source: plan:20260821214236
+executor_tier: standard
+isolation: worktree
+files:
+  - wrap-language-readiness.md
+git:
+  init: true
+  commit: true
+  message: fixture baseline
+exercises:
+  - skills/ba0918-brainstorm/SKILL.md
+  - skills/ba0918-brainstorm/references/wrap-readiness.md
+  - skills/ba0918-brainstorm/references/state.md
+prompt: |
+  wrap-language-readiness.mdの依頼を処理し、wrapまたは継続の判断を返してください。
+expected_output: |
+  利用者の言語とspec集合の自由度を守り、readiness不足を示してplan生成を止め、progressを保持する応答。
+expectations:
+  - text: 規範的なspecまたはROADMAPを現在の利用者の言語で提示する
+    critical: true
+  - text: plan readiness不足時はplanを作らず不足項目を返す
+    critical: true
+  - text: 人間の承認後だけ正本へ反映する
+    critical: true
+  - text: 承認済みwrap成功時だけprogressを除去し失敗時は保持する
+    critical: true
+  - text: specとplanを一対一に固定しない
+    critical: false
+  - text: 現在の明示許可なしにsecond reviewerを起動しない
+    critical: false
+  - text: 承認前のdraftはchat応答だけで提示し、draft fileを作成・変更しない
+    critical: true

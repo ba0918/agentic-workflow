@@ -1,0 +1,49 @@
+{
+  "coverage_exempt": {},
+  "skills": {
+    "ba0918-brainstorm": {
+      "file_sha256": {
+        "skills/ba0918-brainstorm/SKILL.md": "e3df33e31fb479312332f2f375433619cfc2bca760287a0ff2b6f0107f5383e3",
+        "skills/ba0918-brainstorm/references/session.md": "9938cc27a86302f1aaa1856172674ddc56c5347b7dc73b7f96525ff048f109c7",
+        "skills/ba0918-brainstorm/references/state.md": "fe737493b24459022ebef5d412ab90335e09b1b1affa1540679b382b51382fb9",
+        "skills/ba0918-brainstorm/references/wrap-readiness.md": "1699b9009c55d5478e26a3c69f4d116a9025698f8a7c8b7ef9edc1d92450052b",
+        "skills/ba0918-brainstorm/scripts/state.py": "061597484c0a42a1230c03496b94ead93b51d1b0ee3b30f18221e4cd68f060ea"
+      },
+      "note": "opencode-go/deepseek-v4-flash process route; median, recovery/conflict, and wrap/readiness passed with worktree evidence",
+      "result": "pass",
+      "scenarios": {
+        "broad-request-decomposition": {
+          "result": "pass",
+          "scenario_sha256": "7a1f5c4eb7f135bd7d462da97fa5a2796d3e835d2590bcded65aaba0a8d2166e",
+          "verified": "2026-08-21"
+        },
+        "recovery-and-conflict": {
+          "result": "pass",
+          "scenario_sha256": "0d0c0926adc696aebe5f2b849ad8a097cc35dd9b30c135678b9f651595819df9",
+          "verified": "2026-08-21"
+        },
+        "wrap-language-readiness": {
+          "result": "pass",
+          "scenario_sha256": "292d9b468cb382ae30942a3b63022e602c5016ebf37807ed85553403f3b8e74e",
+          "verified": "2026-08-21"
+        }
+      },
+      "structural_sha256": {
+        "skills/ba0918-brainstorm/SKILL.md": "706d3b2da1ad279d09206f16673cecdc0f0ccfb8328c73f98edb808a3eed32f2",
+        "skills/ba0918-brainstorm/references/session.md": "5a6151d4faa50531348365a1f0e771699ddc20446c02d04fbaff1f75ebbde9a1",
+        "skills/ba0918-brainstorm/references/state.md": "6d792721e096b2f0d09ddded11932b10d832ee39f599ff08779328e0f3c79b08",
+        "skills/ba0918-brainstorm/references/wrap-readiness.md": "24d3e75e81600b9be0f8db85de828531130088b41c93f9a42c21ab7ed5e9daa9"
+      },
+      "surface": [
+        "skills/ba0918-brainstorm/SKILL.md",
+        "skills/ba0918-brainstorm/references/session.md",
+        "skills/ba0918-brainstorm/references/state.md",
+        "skills/ba0918-brainstorm/references/wrap-readiness.md",
+        "skills/ba0918-brainstorm/scripts/state.py"
+      ],
+      "surface_sha256": "3ee3c493535045c2dd796b04c104bcc3c1fb90eecb20f2ab281a74ae5030d0ca",
+      "verified": "2026-08-21"
+    }
+  },
+  "version": 1
+}

@@ -1,0 +1,28 @@
+skill: ba0918-brainstorm
+id: broad-request-decomposition
+title: 広い依頼を最初の承認対象phaseへ絞る
+source: plan:20260821214236+finding:20260821223954
+executor_tier: standard
+isolation: worktree
+files:
+  - broad-request.md
+git:
+  init: true
+  commit: true
+  message: fixture baseline
+exercises:
+  - skills/ba0918-brainstorm/SKILL.md
+  - skills/ba0918-brainstorm/references/session.md
+prompt: |
+  broad-request.mdの依頼をbrainstormの最初のturnとして扱ってください。
+expected_output: |
+  広い依頼を独立した利用者価値のphaseへ分け、全体構成と最初に詳細化する一phaseを提示して承認を求める応答。
+expectations:
+  - text: 広い依頼を独立した利用者価値を持つ複数phaseへ分ける
+    critical: true
+  - text: 最初に詳細化する一phaseについて人間の承認を求める
+    critical: true
+  - text: 全scopeを一つのplanへ変換しない
+    critical: true
+  - text: 最初のturnではfileを一切作成・変更せず、利用者への応答をchatへ返す
+    critical: true
