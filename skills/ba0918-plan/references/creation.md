@@ -69,33 +69,46 @@ same approved observable behavior. Do not introduce a new input class, acceptanc
 error case, tolerance, or verification example that the approved specification and verification
 contract do not decide. Return such a choice to brainstorm instead of placing it in the plan.
 
-Keep the draft only in the conversation until the human confirms it. Before confirmation, do
-not create or modify any file for the draft—not a canonical plan, scratch file, hidden file,
-index, status, or session history. A non-canonical filename does not make a pre-confirmation
-write acceptable.
+Before confirmation, do not create or modify a canonical plan, the open-plan index, a status
+file, or a session history. The only file the draft may touch is its own temporary copy below.
 
-Present the complete draft in chat. A summary is not the approval target. Compute and present a
-SHA-256 content identity over the exact UTF-8 draft bytes without writing a canonical plan or
-open-plan entry. Send the bytes directly from the conversation-held draft to
-`python3 skills/ba0918-plan/scripts/plan_artifact.py identity` on standard input; do not stage
-them in a file first.
+Save the draft bytes, unchanged and without any header or front matter marking them as a draft,
+with:
+
+```text
+python3 skills/ba0918-plan/scripts/plan_artifact.py draft \
+  --repo <repo> --plan-id <plan-id> --revision <n> --slug <lowercase-slug> < draft.md
+```
+
+It writes `.agents/tmp/plans/<plan-id>_<slug>_r<n>_draft.md` atomically and prints the path and
+the SHA-256 content identity of exactly those bytes. When a draft with that name already exists
+(for example after a resumed session), pass `--replace-identity <identity-of-the-existing-file>`;
+the helper refuses to overwrite a draft whose identity was not named.
+
+Present in chat only: the draft path, its content identity, the canonical destination, and the
+points the human should judge. Do not copy the draft text into chat, and do not offer a summary
+as the approval target; the human reads the file with their own viewer.
 
 ## Human gate and publication
 
-Ask whether the displayed draft and destination may become canonical. Silence and a request to
-continue discussing are not confirmation.
+Ask whether the draft at that path, with that identity, may become canonical at the stated
+destination. Silence and a request to continue discussing are not confirmation. When the human
+wants a change, revise the draft in dialogue and save a new draft; never ask them to edit the
+file.
 
 After explicit confirmation:
 
-1. Only now, write the exact confirmed bytes to a temporary file under `.agents/tmp/`.
-2. Determine whether an open plan is already current and whether the worktree is dirty.
-3. If another plan is current, load [lifecycle.md](lifecycle.md) and obtain the required switch
+1. Determine whether an open plan is already current and whether the worktree is dirty.
+2. If another plan is current, load [lifecycle.md](lifecycle.md) and obtain the required switch
    decision before publication.
-4. Run `python3 skills/ba0918-plan/scripts/plan_artifact.py publish` with the approved identity
-   and the observed switch inputs.
-5. Read the canonical file and locator back, and confirm that the canonical identity is the
-   approved identity.
-6. Remove the temporary file only after successful verification.
+3. Run `python3 skills/ba0918-plan/scripts/plan_artifact.py publish` with `--source` set to the
+   draft path, `--approved-identity` set to the presented identity, and the observed switch
+   inputs. The helper moves the draft to the canonical path only when the file still has the
+   presented identity, reads the canonical file back, and registers it only when that read-back
+   matches. A draft the human edited after presentation fails the identity check and stays in
+   place for the dialogue to continue.
+4. Read the canonical file and locator back, and confirm that the canonical identity is the
+   approved identity and that the draft path no longer exists.
 
 If publication or verification fails, report the exact stage and leave no success claim.
 

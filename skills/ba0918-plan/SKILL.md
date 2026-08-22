@@ -19,8 +19,9 @@ and the later runner will use.
 
 ## Boundary
 
-- Own plan-readiness rechecking, draft composition, human confirmation, canonical publication,
-  plan revisions that do not change product meaning, and open-plan registration.
+- Own plan-readiness rechecking, draft composition, the temporary draft file the human reads,
+  human confirmation bound to its content identity, canonical publication, plan revisions that
+  do not change product meaning, and open-plan registration.
 - Do not infer a specification by scanning content. The caller or human names the approved
   specification set and its revisions.
 - Do not decide missing product meaning or architecture. Return those gaps to brainstorm.
@@ -31,6 +32,6 @@ and the later runner will use.
 
 ## Completion
 
-Complete only after the human confirms the full canonical draft, the published bytes match the
-confirmed content identity, and the plan is registered without silently replacing another
-current plan. Publication does not authorize implementation.
+Complete only after the human confirms the draft file by its content identity, the published
+bytes match that identity, the draft file is gone, and the plan is registered without silently
+replacing another current plan. Publication does not authorize implementation.
