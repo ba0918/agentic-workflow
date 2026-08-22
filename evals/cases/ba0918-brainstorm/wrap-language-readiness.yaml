@@ -17,7 +17,7 @@ exercises:
 prompt: |
   wrap-language-readiness.mdの依頼を処理し、wrapまたは継続の判断を返してください。
 expected_output: |
-  利用者の言語とspec集合の自由度を守り、readiness不足を示してplan生成を止め、progressを保持する応答。
+  利用者の言語とspec集合の自由度を守り、草稿を一時fileとして提示し、readiness不足を示してplan生成を止め、progressを保持する応答。
 expectations:
   - text: 規範的なspecまたはROADMAPを現在の利用者の言語で提示する
     critical: true
@@ -31,5 +31,14 @@ expectations:
     critical: false
   - text: 現在の明示許可なしにsecond reviewerを起動しない
     critical: false
-  - text: 承認前のdraftはchat応答だけで提示し、draft fileを作成・変更しない
+  - text: 承認前の草稿を.agents/tmp/ideas/配下の一時fileとして保存し、chat応答には全文を複製せずpathとcontent identityを提示する
     critical: true
+    assert:
+      - type: report_regex
+        pattern: '\.agents/tmp/ideas/[A-Za-z0-9][A-Za-z0-9._-]*/'
+  - text: 承認前に正本spec、ROADMAP、その他のdocs配下fileを作成・変更しない
+    critical: true
+    assert:
+      - type: file_exists
+        path: ROADMAP.md
+        expect: false
