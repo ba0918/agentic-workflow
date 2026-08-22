@@ -1,4 +1,6 @@
 import importlib.util
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -696,6 +698,143 @@ class CommitBoundaryTest(unittest.TestCase):
             self.assertEqual(result.error.code, "write_scope_violation")
             self.assertEqual(git(attempt.worktree, "diff", "--cached", "--name-only"), "")
 
+
+class CommandLineTest(unittest.TestCase):
+    def call_main(self, arguments: list[str]) -> tuple[int, dict]:
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            exit_code = cycle_runtime.main(arguments)
+        return exit_code, json.loads(output.getvalue())
+
+    def test_attempt_id_generation_is_path_safe_and_injectable(self) -> None:
+        attempt_id = cycle_runtime.generate_attempt_id(
+            now=lambda: "20260822t160000",
+            random_suffix=lambda: "a1b2c3d4",
+        )
+
+        self.assertEqual(attempt_id, "20260822t160000-a1b2c3d4")
+        self.assertIsNotNone(cycle_runtime.execution_model.ATTEMPT_ID.fullmatch(attempt_id))
+
+    def test_resolve_command_prints_metadata_without_plan_body(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, plan_id, _ = create_repository(Path(directory))
+            output = io.StringIO()
+
+            with contextlib.redirect_stdout(output):
+                exit_code = cycle_runtime.main(["resolve", "--repo", str(root)])
+
+            payload = json.loads(output.getvalue())
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(payload["plan_id"], plan_id)
+            self.assertNotIn("text", payload)
+
+    def test_failure_command_returns_structured_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".git").write_text("gitdir: /definitely/missing\n", encoding="utf-8")
+            output = io.StringIO()
+
+            with contextlib.redirect_stdout(output):
+                exit_code = cycle_runtime.main(["resolve", "--repo", str(root)])
+
+            payload = json.loads(output.getvalue())
+            self.assertEqual(exit_code, 2)
+            self.assertEqual(payload["state"], "not_started")
+            self.assertEqual(payload["reason"], "plan_registration_missing")
+
+    def test_cli_routes_a_complete_attempt_without_a_result_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root, _, _ = create_repository(parent)
+            worktree = parent / "cli-worktree"
+
+            bootstrap_code, bootstrap = self.call_main(
+                [
+                    "bootstrap",
+                    "--repo",
+                    str(root),
+                    "--worktree",
+                    str(worktree),
+                    "--executor",
+                    "codex",
+                ]
+            )
+            self.assertEqual(bootstrap_code, 0, bootstrap)
+            oracle = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "exists=Path('src/greeting.py').is_file(); "
+                        "print('green' if exists else 'greeting missing'); "
+                        "sys.exit(0 if exists else 1)"
+                    ),
+                ]
+            )
+            oracle_path = root / ".agents/tmp/oracle.json"
+            oracle_path.write_text(json.dumps(oracle), encoding="utf-8")
+            self.assertEqual(
+                self.call_main(
+                    ["accept-red", "--repo", str(root), "--oracle", str(oracle_path)]
+                )[0],
+                0,
+            )
+            production = worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            for phase in ("green", "refactor"):
+                self.assertEqual(
+                    self.call_main(
+                        [
+                            "run-oracle",
+                            "--repo",
+                            str(root),
+                            "--step",
+                            "step-1",
+                            "--phase",
+                            phase,
+                        ]
+                    )[0],
+                    0,
+                )
+            self.assertEqual(
+                self.call_main(
+                    [
+                        "stage",
+                        "--repo",
+                        str(root),
+                        "--step",
+                        "step-1",
+                        "--path",
+                        "src/greeting.py",
+                    ]
+                )[0],
+                0,
+            )
+            previous_head = git(worktree, "rev-parse", "HEAD")
+            git(worktree, "commit", "-m", "feat: add greeting")
+            self.assertEqual(
+                self.call_main(
+                    [
+                        "record-commit",
+                        "--repo",
+                        str(root),
+                        "--step",
+                        "step-1",
+                        "--previous-head",
+                        previous_head,
+                    ]
+                )[0],
+                0,
+            )
+            self.assertEqual(self.call_main(["implementation-green", "--repo", str(root)])[0], 0)
+
+            result_code, result = self.call_main(["result", "--repo", str(root)])
+
+            self.assertEqual(result_code, 0)
+            self.assertEqual(result["state"], "implementation_green")
+            self.assertFalse((Path(bootstrap["evidence_path"]) / "result.json").exists())
 
 if __name__ == "__main__":
     unittest.main()

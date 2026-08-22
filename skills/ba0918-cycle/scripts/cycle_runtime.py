@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import argparse
+from datetime import datetime, timezone
 import errno
 import importlib.util
 import json
@@ -995,3 +997,204 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
     if not commits:
         return _failure("commit_missing", "implementation green requires at least one commit")
     return append_event(attempt, "implementation_green", {"commits": commits})
+
+
+def generate_attempt_id(
+    *,
+    now: Callable[[], str] | None = None,
+    random_suffix: Callable[[], str] | None = None,
+) -> str:
+    timestamp = (
+        now()
+        if now is not None
+        else datetime.now(timezone.utc).strftime("%Y%m%dt%H%M%S")
+    )
+    suffix = random_suffix() if random_suffix is not None else secrets.token_hex(4)
+    return f"{timestamp}-{suffix}"
+
+
+def _attempt_payload(attempt: Attempt) -> dict[str, Any]:
+    return {
+        "attempt_id": attempt.attempt_id,
+        "plan_id": attempt.plan_id,
+        "branch": attempt.branch,
+        "worktree": str(attempt.worktree),
+        "binding_path": str(attempt.binding_path),
+        "evidence_path": str(attempt.evidence_path),
+    }
+
+
+def _print_failure(result: RuntimeResult, *, state: str) -> int:
+    payload = {
+        "state": state,
+        "reason": result.error.code,
+        "message": result.error.message,
+    }
+    if result.error.detail:
+        payload["detail"] = result.error.detail
+    print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    return 2
+
+
+def _load_for_command(repo: Path) -> RuntimeResult:
+    return load_current_attempt(repo)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Bind and verify one normal Cycle execution")
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    resolve = commands.add_parser("resolve", help="resolve and validate a registered plan")
+    resolve.add_argument("--repo", required=True)
+    resolve.add_argument("--plan-path")
+    resolve.add_argument("--receipt-path")
+    resolve.add_argument("--receipt-identity")
+
+    bootstrap = commands.add_parser("bootstrap", help="claim a repository and create a worktree")
+    bootstrap.add_argument("--repo", required=True)
+    bootstrap.add_argument("--plan-path")
+    bootstrap.add_argument("--receipt-path")
+    bootstrap.add_argument("--receipt-identity")
+    bootstrap.add_argument("--worktree", required=True)
+    bootstrap.add_argument("--executor", required=True)
+    bootstrap.add_argument("--backend", default="unavailable")
+    bootstrap.add_argument("--session-id", default="unavailable")
+
+    load = commands.add_parser("load", help="reconstruct the current attempt")
+    load.add_argument("--repo", required=True)
+
+    context = commands.add_parser("context", help="revalidate the current execution boundary")
+    context.add_argument("--repo", required=True)
+    context.add_argument("--step", required=True)
+
+    red = commands.add_parser("accept-red", help="run and freeze an expected RED oracle")
+    red.add_argument("--repo", required=True)
+    red.add_argument("--oracle", required=True)
+
+    run = commands.add_parser("run-oracle", help="run the frozen GREEN or REFACTOR oracle")
+    run.add_argument("--repo", required=True)
+    run.add_argument("--step", required=True)
+    run.add_argument("--phase", choices=("green", "refactor"), required=True)
+
+    stage = commands.add_parser("stage", help="stage approved files individually")
+    stage.add_argument("--repo", required=True)
+    stage.add_argument("--step", required=True)
+    stage.add_argument("--path", action="append", required=True)
+
+    record = commands.add_parser("record-commit", help="verify and record an existing commit")
+    record.add_argument("--repo", required=True)
+    record.add_argument("--step", required=True)
+    record.add_argument("--previous-head", required=True)
+
+    stop = commands.add_parser("stop", help="record a blocking stop")
+    stop.add_argument("--repo", required=True)
+    stop.add_argument("--step", required=True)
+    stop.add_argument("--reason", required=True)
+
+    green = commands.add_parser(
+        "implementation-green",
+        help="record the Phase 3 terminal event",
+    )
+    green.add_argument("--repo", required=True)
+
+    result = commands.add_parser("result", help="derive the current result from events")
+    result.add_argument("--repo", required=True)
+
+    args = parser.parse_args(argv)
+    repo = Path(args.repo)
+    if args.command in {"resolve", "bootstrap"}:
+        receipt = None
+        if args.receipt_path is not None or args.receipt_identity is not None:
+            if args.receipt_path is None or args.receipt_identity is None:
+                incomplete = _failure(
+                    "publication_receipt_invalid",
+                    "receipt path and identity must be supplied together",
+                )
+                return _print_failure(incomplete, state="not_started")
+            receipt = {
+                "path": args.receipt_path,
+                "content_identity": args.receipt_identity,
+            }
+        resolved = resolve_plan(repo, explicit_path=args.plan_path, receipt=receipt)
+        if not resolved.ok:
+            return _print_failure(resolved, state="not_started")
+        if args.command == "resolve":
+            print(
+                json.dumps(
+                    {
+                        "plan_id": resolved.value.plan_id,
+                        "path": resolved.value.path,
+                        "revision": resolved.value.revision,
+                        "content_identity": resolved.value.content_identity,
+                        "specs": [
+                            {"path": path, "content_identity": identity}
+                            for path, identity in resolved.value.specs
+                        ],
+                        "write_scope": list(resolved.value.write_scope),
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
+            return 0
+        executor = {
+            "executor": args.executor,
+            "backend": args.backend,
+            "session_id": args.session_id,
+        }
+        if args.backend == "unavailable" or args.session_id == "unavailable":
+            executor["reason"] = "not exposed safely"
+        bootstrapped = bootstrap_attempt(
+            repo,
+            resolved.value,
+            worktree_path=Path(args.worktree),
+            attempt_id_factory=generate_attempt_id,
+            executor=executor,
+        )
+        if not bootstrapped.ok:
+            return _print_failure(bootstrapped, state="not_started")
+        payload = _attempt_payload(bootstrapped.value)
+        payload["state"] = "stopped"
+        payload["reason"] = "terminal_event_missing"
+        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return 0
+
+    loaded = _load_for_command(repo)
+    if not loaded.ok:
+        return _print_failure(loaded, state="not_started")
+    attempt = loaded.value
+    if args.command == "load":
+        print(json.dumps(_attempt_payload(attempt), ensure_ascii=False, sort_keys=True))
+        return 0
+    if args.command == "context":
+        operation = validate_context(attempt, step_id=args.step)
+    elif args.command == "accept-red":
+        oracle_path = Path(args.oracle)
+        oracle_result = _read_json(oracle_path)
+        operation = oracle_result if not oracle_result.ok else accept_red(attempt, oracle_result.value)
+    elif args.command == "run-oracle":
+        operation = run_frozen_oracle(attempt, args.step, args.phase)
+    elif args.command == "stage":
+        operation = stage_paths(attempt, args.path, step_id=args.step)
+    elif args.command == "record-commit":
+        operation = record_commit(attempt, args.step, args.previous_head)
+    elif args.command == "stop":
+        operation = append_event(
+            attempt,
+            "stopped",
+            {"reason": args.reason, "step_id": args.step},
+        )
+    elif args.command == "implementation-green":
+        operation = mark_implementation_green(attempt)
+    else:
+        print(json.dumps(derive_attempt_result(attempt), ensure_ascii=False, sort_keys=True))
+        return 0
+
+    if not operation.ok:
+        return _print_failure(operation, state="stopped")
+    print(json.dumps(operation.value, ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
