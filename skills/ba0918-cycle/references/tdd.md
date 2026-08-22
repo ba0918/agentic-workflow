@@ -106,7 +106,9 @@ several concerns; a test and the minimal implementation that satisfies it are on
 share a commit.
 
 1. Record `git rev-parse HEAD` as `previous_head`.
-2. Ask the helper to validate and stage every intended file individually:
+2. Ask the helper to validate and stage every intended file, naming all of them in one
+   invocation; it compares the whole staged set against the paths given, so a second call
+   for a further file is reported as `stage_scope_mismatch`:
 
 ```text
 python3 <cycle-runtime> stage \
