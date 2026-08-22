@@ -97,36 +97,36 @@
       "verified": "2026-08-23"
     },
     "ba0918-plan": {
-      "carried_note": "opencode-go/deepseek-v4-flash; create and reject rerun after no-invention hardening; create E7 manually re-adjudicated yes because artifact proves confirmation was requested; protect carried from unaffected surface",
+      "carried_note": "Plan consumer interface追加後にprotect-existing-planを実process再実行し、既存plan・locator・dirty tree無変更をhash確認",
       "file_sha256": {
         "skills/ba0918-plan/SKILL.md": "210cbb4ca62bdd3f4530139815d79819a468d30f2450d87cf285a537233d09c4",
-        "skills/ba0918-plan/references/creation.md": "a516ba7661efa24cee228f06c108a148c49756ca159aa9dddfaf1fadf7b52b38",
+        "skills/ba0918-plan/references/creation.md": "f41b09194a2e7ddc487862a1757ad07c2c755d3a177b103bd7a2065142ba32e3",
         "skills/ba0918-plan/references/lifecycle.md": "ab939cca268be39a0d225c2ca62e63a005171d4922a56c8ea30381618a2432d6",
         "skills/ba0918-plan/references/readability.md": "8334d5b28bc7682896d26f0cee0ad02fd6b4bf6786b890895fb1d14d3e785397",
-        "skills/ba0918-plan/scripts/plan_artifact.py": "4fb858bca5e276000c0f4a416f36ae2b164a5500ab5295e6dfd7c0df5d3a63dd"
+        "skills/ba0918-plan/scripts/plan_artifact.py": "92c5d1d536c323e18a962b7a40f50339db2fc2a088746be905f029eba57aa18b"
       },
-      "note": "Plan consumer interface追加後にprotect-existing-planを実process再実行し、既存plan・locator・dirty tree無変更をhash確認",
+      "note": "opencode-go/deepseek-v4-flash process route; three scenarios rerun after the human-gate declaration was added to creation.md and plan_artifact.py; no canonical plan, locator, status, or session history written in any run",
       "result": "pass",
       "scenarios": {
         "create-human-readable-plan": {
           "result": "pass",
           "scenario_sha256": "0e3673662a4227f8de146c77e941dd4d161d432e5c3680fbc1b5d91367dc3ca5",
-          "verified": "2026-08-22"
+          "verified": "2026-08-23"
         },
         "protect-existing-plan": {
           "result": "pass",
           "scenario_sha256": "14d91e7a6b859ae8662a8cd2f5d76698bf74f16fb1ffc427a82f34fc6a37d7e3",
-          "verified": "2026-08-22"
+          "verified": "2026-08-23"
         },
         "reject-incomplete-source": {
           "result": "pass",
           "scenario_sha256": "3b7c8534a7074ac824bae714e558579c214356f7b159b96fcfd6071dcbf057b7",
-          "verified": "2026-08-22"
+          "verified": "2026-08-23"
         }
       },
       "structural_sha256": {
         "skills/ba0918-plan/SKILL.md": "4bc59011f2e053b9e402a34a3ec666094571a74389e3c89c33d9b54e5c4bd92e",
-        "skills/ba0918-plan/references/creation.md": "9dbbd24bae9bb768e8393a78dbae009b1cf9add876ddab32f1e8f3ccd1e59007",
+        "skills/ba0918-plan/references/creation.md": "4a2515357fecfeff0215b9b636d96db1f8ec6eba8093f573fb5d133bbc57e293",
         "skills/ba0918-plan/references/lifecycle.md": "180485e2eec766026447941dca8cdb5af33d6d275d54e464ec42425e4ba68405",
         "skills/ba0918-plan/references/readability.md": "f4493f75273e3222250dbcb26ef21d2876ebb273fbef42681b76847318e4e8b3"
       },
@@ -137,8 +137,8 @@
         "skills/ba0918-plan/references/readability.md",
         "skills/ba0918-plan/scripts/plan_artifact.py"
       ],
-      "surface_sha256": "4b75e356e0167612ff2f5c51e4a03c2f039c7d31387c64d1c79b1a628568fd2e",
-      "verified": "2026-08-22"
+      "surface_sha256": "1a51bc1ba0e51efbec10869257474864a3a7f9801534079b8d9c9ed5e5f84c78",
+      "verified": "2026-08-23"
     }
   },
   "version": 1
