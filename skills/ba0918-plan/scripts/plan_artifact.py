@@ -16,8 +16,12 @@ from typing import NamedTuple
 
 PLAN_ID = re.compile(r"[0-9]{14}")
 IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")
+GATE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+CLAUSE_ID = re.compile(r"[A-Z][A-Z0-9]*-[0-9]{3}")
 PLAN_STORE = PurePosixPath(".agents/artifacts/plans")
 INDEX_NAME = "open-plans.json"
+HUMAN_GATE_TIMINGS = {"before_edit", "before_commit", "before_implementation_green"}
+HUMAN_GATE_RESULTS = ("approved", "rejected")
 
 
 class PlanArtifactError(Exception):
@@ -52,6 +56,10 @@ class RegisteredPlanMismatch(PlanArtifactError):
     """A registered plan no longer matches its locator entry."""
 
 
+class InvalidHumanGateDeclaration(PlanArtifactError):
+    """A plan step contains a malformed human-gate declaration."""
+
+
 class RegisteredPlan(NamedTuple):
     plan_id: str
     path: str
@@ -61,8 +69,135 @@ class RegisteredPlan(NamedTuple):
     text: str
 
 
+class HumanGateTarget(NamedTuple):
+    kind: str
+    paths: tuple[str, ...]
+    content_identity: str | None
+
+
+class HumanGateDeclaration(NamedTuple):
+    gate_id: str
+    step_id: str
+    clauses: tuple[str, ...]
+    criterion: str
+    target: HumanGateTarget
+    timing: str
+    allowed_results: tuple[str, ...]
+
+
 def content_identity(text: str) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _step_clauses(step_text: str) -> set[str]:
+    line = re.search(r"^\*\*対応仕様:\*\*(.*)$", step_text, re.MULTILINE)
+    if line is None:
+        return set()
+    clauses = set(CLAUSE_ID.findall(line.group(1)))
+    for item in re.finditer(
+        r"`([A-Z][A-Z0-9]*)-([0-9]{3})`〜`\1-([0-9]{3})`",
+        line.group(1),
+    ):
+        prefix, first, last = item.groups()
+        clauses.update(f"{prefix}-{number:03d}" for number in range(int(first), int(last) + 1))
+    return clauses
+
+
+def _human_gate_target(value: object) -> HumanGateTarget:
+    if not isinstance(value, dict) or value.get("kind") not in {"files", "event"}:
+        raise InvalidHumanGateDeclaration("human gate target kind is invalid")
+    if value["kind"] == "files":
+        if set(value) != {"kind", "paths"}:
+            raise InvalidHumanGateDeclaration("human gate target has unknown or missing fields")
+        paths = value["paths"]
+        if not isinstance(paths, list) or not paths or len(paths) != len(set(paths)):
+            raise InvalidHumanGateDeclaration("human gate file paths must be a non-empty unique list")
+        for path in paths:
+            if not isinstance(path, str):
+                raise InvalidHumanGateDeclaration("human gate file path must be a string")
+            candidate = PurePosixPath(path)
+            if candidate.is_absolute() or not candidate.parts or ".." in candidate.parts:
+                raise InvalidHumanGateDeclaration("human gate file path must be repository-relative")
+        return HumanGateTarget(kind="files", paths=tuple(paths), content_identity=None)
+
+    if set(value) != {"kind", "content_identity"}:
+        raise InvalidHumanGateDeclaration("human gate target has unknown or missing fields")
+    identity = value["content_identity"]
+    if not isinstance(identity, str) or IDENTITY.fullmatch(identity) is None:
+        raise InvalidHumanGateDeclaration("human gate event identity must be immutable")
+    return HumanGateTarget(kind="event", paths=(), content_identity=identity)
+
+
+def read_plan_human_gates(text: str) -> tuple[HumanGateDeclaration, ...]:
+    step_matches = list(re.finditer(r"^### ([1-9][0-9]*)\.[^\n]*$", text, re.MULTILINE))
+    declarations: list[HumanGateDeclaration] = []
+    gate_ids: set[str] = set()
+    for position, step_match in enumerate(step_matches):
+        end = step_matches[position + 1].start() if position + 1 < len(step_matches) else len(text)
+        step_text = text[step_match.end() : end]
+        block = re.search(
+            r"^\*\*Human gates:\*\*\s*\n+```json\n(.*?)\n```",
+            step_text,
+            re.MULTILINE | re.DOTALL,
+        )
+        if block is None:
+            continue
+        try:
+            value = json.loads(block.group(1))
+        except json.JSONDecodeError as error:
+            raise InvalidHumanGateDeclaration("human gate declaration is not valid JSON") from error
+        if not isinstance(value, dict) or set(value) != {"version", "gates"}:
+            raise InvalidHumanGateDeclaration("human gate declaration has unknown or missing fields")
+        if value["version"] != 1 or not isinstance(value["gates"], list) or not value["gates"]:
+            raise InvalidHumanGateDeclaration("human gate declaration has an invalid version or gates")
+
+        step_id = f"step-{step_match.group(1)}"
+        step_clauses = _step_clauses(step_text)
+        for gate in value["gates"]:
+            if not isinstance(gate, dict) or set(gate) != {
+                "gate_id",
+                "clauses",
+                "criterion",
+                "target",
+                "timing",
+                "allowed_results",
+            }:
+                raise InvalidHumanGateDeclaration("human gate has unknown or missing fields")
+            gate_id = gate["gate_id"]
+            if (
+                not isinstance(gate_id, str)
+                or GATE_ID.fullmatch(gate_id) is None
+                or gate_id in gate_ids
+            ):
+                raise InvalidHumanGateDeclaration("human gate ids must be unique safe identifiers")
+            clauses = gate["clauses"]
+            if (
+                not isinstance(clauses, list)
+                or not clauses
+                or len(clauses) != len(set(clauses))
+                or any(not isinstance(clause, str) or clause not in step_clauses for clause in clauses)
+            ):
+                raise InvalidHumanGateDeclaration("human gate clauses must belong to the plan step")
+            criterion = gate["criterion"]
+            if not isinstance(criterion, str) or not criterion.strip() or len(criterion) > 500:
+                raise InvalidHumanGateDeclaration("human gate criterion must be bounded text")
+            if gate["timing"] not in HUMAN_GATE_TIMINGS:
+                raise InvalidHumanGateDeclaration("human gate timing is invalid")
+            if gate["allowed_results"] != list(HUMAN_GATE_RESULTS):
+                raise InvalidHumanGateDeclaration("human gate results are invalid")
+            gate_ids.add(gate_id)
+            declarations.append(
+                HumanGateDeclaration(
+                    gate_id=gate_id,
+                    step_id=step_id,
+                    clauses=tuple(clauses),
+                    criterion=criterion,
+                    target=_human_gate_target(gate["target"]),
+                    timing=gate["timing"],
+                    allowed_results=tuple(gate["allowed_results"]),
+                )
+            )
+    return tuple(declarations)
 
 
 def _plan_path(project_root: Path, relative_path: str, plan_id: str) -> Path:

@@ -27,6 +27,35 @@ PLAN_TEXT = """# 小さな変更のplan
 """
 
 
+PLAN_WITH_HUMAN_GATE = PLAN_TEXT + r"""
+## 実装手順
+
+### 1. 配備前に対象を確認する
+
+**対応仕様:** `CY-096`
+**Human gates:**
+
+```json
+{
+  "version": 1,
+  "gates": [
+    {
+      "gate_id": "approve-deployment-input",
+      "clauses": ["CY-096"],
+      "criterion": "対象fileが承認済みの内容である",
+      "target": {
+        "kind": "files",
+        "paths": ["config/deployment.json"]
+      },
+      "timing": "before_edit",
+      "allowed_results": ["approved", "rejected"]
+    }
+  ]
+}
+```
+"""
+
+
 class ContentIdentityTest(unittest.TestCase):
     def test_same_content_has_same_identity_and_changed_content_does_not(self) -> None:
         first = plan_artifact.content_identity(PLAN_TEXT)
@@ -46,6 +75,75 @@ class ContentIdentityTest(unittest.TestCase):
 
 
 class RegisteredPlanConsumerTest(unittest.TestCase):
+    def test_human_gate_declaration_is_returned_as_an_immutable_consumer_view(self) -> None:
+        gates = plan_artifact.read_plan_human_gates(PLAN_WITH_HUMAN_GATE)
+
+        self.assertEqual(len(gates), 1)
+        self.assertEqual(gates[0].gate_id, "approve-deployment-input")
+        self.assertEqual(gates[0].step_id, "step-1")
+        self.assertEqual(gates[0].clauses, ("CY-096",))
+        self.assertEqual(gates[0].target.kind, "files")
+        self.assertEqual(gates[0].target.paths, ("config/deployment.json",))
+        self.assertEqual(gates[0].timing, "before_edit")
+        self.assertEqual(gates[0].allowed_results, ("approved", "rejected"))
+
+    def test_human_gate_declaration_rejects_unknown_fields(self) -> None:
+        malformed = PLAN_WITH_HUMAN_GATE.replace(
+            '"allowed_results": ["approved", "rejected"]',
+            '"allowed_results": ["approved", "rejected"],\n      "extra": true',
+        )
+
+        with self.assertRaisesRegex(
+            plan_artifact.InvalidHumanGateDeclaration,
+            "unknown or missing fields",
+        ):
+            plan_artifact.read_plan_human_gates(malformed)
+
+    def test_human_gate_declaration_rejects_invalid_contract_values(self) -> None:
+        second_step = PLAN_WITH_HUMAN_GATE.split("### 1.", 1)[1]
+        duplicate_gate = (
+            PLAN_WITH_HUMAN_GATE
+            + "\n### 2. commit前に同じgateを確認する\n"
+            + second_step.split("\n", 1)[1].replace("CY-096", "CY-097")
+        )
+        invalid_plans = {
+            "clause outside step": PLAN_WITH_HUMAN_GATE.replace(
+                '"clauses": ["CY-096"]',
+                '"clauses": ["CY-999"]',
+            ),
+            "unsupported timing": PLAN_WITH_HUMAN_GATE.replace("before_edit", "during_edit"),
+            "unsupported results": PLAN_WITH_HUMAN_GATE.replace(
+                '["approved", "rejected"]',
+                '["approved"]',
+            ),
+            "absolute path": PLAN_WITH_HUMAN_GATE.replace(
+                "config/deployment.json",
+                "/etc/deployment.json",
+            ),
+            "traversal": PLAN_WITH_HUMAN_GATE.replace(
+                "config/deployment.json",
+                "config/../deployment.json",
+            ),
+            "duplicate gate id": duplicate_gate,
+        }
+
+        for case, malformed in invalid_plans.items():
+            with self.subTest(case=case):
+                with self.assertRaises(plan_artifact.InvalidHumanGateDeclaration):
+                    plan_artifact.read_plan_human_gates(malformed)
+
+    def test_human_gate_event_target_requires_an_immutable_content_identity(self) -> None:
+        event_plan = PLAN_WITH_HUMAN_GATE.replace(
+            '"kind": "files",\n        "paths": ["config/deployment.json"]',
+            '"kind": "event",\n        "content_identity": "sha256:' + "1" * 64 + '"',
+        )
+
+        gates = plan_artifact.read_plan_human_gates(event_plan)
+
+        self.assertEqual(gates[0].target.kind, "event")
+        self.assertEqual(gates[0].target.paths, ())
+        self.assertEqual(gates[0].target.content_identity, "sha256:" + "1" * 64)
+
     def test_current_registered_plan_is_returned_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
