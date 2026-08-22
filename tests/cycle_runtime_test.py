@@ -198,6 +198,27 @@ class PlanResolutionTest(unittest.TestCase):
                 ("src/greeting.py", "tests/greeting_test.py"),
             )
 
+    def test_a_temporary_plan_draft_is_never_resolved_as_the_current_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, _, _ = create_repository(Path(directory))
+            registered = cycle_runtime.resolve_plan(root)
+            self.assertTrue(registered.ok, registered.error)
+            draft = plan_artifact.save_draft(
+                root,
+                plan_id="20260822150001",
+                revision=1,
+                slug="unapproved",
+                text=registered.value.text.replace("20260822150000", "20260822150001"),
+            )
+
+            result = cycle_runtime.resolve_plan(
+                root, explicit_path=draft.path.relative_to(root).as_posix()
+            )
+
+            self.assertFalse(result.ok)
+            self.assertIn(result.error.code, {"plan_registration_missing", "unsafe_path"})
+            self.assertEqual(cycle_runtime.resolve_plan(root).value.plan_id, registered.value.plan_id)
+
     def test_explicit_unregistered_plan_is_rejected_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, _, _ = create_repository(Path(directory))
