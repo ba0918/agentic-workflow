@@ -10,6 +10,8 @@ Store human-readable progress at `.agents/artifacts/ideas/progress/{session-id}.
 
 Do not use one `current-session.md` as canonical state. Do not auto-convert legacy idea memos.
 
+Wrap drafts under `.agents/tmp/ideas/<session-id>/` are not progress: they are the future canonical bytes awaiting approval, and `scripts/draft.py` owns them.
+
 ## Save and conflict
 
 Use `scripts/state.py` to save atomically under the project-specific session path. Recheck the expected revision immediately before saving. On mismatch, preserve the current file and the candidate in a conflict file, report the conflict, and stop. Never overwrite or auto-merge. Do not rewrite bytes when meaning is unchanged.

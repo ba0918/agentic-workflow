@@ -2,48 +2,50 @@
   "coverage_exempt": {},
   "skills": {
     "ba0918-brainstorm": {
-      "carried_note": "opencode-go/deepseek-v4-flash process route; median, recovery/conflict, and wrap/readiness passed with worktree evidence",
+      "carried_note": "opencode-go/deepseek-v4-flash; all three scenarios rerun after final contract hardening; zero baseline drift",
       "file_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "62b0e73042d872a218f027aafa24e8893e0b215951fc08dc8c14e01255cf4740",
+        "skills/ba0918-brainstorm/SKILL.md": "c4a163973e3a4d843972766ba2fa0af95ea9d5883a278ab7f799b72091c7f1ce",
         "skills/ba0918-brainstorm/references/session.md": "7c922cb520b5c8aeb987c3eb7b035f424f4b2de8bac22f2cfbf7f8598821197e",
-        "skills/ba0918-brainstorm/references/state.md": "92e6ee9fe11c12361eef9eeaf08873206bd70a005c6580f51765883c13b398c2",
-        "skills/ba0918-brainstorm/references/wrap-readiness.md": "762651a9da85a09c1cae3273e375f309602703d4cdf651d47eefb07739daf9e7",
+        "skills/ba0918-brainstorm/references/state.md": "49685df778c92353fc8ed5199b8b7270e5d4236092b24b9f0f7eee80c066e6ab",
+        "skills/ba0918-brainstorm/references/wrap-readiness.md": "b07d73cf0d2a386bf1dec3c83d8e7bbb44d6e3328f772173c68f99189f7e3c0c",
+        "skills/ba0918-brainstorm/scripts/draft.py": "d727686750f73c2e769142e26373ef6b94b9b3eb10b6f14db040516389a10bd1",
         "skills/ba0918-brainstorm/scripts/state.py": "d19cd3df348c55584e31479ee90826617f7cf5c17b01b79edbb17494aaaf4a73"
       },
-      "note": "opencode-go/deepseek-v4-flash; all three scenarios rerun after final contract hardening; zero baseline drift",
+      "note": "opencode-go/deepseek-v4-flash process route; draft-file wrap (WF-039, WF-053-056): draft saved under .agents/tmp/ideas/<session>/ with manifest and matching identity, no canonical write before approval, progress retained on incomplete readiness",
       "result": "pass",
       "scenarios": {
         "broad-request-decomposition": {
           "result": "pass",
           "scenario_sha256": "7a1f5c4eb7f135bd7d462da97fa5a2796d3e835d2590bcded65aaba0a8d2166e",
-          "verified": "2026-08-22"
+          "verified": "2026-08-23"
         },
         "recovery-and-conflict": {
           "result": "pass",
           "scenario_sha256": "0d0c0926adc696aebe5f2b849ad8a097cc35dd9b30c135678b9f651595819df9",
-          "verified": "2026-08-22"
+          "verified": "2026-08-23"
         },
         "wrap-language-readiness": {
           "result": "pass",
-          "scenario_sha256": "292d9b468cb382ae30942a3b63022e602c5016ebf37807ed85553403f3b8e74e",
-          "verified": "2026-08-22"
+          "scenario_sha256": "3a42afdd6f3baa018a363a37f68ab7f61332b6c6baeb7a7322d8926bc5c3bebf",
+          "verified": "2026-08-23"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "3df92516d76739348f24307d0bd3955074149d7572fc80617f060762bf140ba5",
+        "skills/ba0918-brainstorm/SKILL.md": "4eb82f0aadf01aea1b909ddc26357779fc1c6d901e8901b8af1506737cccf3ce",
         "skills/ba0918-brainstorm/references/session.md": "5a6151d4faa50531348365a1f0e771699ddc20446c02d04fbaff1f75ebbde9a1",
-        "skills/ba0918-brainstorm/references/state.md": "b4b7be6157b05302192c85404d36381bdb0c88fd25c0ce30da6677ebe61a2934",
-        "skills/ba0918-brainstorm/references/wrap-readiness.md": "8b31b5b96615c5bb5693b02e2749aad74a3e15e568425200eeac62a101e3c57d"
+        "skills/ba0918-brainstorm/references/state.md": "9f11ac1adea8bf12e780cde3fc14ffd55f491e5364ecbed709fe3c21a7d6e274",
+        "skills/ba0918-brainstorm/references/wrap-readiness.md": "efa4bd02a3a9be42128fdd84f65a0aa1e2304f745afa3b439249549c7e3ca42c"
       },
       "surface": [
         "skills/ba0918-brainstorm/SKILL.md",
         "skills/ba0918-brainstorm/references/session.md",
         "skills/ba0918-brainstorm/references/state.md",
         "skills/ba0918-brainstorm/references/wrap-readiness.md",
+        "skills/ba0918-brainstorm/scripts/draft.py",
         "skills/ba0918-brainstorm/scripts/state.py"
       ],
-      "surface_sha256": "60056c72ba9db4ac103e05e67efd0a1d1319e457cd90037db43ac728cdb93a69",
-      "verified": "2026-08-22"
+      "surface_sha256": "4b7b67a8a86e003a31b0bfc9be490381bf8cee6b626773d15d4ebdb32d7571b1",
+      "verified": "2026-08-23"
     },
     "ba0918-cycle": {
       "carried_note": "opencode-go/deepseek-v4-flash実process; final surfaceでnormal、spec drift、unintended REDの全3 scenarioをartifact再判定してpass",
