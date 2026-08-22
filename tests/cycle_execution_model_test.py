@@ -95,6 +95,24 @@ def oracle() -> dict:
     }
 
 
+def command_event(event_type: str, test_summary: dict) -> dict:
+    return {
+        "version": 1,
+        "sequence": 1,
+        "event_type": event_type,
+        "attempt_id": binding()["attempt_id"],
+        "plan_identity": PLAN_IDENTITY,
+        "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+        "previous_identity": None,
+        "step_id": "step-1",
+        "oracle_identity": cycle_model.content_identity(oracle()),
+        "outcome": "passed",
+        "exit_code": 0,
+        "observation": "test command completed",
+        "test_summary": test_summary,
+    }
+
+
 class CanonicalIdentityTest(unittest.TestCase):
     def test_mapping_order_does_not_change_content_identity(self) -> None:
         first = {"b": 2, "a": {"d": 4, "c": 3}}
@@ -273,6 +291,64 @@ class WriteScopeTest(unittest.TestCase):
                 self.assertEqual(result.error.code, "write_scope_violation")
 
 
+class TestSummaryValidationTest(unittest.TestCase):
+    def test_command_events_accept_complete_or_unavailable_test_summary(self) -> None:
+        complete = cycle_model.seal_event(
+            command_event(
+                "green",
+                {"status": "complete", "passed": 7, "failed": 0, "skipped": 2},
+            )
+        )
+        unavailable = cycle_model.seal_event(
+            command_event(
+                "green",
+                {
+                    "status": "unavailable",
+                    "reason": "runner did not expose structured counts",
+                },
+            )
+        )
+
+        self.assertTrue(complete.ok, complete.error)
+        self.assertTrue(unavailable.ok, unavailable.error)
+
+    def test_test_summary_rejects_unknown_mixed_or_invented_counts(self) -> None:
+        invalid_summaries = {
+            "unknown status": {"status": "partial", "passed": 1, "failed": 0, "skipped": 0},
+            "missing skipped": {"status": "complete", "passed": 1, "failed": 0},
+            "negative count": {"status": "complete", "passed": 1, "failed": -1, "skipped": 0},
+            "boolean count": {"status": "complete", "passed": True, "failed": 0, "skipped": 0},
+            "invented unavailable counts": {
+                "status": "unavailable",
+                "reason": "runner did not expose structured counts",
+                "passed": 1,
+                "failed": 0,
+                "skipped": 0,
+            },
+            "empty reason": {"status": "unavailable", "reason": ""},
+            "unbounded reason": {"status": "unavailable", "reason": "x" * 501},
+        }
+
+        for case, summary in invalid_summaries.items():
+            with self.subTest(case=case):
+                result = cycle_model.seal_event(command_event("green", summary))
+                self.assertFalse(result.ok)
+                self.assertEqual(result.error.code, "test_summary_invalid")
+
+    def test_refactor_event_keeps_the_command_exit_code(self) -> None:
+        event = command_event(
+            "refactor",
+            {"status": "complete", "passed": 1, "failed": 0, "skipped": 0},
+        )
+        del event["exit_code"]
+
+        result = cycle_model.seal_event(event)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "event_field_missing")
+        self.assertEqual(result.error.field, "exit_code")
+
+
 class EventChainTest(unittest.TestCase):
     def test_events_form_an_immutable_hash_chain(self) -> None:
         first = cycle_model.seal_event(
@@ -302,6 +378,10 @@ class EventChainTest(unittest.TestCase):
                 "outcome": "expected_failure",
                 "exit_code": 1,
                 "observation": "1 failed",
+                "test_summary": {
+                    "status": "unavailable",
+                    "reason": "fixture has no structured runner output",
+                },
             },
             previous_event=first.value,
         )
@@ -387,6 +467,10 @@ class EventChainTest(unittest.TestCase):
                 "outcome": "expected_failure",
                 "exit_code": 1,
                 "observation": "missing behavior",
+                "test_summary": {
+                    "status": "unavailable",
+                    "reason": "fixture has no structured runner output",
+                },
             },
             previous_event=stopped,
         )
@@ -584,7 +668,12 @@ class ResultDerivationTest(unittest.TestCase):
                 "step_id": "step-1",
                 "oracle_identity": cycle_model.content_identity(oracle()),
                 "outcome": "no_change",
+                "exit_code": 0,
                 "observation": "no structural change needed",
+                "test_summary": {
+                    "status": "unavailable",
+                    "reason": "fixture has no structured runner output",
+                },
             }
             previous = cycle_model.seal_event(candidate, previous_event=previous).value
             events.append(previous)

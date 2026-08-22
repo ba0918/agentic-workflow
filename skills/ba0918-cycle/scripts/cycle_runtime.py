@@ -842,6 +842,45 @@ def _classify_process_failure(stdout: str, stderr: str) -> str:
     return "behavior_failure"
 
 
+def _test_summary(stdout: str, stderr: str) -> dict[str, Any]:
+    output = stdout + "\n" + stderr
+    totals = re.findall(r"^Ran ([0-9]+) tests? in [^\n]+$", output, re.MULTILINE)
+    failures = re.findall(r"^FAILED \(([^\n]+)\)$", output, re.MULTILINE)
+    successes = re.findall(r"^OK(?: \(skipped=([0-9]+)\))?$", output, re.MULTILINE)
+    if len(totals) == 1 and len(successes) == 1 and not failures:
+        total = int(totals[0])
+        skipped = int(successes[0] or 0)
+        if skipped <= total:
+            return {
+                "status": "complete",
+                "passed": total - skipped,
+                "failed": 0,
+                "skipped": skipped,
+            }
+    if len(totals) == 1 and len(failures) == 1:
+        values = {"failures": 0, "errors": 0, "skipped": 0}
+        for raw_item in failures[0].split(","):
+            match = re.fullmatch(r"\s*(failures|errors|skipped)=([0-9]+)\s*", raw_item)
+            if match is None:
+                break
+            values[match.group(1)] = int(match.group(2))
+        else:
+            total = int(totals[0])
+            failed = values["failures"] + values["errors"]
+            passed = total - failed - values["skipped"]
+            if passed >= 0:
+                return {
+                    "status": "complete",
+                    "passed": passed,
+                    "failed": failed,
+                    "skipped": values["skipped"],
+                }
+    return {
+        "status": "unavailable",
+        "reason": "runner did not expose one supported structured summary",
+    }
+
+
 def _oracle_cwd(attempt: Attempt, relative_path: str) -> RuntimeResult:
     if not execution_model.validate_relative_path(relative_path).ok:
         return _failure("unsafe_path", "oracle cwd is not a safe relative path")
@@ -885,6 +924,7 @@ def _execute_oracle(attempt: Attempt, oracle: dict) -> RuntimeResult:
         {
             "exit_code": completed.returncode,
             "observation": observation,
+            "test_summary": _test_summary(completed.stdout, completed.stderr),
             "failure_kind": (
                 "passed"
                 if completed.returncode == 0
@@ -1128,6 +1168,7 @@ def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
             "outcome": "expected_failure",
             "exit_code": observation["exit_code"],
             "observation": observation["observation"],
+            "test_summary": observation["test_summary"],
         },
     )
 
@@ -1186,11 +1227,9 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
             "step_id": step_id,
             "oracle_identity": execution_model.content_identity(oracle),
             "outcome": "passed",
-            **(
-                {"observation": executed.value["observation"], "exit_code": 0}
-                if phase == "green"
-                else {"observation": executed.value["observation"]}
-            ),
+            "exit_code": executed.value["exit_code"],
+            "test_summary": executed.value["test_summary"],
+            "observation": executed.value["observation"],
         },
     )
 

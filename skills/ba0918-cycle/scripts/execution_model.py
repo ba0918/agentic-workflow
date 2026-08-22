@@ -20,9 +20,16 @@ GENERIC_FAILURE_SIGNATURE = re.compile(
 )
 EVENT_TYPES = {
     "worktree-bound": {"outcome"},
-    "red": {"step_id", "oracle_identity", "outcome", "exit_code", "observation"},
-    "green": {"step_id", "oracle_identity", "outcome", "exit_code", "observation"},
-    "refactor": {"step_id", "oracle_identity", "outcome", "observation"},
+    "red": {"step_id", "oracle_identity", "outcome", "exit_code", "observation", "test_summary"},
+    "green": {"step_id", "oracle_identity", "outcome", "exit_code", "observation", "test_summary"},
+    "refactor": {
+        "step_id",
+        "oracle_identity",
+        "outcome",
+        "exit_code",
+        "observation",
+        "test_summary",
+    },
     "commit": {"step_id", "commit_sha", "outcome"},
     "human_gate": {"gate_id", "step_id", "target_identity", "result"},
     "permission_required": {"step_id", "operation_identity", "outcome"},
@@ -175,6 +182,36 @@ def _validate_human_gates(value: object) -> ModelResult:
         if gate["allowed_results"] != HUMAN_GATE_RESULTS:
             return _failure("human_gate_binding_invalid", "human_gates.allowed_results", "human gate results are invalid")
     return _ok(value)
+
+
+def _validate_test_summary(value: object) -> ModelResult:
+    if not isinstance(value, dict):
+        return _failure("test_summary_invalid", "test_summary", "test summary must be an object")
+    if value.get("status") == "complete":
+        if set(value) != {"status", "passed", "failed", "skipped"} or any(
+            type(value[field]) is not int or value[field] < 0
+            for field in ("passed", "failed", "skipped")
+        ):
+            return _failure(
+                "test_summary_invalid",
+                "test_summary",
+                "complete test summary counts are invalid",
+            )
+        return _ok(value)
+    if value.get("status") == "unavailable":
+        if (
+            set(value) != {"status", "reason"}
+            or not isinstance(value["reason"], str)
+            or not value["reason"].strip()
+            or len(value["reason"]) > 500
+        ):
+            return _failure(
+                "test_summary_invalid",
+                "test_summary",
+                "unavailable test summary reason is invalid",
+            )
+        return _ok(value)
+    return _failure("test_summary_invalid", "test_summary.status", "test summary status is invalid")
 
 
 def validate_binding(value: object) -> ModelResult:
@@ -463,6 +500,10 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         IDENTITY, candidate["oracle_identity"]
     ):
         return _failure("event_identity_invalid", "oracle_identity", "oracle identity is invalid")
+    if event_type in {"red", "green", "refactor"}:
+        summary = _validate_test_summary(candidate["test_summary"])
+        if not summary.ok:
+            return summary
     if event_type == "commit" and not _matches(COMMIT_SHA, candidate["commit_sha"]):
         return _failure("event_field_invalid", "commit_sha", "commit SHA is invalid")
     if event_type == "human_gate" and (

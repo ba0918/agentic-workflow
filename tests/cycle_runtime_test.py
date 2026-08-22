@@ -741,6 +741,54 @@ class EventPersistenceTest(unittest.TestCase):
 
 
 class OracleExecutionTest(unittest.TestCase):
+    def test_unittest_summary_reports_passed_failed_and_skipped_counts(self) -> None:
+        output = """..FsE
+----------------------------------------------------------------------
+Ran 5 tests in 0.012s
+
+FAILED (failures=1, errors=1, skipped=1)
+"""
+
+        summary = cycle_runtime._test_summary("", output)
+
+        self.assertEqual(
+            summary,
+            {"status": "complete", "passed": 2, "failed": 2, "skipped": 1},
+        )
+
+    def test_summary_is_complete_only_for_one_consistent_supported_report(self) -> None:
+        cases = {
+            "unittest success": (
+                "Ran 3 tests in 0.004s\n\nOK (skipped=2)\n",
+                {"status": "complete", "passed": 1, "failed": 0, "skipped": 2},
+            ),
+            "no structured report": (
+                "all checks look fine\n",
+                {
+                    "status": "unavailable",
+                    "reason": "runner did not expose one supported structured summary",
+                },
+            ),
+            "duplicate report": (
+                "Ran 1 test in 0.1s\nOK\nRan 1 test in 0.1s\nOK\n",
+                {
+                    "status": "unavailable",
+                    "reason": "runner did not expose one supported structured summary",
+                },
+            ),
+            "impossible counts": (
+                "Ran 1 test in 0.1s\nFAILED (failures=2)\n",
+                {
+                    "status": "unavailable",
+                    "reason": "runner did not expose one supported structured summary",
+                },
+            ),
+        }
+
+        for case, (output, expected) in cases.items():
+            with self.subTest(case=case):
+                self.assertEqual(cycle_runtime._test_summary("", output), expected)
+
     def test_oracle_cwd_cannot_escape_the_worktree_through_a_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)
@@ -951,6 +999,10 @@ class OracleExecutionTest(unittest.TestCase):
                     "exit_code": 1,
                     "observation": "greeting missing",
                     "failure_kind": "behavior_failure",
+                    "test_summary": {
+                        "status": "unavailable",
+                        "reason": "runner did not expose one supported structured summary",
+                    },
                 }
             )
             with mock.patch.object(
