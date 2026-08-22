@@ -2,6 +2,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -121,6 +122,94 @@ class SaveDraftTest(unittest.TestCase):
             self.assertEqual(printed["path"], f".agents/tmp/ideas/{SESSION}/example.md")
             self.assertEqual(printed["destination"], "docs/spec/example.md")
             self.assertEqual(printed["content_identity"], draft.content_identity(SPEC_TEXT))
+
+
+class PublishDraftsTest(unittest.TestCase):
+    def _two_drafts(self, root: Path) -> dict[str, str]:
+        (root / "docs/spec").mkdir(parents=True)
+        (root / "docs/spec/example.md").write_text("# 旧仕様\n", encoding="utf-8")
+        spec = draft.save_draft(
+            root, session_id=SESSION, destination="docs/spec/example.md", text=SPEC_TEXT
+        )
+        roadmap = draft.save_draft(
+            root, session_id=SESSION, destination="ROADMAP.md", text=ROADMAP_TEXT
+        )
+        return {spec.destination: spec.content_identity, roadmap.destination: roadmap.content_identity}
+
+    def test_approved_drafts_replace_their_destinations_and_leave_no_temporary_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            approved = self._two_drafts(root)
+
+            published = draft.publish_drafts(root, session_id=SESSION, approved=approved)
+
+            self.assertEqual((root / "docs/spec/example.md").read_text(encoding="utf-8"), SPEC_TEXT)
+            self.assertEqual((root / "ROADMAP.md").read_text(encoding="utf-8"), ROADMAP_TEXT)
+            self.assertEqual(sorted(published), ["ROADMAP.md", "docs/spec/example.md"])
+            self.assertFalse((root / f".agents/tmp/ideas/{SESSION}").exists())
+
+    def test_one_edited_draft_blocks_every_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            approved = self._two_drafts(root)
+            edited = ROADMAP_TEXT + "\n人間が直接直した行\n"
+            (root / f".agents/tmp/ideas/{SESSION}/ROADMAP.md").write_text(edited, encoding="utf-8")
+
+            with self.assertRaises(draft.IdentityMismatch):
+                draft.publish_drafts(root, session_id=SESSION, approved=approved)
+
+            self.assertEqual((root / "docs/spec/example.md").read_text(encoding="utf-8"), "# 旧仕様\n")
+            self.assertFalse((root / "ROADMAP.md").exists())
+            self.assertEqual(
+                (root / f".agents/tmp/ideas/{SESSION}/ROADMAP.md").read_text(encoding="utf-8"), edited
+            )
+
+    def test_approval_must_name_every_draft_in_the_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            approved = self._two_drafts(root)
+            del approved["ROADMAP.md"]
+
+            with self.assertRaises(draft.IdentityMismatch):
+                draft.publish_drafts(root, session_id=SESSION, approved=approved)
+
+            self.assertEqual((root / "docs/spec/example.md").read_text(encoding="utf-8"), "# 旧仕様\n")
+
+    def test_a_failure_after_the_first_move_restores_the_previous_canonical_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            approved = self._two_drafts(root)
+            original_replace = os.replace
+            calls = {"n": 0}
+
+            def failing_second_move(src, dst):
+                if Path(dst).name == "ROADMAP.md" and Path(src).parent.name == SESSION:
+                    raise OSError("disk full")
+                original_replace(src, dst)
+
+            with mock.patch.object(draft.os, "replace", failing_second_move):
+                with self.assertRaises(OSError):
+                    draft.publish_drafts(root, session_id=SESSION, approved=approved)
+
+            self.assertEqual((root / "docs/spec/example.md").read_text(encoding="utf-8"), "# 旧仕様\n")
+            self.assertFalse((root / "ROADMAP.md").exists())
+            session_dir = root / f".agents/tmp/ideas/{SESSION}"
+            self.assertEqual((session_dir / "example.md").read_text(encoding="utf-8"), SPEC_TEXT)
+            self.assertEqual((session_dir / "ROADMAP.md").read_text(encoding="utf-8"), ROADMAP_TEXT)
+
+    def test_publish_cli_takes_destination_identity_pairs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            approved = self._two_drafts(root)
+            stdout = io.StringIO()
+            argv = ["publish", "--repo", str(root), "--session-id", SESSION]
+            for destination, identity in approved.items():
+                argv += ["--approve", f"{destination}={identity}"]
+            with contextlib.redirect_stdout(stdout):
+                code = draft.main(argv)
+
+            self.assertEqual(code, 0)
+            self.assertEqual(sorted(json.loads(stdout.getvalue())["published"]), ["ROADMAP.md", "docs/spec/example.md"])
 
 
 if __name__ == "__main__":

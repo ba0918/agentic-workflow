@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import shutil
 import sys
 import tempfile
 from typing import NamedTuple
@@ -138,6 +139,57 @@ def save_draft(
     return DraftReceipt(path, str(target_destination), identity)
 
 
+def publish_drafts(project_root: Path, *, session_id: str, approved: dict[str, str]) -> list[str]:
+    """Move every approved draft onto its destination, all or nothing.
+
+    Existing canonical files are parked under the session directory first so that a
+    failure after the first move can put them back; the session directory is removed
+    only once every destination has been read back with its approved identity.
+    """
+    root = project_root.resolve()
+    directory = _session_directory(project_root, session_id)
+    manifest = _load_manifest(directory)
+    if not manifest["drafts"]:
+        raise DraftError("no drafts are saved for this session")
+    if set(approved) != set(manifest["drafts"]):
+        raise IdentityMismatch("approval must name exactly the drafts saved for this session")
+
+    moves: list[tuple[Path, Path, str]] = []
+    for destination, entry in manifest["drafts"].items():
+        identity = approved[destination]
+        source = directory / entry["path"]
+        if IDENTITY.fullmatch(identity) is None or not source.is_file():
+            raise IdentityMismatch(f"approved draft is unavailable: {destination}")
+        if content_identity(source.read_text(encoding="utf-8")) != identity:
+            raise IdentityMismatch(f"draft differs from the approved identity: {destination}")
+        relative = _destination(destination)
+        _reject_symlinks(root, relative)
+        moves.append((source, root.joinpath(*relative.parts), identity))
+
+    backups = directory / ".previous"
+    completed: list[tuple[Path, Path, Path | None]] = []
+    try:
+        for source, target, identity in moves:
+            backup = None
+            if target.exists():
+                backup = backups / "__".join(target.relative_to(root).parts)
+                backup.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(target, backup)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(source, target)
+            completed.append((source, target, backup))
+            if content_identity(target.read_text(encoding="utf-8")) != identity:
+                raise IdentityMismatch(f"published bytes differ from the approved identity: {target}")
+    except Exception:
+        for source, target, backup in reversed(completed):
+            os.replace(target, source)
+            if backup is not None:
+                os.replace(backup, target)
+        raise
+    shutil.rmtree(directory)
+    return [str(_destination(destination)) for destination in manifest["drafts"]]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Temporary wrap drafts for human review")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -147,6 +199,13 @@ def main(argv: list[str] | None = None) -> int:
     save.add_argument("--session-id", required=True)
     save.add_argument("--destination", required=True)
     save.add_argument("--replace-identity")
+
+    publish = commands.add_parser("publish", help="move the approved drafts onto their destinations")
+    publish.add_argument("--repo", required=True)
+    publish.add_argument("--session-id", required=True)
+    publish.add_argument(
+        "--approve", action="append", default=[], metavar="DESTINATION=IDENTITY", required=True
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.repo)
@@ -168,6 +227,16 @@ def main(argv: list[str] | None = None) -> int:
                 ensure_ascii=False,
             )
         )
+        return 0
+    if args.command == "publish":
+        approved: dict[str, str] = {}
+        for item in args.approve:
+            destination, separator, identity = item.rpartition("=")
+            if not separator or not destination:
+                raise DraftError(f"--approve expects DESTINATION=IDENTITY, got {item!r}")
+            approved[destination] = identity
+        published = publish_drafts(root, session_id=args.session_id, approved=approved)
+        print(json.dumps({"published": published}, ensure_ascii=False))
         return 0
     return 1
 
