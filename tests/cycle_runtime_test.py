@@ -120,7 +120,6 @@ def red_oracle(command: list[str]) -> dict:
         "environment_names": [],
         "timeout_seconds": 10,
         "expected_failure_kind": "behavior_failure",
-        "observed_failure_kind": "behavior_failure",
         "failure_signature": "greeting missing",
     }
 
@@ -656,14 +655,12 @@ class OracleExecutionTest(unittest.TestCase):
             self.assertEqual(event["outcome"], "expected_failure")
             self.assertEqual(event["observation"], "greeting missing")
 
-    def test_expected_red_accepts_a_candidate_without_observed_failure_kind(self) -> None:
+    def test_expected_red_adds_the_observed_failure_kind_after_execution(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
             oracle = red_oracle(
                 ["python3", "-c", "import sys; print('greeting missing'); sys.exit(1)"]
             )
-            del oracle["observed_failure_kind"]
-
             result = cycle_runtime.accept_red(attempt, oracle)
 
             self.assertTrue(result.ok, result.error)

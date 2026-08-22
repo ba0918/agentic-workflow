@@ -24,11 +24,30 @@ EVENT_TYPES = {
     "green": {"step_id", "oracle_identity", "outcome", "exit_code", "observation"},
     "refactor": {"step_id", "oracle_identity", "outcome", "observation"},
     "commit": {"step_id", "commit_sha", "outcome"},
+    "human_gate": {"gate_id", "step_id", "target_identity", "result"},
     "stopped": {"reason"},
     "implementation_green": {"commits"},
 }
+EVENT_OPTIONAL_FIELDS = {
+    "worktree-bound": {"repository_identity", "base_head", "branch", "worktree_identity"},
+    "stopped": {"step_id"},
+}
 RAW_LOG_FIELDS = {"stdout", "stderr", "provider_log", "raw_log"}
 SECRET_VALUE_FIELDS = {"environment", "environment_values", "secret", "password", "credential"}
+SECRET_FIELD = re.compile(r"(?i)(?:api[_-]?key|secret|token|password|credential)")
+SECRET_ARGUMENT = re.compile(
+    r"(?i)(?:api[_-]?key|secret|token|password|credential)\s*[=:]\s*\S+"
+)
+GATE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+STEP_ID = re.compile(r"step-[1-9][0-9]*")
+CLAUSE_ID = re.compile(r"[A-Z][A-Z0-9]*-[0-9]{3}")
+HUMAN_GATE_TIMINGS = {
+    "before_edit": 0,
+    "before_commit": 1,
+    "before_implementation_green": 2,
+}
+HUMAN_GATE_RESULTS = ["approved", "rejected"]
+ENVIRONMENT_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 class ModelFailure(NamedTuple):
@@ -91,7 +110,76 @@ def _first_forbidden_field(value: object, forbidden: set[str]) -> str | None:
     return None
 
 
+def _first_secret_field(value: object) -> str | None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if SECRET_FIELD.search(key):
+                return key
+            nested = _first_secret_field(child)
+            if nested is not None:
+                return nested
+    elif isinstance(value, list):
+        for child in value:
+            nested = _first_secret_field(child)
+            if nested is not None:
+                return nested
+    return None
+
+
+def _validate_human_gates(value: object) -> ModelResult:
+    if not isinstance(value, list):
+        return _failure("human_gate_binding_invalid", "human_gates", "human gates must be a list")
+    gate_ids: set[str] = set()
+    for gate in value:
+        if not isinstance(gate, dict) or set(gate) != {
+            "gate_id",
+            "step_id",
+            "clauses",
+            "criterion",
+            "target",
+            "timing",
+            "allowed_results",
+        }:
+            return _failure("human_gate_binding_invalid", "human_gates", "human gate fields are invalid")
+        gate_id = gate["gate_id"]
+        if not _matches(GATE_ID, gate_id) or gate_id in gate_ids:
+            return _failure("human_gate_binding_invalid", "human_gates.gate_id", "human gate id is invalid")
+        gate_ids.add(gate_id)
+        if not _matches(STEP_ID, gate["step_id"]):
+            return _failure("human_gate_binding_invalid", "human_gates.step_id", "human gate step is invalid")
+        clauses = gate["clauses"]
+        if not isinstance(clauses, list) or not clauses or len(clauses) != len(set(clauses)) or any(
+            not _matches(CLAUSE_ID, clause) for clause in clauses
+        ):
+            return _failure("human_gate_binding_invalid", "human_gates.clauses", "human gate clauses are invalid")
+        if not isinstance(gate["criterion"], str) or not gate["criterion"].strip() or len(gate["criterion"]) > 500:
+            return _failure("human_gate_binding_invalid", "human_gates.criterion", "human gate criterion is invalid")
+        target = gate["target"]
+        if not isinstance(target, dict) or target.get("kind") not in {"files", "event"}:
+            return _failure("human_gate_binding_invalid", "human_gates.target", "human gate target is invalid")
+        if target["kind"] == "files":
+            if set(target) != {"kind", "paths"}:
+                return _failure("human_gate_binding_invalid", "human_gates.target", "human gate target fields are invalid")
+            paths = target["paths"]
+            if not isinstance(paths, list) or not paths or len(paths) != len(set(paths)) or any(
+                not _safe_relative_path(path) for path in paths
+            ):
+                return _failure("human_gate_binding_invalid", "human_gates.target.paths", "human gate paths are invalid")
+        elif set(target) != {"kind", "content_identity"} or not _matches(
+            IDENTITY, target.get("content_identity")
+        ):
+            return _failure("human_gate_binding_invalid", "human_gates.target", "human gate event target is invalid")
+        if gate["timing"] not in HUMAN_GATE_TIMINGS:
+            return _failure("human_gate_binding_invalid", "human_gates.timing", "human gate timing is invalid")
+        if gate["allowed_results"] != HUMAN_GATE_RESULTS:
+            return _failure("human_gate_binding_invalid", "human_gates.allowed_results", "human gate results are invalid")
+    return _ok(value)
+
+
 def validate_binding(value: object) -> ModelResult:
+    secret = _first_secret_field(value)
+    if secret is not None:
+        return _failure("secret_value_forbidden", secret, "secret values are not allowed in a binding")
     required = {
         "version",
         "attempt_id",
@@ -101,6 +189,7 @@ def validate_binding(value: object) -> ModelResult:
         "base_head",
         "branch",
         "write_scope",
+        "human_gates",
         "executor",
     }
     if not isinstance(value, dict) or set(value) != required:
@@ -149,9 +238,27 @@ def validate_binding(value: object) -> ModelResult:
     scopes = value["write_scope"]
     if not isinstance(scopes, list) or not scopes or any(not _safe_relative_path(item) for item in scopes):
         return _failure("write_scope_invalid", "write_scope", "write scope is invalid")
+    human_gates = _validate_human_gates(value["human_gates"])
+    if not human_gates.ok:
+        return human_gates
     executor = value["executor"]
-    if not isinstance(executor, dict) or not {"executor", "backend", "session_id"}.issubset(executor):
+    if not isinstance(executor, dict) or set(executor) not in (
+        {"executor", "backend", "session_id"},
+        {"executor", "backend", "session_id", "reason"},
+    ):
         return _failure("executor_invalid", "executor", "executor provenance is invalid")
+    for field in ("executor", "backend", "session_id"):
+        if not isinstance(executor[field], str) or not executor[field] or len(executor[field]) > 256:
+            return _failure("executor_invalid", f"executor.{field}", "executor provenance is invalid")
+    unavailable = "unavailable" in {executor["backend"], executor["session_id"]}
+    if unavailable != ("reason" in executor):
+        return _failure("executor_invalid", "executor.reason", "unavailable provenance requires one reason")
+    if "reason" in executor and (
+        not isinstance(executor["reason"], str)
+        or not executor["reason"].strip()
+        or len(executor["reason"]) > 500
+    ):
+        return _failure("executor_invalid", "executor.reason", "executor reason is invalid")
     return _ok(value)
 
 
@@ -180,7 +287,7 @@ def validate_write_path(relative_path: str, scopes: list[str]) -> ModelResult:
 
 
 def _validate_oracle(value: object, *, require_observed: bool) -> ModelResult:
-    forbidden = _first_forbidden_field(value, SECRET_VALUE_FIELDS)
+    forbidden = _first_secret_field(value)
     if forbidden is not None:
         return _failure("secret_value_forbidden", forbidden, "only environment names may be recorded")
     required = {
@@ -199,6 +306,8 @@ def _validate_oracle(value: object, *, require_observed: bool) -> ModelResult:
         required.add("observed_failure_kind")
     if not isinstance(value, dict) or not required.issubset(value):
         return _failure("oracle_field_missing", None, "oracle fields are missing")
+    if set(value) != required:
+        return _failure("oracle_fields_invalid", None, "oracle fields are unknown or unexpected")
     if value["version"] != 1 or not isinstance(value["step_id"], str) or not value["step_id"]:
         return _failure("oracle_field_invalid", "step_id", "oracle step is invalid")
     if not isinstance(value["clauses"], list) or not value["clauses"]:
@@ -209,10 +318,16 @@ def _validate_oracle(value: object, *, require_observed: bool) -> ModelResult:
         isinstance(part, str) and part for part in value["command"]
     ):
         return _failure("oracle_field_invalid", "command", "oracle command is invalid")
+    if any(SECRET_ARGUMENT.search(part) for part in value["command"]):
+        return _failure("secret_value_forbidden", "command", "secret-shaped command arguments are forbidden")
     if value["cwd"] != "." and not _safe_relative_path(value["cwd"]):
         return _failure("oracle_field_invalid", "cwd", "oracle cwd is unsafe")
-    if not isinstance(value["environment_names"], list) or not all(
-        isinstance(name, str) and name for name in value["environment_names"]
+    environment_names = value["environment_names"]
+    if (
+        not isinstance(environment_names, list)
+        or not all(isinstance(name, str) for name in environment_names)
+        or len(environment_names) != len(set(environment_names))
+        or not all(_matches(ENVIRONMENT_NAME, name) for name in environment_names)
     ):
         return _failure("oracle_field_invalid", "environment_names", "environment names are invalid")
     if not isinstance(value["timeout_seconds"], int) or value["timeout_seconds"] <= 0:
@@ -255,7 +370,7 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
     raw_log = _first_forbidden_field(candidate, RAW_LOG_FIELDS)
     if raw_log is not None:
         return _failure("raw_log_forbidden", raw_log, "raw process logs are not durable evidence")
-    secret = _first_forbidden_field(candidate, SECRET_VALUE_FIELDS)
+    secret = _first_secret_field(candidate)
     if secret is not None:
         return _failure("secret_value_forbidden", secret, "secret values are not durable evidence")
     common = {
@@ -275,6 +390,11 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
     missing = EVENT_TYPES[event_type] - set(candidate)
     if missing:
         return _failure("event_field_missing", sorted(missing)[0], "event-specific field is missing")
+    allowed = common | EVENT_TYPES[event_type] | EVENT_OPTIONAL_FIELDS.get(event_type, set())
+    if set(candidate) != allowed and not (
+        event_type in EVENT_OPTIONAL_FIELDS and set(candidate).issubset(allowed)
+    ):
+        return _failure("event_fields_invalid", None, "event fields are unknown or unexpected")
     if candidate["version"] != 1:
         return _failure("event_version_invalid", "version", "unsupported event version")
     if not isinstance(candidate["sequence"], int) or candidate["sequence"] < 1:
@@ -317,6 +437,13 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         return _failure("event_identity_invalid", "oracle_identity", "oracle identity is invalid")
     if event_type == "commit" and not _matches(COMMIT_SHA, candidate["commit_sha"]):
         return _failure("event_field_invalid", "commit_sha", "commit SHA is invalid")
+    if event_type == "human_gate" and (
+        not _matches(GATE_ID, candidate["gate_id"])
+        or not _matches(STEP_ID, candidate["step_id"])
+        or not _matches(IDENTITY, candidate["target_identity"])
+        or candidate["result"] not in HUMAN_GATE_RESULTS
+    ):
+        return _failure("event_field_invalid", "human_gate", "human gate event is invalid")
     if event_type == "implementation_green" and (
         not isinstance(candidate["commits"], list)
         or not candidate["commits"]
@@ -327,6 +454,73 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
     sealed = dict(candidate)
     sealed["content_identity"] = event_identity(sealed)
     return _ok(sealed)
+
+
+def validate_human_gate_event(binding: object, event: object) -> ModelResult:
+    binding_result = validate_binding(binding)
+    if not binding_result.ok:
+        return binding_result
+    if not isinstance(event, dict) or event.get("event_type") != "human_gate":
+        return _failure("human_gate_event_invalid", None, "event is not a human gate decision")
+    declaration = next(
+        (gate for gate in binding["human_gates"] if gate["gate_id"] == event.get("gate_id")),
+        None,
+    )
+    if declaration is None:
+        return _failure("human_gate_undeclared", "gate_id", "human gate is not declared by the plan")
+    if declaration["step_id"] != event.get("step_id"):
+        return _failure("human_gate_step_mismatch", "step_id", "human gate step differs from its declaration")
+    if event.get("result") not in declaration["allowed_results"] or not _matches(
+        IDENTITY, event.get("target_identity")
+    ):
+        return _failure("human_gate_event_invalid", None, "human gate result or target identity is invalid")
+    return _ok(event)
+
+
+def validate_human_gate_boundary(
+    binding: object,
+    events: list[dict],
+    *,
+    step_id: str,
+    timing: str,
+    target_identities: dict[str, str],
+) -> ModelResult:
+    binding_result = validate_binding(binding)
+    if not binding_result.ok:
+        return binding_result
+    if timing not in HUMAN_GATE_TIMINGS:
+        return _failure("human_gate_timing_invalid", "timing", "human gate boundary timing is invalid")
+    for event in events:
+        if event.get("event_type") == "human_gate":
+            validation = validate_human_gate_event(binding, event)
+            if not validation.ok:
+                return validation
+
+    required = [
+        gate
+        for gate in binding["human_gates"]
+        if gate["step_id"] == step_id
+        and HUMAN_GATE_TIMINGS[gate["timing"]] <= HUMAN_GATE_TIMINGS[timing]
+    ]
+    for gate in required:
+        current_identity = target_identities.get(gate["gate_id"])
+        if not _matches(IDENTITY, current_identity):
+            return _failure("human_gate_target_unavailable", "target_identity", "human gate target identity is unavailable")
+        decisions = [
+            event
+            for event in events
+            if event.get("event_type") == "human_gate"
+            and event.get("gate_id") == gate["gate_id"]
+            and event.get("step_id") == step_id
+        ]
+        if not decisions:
+            return _failure("human_gate_missing", gate["gate_id"], "required human gate has no decision")
+        decision = decisions[-1]
+        if decision["target_identity"] != current_identity:
+            return _failure("human_gate_target_changed", gate["gate_id"], "human gate approval is stale")
+        if decision["result"] == "rejected":
+            return _failure("human_gate_rejected", gate["gate_id"], "human gate was rejected")
+    return _ok(required)
 
 
 def compare_event_retry(existing: dict, candidate: dict) -> ModelResult:

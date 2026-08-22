@@ -36,12 +36,41 @@ def binding() -> dict:
         "base_head": BASE_HEAD,
         "branch": "cycle/20260822t152244-a1b2c3d4",
         "write_scope": ["skills/ba0918-cycle", "tests/cycle_runtime_test.py"],
+        "human_gates": [],
         "executor": {
             "executor": "codex",
             "backend": "unavailable",
             "session_id": "unavailable",
             "reason": "not exposed safely",
         },
+    }
+
+
+def human_gate() -> dict:
+    return {
+        "gate_id": "approve-cycle-files",
+        "step_id": "step-1",
+        "clauses": ["CY-096"],
+        "criterion": "対象fileが承認済みの内容である",
+        "target": {"kind": "files", "paths": ["skills/ba0918-cycle/SKILL.md"]},
+        "timing": "before_implementation_green",
+        "allowed_results": ["approved", "rejected"],
+    }
+
+
+def human_gate_event(result: str = "approved", target_identity: str | None = None) -> dict:
+    return {
+        "version": 1,
+        "sequence": 1,
+        "event_type": "human_gate",
+        "attempt_id": binding()["attempt_id"],
+        "plan_identity": PLAN_IDENTITY,
+        "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+        "previous_identity": None,
+        "gate_id": "approve-cycle-files",
+        "step_id": "step-1",
+        "target_identity": target_identity or "sha256:" + "8" * 64,
+        "result": result,
     }
 
 
@@ -162,6 +191,59 @@ class BindingValidationTest(unittest.TestCase):
         self.assertTrue(candidate_result.ok, candidate_result.error)
         self.assertFalse(durable_result.ok)
         self.assertEqual(durable_result.error.code, "oracle_field_missing")
+
+    def test_oracle_rejects_unknown_fields_and_secret_shaped_command_arguments(self) -> None:
+        unknown = oracle()
+        unknown["stdout_copy"] = "bounded-looking output"
+        secret_argument = oracle()
+        secret_argument["command"].append("--api-token=<credential>")
+
+        unknown_result = cycle_model.validate_oracle(unknown)
+        secret_result = cycle_model.validate_oracle(secret_argument)
+
+        self.assertFalse(unknown_result.ok)
+        self.assertEqual(unknown_result.error.code, "oracle_fields_invalid")
+        self.assertFalse(secret_result.ok)
+        self.assertEqual(secret_result.error.code, "secret_value_forbidden")
+
+    def test_event_rejects_unknown_fields_recursively(self) -> None:
+        candidate = {
+            "version": 1,
+            "sequence": 1,
+            "event_type": "stopped",
+            "attempt_id": binding()["attempt_id"],
+            "plan_identity": PLAN_IDENTITY,
+            "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+            "previous_identity": None,
+            "reason": "failure",
+            "details": {"api_key": "<credential>"},
+        }
+
+        result = cycle_model.seal_event(candidate)
+
+        self.assertFalse(result.ok)
+        self.assertIn(result.error.code, {"event_fields_invalid", "secret_value_forbidden"})
+
+    def test_executor_provenance_and_environment_names_are_exact(self) -> None:
+        unsafe_binding = binding()
+        unsafe_binding["executor"]["api_key"] = "<credential>"
+        duplicate_environment = oracle()
+        duplicate_environment["environment_names"] = ["PYTHONPATH", "PYTHONPATH"]
+        invalid_environment = oracle()
+        invalid_environment["environment_names"] = ["lower-case-name"]
+
+        binding_result = cycle_model.validate_binding(unsafe_binding)
+
+        self.assertFalse(binding_result.ok)
+        self.assertIn(binding_result.error.code, {"executor_invalid", "secret_value_forbidden"})
+        self.assertEqual(
+            cycle_model.validate_oracle(duplicate_environment).error.code,
+            "oracle_field_invalid",
+        )
+        self.assertEqual(
+            cycle_model.validate_oracle(invalid_environment).error.code,
+            "oracle_field_invalid",
+        )
 
 
 class WriteScopeTest(unittest.TestCase):
@@ -343,6 +425,95 @@ class EventChainTest(unittest.TestCase):
             cycle_model.compare_event_retry(sealed, changed).error.code,
             "event_identity_collision",
         )
+
+
+class HumanGateStateTest(unittest.TestCase):
+    def test_declared_human_gate_is_part_of_the_exact_binding(self) -> None:
+        value = binding()
+        value["human_gates"] = [human_gate()]
+
+        result = cycle_model.validate_binding(value)
+
+        self.assertTrue(result.ok, result.error)
+
+    def test_human_gate_event_must_match_a_declared_gate(self) -> None:
+        value = binding()
+        value["human_gates"] = [human_gate()]
+        event = cycle_model.seal_event(human_gate_event()).value
+
+        declared = cycle_model.validate_human_gate_event(value, event)
+        ad_hoc = dict(event)
+        ad_hoc["gate_id"] = "undeclared-gate"
+
+        self.assertTrue(declared.ok, declared.error)
+        self.assertEqual(
+            cycle_model.validate_human_gate_event(value, ad_hoc).error.code,
+            "human_gate_undeclared",
+        )
+
+    def test_plan_without_human_gates_crosses_the_boundary(self) -> None:
+        result = cycle_model.validate_human_gate_boundary(
+            binding(),
+            [],
+            step_id="step-1",
+            timing="before_implementation_green",
+            target_identities={},
+        )
+
+        self.assertTrue(result.ok, result.error)
+
+    def test_missing_or_rejected_human_gate_blocks_the_boundary(self) -> None:
+        value = binding()
+        value["human_gates"] = [human_gate()]
+        targets = {"approve-cycle-files": "sha256:" + "8" * 64}
+
+        missing = cycle_model.validate_human_gate_boundary(
+            value,
+            [],
+            step_id="step-1",
+            timing="before_implementation_green",
+            target_identities=targets,
+        )
+        rejected = cycle_model.validate_human_gate_boundary(
+            value,
+            [cycle_model.seal_event(human_gate_event("rejected")).value],
+            step_id="step-1",
+            timing="before_implementation_green",
+            target_identities=targets,
+        )
+
+        self.assertEqual(missing.error.code, "human_gate_missing")
+        self.assertEqual(rejected.error.code, "human_gate_rejected")
+
+    def test_changed_target_stales_a_previous_approval(self) -> None:
+        value = binding()
+        value["human_gates"] = [human_gate()]
+        approved = cycle_model.seal_event(human_gate_event()).value
+
+        result = cycle_model.validate_human_gate_boundary(
+            value,
+            [approved],
+            step_id="step-1",
+            timing="before_implementation_green",
+            target_identities={"approve-cycle-files": "sha256:" + "9" * 64},
+        )
+
+        self.assertEqual(result.error.code, "human_gate_target_changed")
+
+    def test_current_approval_crosses_the_declared_boundary(self) -> None:
+        value = binding()
+        value["human_gates"] = [human_gate()]
+        approved = cycle_model.seal_event(human_gate_event()).value
+
+        result = cycle_model.validate_human_gate_boundary(
+            value,
+            [approved],
+            step_id="step-1",
+            timing="before_implementation_green",
+            target_identities={"approve-cycle-files": "sha256:" + "8" * 64},
+        )
+
+        self.assertTrue(result.ok, result.error)
 
 
 class ResultDerivationTest(unittest.TestCase):

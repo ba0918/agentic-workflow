@@ -69,6 +69,7 @@ class ResolvedPlan(NamedTuple):
     text: str
     specs: tuple[tuple[str, str], ...]
     write_scope: tuple[str, ...]
+    human_gates: tuple[dict[str, Any], ...]
 
 
 class RepositoryInfo(NamedTuple):
@@ -206,6 +207,23 @@ def _raw_identity(text: str) -> str:
     return plan_artifact.content_identity(text)
 
 
+def _human_gate_value(gate: Any) -> dict[str, Any]:
+    target = {"kind": gate.target.kind}
+    if gate.target.kind == "files":
+        target["paths"] = list(gate.target.paths)
+    else:
+        target["content_identity"] = gate.target.content_identity
+    return {
+        "gate_id": gate.gate_id,
+        "step_id": gate.step_id,
+        "clauses": list(gate.clauses),
+        "criterion": gate.criterion,
+        "target": target,
+        "timing": gate.timing,
+        "allowed_results": list(gate.allowed_results),
+    }
+
+
 def resolve_plan(
     project_root: Path,
     *,
@@ -239,6 +257,13 @@ def resolve_plan(
     parsed = _parse_plan(registered.text)
     if not parsed.ok:
         return parsed
+    try:
+        human_gates = tuple(
+            _human_gate_value(gate)
+            for gate in plan_artifact.read_plan_human_gates(registered.text)
+        )
+    except plan_artifact.InvalidHumanGateDeclaration as error:
+        return _failure("human_gate_declaration_invalid", str(error))
     header_id, header_revision, specs, write_scope = parsed.value
     if header_id != registered.plan_id:
         return _failure("plan_id_drift", "plan header and locator disagree")
@@ -268,6 +293,7 @@ def resolve_plan(
             text=registered.text,
             specs=specs,
             write_scope=write_scope,
+            human_gates=human_gates,
         )
     )
 
@@ -438,6 +464,7 @@ def bootstrap_attempt(
         "base_head": repository.value.base_head,
         "branch": branch,
         "write_scope": list(resolved_plan.write_scope),
+        "human_gates": list(resolved_plan.human_gates),
         "executor": executor,
     }
     binding_validation = execution_model.validate_binding(binding)
