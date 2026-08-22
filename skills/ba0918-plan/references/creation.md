@@ -27,6 +27,43 @@ Every implementation step identifies:
 - required evidence and delegated implementation choices;
 - stop conditions.
 
+### Planned human gates
+
+When a step requires a human judgment already defined by the approved specification, place the
+following exact marker and versioned JSON object inside that step:
+
+````markdown
+**Human gates:**
+
+```json
+{
+  "version": 1,
+  "gates": [
+    {
+      "gate_id": "unique-gate-id",
+      "clauses": ["SPEC-001"],
+      "criterion": "one approved yes-or-no judgment",
+      "target": {
+        "kind": "files",
+        "paths": ["repo/relative/path"]
+      },
+      "timing": "before_edit",
+      "allowed_results": ["approved", "rejected"]
+    }
+  ]
+}
+```
+````
+
+Each `gate_id` is unique within the Plan. `clauses` are a non-empty subset of that step's
+applicable specification clauses. A `files` target contains a non-empty set of safe
+repository-relative paths. An `event` target uses `content_identity` with an immutable
+`sha256:` identity instead of `paths`. `timing` is exactly `before_edit`, `before_commit`, or
+`before_implementation_green`; `allowed_results` is exactly `["approved", "rejected"]`.
+
+Omit the declaration when no human gate is required. A choice that changes product meaning is
+not a human gate: return it to brainstorm instead of encoding alternatives in the Plan.
+
 Delegated choices may vary implementation mechanics only when every allowed choice preserves the
 same approved observable behavior. Do not introduce a new input class, acceptance boundary,
 error case, tolerance, or verification example that the approved specification and verification

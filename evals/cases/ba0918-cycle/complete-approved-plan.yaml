@@ -1,0 +1,54 @@
+skill: ba0918-cycle
+id: complete-approved-plan
+title: 登録済みplanを隔離worktreeでTDD実装しreviewへ引き渡す
+source: plan:20260822143915
+executor_tier: standard
+isolation: worktree
+files:
+  - from: normal/.gitignore
+    to: .gitignore
+  - from: normal/PROJECT.md
+    to: PROJECT.md
+  - from: normal/docs/spec/greeting.md
+    to: docs/spec/greeting.md
+  - from: normal/src/greeting.py
+    to: src/greeting.py
+  - from: normal/.agents/artifacts/plans/20260822170001_greeting.md
+    to: .agents/artifacts/plans/20260822170001_greeting.md
+  - from: normal/.agents/artifacts/plans/open-plans.json
+    to: .agents/artifacts/plans/open-plans.json
+git:
+  init: true
+  branch: main
+  commit: true
+  message: fixture baseline
+env:
+  GIT_CONFIG_NOSYSTEM: "1"
+  GIT_CONFIG_GLOBAL: "/dev/null"
+  GIT_CONFIG_SYSTEM: "/dev/null"
+  GIT_AUTHOR_NAME: "fixture"
+  GIT_AUTHOR_EMAIL: "fixture@invalid"
+  GIT_COMMITTER_NAME: "fixture"
+  GIT_COMMITTER_EMAIL: "fixture@invalid"
+  GIT_TERMINAL_PROMPT: "0"
+exercises:
+  - skills/ba0918-cycle/references/execution.md
+  - skills/ba0918-cycle/references/tdd.md
+  - skills/ba0918-cycle/references/evidence.md
+  - skills/ba0918-cycle/scripts/cycle_runtime.py
+  - skills/ba0918-cycle/scripts/execution_model.py
+prompt: |
+  currentとして登録済みのGreeting実装planを実装してください。
+expected_output: |
+  main checkoutを変更せず、専用linked worktreeでRED、GREEN、REFACTOR、scope内commitを完了し、implementation_greenの証拠をreviewへ引き渡す。
+expectations:
+  - text: 専用branchとlinked worktreeがbase HEADから作成され、main checkoutに実装fileを作らない
+    critical: true
+  - text: testがproduction codeより先に追加され、期待した未実装理由のREDが記録される
+    critical: true
+  - text: 同一oracleのGREENとREFACTOR、scope内commit、implementation_greenが順序どおりimmutable eventに残る
+    critical: true
+  - text: 実装されたgreetingとtestが存在し、planの検証commandが成功する
+    critical: true
+  - text: planを完了・更新せず、review、merge、cleanup、subagent delegationを開始しない
+    critical: false

@@ -45,16 +45,61 @@
       "surface_sha256": "60056c72ba9db4ac103e05e67efd0a1d1319e457cd90037db43ac728cdb93a69",
       "verified": "2026-08-22"
     },
+    "ba0918-cycle": {
+      "file_sha256": {
+        "skills/ba0918-cycle/SKILL.md": "284a03e3320faf6eb410ee546255775925dd86f15a6fa4b66911c520a7478e52",
+        "skills/ba0918-cycle/references/evidence.md": "f553ab5beaf59280528524683db435a01dce01907dc1e55f287c8891c50737be",
+        "skills/ba0918-cycle/references/execution.md": "d24902334ddc933e112263619212e3351608b9cd93e1e35516830e4222bdc1ec",
+        "skills/ba0918-cycle/references/tdd.md": "95664e214488065115ebbee04e443b30a2a43c5b13c16cfbd07c58a30723d25f",
+        "skills/ba0918-cycle/scripts/cycle_runtime.py": "ef48a4cc72e639bb2e185cf8cfe64bf0c15c21c66e3113858509eba5b8bf1d90",
+        "skills/ba0918-cycle/scripts/execution_model.py": "34504417af6db4f6e85badd00af93bb0b4a6d0571f150517998d2156cd563740"
+      },
+      "note": "opencode-go/deepseek-v4-flash実process; final surfaceでnormal、spec drift、unintended REDの全3 scenarioをartifact再判定してpass",
+      "result": "pass",
+      "scenarios": {
+        "complete-approved-plan": {
+          "result": "pass",
+          "scenario_sha256": "700cd4d46b7d1892ca2870cdf4a54d3435c250c3a7512d776a5bc5cc1ef86567",
+          "verified": "2026-08-22"
+        },
+        "reject-unintended-red": {
+          "result": "pass",
+          "scenario_sha256": "249b69c905e3ceb8426a22d836105dda82c79614f9f0fa3dfde6774a71ba4930",
+          "verified": "2026-08-22"
+        },
+        "stop-on-spec-drift": {
+          "result": "pass",
+          "scenario_sha256": "c128c728a62af2d2e30195778b818373144a3f85c9d59fcd18a981663e090e0d",
+          "verified": "2026-08-22"
+        }
+      },
+      "structural_sha256": {
+        "skills/ba0918-cycle/SKILL.md": "60fd026c2e95f0d20a310192a30a2f129b065d91ff476ae1631539d6f3b04a65",
+        "skills/ba0918-cycle/references/evidence.md": "0013539d68c0245c74bbc89aac49b3f2683a6a71e4993dca17b0c4f07b03c665",
+        "skills/ba0918-cycle/references/execution.md": "27494d03ce48cbd761ee3ba844728c4c9fcdc617653a5b20d252bfa17a8ff653",
+        "skills/ba0918-cycle/references/tdd.md": "b68e9fa68aa4507cd3d35b99baa4d5d2a4e4362f15e103af786ca8ec0588d551"
+      },
+      "surface": [
+        "skills/ba0918-cycle/SKILL.md",
+        "skills/ba0918-cycle/references/evidence.md",
+        "skills/ba0918-cycle/references/execution.md",
+        "skills/ba0918-cycle/references/tdd.md",
+        "skills/ba0918-cycle/scripts/cycle_runtime.py",
+        "skills/ba0918-cycle/scripts/execution_model.py"
+      ],
+      "surface_sha256": "71a66a459816db9c1c04cc81fbf4dc04b8440786887ef941ef01888501d7b3a9",
+      "verified": "2026-08-22"
+    },
     "ba0918-plan": {
-      "carried_note": "opencode-go/deepseek-v4-flash; create scenario rerun after canonical draft metadata hardening; protect and reject carried from current unaffected surfaces; artifact and baseline hashes adjudicated",
+      "carried_note": "opencode-go/deepseek-v4-flash; create and reject rerun after no-invention hardening; create E7 manually re-adjudicated yes because artifact proves confirmation was requested; protect carried from unaffected surface",
       "file_sha256": {
         "skills/ba0918-plan/SKILL.md": "210cbb4ca62bdd3f4530139815d79819a468d30f2450d87cf285a537233d09c4",
         "skills/ba0918-plan/references/creation.md": "a516ba7661efa24cee228f06c108a148c49756ca159aa9dddfaf1fadf7b52b38",
         "skills/ba0918-plan/references/lifecycle.md": "ab939cca268be39a0d225c2ca62e63a005171d4922a56c8ea30381618a2432d6",
         "skills/ba0918-plan/references/readability.md": "8334d5b28bc7682896d26f0cee0ad02fd6b4bf6786b890895fb1d14d3e785397",
-        "skills/ba0918-plan/scripts/plan_artifact.py": "83cfc6a1e0dec1a53d3d3a8b63725a0a2a2503b69af40557aca1275617d07189"
+        "skills/ba0918-plan/scripts/plan_artifact.py": "4fb858bca5e276000c0f4a416f36ae2b164a5500ab5295e6dfd7c0df5d3a63dd"
       },
-      "note": "opencode-go/deepseek-v4-flash; create and reject rerun after no-invention hardening; create E7 manually re-adjudicated yes because artifact proves confirmation was requested; protect carried from unaffected surface",
+      "note": "Plan consumer interface追加後にprotect-existing-planを実process再実行し、既存plan・locator・dirty tree無変更をhash確認",
       "result": "pass",
       "scenarios": {
         "create-human-readable-plan": {
@@ -86,7 +131,7 @@
         "skills/ba0918-plan/references/readability.md",
         "skills/ba0918-plan/scripts/plan_artifact.py"
       ],
-      "surface_sha256": "531c110bdef85c2b9100f4bd66289ce3f554114e16c32ed34ec59049b71f1121",
+      "surface_sha256": "4b75e356e0167612ff2f5c51e4a03c2f039c7d31387c64d1c79b1a628568fd2e",
       "verified": "2026-08-22"
     }
   },

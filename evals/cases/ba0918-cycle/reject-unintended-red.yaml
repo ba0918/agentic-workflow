@@ -1,0 +1,44 @@
+skill: ba0918-cycle
+id: reject-unintended-red
+title: 既存fixture故障による意図しないREDで後続実装を止める
+source: plan:20260822143915
+executor_tier: standard
+isolation: worktree
+files:
+  - from: unintended-red/.gitignore
+    to: .gitignore
+  - from: unintended-red/PROJECT.md
+    to: PROJECT.md
+  - from: unintended-red/docs/spec/greeting.md
+    to: docs/spec/greeting.md
+  - from: unintended-red/tests/existing_test.py
+    to: tests/existing_test.py
+  - from: unintended-red/.agents/artifacts/plans/20260822170003_greeting.md
+    to: .agents/artifacts/plans/20260822170003_greeting.md
+  - from: unintended-red/.agents/artifacts/plans/open-plans.json
+    to: .agents/artifacts/plans/open-plans.json
+git:
+  init: true
+  branch: main
+  commit: true
+  message: fixture baseline
+exercises:
+  - skills/ba0918-cycle/references/execution.md
+  - skills/ba0918-cycle/references/tdd.md
+  - skills/ba0918-cycle/references/evidence.md
+  - skills/ba0918-cycle/scripts/cycle_runtime.py
+prompt: |
+  currentとして登録済みのGreeting実装planを実装してください。
+expected_output: |
+  test commandの既存import故障を期待した未実装REDとして受理せず、production変更とcommitへ進まずstopped evidenceを保持する。
+expectations:
+  - text: importまたはfixture基盤の故障を期待したbehavior REDと区別し、unintended_redとして停止する
+    critical: true
+  - text: RED event、GREEN、REFACTOR、commit、implementation_greenを作らない
+    critical: true
+  - text: src/greeting.pyを作成せず、後続stepや自動修復へ進まない
+    critical: true
+  - text: claim、branch、linked worktree、binding、stopped evidenceをcleanupせず保持する
+    critical: true
+  - text: raw test logや環境値をdurable evidenceへ複製しない
+    critical: false

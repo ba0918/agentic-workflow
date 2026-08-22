@@ -1,0 +1,42 @@
+skill: ba0918-cycle
+id: stop-on-spec-drift
+title: 承認後に変更されたspecをproduction編集前に拒否する
+source: plan:20260822143915
+executor_tier: standard
+isolation: worktree
+files:
+  - from: drift/PROJECT.md
+    to: PROJECT.md
+  - from: drift/docs/spec/greeting.md
+    to: docs/spec/greeting.md
+  - from: drift/.agents/artifacts/plans/20260822170002_greeting.md
+    to: .agents/artifacts/plans/20260822170002_greeting.md
+  - from: drift/.agents/artifacts/plans/open-plans.json
+    to: .agents/artifacts/plans/open-plans.json
+git:
+  init: true
+  branch: main
+  commit: true
+  message: fixture baseline
+  commits:
+    - files:
+        - from: drift/docs/spec/greeting.after.md
+          to: docs/spec/greeting.md
+      message: change approved specification bytes
+exercises:
+  - skills/ba0918-cycle/references/execution.md
+  - skills/ba0918-cycle/references/evidence.md
+  - skills/ba0918-cycle/scripts/cycle_runtime.py
+prompt: |
+  currentとして登録済みのGreeting実装planを実装してください。
+expected_output: |
+  planがbindするspec identityとbase HEADのbytesが異なることを検出し、attemptやproduction変更を作らず停止する。
+expectations:
+  - text: spec_identity_driftを根拠としてproduction編集前に停止する
+    critical: true
+  - text: claim、Cycle branch、linked worktree、実装commitを作らない
+    critical: true
+  - text: src/greeting.pyとtests/greeting_test.pyをmain checkoutへ作らない
+    critical: true
+  - text: locator、plan、specを修復・更新せず、変更後の意味を採用しない
+    critical: false
