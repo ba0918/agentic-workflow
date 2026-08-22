@@ -19,6 +19,8 @@ IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")
 GATE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 CLAUSE_ID = re.compile(r"[A-Z][A-Z0-9]*-[0-9]{3}")
 PLAN_STORE = PurePosixPath(".agents/artifacts/plans")
+DRAFT_STORE = PurePosixPath(".agents/tmp/plans")
+DRAFT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 INDEX_NAME = "open-plans.json"
 HUMAN_GATE_TIMINGS = {"before_edit", "before_commit", "before_implementation_green"}
 HUMAN_GATE_RESULTS = ("approved", "rejected")
@@ -58,6 +60,15 @@ class RegisteredPlanMismatch(PlanArtifactError):
 
 class InvalidHumanGateDeclaration(PlanArtifactError):
     """A plan step contains a malformed human-gate declaration."""
+
+
+class DraftConflict(PlanArtifactError):
+    """A draft already exists and the caller did not name its identity."""
+
+
+class DraftReceipt(NamedTuple):
+    path: Path
+    content_identity: str
 
 
 class RegisteredPlan(NamedTuple):
@@ -215,14 +226,71 @@ def _plan_path(project_root: Path, relative_path: str, plan_id: str) -> Path:
     for path in (root / ".agents", root / ".agents/artifacts", store, target):
         if path.is_symlink():
             raise UnsafePlanPath(f"symlink is not allowed: {path}")
-    try:
-        if os.path.commonpath((str(target.resolve(strict=False)), str(store.resolve(strict=False)))) != str(
-            store.resolve(strict=False)
-        ):
-            raise UnsafePlanPath("plan path escapes the plan store")
-    except ValueError as error:
-        raise UnsafePlanPath("plan path escapes the plan store") from error
+    if not _is_within(target, store):
+        raise UnsafePlanPath("plan path escapes the plan store")
     return target
+
+
+def _is_within(path: Path, store: Path) -> bool:
+    resolved_store = str(store.resolve(strict=False))
+    try:
+        return os.path.commonpath((str(path.resolve(strict=False)), resolved_store)) == resolved_store
+    except ValueError:
+        return False
+
+
+def _validate_plan_identity(plan_id: str, revision: int) -> None:
+    if PLAN_ID.fullmatch(plan_id) is None:
+        raise PlanArtifactError("plan id must contain exactly 14 digits")
+    if not isinstance(revision, int) or revision < 1:
+        raise PlanArtifactError("plan revision must be a positive integer")
+
+
+def _draft_path(project_root: Path, plan_id: str, revision: int, slug: str) -> Path:
+    _validate_plan_identity(plan_id, revision)
+    if DRAFT_SLUG.fullmatch(slug) is None:
+        raise UnsafePlanPath("draft slug must be lowercase words joined by hyphens")
+    root = project_root.resolve()
+    store = root.joinpath(*DRAFT_STORE.parts)
+    target = store / f"{plan_id}_{slug}_r{revision}_draft.md"
+    for path in (root / ".agents", root / ".agents/tmp", store, target):
+        if path.is_symlink():
+            raise UnsafePlanPath(f"symlink is not allowed: {path}")
+    return target
+
+
+def save_draft(
+    project_root: Path,
+    *,
+    plan_id: str,
+    revision: int,
+    slug: str,
+    text: str,
+    replace_identity: str | None = None,
+) -> DraftReceipt:
+    target = _draft_path(project_root, plan_id, revision, slug)
+    if target.exists():
+        existing_identity = content_identity(target.read_text(encoding="utf-8"))
+        if replace_identity is None:
+            raise DraftConflict("a draft already exists; name its identity to replace it")
+        if existing_identity != replace_identity:
+            raise DraftConflict("the existing draft differs from the identity named for replacement")
+    _atomic_write(target, text)
+    return DraftReceipt(target, content_identity(text))
+
+
+def _approved_draft(project_root: Path, source: Path) -> Path:
+    root = project_root.resolve()
+    store = root.joinpath(*DRAFT_STORE.parts)
+    candidate = Path(source)
+    if candidate.is_symlink():
+        raise UnsafePlanPath(f"symlink is not allowed: {candidate}")
+    resolved = candidate.resolve(strict=False)
+    if not _is_within(resolved, store) or resolved.parent != store.resolve(strict=False):
+        raise UnsafePlanPath("an approved draft must live directly under the temporary plan store")
+    if not resolved.is_file():
+        raise PlanArtifactError(f"approved draft does not exist: {candidate}")
+    return resolved
 
 
 def _empty_index() -> dict:
@@ -352,18 +420,17 @@ def publish_plan(
     plan_id: str,
     revision: int,
     relative_path: str,
-    text: str,
+    source: Path,
     approved_identity: str,
     switch_confirmed: bool,
     worktree_dirty: bool,
 ) -> Path:
-    if PLAN_ID.fullmatch(plan_id) is None:
-        raise PlanArtifactError("plan id must contain exactly 14 digits")
-    if not isinstance(revision, int) or revision < 1:
-        raise PlanArtifactError("plan revision must be a positive integer")
+    _validate_plan_identity(plan_id, revision)
+    draft = _approved_draft(project_root, source)
+    text = draft.read_text(encoding="utf-8")
     actual_identity = content_identity(text)
     if IDENTITY.fullmatch(approved_identity) is None or actual_identity != approved_identity:
-        raise IdentityMismatch("approved content identity does not match the plan bytes")
+        raise IdentityMismatch("approved content identity does not match the draft bytes")
 
     target = _plan_path(project_root, relative_path, plan_id)
     if target.exists():
@@ -402,14 +469,14 @@ def publish_plan(
         index["plans"] = [candidate if item["id"] == plan_id else item for item in index["plans"]]
     _validate_index(index)
 
-    wrote_plan = False
+    target.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(draft, target)
     try:
-        _atomic_write(target, text)
-        wrote_plan = True
+        if content_identity(target.read_text(encoding="utf-8")) != approved_identity:
+            raise IdentityMismatch("published plan bytes differ from the approved identity")
         _atomic_write(index_path, _encode_index(index))
     except Exception:
-        if wrote_plan:
-            target.unlink(missing_ok=True)
+        os.replace(target, draft)
         raise
     return target
 
@@ -419,6 +486,13 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
 
     commands.add_parser("identity", help="read an unwritten draft from stdin and print its identity")
+
+    draft = commands.add_parser("draft", help="save the draft from stdin under .agents/tmp/plans")
+    draft.add_argument("--repo", required=True)
+    draft.add_argument("--plan-id", required=True)
+    draft.add_argument("--revision", required=True, type=int)
+    draft.add_argument("--slug", required=True)
+    draft.add_argument("--replace-identity")
 
     publish = commands.add_parser("publish", help="publish approved bytes and update the locator")
     publish.add_argument("--repo", required=True)
@@ -433,14 +507,33 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "identity":
         print(content_identity(sys.stdin.read()))
         return 0
+    if args.command == "draft":
+        root = Path(args.repo)
+        receipt = save_draft(
+            root,
+            plan_id=args.plan_id,
+            revision=args.revision,
+            slug=args.slug,
+            text=sys.stdin.read(),
+            replace_identity=args.replace_identity,
+        )
+        print(
+            json.dumps(
+                {
+                    "path": receipt.path.relative_to(root.resolve()).as_posix(),
+                    "content_identity": receipt.content_identity,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return 0
 
-    text = Path(args.source).read_text(encoding="utf-8")
     published = publish_plan(
         Path(args.repo),
         plan_id=args.plan_id,
         revision=args.revision,
         relative_path=args.path,
-        text=text,
+        source=Path(args.source),
         approved_identity=args.approved_identity,
         switch_confirmed=args.switch_confirmed,
         worktree_dirty=args.worktree_dirty,
