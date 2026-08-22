@@ -1,4 +1,5 @@
 import importlib.util
+import itertools
 import contextlib
 import errno
 import io
@@ -108,7 +109,7 @@ tests/
 **対応仕様:** `FX-001`
 {gate_declaration}
 """
-    plan_artifact.publish_plan(
+    publish_text(
         root,
         plan_id=plan_id,
         revision=1,
@@ -163,6 +164,19 @@ def red_oracle(command: list[str]) -> dict:
         "expected_failure_kind": "behavior_failure",
         "failure_signature": "greeting missing",
     }
+
+
+_DRAFT_SEQUENCE = itertools.count(1)
+
+
+def publish_text(root: Path, **kwargs):
+    """Save the draft first, then publish it: the production path always starts from a draft."""
+    text = kwargs.pop("text")
+    plan_id = kwargs["plan_id"]
+    revision = kwargs["revision"]
+    slug = f"draft-{next(_DRAFT_SEQUENCE)}"
+    draft = plan_artifact.save_draft(root, plan_id=plan_id, revision=revision, slug=slug, text=text)
+    return plan_artifact.publish_plan(root, source=draft.path, **kwargs)
 
 
 class PlanResolutionTest(unittest.TestCase):
