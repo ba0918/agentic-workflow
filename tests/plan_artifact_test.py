@@ -45,6 +45,135 @@ class ContentIdentityTest(unittest.TestCase):
         self.assertEqual(output.getvalue().strip(), plan_artifact.content_identity(PLAN_TEXT))
 
 
+class RegisteredPlanConsumerTest(unittest.TestCase):
+    def test_current_registered_plan_is_returned_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            identity = plan_artifact.content_identity(PLAN_TEXT)
+            plan_artifact.publish_plan(
+                root,
+                plan_id="20260822022624",
+                revision=1,
+                relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
+                text=PLAN_TEXT,
+                approved_identity=identity,
+                switch_confirmed=False,
+                worktree_dirty=False,
+            )
+            before = {
+                path.relative_to(root).as_posix(): path.read_bytes()
+                for path in root.rglob("*")
+                if path.is_file()
+            }
+
+            registered = plan_artifact.read_registered_plan(root)
+
+            self.assertEqual(registered.plan_id, "20260822022624")
+            self.assertEqual(registered.revision, 1)
+            self.assertEqual(registered.content_identity, identity)
+            self.assertEqual(registered.state, "current")
+            self.assertEqual(registered.text, PLAN_TEXT)
+            after = {
+                path.relative_to(root).as_posix(): path.read_bytes()
+                for path in root.rglob("*")
+                if path.is_file()
+            }
+            self.assertEqual(after, before)
+
+    def test_explicit_registered_plan_may_be_held(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first_identity = plan_artifact.content_identity(PLAN_TEXT)
+            plan_artifact.publish_plan(
+                root,
+                plan_id="20260822022624",
+                revision=1,
+                relative_path=".agents/artifacts/plans/20260822022624_first.md",
+                text=PLAN_TEXT,
+                approved_identity=first_identity,
+                switch_confirmed=False,
+                worktree_dirty=False,
+            )
+            second = PLAN_TEXT.replace("20260822022624", "20260822022625")
+            plan_artifact.publish_plan(
+                root,
+                plan_id="20260822022625",
+                revision=1,
+                relative_path=".agents/artifacts/plans/20260822022625_second.md",
+                text=second,
+                approved_identity=plan_artifact.content_identity(second),
+                switch_confirmed=True,
+                worktree_dirty=False,
+            )
+
+            registered = plan_artifact.read_registered_plan(
+                root,
+                ".agents/artifacts/plans/20260822022624_first.md",
+            )
+
+            self.assertEqual(registered.plan_id, "20260822022624")
+            self.assertEqual(registered.state, "held")
+
+    def test_missing_registration_is_distinct_from_an_empty_publication_index(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            with self.assertRaises(plan_artifact.PlanRegistrationMissing):
+                plan_artifact.read_registered_plan(root)
+
+            self.assertFalse((root / ".agents").exists())
+
+    def test_registered_plan_identity_mismatch_is_rejected_without_repair(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            identity = plan_artifact.content_identity(PLAN_TEXT)
+            target = plan_artifact.publish_plan(
+                root,
+                plan_id="20260822022624",
+                revision=1,
+                relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
+                text=PLAN_TEXT,
+                approved_identity=identity,
+                switch_confirmed=False,
+                worktree_dirty=False,
+            )
+            target.write_text(PLAN_TEXT + "changed\n", encoding="utf-8")
+            index_before = (target.parent / "open-plans.json").read_bytes()
+
+            with self.assertRaises(plan_artifact.RegisteredPlanMismatch):
+                plan_artifact.read_registered_plan(root)
+
+            self.assertEqual((target.parent / "open-plans.json").read_bytes(), index_before)
+            self.assertEqual(target.read_text(encoding="utf-8"), PLAN_TEXT + "changed\n")
+
+    def test_unsafe_registered_path_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plans = root / ".agents/artifacts/plans"
+            plans.mkdir(parents=True)
+            (plans / "open-plans.json").write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "current": "20260822022624",
+                        "plans": [
+                            {
+                                "id": "20260822022624",
+                                "path": "../outside.md",
+                                "revision": 1,
+                                "content_identity": "sha256:" + "0" * 64,
+                                "state": "current",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(plan_artifact.UnsafePlanPath):
+                plan_artifact.read_registered_plan(root)
+
+
 class PublishPlanTest(unittest.TestCase):
     def test_confirmed_draft_is_written_and_registered_as_current(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

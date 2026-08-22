@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 import re
 import sys
 import tempfile
+from typing import NamedTuple
 
 
 PLAN_ID = re.compile(r"[0-9]{14}")
@@ -41,6 +42,23 @@ class UnsafePlanPath(PlanArtifactError):
 
 class InvalidOpenPlanIndex(PlanArtifactError):
     """The open-plan locator is malformed or inconsistent."""
+
+
+class PlanRegistrationMissing(PlanArtifactError):
+    """No locator entry identifies the requested plan."""
+
+
+class RegisteredPlanMismatch(PlanArtifactError):
+    """A registered plan no longer matches its locator entry."""
+
+
+class RegisteredPlan(NamedTuple):
+    plan_id: str
+    path: str
+    revision: int
+    content_identity: str
+    state: str
+    text: str
 
 
 def content_identity(text: str) -> str:
@@ -130,6 +148,45 @@ def _load_index(path: Path) -> dict:
         return _validate_index(json.loads(path.read_text(encoding="utf-8")))
     except json.JSONDecodeError as error:
         raise InvalidOpenPlanIndex("open-plan index is not valid JSON") from error
+
+
+def read_registered_plan(
+    project_root: Path,
+    relative_path: str | None = None,
+) -> RegisteredPlan:
+    store = project_root.resolve().joinpath(*PLAN_STORE.parts)
+    index_path = store / INDEX_NAME
+    if not index_path.exists():
+        raise PlanRegistrationMissing("open-plan locator does not exist")
+    index = _load_index(index_path)
+
+    if relative_path is None:
+        current = index["current"]
+        if current is None:
+            raise PlanRegistrationMissing("open-plan locator has no current plan")
+        entry = next(item for item in index["plans"] if item["id"] == current)
+    else:
+        entry = next(
+            (item for item in index["plans"] if item["path"] == relative_path),
+            None,
+        )
+        if entry is None:
+            raise PlanRegistrationMissing("requested plan is not registered")
+
+    target = _plan_path(project_root, entry["path"], entry["id"])
+    if not target.is_file():
+        raise RegisteredPlanMismatch("registered plan file does not exist")
+    text = target.read_text(encoding="utf-8")
+    if content_identity(text) != entry["content_identity"]:
+        raise RegisteredPlanMismatch("registered plan identity does not match its bytes")
+    return RegisteredPlan(
+        plan_id=entry["id"],
+        path=entry["path"],
+        revision=entry["revision"],
+        content_identity=entry["content_identity"],
+        state=entry["state"],
+        text=text,
+    )
 
 
 def _encode_index(value: dict) -> str:
