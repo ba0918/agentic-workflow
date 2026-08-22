@@ -13,20 +13,40 @@ this order:
 2. applicable project instructions or an existing project script;
 3. one uniquely detected standard tool.
 
-Ask before production editing if no command is available or several candidates remain. Do not
-invent a command or add a dependency.
+Ask before production editing if no command is available or several candidates remain. Stop,
+without supplying the missing permission or meaning yourself, when the step needs an unapproved
+network access, a new dependency, an external service operation, or a product decision the Plan
+does not make.
 
-Create a candidate oracle JSON value with `version: 1`, `step_id`, `clauses`, `test_targets` as a
-non-empty list of repository-relative test, fixture, and inspection-config paths, `command` as a
-string array, repository-relative `cwd`, `environment_names`, bounded `timeout_seconds`,
-`expected_failure_kind`, and a bounded `failure_signature`. Do not supply target identities or
-`observed_failure_kind`; the helper reads the target bytes and adds their identities and its
-failure classification only after execution. Never store environment values or put a secret in
-the command.
+### Candidate oracle contract
 
-The failure signature must identify the approved missing behavior. A generic runner summary such
-as `FAILED (errors=1)` or a bare exit code is not a behavior signature and must not be used to
-turn an import, collection, fixture, or infrastructure failure into RED evidence.
+The helper validates the candidate byte-exactly. Write it as a JSON object with exactly these
+nine fields and nothing else; an unknown field is rejected as `oracle_fields_invalid`.
+
+| Field | Value |
+|---|---|
+| `version` | `1` |
+| `step_id` | `step-<n>`, where `<n>` is the number of the `### <n>.` heading under the Plan's `## 実装手順` section |
+| `clauses` | non-empty list of the spec clause IDs this step implements |
+| `test_targets` | non-empty list of unique, repository-relative path strings: the test, fixture, and inspection-config files the RED depends on. Strings only; the helper reads their bytes and adds each content identity when it freezes the oracle |
+| `command` | the test command as a string array, e.g. `["python3", "-m", "unittest", "tests/greeting_test.py"]` |
+| `cwd` | `"."` for the linked worktree root, or a repository-relative subdirectory inside it |
+| `environment_names` | list of environment variable names the command reads; names only, never values |
+| `timeout_seconds` | a positive integer from project configuration or measured fixture behavior |
+| `expected_failure_kind` | the literal `behavior_failure`. The helper classifies the observed failure as `import_failure`, `permission_failure`, `fixture_failure`, `network_failure`, or `behavior_failure`, and only the last one is an approved missing behavior |
+| `failure_signature` | a short literal fragment of the diagnostic line the failing test will print |
+
+Do not supply target identities or `observed_failure_kind`. Never store environment values or put
+a secret in the command.
+
+The helper accepts RED only when `failure_signature` is a substring of its bounded observation:
+the last output line that mentions an assertion, import, permission, fixture, collection, or
+network problem, stripped and cut to 512 characters. Therefore write the signature exactly as the
+runner will print it — for a `unittest` assertion such as `AssertionError: None != 'hello'`, the
+signature `None != 'hello'` is right and a sentence describing the missing behavior is wrong. A
+generic runner summary such as `FAILED (errors=1)` or a bare exit code is rejected, because it
+cannot distinguish the approved missing behavior from an import, collection, fixture, or
+infrastructure failure.
 
 Timeout must come from project configuration or measured fixture behavior. A timeout, missing
 command, dependency, import, collection, fixture, permission, network, or unrelated existing
@@ -36,16 +56,18 @@ failure is not an expected RED.
 
 1. Run `context` for the current step.
 2. Write one small test for one approved behavior before production code.
-3. Save the candidate oracle under the attempt's temporary tree.
-4. Run:
+3. Save the candidate oracle as a JSON file under the attempt's temporary tree.
+4. Run, passing the file path (not inline JSON):
 
 ```text
-python3 <cycle-runtime> accept-red --repo <main-checkout> --oracle <oracle-json>
+python3 <cycle-runtime> accept-red --repo <main-checkout> --oracle <path-to-oracle.json>
 ```
 
 The helper runs the command inside the linked worktree, revalidates identities after the command,
-classifies the failure, freezes the oracle, and writes the RED event. Do not proceed unless the
-failure is the approved missing behavior. A RED command that changes a spec is identity drift,
+classifies the failure, freezes the oracle, and writes the RED event. A candidate that fails
+validation, or a RED that fails for another reason, writes a durable `stopped` event naming the
+reason; read that reason before touching anything. Do not proceed unless the failure is the
+approved missing behavior. A RED command that changes a spec is identity drift,
 not a valid RED. Later GREEN, REFACTOR, staging, commit, and terminal checks recompute every
 `test_targets` identity and stop if any target changed.
 
@@ -66,7 +88,8 @@ weakens the frozen oracle. New behavior requires a new RED before more productio
 
 With the oracle GREEN, inspect duplication, naming, and responsibility boundaries. Refactor only
 when that inspection identifies a real improvement; do not rearrange code to manufacture a
-REFACTOR record.
+REFACTOR record. When nothing warrants a change, state what was inspected and why it needs none
+in the hand-off instead of editing.
 
 Run the same frozen oracle afterwards, including when no code change was needed:
 
@@ -79,7 +102,8 @@ python3 <cycle-runtime> run-oracle \
 
 Apply the project's commit rules first and the installed global rules only as fallback. Keep one
 concern per commit and never cross Plan steps. A step may contain several commits when it contains
-several concerns.
+several concerns; a test and the minimal implementation that satisfies it are one concern and may
+share a commit.
 
 1. Record `git rev-parse HEAD` as `previous_head`.
 2. Ask the helper to validate and stage every intended file individually:
@@ -108,8 +132,8 @@ available.
 
 ## Phase 3 terminal
 
-After every Plan step has current RED, GREEN, REFACTOR, and commit evidence, run the complete
-project verification required by the Plan, then:
+After every Plan step has current RED, GREEN, REFACTOR, and commit evidence, run any wider
+project verification the Plan requires (it never replaces the frozen oracle), then:
 
 ```text
 python3 <cycle-runtime> implementation-green --repo <main-checkout>

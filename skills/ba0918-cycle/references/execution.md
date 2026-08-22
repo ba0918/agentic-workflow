@@ -50,6 +50,12 @@ this succeeds.
 Never use an in-place fallback. Never reclaim a claim from a PID, delete a partial worktree, or
 reuse an attempt ID.
 
+The helper derives the main checkout, the Git common directory, and the linked-worktree identity
+from Git metadata only. A submodule, a bare repository, or a checkout whose identity does not
+match is never accepted as the linked worktree. Every path the helper writes or stages must stay
+inside the repository or the linked worktree: an absolute path, a `..` traversal, or a symlink
+that resolves outside the boundary is rejected.
+
 ## Enter from a fresh session
 
 Conversation history is optional. Reconstruct the attempt from the main checkout:
@@ -58,7 +64,9 @@ Conversation history is optional. Reconstruct the attempt from the main checkout
 python3 <cycle-runtime> load --repo <main-checkout>
 ```
 
-Then revalidate the current plan step before reading or editing implementation files:
+Then revalidate the current plan step before reading or editing implementation files. Step IDs
+are `step-<n>`, taken from the `### <n>.` headings under the bound Plan's `## 実装手順` section;
+a Plan without that structure cannot be executed:
 
 ```text
 python3 <cycle-runtime> context --repo <main-checkout> --step step-<n>
@@ -106,7 +114,9 @@ python3 <cycle-runtime> stop \
 ```
 
 Do not analyze later steps for independence. Preserve already committed steps, evidence, branch,
-claim, and worktree. Return the derived result, including the attempt, stop reason, step, last
+claim, and worktree. Never write progress or completion into the Plan text, `open-plans.json`,
+`status.md`, `session-history.md`, or `plans/progress`; the durable events are the only
+record. Return the derived result, including the attempt, stop reason, step, last
 sequence, branch, worktree, commits, and evidence path.
 
 If evidence itself is unavailable, report an unverified stop from the observable runtime and Git

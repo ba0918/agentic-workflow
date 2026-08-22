@@ -31,10 +31,12 @@ Store only what determines acceptance or a safe hand-off: bounded failure signat
 exit code, outcome, frozen target and oracle identities, test summary, commit SHA, stable stop
 reason, and safe executor/backend/session identifiers.
 
-Every RED, GREEN, and REFACTOR event has an exact `test_summary`. Use `complete` with non-negative
-`passed`, `failed`, and `skipped` counts only when one supported structured reporter yields a
-unique, arithmetically consistent result. Otherwise use `unavailable` with a bounded reason.
-Never infer test counts from an exit code, a command count, or an ambiguous runner summary.
+Every RED, GREEN, and REFACTOR event has an exact `test_summary`. The helper computes it from the
+runner output; the agent never supplies or edits it. It is `complete` with `passed`, `failed`, and
+`skipped` counts only when the output holds exactly one `Ran N tests` line and one matching `OK`
+or `FAILED (...)` line, as Python `unittest` prints; any other output yields `unavailable` with a
+bounded reason. Do not report counts the helper did not record, and never infer them from an exit
+code, a command count, or an ambiguous runner summary.
 
 Never copy full stdout, stderr, provider logs, credentials, environment values, caches, or build
 output into durable evidence. When safe provenance is unavailable, record `unavailable` and a
