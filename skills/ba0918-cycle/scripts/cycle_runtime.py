@@ -83,6 +83,7 @@ class Attempt(NamedTuple):
     evidence_path: Path
     runtime_path: Path
     tmp_path: Path
+    main_checkout: Path
 
 
 def _ok(value: Any = None) -> RuntimeResult:
@@ -494,5 +495,503 @@ def bootstrap_attempt(
             evidence_path=evidence_path,
             runtime_path=runtime_path,
             tmp_path=tmp_path,
+            main_checkout=main_checkout,
         )
     )
+
+
+def _read_json(path: Path) -> RuntimeResult:
+    if path.is_symlink() or not path.is_file():
+        return _failure("artifact_unavailable", f"artifact is unavailable: {path.name}")
+    try:
+        return _ok(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError) as error:
+        return _failure("artifact_invalid", f"artifact is invalid: {path.name}", str(error))
+
+
+def load_current_attempt(project_root: Path) -> RuntimeResult:
+    safe = _safe_agent_roots(project_root)
+    if not safe.ok:
+        return safe
+    repository = discover_repository(project_root)
+    if not repository.ok:
+        return repository
+    main_checkout = repository.value.main_checkout
+    claim_result = _read_json(main_checkout / ".agents/runtime/cycles/current.claim")
+    if not claim_result.ok:
+        return _failure("cycle_claim_missing", "no readable current Cycle claim exists")
+    claim = claim_result.value
+    required = {"attempt_id", "plan_id", "plan_identity", "branch", "worktree"}
+    if not isinstance(claim, dict) or not required.issubset(claim):
+        return _failure("cycle_claim_invalid", "current Cycle claim fields are invalid")
+    attempt_id = claim["attempt_id"]
+    plan_id = claim["plan_id"]
+    if not execution_model.ATTEMPT_ID.fullmatch(attempt_id) or not plan_artifact.PLAN_ID.fullmatch(plan_id):
+        return _failure("cycle_claim_invalid", "claim identity is invalid")
+    evidence_path = main_checkout / ".agents/artifacts/executions" / plan_id / attempt_id
+    runtime_path = main_checkout / ".agents/runtime/cycles" / attempt_id
+    tmp_path = main_checkout / ".agents/tmp/cycles" / attempt_id
+    binding_path = evidence_path / "binding.json"
+    binding_result = _read_json(binding_path)
+    if not binding_result.ok:
+        return binding_result
+    validation = execution_model.validate_binding(binding_result.value)
+    if not validation.ok:
+        return _failure(validation.error.code, validation.error.message)
+    binding = binding_result.value
+    if (
+        binding["attempt_id"] != attempt_id
+        or binding["plan"]["id"] != plan_id
+        or binding["plan"]["content_identity"] != claim["plan_identity"]
+        or binding["branch"] != claim["branch"]
+    ):
+        return _failure("binding_identity_drift", "claim and immutable binding disagree")
+    return _ok(
+        Attempt(
+            attempt_id=attempt_id,
+            plan_id=plan_id,
+            branch=claim["branch"],
+            worktree=Path(claim["worktree"]).resolve(),
+            binding_path=binding_path,
+            evidence_path=evidence_path,
+            runtime_path=runtime_path,
+            tmp_path=tmp_path,
+            main_checkout=main_checkout,
+        )
+    )
+
+
+def _changed_paths(worktree: Path) -> RuntimeResult:
+    status = _git(worktree, "status", "--porcelain=v1", "--untracked-files=all")
+    if status.returncode != 0:
+        return _failure("git_status_failed", "Git status could not be observed", status.stderr.strip())
+    paths: list[str] = []
+    for line in status.stdout.splitlines():
+        if len(line) < 4:
+            continue
+        path = line[3:]
+        if " -> " in path:
+            before, after = path.split(" -> ", 1)
+            paths.extend((before, after))
+        else:
+            paths.append(path)
+    return _ok(tuple(paths))
+
+
+def validate_context(attempt: Attempt, *, step_id: str) -> RuntimeResult:
+    binding_result = _read_json(attempt.binding_path)
+    if not binding_result.ok:
+        return binding_result
+    binding = binding_result.value
+    validation = execution_model.validate_binding(binding)
+    if not validation.ok:
+        return _failure(validation.error.code, validation.error.message)
+    if binding["attempt_id"] != attempt.attempt_id or binding["branch"] != attempt.branch:
+        return _failure("binding_identity_drift", "attempt and binding disagree")
+
+    try:
+        registered = plan_artifact.read_registered_plan(
+            attempt.main_checkout,
+            binding["plan"]["path"],
+        )
+    except plan_artifact.PlanArtifactError as error:
+        return _failure("plan_identity_drift", "registered plan is no longer valid", str(error))
+    if (
+        registered.plan_id != binding["plan"]["id"]
+        or registered.revision != binding["plan"]["revision"]
+        or registered.content_identity != binding["plan"]["content_identity"]
+    ):
+        return _failure("plan_identity_drift", "registered plan differs from the binding")
+    step_number = step_id.removeprefix("step-")
+    if not step_number.isdigit() or re.search(
+        rf"^### {re.escape(step_number)}\.", registered.text, re.MULTILINE
+    ) is None:
+        return _failure("step_missing", "current step does not exist in the bound plan")
+
+    repository = discover_repository(attempt.worktree)
+    if not repository.ok:
+        return _failure("worktree_identity_drift", "bound worktree is not a valid linked worktree")
+    if (
+        repository.value.main_checkout != attempt.main_checkout.resolve()
+        or repository.value.checkout != attempt.worktree.resolve()
+        or repository.value.repository_identity != binding["repository_identity"]
+    ):
+        return _failure("worktree_identity_drift", "worktree Git identity differs from the binding")
+    branch = _git(attempt.worktree, "branch", "--show-current")
+    ancestor = _git(
+        attempt.worktree,
+        "merge-base",
+        "--is-ancestor",
+        binding["base_head"],
+        "HEAD",
+    )
+    if branch.returncode != 0 or branch.stdout.strip() != binding["branch"] or ancestor.returncode != 0:
+        return _failure("worktree_identity_drift", "worktree branch or base HEAD differs from the binding")
+
+    for spec in binding["specs"]:
+        path = attempt.worktree.joinpath(*PurePosixPath(spec["path"]).parts)
+        if path.is_symlink() or not path.is_file():
+            return _failure("spec_identity_drift", f"bound spec is unavailable: {spec['path']}")
+        if _raw_identity(path.read_text(encoding="utf-8")) != spec["content_identity"]:
+            return _failure("spec_identity_drift", f"bound spec changed: {spec['path']}")
+
+    changed = _changed_paths(attempt.worktree)
+    if not changed.ok:
+        return changed
+    for path in changed.value:
+        scope = execution_model.validate_write_path(path, binding["write_scope"])
+        if not scope.ok:
+            return _failure(scope.error.code, scope.error.message, path)
+    return _ok(binding)
+
+
+def _load_events(attempt: Attempt) -> RuntimeResult:
+    events: list[dict] = []
+    for path in sorted(attempt.evidence_path.glob("0*.json")):
+        loaded = _read_json(path)
+        if not loaded.ok:
+            return loaded
+        event = loaded.value
+        previous = events[-1] if events else None
+        unsigned = {key: value for key, value in event.items() if key != "content_identity"}
+        sealed = execution_model.seal_event(unsigned, previous_event=previous)
+        if not sealed.ok or sealed.value != event:
+            return _failure("stale_event_chain", "durable event chain is invalid", path.name)
+        events.append(event)
+    return _ok(events)
+
+
+def append_event(
+    attempt: Attempt,
+    event_type: str,
+    details: dict[str, Any],
+    *,
+    sequence: int | None = None,
+) -> RuntimeResult:
+    binding_result = _read_json(attempt.binding_path)
+    if not binding_result.ok:
+        return binding_result
+    binding = binding_result.value
+    loaded = _load_events(attempt)
+    if not loaded.ok:
+        return loaded
+    events = loaded.value
+    next_sequence = sequence if sequence is not None else len(events) + 1
+    previous = next((event for event in events if event["sequence"] == next_sequence - 1), None)
+    if next_sequence == 1:
+        previous = None
+    candidate = {
+        "version": 1,
+        "sequence": next_sequence,
+        "event_type": event_type,
+        "attempt_id": attempt.attempt_id,
+        "plan_identity": binding["plan"]["content_identity"],
+        "spec_identities": {
+            item["path"]: item["content_identity"] for item in binding["specs"]
+        },
+        "previous_identity": previous["content_identity"] if previous is not None else None,
+        **details,
+    }
+    sealed = execution_model.seal_event(candidate, previous_event=previous)
+    if not sealed.ok:
+        return _failure(sealed.error.code, sealed.error.message)
+    existing_paths = list(attempt.evidence_path.glob(f"{next_sequence:06d}-*.json"))
+    if existing_paths:
+        if len(existing_paths) != 1:
+            return _failure("event_identity_collision", "multiple events occupy the same sequence")
+        existing = _read_json(existing_paths[0])
+        if not existing.ok:
+            return existing
+        compared = execution_model.compare_event_retry(existing.value, sealed.value)
+        if not compared.ok:
+            return _failure(compared.error.code, compared.error.message)
+        return _ok(existing.value)
+    target = attempt.evidence_path / f"{next_sequence:06d}-{event_type}.json"
+    persisted = write_once(target, execution_model.canonical_json(sealed.value))
+    if not persisted.ok:
+        if persisted.error.code == "write_collision":
+            return _failure("event_identity_collision", "event sequence was acquired concurrently")
+        return persisted
+    return _ok(sealed.value)
+
+
+def derive_attempt_result(attempt: Attempt) -> dict:
+    loaded = _load_events(attempt)
+    if not loaded.ok:
+        return {
+            "state": "stopped",
+            "reason": loaded.error.code,
+            "attempt_id": attempt.attempt_id,
+            "branch": attempt.branch,
+            "worktree": str(attempt.worktree),
+            "evidence_path": str(attempt.evidence_path),
+        }
+    result = execution_model.derive_result(loaded.value)
+    result.update(
+        {
+            "branch": attempt.branch,
+            "worktree": str(attempt.worktree),
+            "evidence_path": str(attempt.evidence_path),
+        }
+    )
+    commits = [event["commit_sha"] for event in loaded.value if event["event_type"] == "commit"]
+    if commits and "commits" not in result:
+        result["commits"] = commits
+    return result
+
+
+def _stop(attempt: Attempt, error: RuntimeFailure, step_id: str) -> RuntimeResult:
+    append_event(
+        attempt,
+        "stopped",
+        {"reason": error.code, "step_id": step_id},
+    )
+    return RuntimeResult(None, error)
+
+
+def _bounded_observation(stdout: str, stderr: str) -> str:
+    lines = [line.strip() for line in (stdout + "\n" + stderr).splitlines() if line.strip()]
+    observation = lines[-1] if lines else "no output"
+    observation = re.sub(
+        r"(?i)\b(token|password|secret|credential)\s*[=:]\s*\S+",
+        r"\1=<redacted>",
+        observation,
+    )
+    return observation[:512]
+
+
+def _classify_process_failure(observation: str) -> str:
+    lowered = observation.lower()
+    if "modulenotfounderror" in lowered or "importerror" in lowered:
+        return "import_failure"
+    if "permissionerror" in lowered or "permission denied" in lowered:
+        return "permission_failure"
+    if "fixture" in lowered or "collection error" in lowered:
+        return "fixture_failure"
+    if "network" in lowered or "connection" in lowered:
+        return "network_failure"
+    return "behavior_failure"
+
+
+def _execute_oracle(attempt: Attempt, oracle: dict) -> RuntimeResult:
+    cwd = attempt.worktree if oracle["cwd"] == "." else attempt.worktree.joinpath(
+        *PurePosixPath(oracle["cwd"]).parts
+    )
+    try:
+        completed = subprocess.run(
+            oracle["command"],
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+            timeout=oracle["timeout_seconds"],
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return _failure("timeout", "oracle exceeded its frozen timeout")
+    except FileNotFoundError:
+        return _failure("command_missing", "oracle command is unavailable")
+    except PermissionError:
+        return _failure("permission_required", "oracle command requires additional permission")
+    observation = _bounded_observation(completed.stdout, completed.stderr)
+    return _ok(
+        {
+            "exit_code": completed.returncode,
+            "observation": observation,
+            "failure_kind": (
+                "passed" if completed.returncode == 0 else _classify_process_failure(observation)
+            ),
+        }
+    )
+
+
+def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
+    validation = execution_model.validate_oracle(oracle)
+    if not validation.ok:
+        return _stop(
+            attempt,
+            RuntimeFailure(validation.error.code, validation.error.message),
+            oracle.get("step_id", "unknown"),
+        )
+    step_id = oracle["step_id"]
+    before = validate_context(attempt, step_id=step_id)
+    if not before.ok:
+        return _stop(attempt, before.error, step_id)
+    executed = _execute_oracle(attempt, oracle)
+    if not executed.ok:
+        return _stop(attempt, executed.error, step_id)
+    after = validate_context(attempt, step_id=step_id)
+    if not after.ok:
+        return _stop(attempt, after.error, step_id)
+    observation = executed.value
+    if (
+        observation["exit_code"] == 0
+        or observation["failure_kind"] != oracle["expected_failure_kind"]
+        or oracle["failure_signature"] not in observation["observation"]
+    ):
+        return _stop(
+            attempt,
+            RuntimeFailure("unintended_red", "RED did not fail for the approved missing behavior"),
+            step_id,
+        )
+    frozen = dict(oracle)
+    frozen["observed_failure_kind"] = observation["failure_kind"]
+    oracle_identity = execution_model.content_identity(frozen)
+    oracle_path = attempt.evidence_path / "oracles" / f"{step_id}.json"
+    persisted = write_once(oracle_path, execution_model.canonical_json(frozen))
+    if not persisted.ok:
+        if persisted.error.code == "write_collision":
+            existing = _read_json(oracle_path)
+            if not existing.ok or execution_model.content_identity(existing.value) != oracle_identity:
+                return _stop(
+                    attempt,
+                    RuntimeFailure("oracle_identity_collision", "frozen oracle differs from existing evidence"),
+                    step_id,
+                )
+        else:
+            return _stop(attempt, persisted.error, step_id)
+    return append_event(
+        attempt,
+        "red",
+        {
+            "step_id": step_id,
+            "oracle_identity": oracle_identity,
+            "outcome": "expected_failure",
+            "exit_code": observation["exit_code"],
+            "observation": observation["observation"],
+        },
+    )
+
+
+def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResult:
+    if phase not in {"green", "refactor"}:
+        return _failure("phase_invalid", "frozen oracle phase must be green or refactor")
+    oracle_result = _read_json(attempt.evidence_path / "oracles" / f"{step_id}.json")
+    if not oracle_result.ok:
+        return _stop(attempt, RuntimeFailure("oracle_missing", "frozen oracle is unavailable"), step_id)
+    oracle = oracle_result.value
+    validation = execution_model.validate_oracle(oracle)
+    if not validation.ok:
+        return _stop(attempt, RuntimeFailure(validation.error.code, validation.error.message), step_id)
+    events_result = _load_events(attempt)
+    if not events_result.ok:
+        return RuntimeResult(None, events_result.error)
+    red_events = [
+        event
+        for event in events_result.value
+        if event["event_type"] == "red" and event.get("step_id") == step_id
+    ]
+    if len(red_events) != 1 or red_events[0]["oracle_identity"] != execution_model.content_identity(
+        oracle
+    ):
+        return _stop(
+            attempt,
+            RuntimeFailure("oracle_identity_drift", "frozen oracle differs from the accepted RED"),
+            step_id,
+        )
+    before = validate_context(attempt, step_id=step_id)
+    if not before.ok:
+        return _stop(attempt, before.error, step_id)
+    executed = _execute_oracle(attempt, oracle)
+    if not executed.ok:
+        return _stop(attempt, executed.error, step_id)
+    after = validate_context(attempt, step_id=step_id)
+    if not after.ok:
+        return _stop(attempt, after.error, step_id)
+    if executed.value["exit_code"] != 0:
+        return _stop(
+            attempt,
+            RuntimeFailure(f"{phase}_failed", f"frozen oracle did not pass during {phase}"),
+            step_id,
+        )
+    return append_event(
+        attempt,
+        phase,
+        {
+            "step_id": step_id,
+            "oracle_identity": execution_model.content_identity(oracle),
+            "outcome": "passed",
+            **(
+                {"observation": executed.value["observation"], "exit_code": 0}
+                if phase == "green"
+                else {"observation": executed.value["observation"]}
+            ),
+        },
+    )
+
+
+def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeResult:
+    context = validate_context(attempt, step_id=step_id)
+    if not context.ok:
+        return context
+    scopes = context.value["write_scope"]
+    for path in paths:
+        validation = execution_model.validate_write_path(path, scopes)
+        if not validation.ok:
+            return _failure(validation.error.code, validation.error.message, path)
+        staged = _git(attempt.worktree, "add", "--", path)
+        if staged.returncode != 0:
+            return _failure("stage_failed", "Git could not stage an approved path", staged.stderr.strip())
+    observed = _git(attempt.worktree, "diff", "--cached", "--name-only", "--diff-filter=AM")
+    if observed.returncode != 0:
+        return _failure("stage_failed", "staged paths could not be observed", observed.stderr.strip())
+    staged_paths = tuple(line for line in observed.stdout.splitlines() if line)
+    if set(staged_paths) != set(paths):
+        return _failure("stage_scope_mismatch", "staging contains missing or additional paths")
+    for path in staged_paths:
+        validation = execution_model.validate_write_path(path, scopes)
+        if not validation.ok:
+            return _failure(validation.error.code, validation.error.message, path)
+    staged_diff = _git(attempt.worktree, "diff", "--cached", "--")
+    if re.search(
+        r"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*[^<\s][^\s]*",
+        staged_diff.stdout,
+    ):
+        return _failure("secret_detected", "staged content resembles a credential assignment")
+    return _ok(staged_paths)
+
+
+def record_commit(attempt: Attempt, step_id: str, previous_head: str) -> RuntimeResult:
+    current = _git(attempt.worktree, "rev-parse", "HEAD")
+    if current.returncode != 0 or current.stdout.strip() == previous_head:
+        return _failure("commit_missing", "commit did not advance HEAD")
+    status = _git(attempt.worktree, "status", "--porcelain=v1", "--untracked-files=all")
+    if status.returncode != 0:
+        return _failure("git_status_failed", "post-commit status could not be observed")
+    if status.stdout.strip():
+        return _failure("post_commit_dirty", "worktree changed during or after commit")
+    context = validate_context(attempt, step_id=step_id)
+    if not context.ok:
+        return context
+    changed = _git(
+        attempt.worktree,
+        "diff-tree",
+        "--no-commit-id",
+        "--name-only",
+        "-r",
+        current.stdout.strip(),
+    )
+    if changed.returncode != 0:
+        return _failure("commit_invalid", "committed paths could not be observed")
+    for path in changed.stdout.splitlines():
+        validation = execution_model.validate_write_path(path, context.value["write_scope"])
+        if not validation.ok:
+            return _failure(validation.error.code, validation.error.message, path)
+    return append_event(
+        attempt,
+        "commit",
+        {
+            "step_id": step_id,
+            "commit_sha": current.stdout.strip(),
+            "outcome": "committed",
+        },
+    )
+
+
+def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
+    loaded = _load_events(attempt)
+    if not loaded.ok:
+        return loaded
+    commits = [event["commit_sha"] for event in loaded.value if event["event_type"] == "commit"]
+    if not commits:
+        return _failure("commit_missing", "implementation green requires at least one commit")
+    return append_event(attempt, "implementation_green", {"commits": commits})

@@ -87,6 +87,42 @@ tests/
     return root, plan_id, spec_identity
 
 
+def bootstrap_fixture(parent: Path):
+    root, _, _ = create_repository(parent)
+    resolved = cycle_runtime.resolve_plan(root).value
+    result = cycle_runtime.bootstrap_attempt(
+        root,
+        resolved,
+        worktree_path=parent / "linked-worktree",
+        attempt_id_factory=lambda: "20260822t152244-a1b2c3d4",
+        executor={
+            "executor": "codex",
+            "backend": "unavailable",
+            "session_id": "unavailable",
+            "reason": "not exposed safely",
+        },
+    )
+    if not result.ok:
+        raise AssertionError(result.error)
+    return root, result.value
+
+
+def red_oracle(command: list[str]) -> dict:
+    return {
+        "version": 1,
+        "step_id": "step-1",
+        "clauses": ["FX-001"],
+        "test_identity": "sha256:" + "5" * 64,
+        "command": command,
+        "cwd": ".",
+        "environment_names": [],
+        "timeout_seconds": 10,
+        "expected_failure_kind": "behavior_failure",
+        "observed_failure_kind": "behavior_failure",
+        "failure_signature": "greeting missing",
+    }
+
+
 class PlanResolutionTest(unittest.TestCase):
     def test_current_plan_metadata_and_specs_are_verified(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -365,6 +401,300 @@ class AtomicWriteTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "persistence_unavailable")
             self.assertFalse(target.exists())
+
+
+class FreshSessionTest(unittest.TestCase):
+    def test_current_attempt_is_reconstructed_from_claim_binding_and_git(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+
+            result = cycle_runtime.load_current_attempt(root)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value.attempt_id, attempt.attempt_id)
+            self.assertEqual(result.value.worktree, attempt.worktree)
+            self.assertEqual(result.value.binding_path, attempt.binding_path)
+
+    def test_context_rejects_spec_drift_and_scope_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            spec = attempt.worktree / "docs/spec/feature.md"
+            spec.write_text(spec.read_text(encoding="utf-8") + "changed\n", encoding="utf-8")
+
+            spec_result = cycle_runtime.validate_context(attempt, step_id="step-1")
+
+            self.assertFalse(spec_result.ok)
+            self.assertEqual(spec_result.error.code, "spec_identity_drift")
+            git(attempt.worktree, "checkout", "--", "docs/spec/feature.md")
+            (attempt.worktree / "outside.txt").write_text("outside\n", encoding="utf-8")
+
+            scope_result = cycle_runtime.validate_context(attempt, step_id="step-1")
+
+            self.assertFalse(scope_result.ok)
+            self.assertEqual(scope_result.error.code, "write_scope_violation")
+
+    def test_unregistered_worktree_path_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            forged = attempt._replace(worktree=Path(directory) / "repository")
+
+            result = cycle_runtime.validate_context(forged, step_id="step-1")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "worktree_identity_drift")
+
+
+class EventPersistenceTest(unittest.TestCase):
+    def test_event_retry_is_idempotent_only_for_the_same_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            details = {"reason": "permission_required", "step_id": "step-1"}
+
+            first = cycle_runtime.append_event(
+                attempt,
+                "stopped",
+                details,
+                sequence=2,
+            )
+            same = cycle_runtime.append_event(
+                attempt,
+                "stopped",
+                details,
+                sequence=2,
+            )
+            collision = cycle_runtime.append_event(
+                attempt,
+                "stopped",
+                {"reason": "persistence_unavailable", "step_id": "step-1"},
+                sequence=2,
+            )
+
+            self.assertTrue(first.ok)
+            self.assertTrue(same.ok)
+            self.assertEqual(first.value["content_identity"], same.value["content_identity"])
+            self.assertFalse(collision.ok)
+            self.assertEqual(collision.error.code, "event_identity_collision")
+            events = sorted(attempt.evidence_path.glob("0*.json"))
+            self.assertEqual(len(events), 2)
+
+    def test_result_is_derived_without_a_result_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            cycle_runtime.append_event(
+                attempt,
+                "stopped",
+                {"reason": "identity_drift", "step_id": "step-1"},
+            )
+
+            result = cycle_runtime.derive_attempt_result(attempt)
+
+            self.assertEqual(result["state"], "stopped")
+            self.assertEqual(result["reason"], "identity_drift")
+            self.assertEqual(result["branch"], attempt.branch)
+            self.assertFalse((attempt.evidence_path / "result.json").exists())
+
+    def test_implementation_green_is_derived_from_a_terminal_event_after_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+
+            missing = cycle_runtime.mark_implementation_green(attempt)
+            self.assertFalse(missing.ok)
+            self.assertEqual(missing.error.code, "commit_missing")
+            commit_sha = "7" * 40
+            cycle_runtime.append_event(
+                attempt,
+                "commit",
+                {"step_id": "step-1", "commit_sha": commit_sha, "outcome": "committed"},
+            )
+
+            terminal = cycle_runtime.mark_implementation_green(attempt)
+            result = cycle_runtime.derive_attempt_result(attempt)
+
+            self.assertTrue(terminal.ok, terminal.error)
+            self.assertEqual(terminal.value["event_type"], "implementation_green")
+            self.assertEqual(result["state"], "implementation_green")
+            self.assertEqual(result["commits"], [commit_sha])
+
+
+class OracleExecutionTest(unittest.TestCase):
+    def test_expected_red_freezes_oracle_and_records_bounded_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            oracle = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    "import sys; print('greeting missing'); sys.exit(1)",
+                ]
+            )
+
+            result = cycle_runtime.accept_red(attempt, oracle)
+
+            self.assertTrue(result.ok, result.error)
+            oracle_path = attempt.evidence_path / "oracles/step-1.json"
+            self.assertTrue(oracle_path.is_file())
+            event = result.value
+            self.assertEqual(event["event_type"], "red")
+            self.assertEqual(event["outcome"], "expected_failure")
+            self.assertEqual(event["observation"], "greeting missing")
+
+    def test_red_command_that_changes_a_spec_stops_before_acceptance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            oracle = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "Path('docs/spec/feature.md').write_text('changed\\n'); "
+                        "print('greeting missing'); sys.exit(1)"
+                    ),
+                ]
+            )
+
+            result = cycle_runtime.accept_red(attempt, oracle)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "spec_identity_drift")
+            self.assertFalse((attempt.evidence_path / "oracles/step-1.json").exists())
+            self.assertEqual(cycle_runtime.derive_attempt_result(attempt)["state"], "stopped")
+
+    def test_import_failure_is_not_accepted_as_red(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            oracle = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    "import module_that_does_not_exist_for_cycle_fixture",
+                ]
+            )
+
+            result = cycle_runtime.accept_red(attempt, oracle)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "unintended_red")
+            self.assertEqual(cycle_runtime.derive_attempt_result(attempt)["state"], "stopped")
+            self.assertFalse((attempt.evidence_path / "oracles/step-1.json").exists())
+
+    def test_green_and_refactor_reuse_the_frozen_oracle(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            oracle = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "exists=Path('src/greeting.py').is_file(); "
+                        "print('green' if exists else 'greeting missing'); "
+                        "sys.exit(0 if exists else 1)"
+                    ),
+                ]
+            )
+            self.assertTrue(cycle_runtime.accept_red(attempt, oracle).ok)
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+
+            green = cycle_runtime.run_frozen_oracle(attempt, "step-1", "green")
+            refactor = cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor")
+
+            self.assertTrue(green.ok, green.error)
+            self.assertTrue(refactor.ok, refactor.error)
+            self.assertEqual(green.value["oracle_identity"], refactor.value["oracle_identity"])
+            self.assertEqual(green.value["outcome"], "passed")
+            self.assertEqual(refactor.value["outcome"], "passed")
+
+    def test_changed_frozen_oracle_is_rejected_before_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            oracle = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    "import sys; print('greeting missing'); sys.exit(1)",
+                ]
+            )
+            red = cycle_runtime.accept_red(attempt, oracle)
+            self.assertTrue(red.ok)
+            oracle_path = attempt.evidence_path / "oracles/step-1.json"
+            changed = json.loads(oracle_path.read_text(encoding="utf-8"))
+            changed["command"] = ["python3", "-c", "raise SystemExit(0)"]
+            oracle_path.write_text(json.dumps(changed), encoding="utf-8")
+
+            result = cycle_runtime.run_frozen_oracle(attempt, "step-1", "green")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "oracle_identity_drift")
+
+
+class CommitBoundaryTest(unittest.TestCase):
+    def test_only_scoped_files_can_be_staged_and_recorded_after_a_clean_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+
+            staged = cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1")
+            self.assertTrue(staged.ok, staged.error)
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+            git(attempt.worktree, "commit", "-m", "feat: add greeting")
+            recorded = cycle_runtime.record_commit(attempt, "step-1", previous_head)
+
+            self.assertTrue(recorded.ok, recorded.error)
+            self.assertEqual(recorded.value["event_type"], "commit")
+            self.assertEqual(recorded.value["commit_sha"], git(attempt.worktree, "rev-parse", "HEAD"))
+
+    def test_post_commit_dirty_state_is_rejected_without_an_event(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            self.assertTrue(
+                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+            )
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+            git(attempt.worktree, "commit", "-m", "feat: add greeting")
+            production.write_text("changed after commit\n", encoding="utf-8")
+
+            result = cycle_runtime.record_commit(attempt, "step-1", previous_head)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "post_commit_dirty")
+
+    def test_scope_violation_is_not_staged(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            outside = attempt.worktree / "outside.txt"
+            outside.write_text("outside\n", encoding="utf-8")
+
+            result = cycle_runtime.stage_paths(attempt, ["outside.txt"], step_id="step-1")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "write_scope_violation")
+            self.assertEqual(git(attempt.worktree, "diff", "--cached", "--name-only"), "")
+
+    def test_scope_validation_finishes_before_any_path_is_staged(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            (attempt.worktree / "outside.txt").write_text("outside\n", encoding="utf-8")
+
+            result = cycle_runtime.stage_paths(
+                attempt,
+                ["src/greeting.py", "outside.txt"],
+                step_id="step-1",
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "write_scope_violation")
+            self.assertEqual(git(attempt.worktree, "diff", "--cached", "--name-only"), "")
 
 
 if __name__ == "__main__":
