@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import errno
+import hashlib
 import importlib.util
 import json
 import os
@@ -314,10 +315,11 @@ def write_once(
     *,
     opener: Callable[..., int] = os.open,
 ) -> RuntimeResult:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.parent / f".{path.name}.{secrets.token_hex(8)}"
+    temporary: Path | None = None
     descriptor: int | None = None
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.parent / f".{path.name}.{secrets.token_hex(8)}"
         descriptor = opener(str(temporary), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         offset = 0
         while offset < len(data):
@@ -332,7 +334,11 @@ def write_once(
     finally:
         if descriptor is not None:
             os.close(descriptor)
-        temporary.unlink(missing_ok=True)
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def _safe_agent_roots(main_checkout: Path) -> RuntimeResult:
@@ -788,6 +794,24 @@ def _stop(attempt: Attempt, error: RuntimeFailure, step_id: str) -> RuntimeResul
     return RuntimeResult(None, error)
 
 
+def _permission_required(
+    attempt: Attempt,
+    error: RuntimeFailure,
+    step_id: str,
+    operation_identity: str,
+) -> RuntimeResult:
+    append_event(
+        attempt,
+        "permission_required",
+        {
+            "step_id": step_id,
+            "operation_identity": operation_identity,
+            "outcome": "permission_required",
+        },
+    )
+    return RuntimeResult(None, error)
+
+
 def _bounded_observation(stdout: str, stderr: str) -> str:
     lines = [line.strip() for line in (stdout + "\n" + stderr).splitlines() if line.strip()]
     diagnostic = re.compile(
@@ -851,6 +875,47 @@ def _execute_oracle(attempt: Attempt, oracle: dict) -> RuntimeResult:
     )
 
 
+def _test_target_snapshot(worktree: Path, paths: list[str]) -> RuntimeResult:
+    targets: list[dict[str, str]] = []
+    root = worktree.resolve()
+    for relative_path in paths:
+        if not execution_model.validate_relative_path(relative_path).ok:
+            return _failure("test_target_invalid", "test target path is unsafe", relative_path)
+        path = worktree.joinpath(*PurePosixPath(relative_path).parts)
+        try:
+            resolved = path.resolve(strict=True)
+        except (OSError, RuntimeError) as error:
+            return _failure("test_target_unavailable", "test target is unavailable", str(error))
+        if path.is_symlink() or (resolved.parent != root and root not in resolved.parents) or not resolved.is_file():
+            return _failure("test_target_invalid", "test target escapes the bound worktree", relative_path)
+        try:
+            identity = "sha256:" + hashlib.sha256(resolved.read_bytes()).hexdigest()
+        except OSError as error:
+            return _failure("test_target_unavailable", "test target cannot be read", str(error))
+        targets.append({"path": relative_path, "content_identity": identity})
+    return _ok(targets)
+
+
+def _validate_frozen_test_targets(attempt: Attempt, oracle: dict) -> RuntimeResult:
+    expected = oracle["test_targets"]
+    observed = _test_target_snapshot(attempt.worktree, [item["path"] for item in expected])
+    if not observed.ok:
+        return observed
+    if observed.value != expected:
+        return _failure("test_identity_drift", "frozen test target bytes changed")
+    return _ok(expected)
+
+
+def _validate_step_test_targets(attempt: Attempt, step_id: str) -> RuntimeResult:
+    oracle_result = _read_json(attempt.evidence_path / "oracles" / f"{step_id}.json")
+    if not oracle_result.ok:
+        return _failure("oracle_missing", "frozen oracle is unavailable")
+    validation = execution_model.validate_oracle(oracle_result.value)
+    if not validation.ok:
+        return _failure(validation.error.code, validation.error.message)
+    return _validate_frozen_test_targets(attempt, oracle_result.value)
+
+
 def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
     validation = execution_model.validate_oracle_candidate(oracle)
     if not validation.ok:
@@ -863,12 +928,31 @@ def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
     before = validate_context(attempt, step_id=step_id)
     if not before.ok:
         return _stop(attempt, before.error, step_id)
+    targets_before = _test_target_snapshot(attempt.worktree, oracle["test_targets"])
+    if not targets_before.ok:
+        return _stop(attempt, targets_before.error, step_id)
     executed = _execute_oracle(attempt, oracle)
     if not executed.ok:
+        if executed.error.code == "permission_required":
+            return _permission_required(
+                attempt,
+                executed.error,
+                step_id,
+                execution_model.content_identity(oracle),
+            )
         return _stop(attempt, executed.error, step_id)
     after = validate_context(attempt, step_id=step_id)
     if not after.ok:
         return _stop(attempt, after.error, step_id)
+    targets_after = _test_target_snapshot(attempt.worktree, oracle["test_targets"])
+    if not targets_after.ok:
+        return _stop(attempt, targets_after.error, step_id)
+    if targets_after.value != targets_before.value:
+        return _stop(
+            attempt,
+            RuntimeFailure("test_identity_drift", "test target changed during RED execution"),
+            step_id,
+        )
     observation = executed.value
     if (
         observation["exit_code"] == 0
@@ -881,6 +965,7 @@ def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
             step_id,
         )
     frozen = dict(oracle)
+    frozen["test_targets"] = targets_before.value
     frozen["observed_failure_kind"] = observation["failure_kind"]
     frozen_validation = execution_model.validate_oracle(frozen)
     if not frozen_validation.ok:
@@ -926,6 +1011,9 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
     validation = execution_model.validate_oracle(oracle)
     if not validation.ok:
         return _stop(attempt, RuntimeFailure(validation.error.code, validation.error.message), step_id)
+    target_validation = _validate_frozen_test_targets(attempt, oracle)
+    if not target_validation.ok:
+        return _stop(attempt, target_validation.error, step_id)
     events_result = _load_events(attempt)
     if not events_result.ok:
         return RuntimeResult(None, events_result.error)
@@ -951,6 +1039,9 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
     after = validate_context(attempt, step_id=step_id)
     if not after.ok:
         return _stop(attempt, after.error, step_id)
+    target_validation = _validate_frozen_test_targets(attempt, oracle)
+    if not target_validation.ok:
+        return _stop(attempt, target_validation.error, step_id)
     if executed.value["exit_code"] != 0:
         return _stop(
             attempt,
@@ -990,6 +1081,9 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
             return _failure("stage_failed", "approved path could not be inspected", str(error))
         if CREDENTIAL_ASSIGNMENT.search(content):
             return _failure("secret_detected", "candidate content resembles a credential assignment")
+    targets = _validate_step_test_targets(attempt, step_id)
+    if not targets.ok:
+        return targets
     for path in paths:
         staged = _git(attempt.worktree, "add", "--", path)
         if staged.returncode != 0:
@@ -1022,6 +1116,9 @@ def record_commit(attempt: Attempt, step_id: str, previous_head: str) -> Runtime
     context = validate_context(attempt, step_id=step_id)
     if not context.ok:
         return context
+    targets = _validate_step_test_targets(attempt, step_id)
+    if not targets.ok:
+        return targets
     changed = _git(
         attempt.worktree,
         "diff-tree",

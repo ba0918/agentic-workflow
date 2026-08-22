@@ -25,6 +25,7 @@ EVENT_TYPES = {
     "refactor": {"step_id", "oracle_identity", "outcome", "observation"},
     "commit": {"step_id", "commit_sha", "outcome"},
     "human_gate": {"gate_id", "step_id", "target_identity", "result"},
+    "permission_required": {"step_id", "operation_identity", "outcome"},
     "stopped": {"reason"},
     "implementation_green": {"commits"},
 }
@@ -286,6 +287,12 @@ def validate_write_path(relative_path: str, scopes: list[str]) -> ModelResult:
     return _failure("write_scope_violation", relative_path, "write path is outside the approved scope")
 
 
+def validate_relative_path(relative_path: object) -> ModelResult:
+    if not _safe_relative_path(relative_path):
+        return _failure("unsafe_path", None, "path must be repository-relative without traversal")
+    return _ok(relative_path)
+
+
 def _validate_oracle(value: object, *, require_observed: bool) -> ModelResult:
     forbidden = _first_secret_field(value)
     if forbidden is not None:
@@ -294,7 +301,7 @@ def _validate_oracle(value: object, *, require_observed: bool) -> ModelResult:
         "version",
         "step_id",
         "clauses",
-        "test_identity",
+        "test_targets",
         "command",
         "cwd",
         "environment_names",
@@ -312,8 +319,29 @@ def _validate_oracle(value: object, *, require_observed: bool) -> ModelResult:
         return _failure("oracle_field_invalid", "step_id", "oracle step is invalid")
     if not isinstance(value["clauses"], list) or not value["clauses"]:
         return _failure("oracle_field_invalid", "clauses", "oracle clauses are invalid")
-    if not _matches(IDENTITY, value["test_identity"]):
-        return _failure("oracle_field_invalid", "test_identity", "test identity is invalid")
+    test_targets = value["test_targets"]
+    if require_observed:
+        if not isinstance(test_targets, list) or not test_targets:
+            return _failure("oracle_field_invalid", "test_targets", "test targets are invalid")
+        target_paths: set[str] = set()
+        for target in test_targets:
+            if not isinstance(target, dict) or set(target) != {"path", "content_identity"}:
+                return _failure("oracle_field_invalid", "test_targets", "test target fields are invalid")
+            if (
+                not _safe_relative_path(target["path"])
+                or target["path"] in target_paths
+                or not _matches(IDENTITY, target["content_identity"])
+            ):
+                return _failure("oracle_field_invalid", "test_targets", "test target is invalid")
+            target_paths.add(target["path"])
+    elif (
+        not isinstance(test_targets, list)
+        or not test_targets
+        or not all(isinstance(path, str) for path in test_targets)
+        or len(test_targets) != len(set(test_targets))
+        or any(not _safe_relative_path(path) for path in test_targets)
+    ):
+        return _failure("oracle_field_invalid", "test_targets", "candidate test targets are invalid")
     if not isinstance(value["command"], list) or not value["command"] or not all(
         isinstance(part, str) and part for part in value["command"]
     ):
@@ -444,6 +472,12 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         or candidate["result"] not in HUMAN_GATE_RESULTS
     ):
         return _failure("event_field_invalid", "human_gate", "human gate event is invalid")
+    if event_type == "permission_required" and (
+        not _matches(STEP_ID, candidate["step_id"])
+        or not _matches(IDENTITY, candidate["operation_identity"])
+        or candidate["outcome"] != "permission_required"
+    ):
+        return _failure("event_field_invalid", "permission_required", "permission event is invalid")
     if event_type == "implementation_green" and (
         not isinstance(candidate["commits"], list)
         or not candidate["commits"]
@@ -553,6 +587,9 @@ def derive_result(events: list[dict]) -> dict:
         result["reason"] = last["reason"]
         if "step_id" in last:
             result["step_id"] = last["step_id"]
+    elif last["event_type"] == "permission_required":
+        result["reason"] = "permission_required"
+        result["step_id"] = last["step_id"]
     else:
         result["reason"] = "terminal_event_missing"
     return result

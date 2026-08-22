@@ -79,7 +79,12 @@ def oracle() -> dict:
         "version": 1,
         "step_id": "step-1",
         "clauses": ["CY-010"],
-        "test_identity": "sha256:" + "5" * 64,
+        "test_targets": [
+            {
+                "path": "tests/cycle_runtime_test.py",
+                "content_identity": "sha256:" + "5" * 64,
+            }
+        ],
         "command": ["python3", "-m", "unittest", "tests/cycle_runtime_test.py"],
         "cwd": ".",
         "environment_names": [],
@@ -123,7 +128,7 @@ class BindingValidationTest(unittest.TestCase):
         missing_step = oracle()
         del missing_step["step_id"]
         missing_identity = oracle()
-        del missing_identity["test_identity"]
+        del missing_identity["test_targets"]
 
         self.assertEqual(
             cycle_model.validate_oracle(missing_step).error.code,
@@ -162,7 +167,7 @@ class BindingValidationTest(unittest.TestCase):
         invalid_binding = binding()
         invalid_binding["plan"]["id"] = 20260822143915
         invalid_oracle = oracle()
-        invalid_oracle["test_identity"] = None
+        invalid_oracle["test_targets"] = None
 
         binding_result = cycle_model.validate_binding(invalid_binding)
         oracle_result = cycle_model.validate_oracle(invalid_oracle)
@@ -184,6 +189,7 @@ class BindingValidationTest(unittest.TestCase):
     def test_oracle_candidate_does_not_claim_an_observation_before_execution(self) -> None:
         candidate = oracle()
         del candidate["observed_failure_kind"]
+        candidate["test_targets"] = ["tests/cycle_runtime_test.py"]
 
         candidate_result = cycle_model.validate_oracle_candidate(candidate)
         durable_result = cycle_model.validate_oracle(candidate)

@@ -1,5 +1,6 @@
 import importlib.util
 import contextlib
+import errno
 import io
 import json
 import os
@@ -7,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).parents[1]
@@ -47,7 +49,10 @@ def create_repository(parent: Path) -> tuple[Path, str, str]:
     spec_path.parent.mkdir(parents=True)
     spec_path.write_text(spec_text, encoding="utf-8")
     (root / "README.md").write_text("fixture\n", encoding="utf-8")
-    git(root, "add", ".gitignore", "README.md", "docs/spec/feature.md")
+    test_target = root / "tests/greeting_test.py"
+    test_target.parent.mkdir(parents=True)
+    test_target.write_text("# Cycle runtime target fixture\n", encoding="utf-8")
+    git(root, "add", ".gitignore", "README.md", "docs/spec/feature.md", "tests/greeting_test.py")
     git(root, "commit", "-m", "fixture baseline")
 
     plan_id = "20260822150000"
@@ -114,7 +119,7 @@ def red_oracle(command: list[str]) -> dict:
         "version": 1,
         "step_id": "step-1",
         "clauses": ["FX-001"],
-        "test_identity": "sha256:" + "5" * 64,
+        "test_targets": ["tests/greeting_test.py"],
         "command": command,
         "cwd": ".",
         "environment_names": [],
@@ -418,6 +423,20 @@ class AtomicWriteTest(unittest.TestCase):
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "persistence_unavailable")
+            self.assertFalse(target.exists())
+
+    def test_parent_directory_permission_denial_is_classified(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "missing" / "event.json"
+            with mock.patch.object(
+                Path,
+                "mkdir",
+                side_effect=PermissionError(errno.EACCES, "denied"),
+            ):
+                result = cycle_runtime.write_once(target, b"evidence")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "permission_required")
             self.assertFalse(target.exists())
 
 
@@ -796,14 +815,117 @@ class OracleExecutionTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "oracle_identity_drift")
 
-
-class CommitBoundaryTest(unittest.TestCase):
-    def test_only_scoped_files_can_be_staged_and_recorded_after_a_clean_commit(self) -> None:
+    def test_changed_frozen_test_target_is_rejected_before_green(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
+            candidate = red_oracle(
+                ["python3", "-c", "import sys; print('greeting missing'); sys.exit(1)"]
+            )
+            red = cycle_runtime.accept_red(attempt, candidate)
+            self.assertTrue(red.ok, red.error)
+            (attempt.worktree / "tests/greeting_test.py").write_text(
+                "# weakened after RED\n",
+                encoding="utf-8",
+            )
+
+            result = cycle_runtime.run_frozen_oracle(attempt, "step-1", "green")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "test_identity_drift")
+
+    def test_permission_required_keeps_the_event_chain_retryable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            candidate = red_oracle(
+                ["python3", "-c", "import sys; print('greeting missing'); sys.exit(1)"]
+            )
+            denied = cycle_runtime._failure(
+                "permission_required",
+                "oracle command requires additional permission",
+            )
+            expected_red = cycle_runtime._ok(
+                {
+                    "exit_code": 1,
+                    "observation": "greeting missing",
+                    "failure_kind": "behavior_failure",
+                }
+            )
+            with mock.patch.object(
+                cycle_runtime,
+                "_execute_oracle",
+                side_effect=[denied, expected_red],
+            ):
+                first = cycle_runtime.accept_red(attempt, candidate)
+                second = cycle_runtime.accept_red(attempt, candidate)
+
+            events = cycle_runtime._load_events(attempt).value
+            self.assertEqual(first.error.code, "permission_required")
+            self.assertTrue(second.ok, second.error)
+            self.assertEqual([event["event_type"] for event in events], [
+                "worktree-bound",
+                "permission_required",
+                "red",
+            ])
+
+
+class CommitBoundaryTest(unittest.TestCase):
+    def prepare_green_change(self, attempt):
+        candidate = red_oracle(
+            [
+                "python3",
+                "-c",
+                (
+                    "from pathlib import Path; import sys; "
+                    "exists=Path('src/greeting.py').is_file(); "
+                    "print('green' if exists else 'greeting missing'); "
+                    "sys.exit(0 if exists else 1)"
+                ),
+            ]
+        )
+        self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
+        production = attempt.worktree / "src/greeting.py"
+        production.parent.mkdir(parents=True)
+        production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+        self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+        self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+        return production
+
+    def test_frozen_test_target_drift_blocks_staging(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            candidate = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "exists=Path('src/greeting.py').is_file(); "
+                        "print('green' if exists else 'greeting missing'); "
+                        "sys.exit(0 if exists else 1)"
+                    ),
+                ]
+            )
+            self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
             production = attempt.worktree / "src/greeting.py"
             production.parent.mkdir(parents=True)
             production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+            (attempt.worktree / "tests/greeting_test.py").write_text(
+                "# weakened before staging\n",
+                encoding="utf-8",
+            )
+
+            result = cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "test_identity_drift")
+            self.assertEqual(git(attempt.worktree, "diff", "--cached", "--name-only"), "")
+
+    def test_only_scoped_files_can_be_staged_and_recorded_after_a_clean_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.prepare_green_change(attempt)
 
             staged = cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1")
             self.assertTrue(staged.ok, staged.error)
@@ -818,9 +940,7 @@ class CommitBoundaryTest(unittest.TestCase):
     def test_post_commit_dirty_state_is_rejected_without_an_event(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
-            production = attempt.worktree / "src/greeting.py"
-            production.parent.mkdir(parents=True)
-            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            production = self.prepare_green_change(attempt)
             self.assertTrue(
                 cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
             )
