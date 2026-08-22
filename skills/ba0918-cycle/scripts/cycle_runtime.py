@@ -1106,8 +1106,32 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
 
 def record_commit(attempt: Attempt, step_id: str, previous_head: str) -> RuntimeResult:
     current = _git(attempt.worktree, "rev-parse", "HEAD")
-    if current.returncode != 0 or current.stdout.strip() == previous_head:
+    current_head = current.stdout.strip()
+    if (
+        current.returncode != 0
+        or not execution_model.COMMIT_SHA.fullmatch(previous_head)
+        or current_head == previous_head
+    ):
         return _failure("commit_missing", "commit did not advance HEAD")
+    commit_range = _git(
+        attempt.worktree,
+        "rev-list",
+        "--reverse",
+        "--parents",
+        f"{previous_head}..{current_head}",
+    )
+    rows = [line.split() for line in commit_range.stdout.splitlines() if line]
+    if (
+        commit_range.returncode != 0
+        or len(rows) != 1
+        or len(rows[0]) != 2
+        or rows[0][0] != current_head
+        or rows[0][1] != previous_head
+    ):
+        return _failure(
+            "commit_range_invalid",
+            "recorded operation must produce exactly one non-merge commit from previous HEAD",
+        )
     status = _git(attempt.worktree, "status", "--porcelain=v1", "--untracked-files=all")
     if status.returncode != 0:
         return _failure("git_status_failed", "post-commit status could not be observed")
@@ -1121,11 +1145,10 @@ def record_commit(attempt: Attempt, step_id: str, previous_head: str) -> Runtime
         return targets
     changed = _git(
         attempt.worktree,
-        "diff-tree",
-        "--no-commit-id",
+        "diff",
         "--name-only",
-        "-r",
-        current.stdout.strip(),
+        previous_head,
+        current_head,
     )
     if changed.returncode != 0:
         return _failure("commit_invalid", "committed paths could not be observed")
@@ -1138,7 +1161,7 @@ def record_commit(attempt: Attempt, step_id: str, previous_head: str) -> Runtime
         "commit",
         {
             "step_id": step_id,
-            "commit_sha": current.stdout.strip(),
+            "commit_sha": current_head,
             "outcome": "committed",
         },
     )
@@ -1221,6 +1244,39 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
             ),
             final_step,
         )
+    history = _git(
+        attempt.worktree,
+        "rev-list",
+        "--reverse",
+        f"{binding_result.value['base_head']}..{head.stdout.strip()}",
+    )
+    observed_commits = [line for line in history.stdout.splitlines() if line]
+    if history.returncode != 0 or observed_commits != commits:
+        return _stop(
+            attempt,
+            RuntimeFailure(
+                "commit_history_mismatch",
+                "base-to-HEAD commits differ from durable commit events",
+            ),
+            final_step,
+        )
+    history_paths = _git(
+        attempt.worktree,
+        "diff",
+        "--name-only",
+        binding_result.value["base_head"],
+        head.stdout.strip(),
+    )
+    if history_paths.returncode != 0:
+        return _stop(
+            attempt,
+            RuntimeFailure("commit_history_mismatch", "base-to-HEAD paths cannot be observed"),
+            final_step,
+        )
+    for path in history_paths.stdout.splitlines():
+        scope = execution_model.validate_write_path(path, binding_result.value["write_scope"])
+        if not scope.ok:
+            return _stop(attempt, RuntimeFailure(scope.error.code, scope.error.message), final_step)
     return append_event(attempt, "implementation_green", {"commits": commits})
 
 

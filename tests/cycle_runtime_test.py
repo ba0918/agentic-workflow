@@ -570,6 +570,11 @@ class EventPersistenceTest(unittest.TestCase):
                     "observation": "green",
                 },
             )
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            git(attempt.worktree, "add", "src/greeting.py")
+            git(attempt.worktree, "commit", "-m", "feat: add greeting")
             commit_sha = git(attempt.worktree, "rev-parse", "HEAD")
             cycle_runtime.append_event(
                 attempt,
@@ -635,14 +640,17 @@ class EventPersistenceTest(unittest.TestCase):
                     "observation": "green",
                 },
             )
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            git(attempt.worktree, "add", "src/greeting.py")
+            git(attempt.worktree, "commit", "-m", "feat: add greeting")
             commit_sha = git(attempt.worktree, "rev-parse", "HEAD")
             cycle_runtime.append_event(
                 attempt,
                 "commit",
                 {"step_id": "step-1", "commit_sha": commit_sha, "outcome": "committed"},
             )
-            production = attempt.worktree / "src/greeting.py"
-            production.parent.mkdir(parents=True)
             production.write_text("changed after final verification\n", encoding="utf-8")
 
             result = cycle_runtime.mark_implementation_green(attempt)
@@ -936,6 +944,46 @@ class CommitBoundaryTest(unittest.TestCase):
             self.assertTrue(recorded.ok, recorded.error)
             self.assertEqual(recorded.value["event_type"], "commit")
             self.assertEqual(recorded.value["commit_sha"], git(attempt.worktree, "rev-parse", "HEAD"))
+
+    def test_hidden_scope_external_ancestor_commit_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.prepare_green_change(attempt)
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+            outside = attempt.worktree / "outside.txt"
+            outside.write_text("outside\n", encoding="utf-8")
+            git(attempt.worktree, "add", "outside.txt")
+            git(attempt.worktree, "commit", "-m", "chore: hidden outside change")
+            self.assertTrue(
+                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+            )
+            git(attempt.worktree, "commit", "-m", "feat: add greeting")
+
+            result = cycle_runtime.record_commit(attempt, "step-1", previous_head)
+
+            self.assertFalse(result.ok)
+            self.assertIn(result.error.code, {"commit_range_invalid", "write_scope_violation"})
+
+    def test_terminal_rejects_a_hidden_commit_accepted_as_the_previous_head(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.prepare_green_change(attempt)
+            outside = attempt.worktree / "outside.txt"
+            outside.write_text("outside\n", encoding="utf-8")
+            git(attempt.worktree, "add", "outside.txt")
+            git(attempt.worktree, "commit", "-m", "chore: hidden outside change")
+            hidden_head = git(attempt.worktree, "rev-parse", "HEAD")
+            self.assertTrue(
+                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+            )
+            git(attempt.worktree, "commit", "-m", "feat: add greeting")
+            recorded = cycle_runtime.record_commit(attempt, "step-1", hidden_head)
+            self.assertTrue(recorded.ok, recorded.error)
+
+            result = cycle_runtime.mark_implementation_green(attempt)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "commit_history_mismatch")
 
     def test_post_commit_dirty_state_is_rejected_without_an_event(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
