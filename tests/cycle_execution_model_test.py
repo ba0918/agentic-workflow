@@ -89,8 +89,8 @@ def oracle() -> dict:
         "cwd": ".",
         "environment_names": [],
         "timeout_seconds": 30,
-        "expected_failure_kind": "missing_behavior",
-        "observed_failure_kind": "missing_behavior",
+        "expected_failure_kind": "behavior_failure",
+        "observed_failure_kind": "behavior_failure",
         "failure_signature": "AttributeError: resolve_plan",
     }
 
@@ -215,6 +215,37 @@ class BindingValidationTest(unittest.TestCase):
         self.assertTrue(candidate_result.ok, candidate_result.error)
         self.assertFalse(durable_result.ok)
         self.assertEqual(durable_result.error.code, "oracle_field_missing")
+
+    def test_oracle_candidate_only_expects_a_behavior_failure(self) -> None:
+        candidate = oracle()
+        del candidate["observed_failure_kind"]
+        candidate["test_targets"] = ["tests/cycle_runtime_test.py"]
+        candidate["expected_failure_kind"] = "import_failure"
+
+        result = cycle_model.validate_oracle_candidate(candidate)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "oracle_field_invalid")
+        self.assertEqual(result.error.field, "expected_failure_kind")
+        self.assertIn("behavior_failure", result.error.message)
+
+    def test_oracle_candidate_names_why_its_test_targets_are_invalid(self) -> None:
+        cases = {
+            "test targets must be path strings": [{"path": "tests/a_test.py"}],
+            "test targets must be unique": ["tests/a_test.py", "tests/a_test.py"],
+            "test targets must be safe relative paths": ["../tests/a_test.py"],
+        }
+        for expected_message, targets in cases.items():
+            with self.subTest(expected_message):
+                candidate = oracle()
+                del candidate["observed_failure_kind"]
+                candidate["test_targets"] = targets
+
+                result = cycle_model.validate_oracle_candidate(candidate)
+
+                self.assertFalse(result.ok)
+                self.assertEqual(result.error.code, "oracle_field_invalid")
+                self.assertEqual(result.error.message, expected_message)
 
     def test_oracle_rejects_unknown_fields_and_secret_shaped_command_arguments(self) -> None:
         unknown = oracle()

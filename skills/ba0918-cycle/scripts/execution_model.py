@@ -14,6 +14,9 @@ IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")
 PLAN_ID = re.compile(r"[0-9]{14}")
 ATTEMPT_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,95}")
 COMMIT_SHA = re.compile(r"[0-9a-f]{40,64}")
+# Only a behavior failure is an approved missing behavior; import, fixture, permission and
+# network failures are never an expected RED, so the candidate may not predict them.
+EXPECTED_RED_FAILURE_KIND = "behavior_failure"
 GENERIC_FAILURE_SIGNATURE = re.compile(
     r"(?i)^(?:failed(?:\s*\([^)]*\))?|errors?|[0-9]+\s+(?:failed|errors?)|"
     r"exit(?:\s+code)?[=: ]+\d+)$"
@@ -371,14 +374,16 @@ def _validate_oracle(value: object, *, require_observed: bool) -> ModelResult:
             ):
                 return _failure("oracle_field_invalid", "test_targets", "test target is invalid")
             target_paths.add(target["path"])
-    elif (
-        not isinstance(test_targets, list)
-        or not test_targets
-        or not all(isinstance(path, str) for path in test_targets)
-        or len(test_targets) != len(set(test_targets))
-        or any(not _safe_relative_path(path) for path in test_targets)
+    elif not isinstance(test_targets, list) or not test_targets or not all(
+        isinstance(path, str) for path in test_targets
     ):
-        return _failure("oracle_field_invalid", "test_targets", "candidate test targets are invalid")
+        return _failure("oracle_field_invalid", "test_targets", "test targets must be path strings")
+    elif len(test_targets) != len(set(test_targets)):
+        return _failure("oracle_field_invalid", "test_targets", "test targets must be unique")
+    elif any(not _safe_relative_path(path) for path in test_targets):
+        return _failure(
+            "oracle_field_invalid", "test_targets", "test targets must be safe relative paths"
+        )
     if not isinstance(value["command"], list) or not value["command"] or not all(
         isinstance(part, str) and part for part in value["command"]
     ):
@@ -400,6 +405,12 @@ def _validate_oracle(value: object, *, require_observed: bool) -> ModelResult:
     for field in ("expected_failure_kind", "failure_signature"):
         if not isinstance(value[field], str) or not value[field]:
             return _failure("oracle_field_invalid", field, f"{field} is invalid")
+    if value["expected_failure_kind"] != EXPECTED_RED_FAILURE_KIND:
+        return _failure(
+            "oracle_field_invalid",
+            "expected_failure_kind",
+            f"expected_failure_kind must be {EXPECTED_RED_FAILURE_KIND}",
+        )
     if require_observed and (
         not isinstance(value["observed_failure_kind"], str)
         or not value["observed_failure_kind"]
