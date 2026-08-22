@@ -46,38 +46,44 @@
       "verified": "2026-08-22"
     },
     "ba0918-cycle": {
+      "carried_note": "opencode-go/deepseek-v4-flash実process; final surfaceでnormal、spec drift、unintended REDの全3 scenarioをartifact再判定してpass",
       "file_sha256": {
         "skills/ba0918-cycle/SKILL.md": "284a03e3320faf6eb410ee546255775925dd86f15a6fa4b66911c520a7478e52",
-        "skills/ba0918-cycle/references/evidence.md": "f553ab5beaf59280528524683db435a01dce01907dc1e55f287c8891c50737be",
-        "skills/ba0918-cycle/references/execution.md": "d24902334ddc933e112263619212e3351608b9cd93e1e35516830e4222bdc1ec",
-        "skills/ba0918-cycle/references/tdd.md": "95664e214488065115ebbee04e443b30a2a43c5b13c16cfbd07c58a30723d25f",
-        "skills/ba0918-cycle/scripts/cycle_runtime.py": "ef48a4cc72e639bb2e185cf8cfe64bf0c15c21c66e3113858509eba5b8bf1d90",
-        "skills/ba0918-cycle/scripts/execution_model.py": "34504417af6db4f6e85badd00af93bb0b4a6d0571f150517998d2156cd563740"
+        "skills/ba0918-cycle/references/evidence.md": "3b4f77de9df46c8511295023eebb083d5e5c6bbc5ae63cbc24f988a2dd4b3cfd",
+        "skills/ba0918-cycle/references/execution.md": "8277528bf2fd0d5aaa0af172ae0ef2c39731702b1844e3887e26396eee1bcfc3",
+        "skills/ba0918-cycle/references/tdd.md": "424afafd136585a79640c45664ad413fe04a1be1368e8d0d7a22fced8bff3db7",
+        "skills/ba0918-cycle/scripts/cycle_runtime.py": "c5c5dd41ea1d1510cc1625fb90e9ffd7c55998abf45543d9f5ea9a9402b794cc",
+        "skills/ba0918-cycle/scripts/execution_model.py": "a7506a8308e1a263a55b688b80623b7cc91f348bf7482075e4e199d127a554cd"
       },
-      "note": "opencode-go/deepseek-v4-flash実process; final surfaceでnormal、spec drift、unintended REDの全3 scenarioをartifact再判定してpass",
+      "note": "opencode-go/deepseek-v4-flash process route; all four scenarios (normal, spec drift, unintended RED, weakened test) rerun on the final surface and adjudicated from post-state evidence; sessions ses_fd560465d/ses_fd5604667/ses_fd55f0c43/ses_fd55e5179",
       "result": "pass",
       "scenarios": {
         "complete-approved-plan": {
           "result": "pass",
-          "scenario_sha256": "700cd4d46b7d1892ca2870cdf4a54d3435c250c3a7512d776a5bc5cc1ef86567",
-          "verified": "2026-08-22"
+          "scenario_sha256": "2c98190327d51519f2f9f099f42828cb9bb514c493c4a0a0f009b85c398522b7",
+          "verified": "2026-08-23"
         },
         "reject-unintended-red": {
           "result": "pass",
           "scenario_sha256": "249b69c905e3ceb8426a22d836105dda82c79614f9f0fa3dfde6774a71ba4930",
-          "verified": "2026-08-22"
+          "verified": "2026-08-23"
+        },
+        "reject-weakened-test": {
+          "result": "pass",
+          "scenario_sha256": "32be4ea51cf494dcb7a56bf2d4740301d311bb0af69a71a6552c531e862d7ca8",
+          "verified": "2026-08-23"
         },
         "stop-on-spec-drift": {
           "result": "pass",
           "scenario_sha256": "c128c728a62af2d2e30195778b818373144a3f85c9d59fcd18a981663e090e0d",
-          "verified": "2026-08-22"
+          "verified": "2026-08-23"
         }
       },
       "structural_sha256": {
         "skills/ba0918-cycle/SKILL.md": "60fd026c2e95f0d20a310192a30a2f129b065d91ff476ae1631539d6f3b04a65",
-        "skills/ba0918-cycle/references/evidence.md": "0013539d68c0245c74bbc89aac49b3f2683a6a71e4993dca17b0c4f07b03c665",
-        "skills/ba0918-cycle/references/execution.md": "27494d03ce48cbd761ee3ba844728c4c9fcdc617653a5b20d252bfa17a8ff653",
-        "skills/ba0918-cycle/references/tdd.md": "b68e9fa68aa4507cd3d35b99baa4d5d2a4e4362f15e103af786ca8ec0588d551"
+        "skills/ba0918-cycle/references/evidence.md": "814c05c60d2bf19a95eff79f9eb777f216125eb3e20422a025216ff279a26725",
+        "skills/ba0918-cycle/references/execution.md": "5139c6dcca9ae4f67d05977c1c22a8daf0dfb9411c85dc57ec2753915d69e0ca",
+        "skills/ba0918-cycle/references/tdd.md": "a1e74bc76238d54e358fcac3199a5a7333e0d8e8cfe83b13654ef69a88d45997"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md",
@@ -87,8 +93,8 @@
         "skills/ba0918-cycle/scripts/cycle_runtime.py",
         "skills/ba0918-cycle/scripts/execution_model.py"
       ],
-      "surface_sha256": "71a66a459816db9c1c04cc81fbf4dc04b8440786887ef941ef01888501d7b3a9",
-      "verified": "2026-08-22"
+      "surface_sha256": "b13d5fcedd23d392e9382b3658c3350ff26adf24868fb7388080e5bb5b71d139",
+      "verified": "2026-08-23"
     },
     "ba0918-plan": {
       "carried_note": "opencode-go/deepseek-v4-flash; create and reject rerun after no-invention hardening; create E7 manually re-adjudicated yes because artifact proves confirmation was requested; protect carried from unaffected surface",
