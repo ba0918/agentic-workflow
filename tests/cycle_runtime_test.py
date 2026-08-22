@@ -1196,6 +1196,24 @@ class CommitBoundaryTest(unittest.TestCase):
             self.assertEqual(git(attempt.worktree, "diff", "--cached", "--name-only"), "")
 
 
+class InstructionContractTest(unittest.TestCase):
+    def test_instructions_describe_the_current_runtime_boundaries(self) -> None:
+        skill_root = ROOT / "skills/ba0918-cycle"
+        skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+        execution = (skill_root / "references/execution.md").read_text(encoding="utf-8")
+        tdd = (skill_root / "references/tdd.md").read_text(encoding="utf-8")
+        evidence = (skill_root / "references/evidence.md").read_text(encoding="utf-8")
+
+        self.assertIn("test_targets", tdd)
+        self.assertNotIn("`test_identity`", tdd)
+        self.assertIn("human-gate", execution)
+        self.assertIn("check-gates", execution)
+        self.assertIn("before_edit", execution)
+        self.assertIn("complete", evidence)
+        self.assertIn("unavailable", evidence)
+        self.assertIn("Never start an implementation\n  subagent", skill)
+
+
 class CommandLineTest(unittest.TestCase):
     def call_main(self, arguments: list[str]) -> tuple[int, dict]:
         output = io.StringIO()
@@ -1211,6 +1229,33 @@ class CommandLineTest(unittest.TestCase):
 
         self.assertEqual(attempt_id, "20260822t160000-a1b2c3d4")
         self.assertIsNotNone(cycle_runtime.execution_model.ATTEMPT_ID.fullmatch(attempt_id))
+
+    def test_help_lists_human_gate_commands_and_invalid_results_are_cli_errors(self) -> None:
+        help_output = io.StringIO()
+        with contextlib.redirect_stdout(help_output), self.assertRaises(SystemExit) as help_exit:
+            cycle_runtime.main(["--help"])
+
+        error_output = io.StringIO()
+        with contextlib.redirect_stderr(error_output), self.assertRaises(SystemExit) as error_exit:
+            cycle_runtime.main(
+                [
+                    "human-gate",
+                    "--repo",
+                    ".",
+                    "--step",
+                    "step-1",
+                    "--gate",
+                    "approve-files",
+                    "--result",
+                    "maybe",
+                ]
+            )
+
+        self.assertEqual(help_exit.exception.code, 0)
+        self.assertIn("human-gate", help_output.getvalue())
+        self.assertIn("check-gates", help_output.getvalue())
+        self.assertEqual(error_exit.exception.code, 2)
+        self.assertIn("invalid choice", error_output.getvalue())
 
     def test_resolve_command_prints_metadata_without_plan_body(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -19,17 +19,22 @@ base HEAD, branch, write scope, and safe executor provenance before the worktree
 
 Events are one atomic file per sequence. Each carries the attempt, Plan and spec identities,
 previous-event identity, and its own content identity. Event types are `worktree-bound`, `red`,
-`green`, `refactor`, `commit`, `stopped`, and `implementation_green`. Existing files are never
-overwritten.
+`green`, `refactor`, `commit`, `human_gate`, `permission_required`, `stopped`, and
+`implementation_green`. Existing files are never overwritten.
 
 The event count is an observation for later Plan-granularity analysis. It is never a hard limit,
 scope verdict, or stop oracle.
 
 ## Minimal evidence
 
-Store only what determines acceptance or a safe hand-off: bounded failure signature, exit code,
-pass/fail/skip summary when available, oracle identity, commit SHA, stable stop reason, and safe
-executor/backend/session identifiers.
+Store only what determines acceptance or a safe hand-off: bounded failure signature, command,
+exit code, outcome, frozen target and oracle identities, test summary, commit SHA, stable stop
+reason, and safe executor/backend/session identifiers.
+
+Every RED, GREEN, and REFACTOR event has an exact `test_summary`. Use `complete` with non-negative
+`passed`, `failed`, and `skipped` counts only when one supported structured reporter yields a
+unique, arithmetically consistent result. Otherwise use `unavailable` with a bounded reason.
+Never infer test counts from an exit code, a command count, or an ambiguous runner summary.
 
 Never copy full stdout, stderr, provider logs, credentials, environment values, caches, or build
 output into durable evidence. When safe provenance is unavailable, record `unavailable` and a

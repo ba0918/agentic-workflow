@@ -16,11 +16,13 @@ this order:
 Ask before production editing if no command is available or several candidates remain. Do not
 invent a command or add a dependency.
 
-Create a candidate oracle JSON value with `version: 1`, `step_id`, `clauses`, `test_identity`,
-`command` as a string array, repository-relative `cwd`, `environment_names`, bounded
-`timeout_seconds`, `expected_failure_kind`, and a bounded `failure_signature`. Omit
-`observed_failure_kind`; the helper adds its classification only after it executes the candidate.
-Never store environment values or put a secret in the command.
+Create a candidate oracle JSON value with `version: 1`, `step_id`, `clauses`, `test_targets` as a
+non-empty list of repository-relative test, fixture, and inspection-config paths, `command` as a
+string array, repository-relative `cwd`, `environment_names`, bounded `timeout_seconds`,
+`expected_failure_kind`, and a bounded `failure_signature`. Do not supply target identities or
+`observed_failure_kind`; the helper reads the target bytes and adds their identities and its
+failure classification only after execution. Never store environment values or put a secret in
+the command.
 
 The failure signature must identify the approved missing behavior. A generic runner summary such
 as `FAILED (errors=1)` or a bare exit code is not a behavior signature and must not be used to
@@ -44,7 +46,8 @@ python3 <cycle-runtime> accept-red --repo <main-checkout> --oracle <oracle-json>
 The helper runs the command inside the linked worktree, revalidates identities after the command,
 classifies the failure, freezes the oracle, and writes the RED event. Do not proceed unless the
 failure is the approved missing behavior. A RED command that changes a spec is identity drift,
-not a valid RED.
+not a valid RED. Later GREEN, REFACTOR, staging, commit, and terminal checks recompute every
+`test_targets` identity and stop if any target changed.
 
 ## GREEN
 

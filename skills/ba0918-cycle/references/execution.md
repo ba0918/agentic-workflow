@@ -68,6 +68,28 @@ The context check compares the immutable binding with the current locator, plan,
 common directory, linked worktree, branch, base ancestry, current step, and every changed path.
 Run it again at every RED, GREEN, REFACTOR, and commit boundary.
 
+## Planned human gates
+
+Only decisions declared in the bound Plan are valid. Record a decision without free-form text;
+the helper computes the current target identity itself:
+
+```text
+python3 <cycle-runtime> human-gate \
+  --repo <main-checkout> --step step-<n> \
+  --gate <declared-gate-id> --result <approved-or-rejected>
+```
+
+Before editing a step, explicitly check its `before_edit` boundary:
+
+```text
+python3 <cycle-runtime> check-gates \
+  --repo <main-checkout> --step step-<n> --timing before_edit
+```
+
+The staging helper enforces `before_commit`; the terminal helper enforces
+`before_implementation_green`. A missing, rejected, malformed, undeclared, or stale decision is a
+blocking stop. Do not substitute permission approval for a Plan-declared human gate.
+
 Compaction is not itself a stop condition. Stop without additional edits when the canonical
 artifacts cannot reconstruct the current meaning or any identity differs.
 
