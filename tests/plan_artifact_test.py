@@ -56,6 +56,26 @@ PLAN_WITH_HUMAN_GATE = PLAN_TEXT + r"""
 """
 
 
+class PlanCreationInstructionTest(unittest.TestCase):
+    def test_required_human_gate_has_a_versioned_machine_readable_declaration(self) -> None:
+        instruction = (
+            ROOT / "skills/ba0918-plan/references/creation.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("**Human gates:**", instruction)
+        self.assertIn('"version": 1', instruction)
+        for field in (
+            "gate_id",
+            "clauses",
+            "criterion",
+            "target",
+            "timing",
+            "allowed_results",
+        ):
+            self.assertIn(f'"{field}"', instruction)
+        self.assertIn("Omit the declaration when no human gate is required", instruction)
+
+
 class ContentIdentityTest(unittest.TestCase):
     def test_same_content_has_same_identity_and_changed_content_does_not(self) -> None:
         first = plan_artifact.content_identity(PLAN_TEXT)
