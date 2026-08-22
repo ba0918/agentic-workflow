@@ -43,6 +43,19 @@ field、code identifier、command、file pathは機械契約として英語の�
 `PL-023` planを、人間向けの概要とLLMだけが理解する規範的な高密度層へ分割しては
 ならない。後続runnerは、人間が確認した同じ正本planを使用しなければならない。
 
+`PL-024` 人間gateが必要なplan項目は、通常の人間向け説明に加えて、version付きの
+機械可読なgate宣言を同じ正本plan内に持たなければならない。gate宣言は少なくとも、
+plan内で一意な`gate_id`、対応仕様条項、判断基準、判断対象identityの取得元、
+実行timing、許可される判断結果を識別しなければならない。
+
+`PL-025` 判断対象identityの取得元は、repository-relativeなfile集合または既存の
+immutable evidence identityから一意に導出できなければならない。absolute path、
+provider log全体、credential、実行時に別対象へ差し替えられる参照を使用してはならない。
+
+`PL-026` 許可される判断結果は`approved`と`rejected`に限定する。選択肢によって製品の
+意味が変わる場合は人間gateとしてplanへ埋め込まず、brainstormで意味を決定しなければ
+ならない。人間gateが不要なplan項目はgate宣言を省略してよい。
+
 ## 人間確認と正本化
 
 `PL-030` plan skillは、正本へ書き込む内容と同一の草稿をchatで人間へ提示しなければ
