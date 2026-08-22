@@ -376,6 +376,19 @@ Phase 2のplanを人間が確認し、実装開始を明示している。
 - Phase 4が同じbranch、worktree、commit、evidenceを受け取れる。
 - Phase 3はplan全体の完了、再開、cleanupを宣言または実行しない。
 
+### 現在の検証状況
+
+- `ba0918-cycle`を薄い`SKILL.md`、境界ごとに読む三つのreference、決定的なruntime helper（pure modelとGit/process adapter）として実装した。実行agentが直接TDDを行い、subagentへ再委譲しない。
+- Python `unittest`は既存20件とCycle用97件の合計117件がPASSした。identity drift、意図しないRED、凍結testの弱体化、scope外staging、未記録commit、permission retry、test件数の取得不能、Human gate宣言の厳密検証を否定例として固定している。
+- 最初の実process実走では、実行agentが候補oracleの組み立てで二度停止した。runtimeが要求するfailure kindの語彙と、failure signatureが出力行の部分文字列でなければならない制約が指示に書かれていなかったことが原因で、特定のbackendの能力差ではない。候補oracleの機械契約を`tdd.md`へ移し、あわせてCY-053に従い候補が予測できるfailure kindを`behavior_failure`に限定した。
+- 修正後、`opencode-go/deepseek-v4-flash`で正常完了、spec drift停止、意図しないRED拒否、test弱体化拒否の四scenarioを再実走し、event chain、凍結oracle、commit、main checkout、linked worktreeのpost-stateから全criticalを判定してPASSとし、`regression-lock.json`へ記録した。Planの人間gate宣言の追加で古くなっていたPlanのlockも三scenarioを再実走して更新した。
+- 同一fixtureを`opencode-go/ox-alpha-free`でも実走した。spec driftとtest弱体化は同じ停止理由で正しく止まったが、正常完了と意図しないREDの二本は600秒で打ち切られ報告が得られなかった（意図しないREDはpost-state上は正しく停止していた）。補強証拠としてのみ扱い、受け入れ根拠にはしない。
+- 旧版`claude-skills@57bb6f06aecdf191d46d99d9a3283233a26ecfdd`の`cycle`と同一fixture、同一prompt、同一backendで比較した。旧版は主session 32 request、subagent 3 session 35 requestの合計67 request、input 143,383、output 93,376、cache read 3,696,384 token、約$0.119で、900秒のtimeoutまでに報告を返さなかった。新版は34 request、126秒、input 34,764、output 13,090、cache read 1,138,944 token、約$0.024で`implementation_green`まで完走した。
+- 旧版はmain checkoutのbranchをその場で切り替え、scope外の`.gitignore`変更をcommitし、plan本文のStatusを`Completed`へ書き換え、review・final gateまで自走した。新版はlinked worktreeに隔離し、plan本文と索引を変更せず、reviewを開始せずに引き渡す。これらは承認済み仕様（CY-023、CY-073）と対象外の責務分離による差であり、欠落ではない。
+- 残る未確認事項: planとworktreeのidentity drift、fresh session再入（`load`→`context`）を実agentで検証するscenarioはまだない。eval case定義の言語規約上の扱い、`execution.md`の再入手順がROADMAPの「resume」対象外に当たるかは人間の解釈が要る。
+
+実装と受け入れ実測の範囲では重要機能の欠落、安全制約違反、重大な品質劣化は見つかっていない。Phase 3の実装と実測は完了とし、「移行可」の判定はPhase 4 reviewの合格をもって確定する。Phase 4へはbranch `cycle/20260822143915-implementation`、linked worktree、commit列、`regression-lock.json`を渡す。mainへのmergeとworktree cleanupは行わない。
+
 ## Phase 4: Review
 
 ### 開始条件
