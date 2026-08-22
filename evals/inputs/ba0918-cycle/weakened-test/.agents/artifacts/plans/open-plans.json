@@ -1,0 +1,13 @@
+{
+  "current": "20260822170004",
+  "plans": [
+    {
+      "content_identity": "sha256:33fa6317e93904f16db16411dcc444b60e0319c85a160256de9c180924bb9eb8",
+      "id": "20260822170004",
+      "path": ".agents/artifacts/plans/20260822170004_greeting.md",
+      "revision": 1,
+      "state": "current"
+    }
+  ],
+  "version": 1
+}
