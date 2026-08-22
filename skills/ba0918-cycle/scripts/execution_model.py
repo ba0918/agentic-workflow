@@ -179,7 +179,7 @@ def validate_write_path(relative_path: str, scopes: list[str]) -> ModelResult:
     return _failure("write_scope_violation", relative_path, "write path is outside the approved scope")
 
 
-def validate_oracle(value: object) -> ModelResult:
+def _validate_oracle(value: object, *, require_observed: bool) -> ModelResult:
     forbidden = _first_forbidden_field(value, SECRET_VALUE_FIELDS)
     if forbidden is not None:
         return _failure("secret_value_forbidden", forbidden, "only environment names may be recorded")
@@ -193,9 +193,10 @@ def validate_oracle(value: object) -> ModelResult:
         "environment_names",
         "timeout_seconds",
         "expected_failure_kind",
-        "observed_failure_kind",
         "failure_signature",
     }
+    if require_observed:
+        required.add("observed_failure_kind")
     if not isinstance(value, dict) or not required.issubset(value):
         return _failure("oracle_field_missing", None, "oracle fields are missing")
     if value["version"] != 1 or not isinstance(value["step_id"], str) or not value["step_id"]:
@@ -216,9 +217,18 @@ def validate_oracle(value: object) -> ModelResult:
         return _failure("oracle_field_invalid", "environment_names", "environment names are invalid")
     if not isinstance(value["timeout_seconds"], int) or value["timeout_seconds"] <= 0:
         return _failure("oracle_field_invalid", "timeout_seconds", "oracle timeout is invalid")
-    for field in ("expected_failure_kind", "observed_failure_kind", "failure_signature"):
+    for field in ("expected_failure_kind", "failure_signature"):
         if not isinstance(value[field], str) or not value[field]:
             return _failure("oracle_field_invalid", field, f"{field} is invalid")
+    if require_observed and (
+        not isinstance(value["observed_failure_kind"], str)
+        or not value["observed_failure_kind"]
+    ):
+        return _failure(
+            "oracle_field_invalid",
+            "observed_failure_kind",
+            "observed_failure_kind is invalid",
+        )
     if GENERIC_FAILURE_SIGNATURE.fullmatch(value["failure_signature"].strip()):
         return _failure(
             "oracle_failure_signature_invalid",
@@ -226,6 +236,14 @@ def validate_oracle(value: object) -> ModelResult:
             "failure signature does not identify the approved missing behavior",
         )
     return _ok(value)
+
+
+def validate_oracle_candidate(value: object) -> ModelResult:
+    return _validate_oracle(value, require_observed=False)
+
+
+def validate_oracle(value: object) -> ModelResult:
+    return _validate_oracle(value, require_observed=True)
 
 
 def event_identity(event: dict) -> str:
@@ -277,6 +295,12 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         if candidate["sequence"] != 1 or candidate["previous_identity"] is not None:
             return _failure("stale_event_chain", "sequence", "first event must start the chain")
     else:
+        if previous_event["event_type"] in {"stopped", "implementation_green"}:
+            return _failure(
+                "terminal_event_chain",
+                "previous_identity",
+                "terminal event cannot be extended",
+            )
         expected_previous = event_identity(previous_event)
         if (
             candidate["sequence"] != previous_event["sequence"] + 1

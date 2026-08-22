@@ -825,7 +825,7 @@ def _execute_oracle(attempt: Attempt, oracle: dict) -> RuntimeResult:
 
 
 def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
-    validation = execution_model.validate_oracle(oracle)
+    validation = execution_model.validate_oracle_candidate(oracle)
     if not validation.ok:
         return _stop(
             attempt,
@@ -855,6 +855,13 @@ def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
         )
     frozen = dict(oracle)
     frozen["observed_failure_kind"] = observation["failure_kind"]
+    frozen_validation = execution_model.validate_oracle(frozen)
+    if not frozen_validation.ok:
+        return _stop(
+            attempt,
+            RuntimeFailure(frozen_validation.error.code, frozen_validation.error.message),
+            step_id,
+        )
     oracle_identity = execution_model.content_identity(frozen)
     oracle_path = attempt.evidence_path / "oracles" / f"{step_id}.json"
     persisted = write_once(oracle_path, execution_model.canonical_json(frozen))

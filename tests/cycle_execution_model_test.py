@@ -152,6 +152,17 @@ class BindingValidationTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "oracle_failure_signature_invalid")
 
+    def test_oracle_candidate_does_not_claim_an_observation_before_execution(self) -> None:
+        candidate = oracle()
+        del candidate["observed_failure_kind"]
+
+        candidate_result = cycle_model.validate_oracle_candidate(candidate)
+        durable_result = cycle_model.validate_oracle(candidate)
+
+        self.assertTrue(candidate_result.ok, candidate_result.error)
+        self.assertFalse(durable_result.ok)
+        self.assertEqual(durable_result.error.code, "oracle_field_missing")
+
 
 class WriteScopeTest(unittest.TestCase):
     def test_descendant_and_exact_file_are_inside_scope(self) -> None:
@@ -246,6 +257,54 @@ class EventChainTest(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "stale_event_chain")
+
+    def test_stopped_event_is_terminal_for_the_attempt(self) -> None:
+        first = cycle_model.seal_event(
+            {
+                "version": 1,
+                "sequence": 1,
+                "event_type": "worktree-bound",
+                "attempt_id": binding()["attempt_id"],
+                "plan_identity": PLAN_IDENTITY,
+                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+                "previous_identity": None,
+                "outcome": "bound",
+            }
+        ).value
+        stopped = cycle_model.seal_event(
+            {
+                "version": 1,
+                "sequence": 2,
+                "event_type": "stopped",
+                "attempt_id": binding()["attempt_id"],
+                "plan_identity": PLAN_IDENTITY,
+                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+                "previous_identity": first["content_identity"],
+                "reason": "oracle_field_invalid",
+            },
+            previous_event=first,
+        ).value
+
+        result = cycle_model.seal_event(
+            {
+                "version": 1,
+                "sequence": 3,
+                "event_type": "red",
+                "attempt_id": binding()["attempt_id"],
+                "plan_identity": PLAN_IDENTITY,
+                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+                "previous_identity": stopped["content_identity"],
+                "step_id": "step-1",
+                "oracle_identity": cycle_model.content_identity(oracle()),
+                "outcome": "expected_failure",
+                "exit_code": 1,
+                "observation": "missing behavior",
+            },
+            previous_event=stopped,
+        )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "terminal_event_chain")
 
     def test_event_type_requires_its_own_fields(self) -> None:
         incomplete = {

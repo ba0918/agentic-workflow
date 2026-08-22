@@ -16,10 +16,11 @@ this order:
 Ask before production editing if no command is available or several candidates remain. Do not
 invent a command or add a dependency.
 
-Create an oracle JSON value with schema version, `step_id`, clauses, the test or fixture content
-identity, argv as a string array, repository-relative cwd, environment variable names only,
-bounded timeout, expected failure kind, observed failure kind, and bounded failure signature.
-Never store environment values or put a secret in argv.
+Create a candidate oracle JSON value with `version: 1`, `step_id`, `clauses`, `test_identity`,
+`command` as a string array, repository-relative `cwd`, `environment_names`, bounded
+`timeout_seconds`, `expected_failure_kind`, and a bounded `failure_signature`. Omit
+`observed_failure_kind`; the helper adds its classification only after it executes the candidate.
+Never store environment values or put a secret in the command.
 
 The failure signature must identify the approved missing behavior. A generic runner summary such
 as `FAILED (errors=1)` or a bare exit code is not a behavior signature and must not be used to

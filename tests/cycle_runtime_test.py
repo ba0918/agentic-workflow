@@ -604,6 +604,22 @@ class OracleExecutionTest(unittest.TestCase):
             self.assertEqual(event["outcome"], "expected_failure")
             self.assertEqual(event["observation"], "greeting missing")
 
+    def test_expected_red_accepts_a_candidate_without_observed_failure_kind(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            oracle = red_oracle(
+                ["python3", "-c", "import sys; print('greeting missing'); sys.exit(1)"]
+            )
+            del oracle["observed_failure_kind"]
+
+            result = cycle_runtime.accept_red(attempt, oracle)
+
+            self.assertTrue(result.ok, result.error)
+            frozen = json.loads(
+                (attempt.evidence_path / "oracles/step-1.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(frozen["observed_failure_kind"], "behavior_failure")
+
     def test_red_command_that_changes_a_spec_stops_before_acceptance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
