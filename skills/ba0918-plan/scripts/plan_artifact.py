@@ -19,6 +19,8 @@ IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")
 GATE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 CLAUSE_ID = re.compile(r"[A-Z][A-Z0-9]*-[0-9]{3}")
 PLAN_STORE = PurePosixPath(".agents/artifacts/plans")
+DRAFT_STORE = PurePosixPath(".agents/tmp/plans")
+DRAFT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 INDEX_NAME = "open-plans.json"
 HUMAN_GATE_TIMINGS = {"before_edit", "before_commit", "before_implementation_green"}
 HUMAN_GATE_RESULTS = ("approved", "rejected")
@@ -58,6 +60,15 @@ class RegisteredPlanMismatch(PlanArtifactError):
 
 class InvalidHumanGateDeclaration(PlanArtifactError):
     """A plan step contains a malformed human-gate declaration."""
+
+
+class DraftConflict(PlanArtifactError):
+    """A draft already exists and the caller did not name its identity."""
+
+
+class DraftReceipt(NamedTuple):
+    path: Path
+    content_identity: str
 
 
 class RegisteredPlan(NamedTuple):
@@ -225,6 +236,46 @@ def _plan_path(project_root: Path, relative_path: str, plan_id: str) -> Path:
     return target
 
 
+def _validate_plan_identity(plan_id: str, revision: int) -> None:
+    if PLAN_ID.fullmatch(plan_id) is None:
+        raise PlanArtifactError("plan id must contain exactly 14 digits")
+    if not isinstance(revision, int) or revision < 1:
+        raise PlanArtifactError("plan revision must be a positive integer")
+
+
+def _draft_path(project_root: Path, plan_id: str, revision: int, slug: str) -> Path:
+    _validate_plan_identity(plan_id, revision)
+    if DRAFT_SLUG.fullmatch(slug) is None:
+        raise UnsafePlanPath("draft slug must be lowercase words joined by hyphens")
+    root = project_root.resolve()
+    store = root.joinpath(*DRAFT_STORE.parts)
+    target = store / f"{plan_id}_{slug}_r{revision}_draft.md"
+    for path in (root / ".agents", root / ".agents/tmp", store, target):
+        if path.is_symlink():
+            raise UnsafePlanPath(f"symlink is not allowed: {path}")
+    return target
+
+
+def save_draft(
+    project_root: Path,
+    *,
+    plan_id: str,
+    revision: int,
+    slug: str,
+    text: str,
+    replace_identity: str | None = None,
+) -> DraftReceipt:
+    target = _draft_path(project_root, plan_id, revision, slug)
+    if target.exists():
+        existing_identity = content_identity(target.read_text(encoding="utf-8"))
+        if replace_identity is None:
+            raise DraftConflict("a draft already exists; name its identity to replace it")
+        if existing_identity != replace_identity:
+            raise DraftConflict("the existing draft differs from the identity named for replacement")
+    _atomic_write(target, text)
+    return DraftReceipt(target, content_identity(text))
+
+
 def _empty_index() -> dict:
     return {"version": 1, "current": None, "plans": []}
 
@@ -357,10 +408,7 @@ def publish_plan(
     switch_confirmed: bool,
     worktree_dirty: bool,
 ) -> Path:
-    if PLAN_ID.fullmatch(plan_id) is None:
-        raise PlanArtifactError("plan id must contain exactly 14 digits")
-    if not isinstance(revision, int) or revision < 1:
-        raise PlanArtifactError("plan revision must be a positive integer")
+    _validate_plan_identity(plan_id, revision)
     actual_identity = content_identity(text)
     if IDENTITY.fullmatch(approved_identity) is None or actual_identity != approved_identity:
         raise IdentityMismatch("approved content identity does not match the plan bytes")
@@ -420,6 +468,13 @@ def main(argv: list[str] | None = None) -> int:
 
     commands.add_parser("identity", help="read an unwritten draft from stdin and print its identity")
 
+    draft = commands.add_parser("draft", help="save the draft from stdin under .agents/tmp/plans")
+    draft.add_argument("--repo", required=True)
+    draft.add_argument("--plan-id", required=True)
+    draft.add_argument("--revision", required=True, type=int)
+    draft.add_argument("--slug", required=True)
+    draft.add_argument("--replace-identity")
+
     publish = commands.add_parser("publish", help="publish approved bytes and update the locator")
     publish.add_argument("--repo", required=True)
     publish.add_argument("--plan-id", required=True)
@@ -432,6 +487,26 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "identity":
         print(content_identity(sys.stdin.read()))
+        return 0
+    if args.command == "draft":
+        root = Path(args.repo)
+        receipt = save_draft(
+            root,
+            plan_id=args.plan_id,
+            revision=args.revision,
+            slug=args.slug,
+            text=sys.stdin.read(),
+            replace_identity=args.replace_identity,
+        )
+        print(
+            json.dumps(
+                {
+                    "path": receipt.path.relative_to(root.resolve()).as_posix(),
+                    "content_identity": receipt.content_identity,
+                },
+                ensure_ascii=False,
+            )
+        )
         return 0
 
     text = Path(args.source).read_text(encoding="utf-8")

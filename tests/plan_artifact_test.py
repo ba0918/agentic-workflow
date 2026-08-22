@@ -292,6 +292,85 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
                 plan_artifact.read_registered_plan(root)
 
 
+class SaveDraftTest(unittest.TestCase):
+    def test_draft_is_saved_under_the_temporary_plan_store_with_identical_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            receipt = plan_artifact.save_draft(
+                root, plan_id="20260822022624", revision=1, slug="small-change", text=PLAN_TEXT
+            )
+
+            self.assertEqual(
+                receipt.path.relative_to(root).as_posix(),
+                ".agents/tmp/plans/20260822022624_small-change_r1_draft.md",
+            )
+            self.assertEqual(receipt.path.read_bytes(), PLAN_TEXT.encode("utf-8"))
+            self.assertEqual(receipt.content_identity, plan_artifact.content_identity(PLAN_TEXT))
+            self.assertFalse((root / ".agents/artifacts").exists())
+
+    def test_existing_draft_is_replaced_only_when_its_identity_is_named(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = plan_artifact.save_draft(
+                root, plan_id="20260822022624", revision=1, slug="small-change", text=PLAN_TEXT
+            )
+            revised = PLAN_TEXT + "\n追記\n"
+
+            with self.assertRaises(plan_artifact.DraftConflict):
+                plan_artifact.save_draft(
+                    root, plan_id="20260822022624", revision=1, slug="small-change", text=revised
+                )
+            with self.assertRaises(plan_artifact.DraftConflict):
+                plan_artifact.save_draft(
+                    root,
+                    plan_id="20260822022624",
+                    revision=1,
+                    slug="small-change",
+                    text=revised,
+                    replace_identity="sha256:" + "0" * 64,
+                )
+            self.assertEqual(first.path.read_text(encoding="utf-8"), PLAN_TEXT)
+
+            second = plan_artifact.save_draft(
+                root,
+                plan_id="20260822022624",
+                revision=1,
+                slug="small-change",
+                text=revised,
+                replace_identity=first.content_identity,
+            )
+
+            self.assertEqual(second.path, first.path)
+            self.assertEqual(second.path.read_text(encoding="utf-8"), revised)
+
+    def test_draft_slug_cannot_escape_the_temporary_plan_store(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for slug in ("../escape", "nested/slug", "/absolute", "UPPER CASE"):
+                with self.subTest(slug):
+                    with self.assertRaises(plan_artifact.UnsafePlanPath):
+                        plan_artifact.save_draft(
+                            root, plan_id="20260822022624", revision=1, slug=slug, text=PLAN_TEXT
+                        )
+            self.assertFalse((root / ".agents").exists())
+
+    def test_draft_cli_reads_stdin_and_prints_path_and_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stdout = io.StringIO()
+            with mock.patch("sys.stdin", io.StringIO(PLAN_TEXT)), contextlib.redirect_stdout(stdout):
+                code = plan_artifact.main(
+                    ["draft", "--repo", str(root), "--plan-id", "20260822022624",
+                     "--revision", "1", "--slug", "small-change"]
+                )
+
+            self.assertEqual(code, 0)
+            printed = json.loads(stdout.getvalue())
+            self.assertEqual(printed["path"], ".agents/tmp/plans/20260822022624_small-change_r1_draft.md")
+            self.assertEqual(printed["content_identity"], plan_artifact.content_identity(PLAN_TEXT))
+
+
 class PublishPlanTest(unittest.TestCase):
     def test_confirmed_draft_is_written_and_registered_as_current(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
