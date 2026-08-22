@@ -341,30 +341,40 @@ Phase 2のplanを人間が確認し、実装開始を明示している。
 
 ### 利用者価値
 
-合意済みplanをRED、GREEN、REFACTORの証拠付きで実装し、中断後も同じ地点から再開する。
+合意済みplanを専用worktreeでRED、GREEN、REFACTOR、commitの証拠付きで実装し、
+独立reviewへ渡せる状態を作る。
 
 ### 対象
 
-- `plan-implement`相当の処理をcycleの実装工程へ統合する。
-- 実行したコマンドと結果をplan項目へ結び付ける。
-- 依存関係に基づいて停止範囲を決める。
-- 独立性を証明できる作業だけ継続する。
-- 完了済み項目を再実行せず再開する。
+- `plan-implement`相当のTDD実装を一つの`ba0918-cycle`へ統合する。
+- planを明示入力、直前のpublication結果、正常なcurrent plan索引から安全に解決する。
+- repository単位claim、専用branch、linked worktreeへ実行をbindする。
+- 現在の実行agentが直接TDDを実行し、nested delegationを行わない。
+- plan、spec、worktree、oracle、write scopeのidentityを各境界で再確認する。
+- RED、GREEN、REFACTOR、commitをimmutable eventとしてplan項目へ結び付ける。
+- blocking failureでは追加編集を止め、worktree、commit、証拠を保持する。
 
 ### 対象外
 
-- review policyの全面実装
+- review policy、fix loop、final gate
+- resume、checkpoint、Recovery
+- dependency解析による部分継続
 - parallel cycle
-- GitHub連携
-- issue管理
+- merge、publication、issue管理
+- worktree cleanup
+- status、session history、plan本文または進捗fileの更新
+- legacy artifactと旧cycleの後方互換
 
 ### 完了条件
 
-- 一つの承認済みplanを、実コード変更とGREENまで完走できる。
+- 一つの承認済みplanを、専用worktreeの実コード変更、GREEN、step単位commitまで完走できる。
 - production codeを書く前に、承認済み条項に対応するREDを期待した理由で確認する。
-- 意図しない理由のREDを拒否する。
-- spec変更後の古い証拠を利用しない。
-- 中断fixtureで、最初の未完了項目から再開する。
+- 意図しないREDをproduction変更とcommitの前に拒否する。
+- spec、plan、worktree、oracleのidentity driftを追加編集前に拒否する。
+- fresh sessionが会話履歴へ依存せず、正本とbindingから同じgateを実行できる。
+- 正常、identity drift、意図しないREDの三scenarioを実agentで検証する。
+- Phase 4が同じbranch、worktree、commit、evidenceを受け取れる。
+- Phase 3はplan全体の完了、再開、cleanupを宣言または実行しない。
 
 ## Phase 4: Review
 
