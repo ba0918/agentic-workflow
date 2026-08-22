@@ -141,8 +141,10 @@ outcome、exit code、boundedな観測要約、commit SHAなどは、event type�
 `stopped`、`implementation_green`を表現できなければならない。
 
 `CY-063` stdout、stderr、provider log全体をdurable evidenceへ複製してはならない。
-RED failure signature、testのpass/fail/skip数、commit SHAなど、合否と再開判断に必要な
-最小情報だけを保存する。
+RED failure signature、command、exit code、outcome、test対象identity、commit SHAなど、
+合否と再開判断に必要な最小情報だけを保存する。testのpass/fail/skip数は構造化reporterから
+一意に取得できた場合だけ保存する。取得できない場合は`unavailable`と理由を記録し、
+推測値またはcommandの成功・失敗数をtest件数として代用してはならない。
 
 `CY-064` executor、backend、sessionまたはrun IDは、安全に取得できるものだけを保存する。
 取得不能なfieldは`unavailable`と理由を記録してよいが、GREENを妨げてはならない。
