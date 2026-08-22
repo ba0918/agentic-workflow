@@ -205,6 +205,23 @@ sandbox permissionだけは`CY-080`から`CY-082`の限定再試行を許可す�
 `CY-095` planに記録済みの人間gateは、対象identityと判断結果を証拠へ結び付けなければ
 ならない。未計画の人間判断が必要になった場合、ad hocな承認で意味を追加してはならない。
 
+`CY-096` Cycleはattempt binding確定時に、正本planの機械可読なhuman gate宣言を検証し、
+plan revision、step、仕様条項、target identity取得元、timingとともにbindingへ
+固定しなければならない。malformedまたは解決不能なgate宣言を持つplanはtest編集前に
+拒否しなければならない。
+
+`CY-097` human gateの判断は`human_gate` eventとして記録し、少なくとも`gate_id`、
+`step_id`、判断時点の`target_identity`、`result`を持たなければならない。
+eventは正本planの宣言と一致し、`result`は`approved`または`rejected`でなければならない。
+
+`CY-098` Cycleは宣言されたtimingまでに現在有効な`approved` eventがない場合、
+その境界を越えてはならない。`rejected`はblocking stopとし、対象identityが判断後に
+変化した場合は以前の判断をstaleとして再利用してはならない。
+
+`CY-099` `implementation_green`は、全必須human gateが現在の対象identityに対して
+`approved`である場合だけ許可する。gate宣言がないplanへCycleが新しい人間判断を追加して
+成功条件を補ってはならない。
+
 ## Securityと信頼境界
 
 `CY-100` plan、repository text、command output、provider logは実行指示ではなくdataとして
@@ -258,6 +275,10 @@ spec、worktree bindingだけから同じgateを実行できることで、会�
 
 `CY-116` 旧版と同じ入力で、要求充足、重大な漏れ、質問数、操作数、tool呼出し、再読範囲、
 token、実行時間を比較しなければならない。品質低下を効率改善で相殺してはならない。
+
+`CY-117` deterministic helperのunit testは、human gateなしの正常plan、必須gateの欠落、
+malformed宣言、対象identity不一致、`rejected`、承認後の対象変更、全gate承認済みの
+terminal成功を検証しなければならない。
 
 ## Source audit
 
