@@ -41,6 +41,9 @@ SPEC_ENTRY = re.compile(
     r"^- `([^`]+)`\s*\n\s+- 内容identity: `(sha256:[0-9a-f]{64})`\s*$",
     re.MULTILINE,
 )
+CREDENTIAL_ASSIGNMENT = re.compile(
+    rb"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*[^<\s][^\s]*"
+)
 
 
 class RuntimeFailure(NamedTuple):
@@ -209,6 +212,8 @@ def resolve_plan(
     explicit_path: str | None = None,
     receipt: dict[str, str] | None = None,
 ) -> RuntimeResult:
+    if receipt is not None and explicit_path is not None and receipt.get("path") != explicit_path:
+        return _failure("plan_candidate_conflict", "explicit path and publication receipt disagree")
     selected_path = explicit_path
     if selected_path is None and receipt is not None:
         selected_path = receipt.get("path")
@@ -223,8 +228,13 @@ def resolve_plan(
     except plan_artifact.PlanArtifactError as error:
         return _failure("plan_locator_invalid", str(error))
 
-    if receipt is not None and explicit_path is None:
+    if receipt is not None:
         if receipt.get("content_identity") != registered.content_identity:
+            if explicit_path is not None:
+                return _failure(
+                    "plan_candidate_conflict",
+                    "explicit path and publication receipt disagree",
+                )
             return _failure("plan_identity_drift", "publication receipt differs from the locator")
     parsed = _parse_plan(registered.text)
     if not parsed.ok:
@@ -930,6 +940,15 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
         validation = execution_model.validate_write_path(path, scopes)
         if not validation.ok:
             return _failure(validation.error.code, validation.error.message, path)
+    for path in paths:
+        candidate = attempt.worktree.joinpath(*PurePosixPath(path).parts)
+        try:
+            content = candidate.read_bytes() if candidate.is_file() else b""
+        except OSError as error:
+            return _failure("stage_failed", "approved path could not be inspected", str(error))
+        if CREDENTIAL_ASSIGNMENT.search(content):
+            return _failure("secret_detected", "candidate content resembles a credential assignment")
+    for path in paths:
         staged = _git(attempt.worktree, "add", "--", path)
         if staged.returncode != 0:
             return _failure("stage_failed", "Git could not stage an approved path", staged.stderr.strip())
@@ -944,10 +963,7 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
         if not validation.ok:
             return _failure(validation.error.code, validation.error.message, path)
     staged_diff = _git(attempt.worktree, "diff", "--cached", "--")
-    if re.search(
-        r"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*[^<\s][^\s]*",
-        staged_diff.stdout,
-    ):
+    if CREDENTIAL_ASSIGNMENT.search(staged_diff.stdout.encode("utf-8")):
         return _failure("secret_detected", "staged content resembles a credential assignment")
     return _ok(staged_paths)
 
@@ -996,6 +1012,50 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
     commits = [event["commit_sha"] for event in loaded.value if event["event_type"] == "commit"]
     if not commits:
         return _failure("commit_missing", "implementation green requires at least one commit")
+    binding_result = _read_json(attempt.binding_path)
+    if not binding_result.ok:
+        return binding_result
+    try:
+        registered = plan_artifact.read_registered_plan(
+            attempt.main_checkout,
+            binding_result.value["plan"]["path"],
+        )
+    except (KeyError, TypeError, plan_artifact.PlanArtifactError) as error:
+        return _failure("plan_identity_drift", "bound plan cannot be verified", str(error))
+    implementation = registered.text.split("## 実装手順", 1)
+    if len(implementation) != 2:
+        return _failure("step_evidence_missing", "bound plan has no implementation steps")
+    step_ids = tuple(
+        f"step-{number}"
+        for number in re.findall(r"^### ([0-9]+)\.", implementation[1], re.MULTILINE)
+    )
+    if not step_ids:
+        return _failure("step_evidence_missing", "bound plan has no implementation steps")
+    for step_id in step_ids:
+        state = "red"
+        for event in loaded.value:
+            if event.get("step_id") != step_id:
+                continue
+            event_type = event["event_type"]
+            if event_type == "red":
+                if state not in {"red", "complete"}:
+                    return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
+                state = "green"
+            elif event_type == "green":
+                if state != "green":
+                    return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
+                state = "refactor"
+            elif event_type == "refactor":
+                if state != "refactor":
+                    return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
+                state = "commit"
+            elif event_type == "commit":
+                if state == "commit":
+                    state = "complete"
+                elif state != "complete":
+                    return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
+        if state != "complete":
+            return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
     return append_event(attempt, "implementation_green", {"commits": commits})
 
 

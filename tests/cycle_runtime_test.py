@@ -182,6 +182,23 @@ class PlanResolutionTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "plan_identity_drift")
 
+    def test_explicit_path_and_receipt_must_not_disagree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, plan_id, _ = create_repository(Path(directory))
+            path = f".agents/artifacts/plans/{plan_id}_fixture.md"
+
+            result = cycle_runtime.resolve_plan(
+                root,
+                explicit_path=path,
+                receipt={
+                    "path": path,
+                    "content_identity": "sha256:" + "0" * 64,
+                },
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "plan_candidate_conflict")
+
     def test_plan_header_revision_must_match_the_locator(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, plan_id, _ = create_repository(Path(directory))
@@ -502,6 +519,39 @@ class EventPersistenceTest(unittest.TestCase):
             missing = cycle_runtime.mark_implementation_green(attempt)
             self.assertFalse(missing.ok)
             self.assertEqual(missing.error.code, "commit_missing")
+            oracle_identity = "sha256:" + "6" * 64
+            cycle_runtime.append_event(
+                attempt,
+                "red",
+                {
+                    "step_id": "step-1",
+                    "oracle_identity": oracle_identity,
+                    "outcome": "expected_failure",
+                    "exit_code": 1,
+                    "observation": "greeting missing",
+                },
+            )
+            cycle_runtime.append_event(
+                attempt,
+                "green",
+                {
+                    "step_id": "step-1",
+                    "oracle_identity": oracle_identity,
+                    "outcome": "passed",
+                    "exit_code": 0,
+                    "observation": "green",
+                },
+            )
+            cycle_runtime.append_event(
+                attempt,
+                "refactor",
+                {
+                    "step_id": "step-1",
+                    "oracle_identity": oracle_identity,
+                    "outcome": "passed",
+                    "observation": "green",
+                },
+            )
             commit_sha = "7" * 40
             cycle_runtime.append_event(
                 attempt,
@@ -516,6 +566,20 @@ class EventPersistenceTest(unittest.TestCase):
             self.assertEqual(terminal.value["event_type"], "implementation_green")
             self.assertEqual(result["state"], "implementation_green")
             self.assertEqual(result["commits"], [commit_sha])
+
+    def test_implementation_green_rejects_a_committed_step_without_tdd_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            cycle_runtime.append_event(
+                attempt,
+                "commit",
+                {"step_id": "step-1", "commit_sha": "7" * 40, "outcome": "committed"},
+            )
+
+            result = cycle_runtime.mark_implementation_green(attempt)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "step_evidence_missing")
 
 
 class OracleExecutionTest(unittest.TestCase):
@@ -696,6 +760,23 @@ class CommitBoundaryTest(unittest.TestCase):
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "write_scope_violation")
+            self.assertEqual(git(attempt.worktree, "diff", "--cached", "--name-only"), "")
+
+    def test_secret_detection_finishes_before_any_path_is_staged(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("API_TOKEN=not-a-real-token\n", encoding="utf-8")
+
+            result = cycle_runtime.stage_paths(
+                attempt,
+                ["src/greeting.py"],
+                step_id="step-1",
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "secret_detected")
             self.assertEqual(git(attempt.worktree, "diff", "--cached", "--name-only"), "")
 
 
