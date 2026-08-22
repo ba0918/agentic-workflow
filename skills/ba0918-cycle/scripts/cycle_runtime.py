@@ -842,14 +842,33 @@ def _classify_process_failure(stdout: str, stderr: str) -> str:
     return "behavior_failure"
 
 
+def _oracle_cwd(attempt: Attempt, relative_path: str) -> RuntimeResult:
+    if not execution_model.validate_relative_path(relative_path).ok:
+        return _failure("unsafe_path", "oracle cwd is not a safe relative path")
+    root = attempt.worktree.resolve()
+    parts = () if relative_path == "." else PurePosixPath(relative_path).parts
+    candidate = attempt.worktree
+    for part in parts:
+        candidate = candidate / part
+        if candidate.is_symlink():
+            return _failure("unsafe_path", "oracle cwd contains a symlink", relative_path)
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        return _failure("cwd_unavailable", "oracle cwd is unavailable", str(error))
+    if (resolved != root and root not in resolved.parents) or not resolved.is_dir():
+        return _failure("unsafe_path", "oracle cwd escapes the bound worktree", relative_path)
+    return _ok(resolved)
+
+
 def _execute_oracle(attempt: Attempt, oracle: dict) -> RuntimeResult:
-    cwd = attempt.worktree if oracle["cwd"] == "." else attempt.worktree.joinpath(
-        *PurePosixPath(oracle["cwd"]).parts
-    )
+    cwd_result = _oracle_cwd(attempt, oracle["cwd"])
+    if not cwd_result.ok:
+        return cwd_result
     try:
         completed = subprocess.run(
             oracle["command"],
-            cwd=cwd,
+            cwd=cwd_result.value,
             text=True,
             capture_output=True,
             timeout=oracle["timeout_seconds"],
@@ -914,6 +933,118 @@ def _validate_step_test_targets(attempt: Attempt, step_id: str) -> RuntimeResult
     if not validation.ok:
         return _failure(validation.error.code, validation.error.message)
     return _validate_frozen_test_targets(attempt, oracle_result.value)
+
+
+def _human_gate_target_identities(
+    attempt: Attempt,
+    binding: dict,
+    *,
+    step_id: str,
+    timing: str,
+) -> RuntimeResult:
+    identities: dict[str, str] = {}
+    boundary = execution_model.HUMAN_GATE_TIMINGS[timing]
+    for gate in binding["human_gates"]:
+        if gate["step_id"] != step_id:
+            continue
+        if execution_model.HUMAN_GATE_TIMINGS[gate["timing"]] > boundary:
+            continue
+        target = gate["target"]
+        if target["kind"] == "event":
+            identities[gate["gate_id"]] = target["content_identity"]
+            continue
+        observed = _test_target_snapshot(attempt.worktree, target["paths"])
+        if not observed.ok:
+            return observed
+        identities[gate["gate_id"]] = execution_model.content_identity(observed.value)
+    return _ok(identities)
+
+
+def check_human_gates(attempt: Attempt, *, step_id: str, timing: str) -> RuntimeResult:
+    binding_result = _read_json(attempt.binding_path)
+    if not binding_result.ok:
+        return binding_result
+    binding_validation = execution_model.validate_binding(binding_result.value)
+    if not binding_validation.ok:
+        return _failure(binding_validation.error.code, binding_validation.error.message)
+    if timing not in execution_model.HUMAN_GATE_TIMINGS:
+        return _failure("human_gate_timing_invalid", "human gate timing is invalid")
+    events = _load_events(attempt)
+    if not events.ok:
+        return events
+    identities = _human_gate_target_identities(
+        attempt,
+        binding_result.value,
+        step_id=step_id,
+        timing=timing,
+    )
+    if not identities.ok:
+        return identities
+    result = execution_model.validate_human_gate_boundary(
+        binding_result.value,
+        events.value,
+        step_id=step_id,
+        timing=timing,
+        target_identities=identities.value,
+    )
+    if not result.ok:
+        return _failure(result.error.code, result.error.message, result.error.field)
+    return _ok(identities.value)
+
+
+def record_human_gate(
+    attempt: Attempt,
+    *,
+    step_id: str,
+    gate_id: str,
+    result: str,
+) -> RuntimeResult:
+    binding_result = _read_json(attempt.binding_path)
+    if not binding_result.ok:
+        return binding_result
+    binding = binding_result.value
+    validation = execution_model.validate_binding(binding)
+    if not validation.ok:
+        return _failure(validation.error.code, validation.error.message)
+    declaration = next(
+        (
+            gate
+            for gate in binding["human_gates"]
+            if gate["gate_id"] == gate_id and gate["step_id"] == step_id
+        ),
+        None,
+    )
+    if declaration is None:
+        return _failure("human_gate_undeclared", "human gate is not declared for this step")
+    if result not in declaration["allowed_results"]:
+        return _failure("human_gate_event_invalid", "human gate result is invalid")
+    identities = _human_gate_target_identities(
+        attempt,
+        binding,
+        step_id=step_id,
+        timing=declaration["timing"],
+    )
+    if not identities.ok:
+        return identities
+    recorded = append_event(
+        attempt,
+        "human_gate",
+        {
+            "gate_id": gate_id,
+            "step_id": step_id,
+            "target_identity": identities.value[gate_id],
+            "result": result,
+        },
+    )
+    if not recorded.ok:
+        return recorded
+    if result == "rejected":
+        return _stop(
+            attempt,
+            RuntimeFailure("human_gate_rejected", "human gate was rejected", gate_id),
+            step_id,
+        )
+    return recorded
 
 
 def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
@@ -1084,6 +1215,9 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
     targets = _validate_step_test_targets(attempt, step_id)
     if not targets.ok:
         return targets
+    gates = check_human_gates(attempt, step_id=step_id, timing="before_commit")
+    if not gates.ok:
+        return gates
     for path in paths:
         staged = _git(attempt.worktree, "add", "--", path)
         if staged.returncode != 0:
@@ -1218,6 +1352,9 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
                     return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
         if state != "complete":
             return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
+        targets = _validate_step_test_targets(attempt, step_id)
+        if not targets.ok:
+            return targets
     final_step = step_ids[-1]
     context = validate_context(attempt, step_id=final_step)
     if not context.ok:
@@ -1277,6 +1414,14 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
         scope = execution_model.validate_write_path(path, binding_result.value["write_scope"])
         if not scope.ok:
             return _stop(attempt, RuntimeFailure(scope.error.code, scope.error.message), final_step)
+    for step_id in step_ids:
+        gates = check_human_gates(
+            attempt,
+            step_id=step_id,
+            timing="before_implementation_green",
+        )
+        if not gates.ok:
+            return gates
     return append_event(attempt, "implementation_green", {"commits": commits})
 
 
@@ -1366,6 +1511,24 @@ def main(argv: list[str] | None = None) -> int:
     record.add_argument("--repo", required=True)
     record.add_argument("--step", required=True)
     record.add_argument("--previous-head", required=True)
+
+    human_gate = commands.add_parser("human-gate", help="record a declared human gate decision")
+    human_gate.add_argument("--repo", required=True)
+    human_gate.add_argument("--step", required=True)
+    human_gate.add_argument("--gate", required=True)
+    human_gate.add_argument("--result", choices=("approved", "rejected"), required=True)
+
+    check_gates = commands.add_parser(
+        "check-gates",
+        help="verify declared human gates before crossing a boundary",
+    )
+    check_gates.add_argument("--repo", required=True)
+    check_gates.add_argument("--step", required=True)
+    check_gates.add_argument(
+        "--timing",
+        choices=tuple(execution_model.HUMAN_GATE_TIMINGS),
+        required=True,
+    )
 
     stop = commands.add_parser("stop", help="record a blocking stop")
     stop.add_argument("--repo", required=True)
@@ -1459,6 +1622,23 @@ def main(argv: list[str] | None = None) -> int:
         operation = stage_paths(attempt, args.path, step_id=args.step)
     elif args.command == "record-commit":
         operation = record_commit(attempt, args.step, args.previous_head)
+    elif args.command == "human-gate":
+        operation = record_human_gate(
+            attempt,
+            step_id=args.step,
+            gate_id=args.gate,
+            result=args.result,
+        )
+    elif args.command == "check-gates":
+        checked = check_human_gates(attempt, step_id=args.step, timing=args.timing)
+        operation = checked if not checked.ok else _ok(
+            {
+                "state": "approved",
+                "step_id": args.step,
+                "timing": args.timing,
+                "target_identities": checked.value,
+            }
+        )
     elif args.command == "stop":
         operation = append_event(
             attempt,

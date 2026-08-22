@@ -37,7 +37,12 @@ def git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def create_repository(parent: Path) -> tuple[Path, str, str]:
+def create_repository(
+    parent: Path,
+    *,
+    human_gate: bool = False,
+    human_gate_timing: str = "before_implementation_green",
+) -> tuple[Path, str, str]:
     root = parent / "repository"
     root.mkdir()
     git(root, "init", "-b", "main")
@@ -57,6 +62,27 @@ def create_repository(parent: Path) -> tuple[Path, str, str]:
 
     plan_id = "20260822150000"
     spec_identity = plan_artifact.content_identity(spec_text)
+    gate_declaration = ""
+    if human_gate:
+        gate_declaration = """
+**Human gates:**
+
+```json
+{
+  "version": 1,
+  "gates": [
+    {
+      "gate_id": "approve-greeting",
+      "clauses": ["FX-001"],
+      "criterion": "greeting実装が承認済みである",
+      "target": {"kind": "files", "paths": ["src/greeting.py"]},
+      "timing": "__HUMAN_GATE_TIMING__",
+      "allowed_results": ["approved", "rejected"]
+    }
+  ]
+}
+```
+""".replace("__HUMAN_GATE_TIMING__", human_gate_timing)
     plan_text = f"""# Fixture plan
 
 **Plan ID:** `{plan_id}`
@@ -80,6 +106,7 @@ tests/
 ### 1. Greetingを実装する
 
 **対応仕様:** `FX-001`
+{gate_declaration}
 """
     plan_artifact.publish_plan(
         root,
@@ -94,8 +121,17 @@ tests/
     return root, plan_id, spec_identity
 
 
-def bootstrap_fixture(parent: Path):
-    root, _, _ = create_repository(parent)
+def bootstrap_fixture(
+    parent: Path,
+    *,
+    human_gate: bool = False,
+    human_gate_timing: str = "before_implementation_green",
+):
+    root, _, _ = create_repository(
+        parent,
+        human_gate=human_gate,
+        human_gate_timing=human_gate_timing,
+    )
     resolved = cycle_runtime.resolve_plan(root).value
     result = cycle_runtime.bootstrap_attempt(
         root,
@@ -482,6 +518,85 @@ class FreshSessionTest(unittest.TestCase):
 
 
 class EventPersistenceTest(unittest.TestCase):
+    def test_terminal_requires_current_approval_for_a_declared_human_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory), human_gate=True)
+            candidate = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "exists=Path('src/greeting.py').is_file(); "
+                        "print('green' if exists else 'greeting missing'); "
+                        "sys.exit(0 if exists else 1)"
+                    ),
+                ]
+            )
+            self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+            self.assertTrue(
+                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+            )
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+            git(attempt.worktree, "commit", "-m", "feat: add greeting")
+            self.assertTrue(
+                cycle_runtime.record_commit(attempt, "step-1", previous_head).ok
+            )
+
+            missing = cycle_runtime.mark_implementation_green(attempt)
+            approved = cycle_runtime.record_human_gate(
+                attempt,
+                step_id="step-1",
+                gate_id="approve-greeting",
+                result="approved",
+            )
+            terminal = cycle_runtime.mark_implementation_green(attempt)
+
+            self.assertEqual(missing.error.code, "human_gate_missing")
+            self.assertTrue(approved.ok, approved.error)
+            self.assertTrue(terminal.ok, terminal.error)
+
+    def test_terminal_rechecks_the_frozen_test_target_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            candidate = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "exists=Path('src/greeting.py').is_file(); "
+                        "print('green' if exists else 'greeting missing'); "
+                        "sys.exit(0 if exists else 1)"
+                    ),
+                ]
+            )
+            self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+            self.assertTrue(
+                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+            )
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+            git(attempt.worktree, "commit", "-m", "feat: add greeting")
+            self.assertTrue(cycle_runtime.record_commit(attempt, "step-1", previous_head).ok)
+            (attempt.worktree / "tests/greeting_test.py").write_text(
+                "# weakened after the commit\n",
+                encoding="utf-8",
+            )
+
+            result = cycle_runtime.mark_implementation_green(attempt)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "test_identity_drift")
     def test_event_retry_is_idempotent_only_for_the_same_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
@@ -537,49 +652,32 @@ class EventPersistenceTest(unittest.TestCase):
             missing = cycle_runtime.mark_implementation_green(attempt)
             self.assertFalse(missing.ok)
             self.assertEqual(missing.error.code, "commit_missing")
-            oracle_identity = "sha256:" + "6" * 64
-            cycle_runtime.append_event(
-                attempt,
-                "red",
-                {
-                    "step_id": "step-1",
-                    "oracle_identity": oracle_identity,
-                    "outcome": "expected_failure",
-                    "exit_code": 1,
-                    "observation": "greeting missing",
-                },
+            candidate = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "exists=Path('src/greeting.py').is_file(); "
+                        "print('green' if exists else 'greeting missing'); "
+                        "sys.exit(0 if exists else 1)"
+                    ),
+                ]
             )
-            cycle_runtime.append_event(
-                attempt,
-                "green",
-                {
-                    "step_id": "step-1",
-                    "oracle_identity": oracle_identity,
-                    "outcome": "passed",
-                    "exit_code": 0,
-                    "observation": "green",
-                },
-            )
-            cycle_runtime.append_event(
-                attempt,
-                "refactor",
-                {
-                    "step_id": "step-1",
-                    "oracle_identity": oracle_identity,
-                    "outcome": "passed",
-                    "observation": "green",
-                },
-            )
+            self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
             production = attempt.worktree / "src/greeting.py"
             production.parent.mkdir(parents=True)
             production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
-            git(attempt.worktree, "add", "src/greeting.py")
+            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+            self.assertTrue(
+                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+            )
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
             git(attempt.worktree, "commit", "-m", "feat: add greeting")
             commit_sha = git(attempt.worktree, "rev-parse", "HEAD")
-            cycle_runtime.append_event(
-                attempt,
-                "commit",
-                {"step_id": "step-1", "commit_sha": commit_sha, "outcome": "committed"},
+            self.assertTrue(
+                cycle_runtime.record_commit(attempt, "step-1", previous_head).ok
             )
 
             terminal = cycle_runtime.mark_implementation_green(attempt)
@@ -607,49 +705,31 @@ class EventPersistenceTest(unittest.TestCase):
     def test_implementation_green_rejects_post_verification_dirtiness(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
-            oracle_identity = "sha256:" + "6" * 64
-            cycle_runtime.append_event(
-                attempt,
-                "red",
-                {
-                    "step_id": "step-1",
-                    "oracle_identity": oracle_identity,
-                    "outcome": "expected_failure",
-                    "exit_code": 1,
-                    "observation": "greeting missing",
-                },
+            candidate = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "exists=Path('src/greeting.py').is_file(); "
+                        "print('green' if exists else 'greeting missing'); "
+                        "sys.exit(0 if exists else 1)"
+                    ),
+                ]
             )
-            cycle_runtime.append_event(
-                attempt,
-                "green",
-                {
-                    "step_id": "step-1",
-                    "oracle_identity": oracle_identity,
-                    "outcome": "passed",
-                    "exit_code": 0,
-                    "observation": "green",
-                },
-            )
-            cycle_runtime.append_event(
-                attempt,
-                "refactor",
-                {
-                    "step_id": "step-1",
-                    "oracle_identity": oracle_identity,
-                    "outcome": "passed",
-                    "observation": "green",
-                },
-            )
+            self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
             production = attempt.worktree / "src/greeting.py"
             production.parent.mkdir(parents=True)
             production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
-            git(attempt.worktree, "add", "src/greeting.py")
+            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+            self.assertTrue(
+                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+            )
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
             git(attempt.worktree, "commit", "-m", "feat: add greeting")
-            commit_sha = git(attempt.worktree, "rev-parse", "HEAD")
-            cycle_runtime.append_event(
-                attempt,
-                "commit",
-                {"step_id": "step-1", "commit_sha": commit_sha, "outcome": "committed"},
+            self.assertTrue(
+                cycle_runtime.record_commit(attempt, "step-1", previous_head).ok
             )
             production.write_text("changed after final verification\n", encoding="utf-8")
 
@@ -661,6 +741,21 @@ class EventPersistenceTest(unittest.TestCase):
 
 
 class OracleExecutionTest(unittest.TestCase):
+    def test_oracle_cwd_cannot_escape_the_worktree_through_a_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            _, attempt = bootstrap_fixture(parent)
+            outside = parent / "outside"
+            outside.mkdir()
+            (attempt.worktree / "linked-cwd").symlink_to(outside, target_is_directory=True)
+            oracle = red_oracle(["python3", "-c", "raise SystemExit(0)"])
+            oracle["cwd"] = "linked-cwd"
+
+            result = cycle_runtime._execute_oracle(attempt, oracle)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "unsafe_path")
+
     def test_expected_red_freezes_oracle_and_records_bounded_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
@@ -1077,6 +1172,80 @@ class CommandLineTest(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertEqual(payload["plan_id"], plan_id)
             self.assertNotIn("text", payload)
+
+    def test_human_gate_command_records_only_the_declared_decision(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), human_gate=True)
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+
+            exit_code, payload = self.call_main(
+                [
+                    "human-gate",
+                    "--repo",
+                    str(root),
+                    "--step",
+                    "step-1",
+                    "--gate",
+                    "approve-greeting",
+                    "--result",
+                    "approved",
+                ]
+            )
+
+            self.assertEqual(exit_code, 0, payload)
+            self.assertEqual(payload["event_type"], "human_gate")
+            self.assertEqual(payload["gate_id"], "approve-greeting")
+            self.assertEqual(payload["result"], "approved")
+
+    def test_check_gates_command_blocks_before_edit_until_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(
+                Path(directory),
+                human_gate=True,
+                human_gate_timing="before_edit",
+            )
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+
+            missing_code, missing = self.call_main(
+                [
+                    "check-gates",
+                    "--repo",
+                    str(root),
+                    "--step",
+                    "step-1",
+                    "--timing",
+                    "before_edit",
+                ]
+            )
+            self.assertEqual(missing_code, 2)
+            self.assertEqual(missing["reason"], "human_gate_missing")
+            self.assertTrue(
+                cycle_runtime.record_human_gate(
+                    attempt,
+                    step_id="step-1",
+                    gate_id="approve-greeting",
+                    result="approved",
+                ).ok
+            )
+
+            approved_code, approved = self.call_main(
+                [
+                    "check-gates",
+                    "--repo",
+                    str(root),
+                    "--step",
+                    "step-1",
+                    "--timing",
+                    "before_edit",
+                ]
+            )
+
+            self.assertEqual(approved_code, 0, approved)
+            self.assertEqual(approved["state"], "approved")
 
     def test_failure_command_returns_structured_reason(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
