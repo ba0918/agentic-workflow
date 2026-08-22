@@ -5,6 +5,8 @@ source: plan:20260822143915
 executor_tier: standard
 isolation: worktree
 files:
+  - from: normal/.gitignore
+    to: .gitignore
   - from: normal/PROJECT.md
     to: PROJECT.md
   - from: normal/docs/spec/greeting.md

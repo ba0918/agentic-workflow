@@ -5,6 +5,8 @@ source: plan:20260822143915
 executor_tier: standard
 isolation: worktree
 files:
+  - from: unintended-red/.gitignore
+    to: .gitignore
   - from: unintended-red/PROJECT.md
     to: PROJECT.md
   - from: unintended-red/docs/spec/greeting.md
