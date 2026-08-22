@@ -14,6 +14,10 @@ IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")
 PLAN_ID = re.compile(r"[0-9]{14}")
 ATTEMPT_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,95}")
 COMMIT_SHA = re.compile(r"[0-9a-f]{40,64}")
+GENERIC_FAILURE_SIGNATURE = re.compile(
+    r"(?i)^(?:failed(?:\s*\([^)]*\))?|errors?|[0-9]+\s+(?:failed|errors?)|"
+    r"exit(?:\s+code)?[=: ]+\d+)$"
+)
 EVENT_TYPES = {
     "worktree-bound": {"outcome"},
     "red": {"step_id", "oracle_identity", "outcome", "exit_code", "observation"},
@@ -215,6 +219,12 @@ def validate_oracle(value: object) -> ModelResult:
     for field in ("expected_failure_kind", "observed_failure_kind", "failure_signature"):
         if not isinstance(value[field], str) or not value[field]:
             return _failure("oracle_field_invalid", field, f"{field} is invalid")
+    if GENERIC_FAILURE_SIGNATURE.fullmatch(value["failure_signature"].strip()):
+        return _failure(
+            "oracle_failure_signature_invalid",
+            "failure_signature",
+            "failure signature does not identify the approved missing behavior",
+        )
     return _ok(value)
 
 

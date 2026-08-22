@@ -763,7 +763,13 @@ def _stop(attempt: Attempt, error: RuntimeFailure, step_id: str) -> RuntimeResul
 
 def _bounded_observation(stdout: str, stderr: str) -> str:
     lines = [line.strip() for line in (stdout + "\n" + stderr).splitlines() if line.strip()]
-    observation = lines[-1] if lines else "no output"
+    diagnostic = re.compile(
+        r"(?i)(modulenotfounderror|importerror|permissionerror|permission denied|"
+        r"assertionerror|fixture|collection error|network|connection)"
+    )
+    observation = next((line for line in reversed(lines) if diagnostic.search(line)), None)
+    if observation is None:
+        observation = lines[-1] if lines else "no output"
     observation = re.sub(
         r"(?i)\b(token|password|secret|credential)\s*[=:]\s*\S+",
         r"\1=<redacted>",
@@ -772,8 +778,8 @@ def _bounded_observation(stdout: str, stderr: str) -> str:
     return observation[:512]
 
 
-def _classify_process_failure(observation: str) -> str:
-    lowered = observation.lower()
+def _classify_process_failure(stdout: str, stderr: str) -> str:
+    lowered = (stdout + "\n" + stderr).lower()
     if "modulenotfounderror" in lowered or "importerror" in lowered:
         return "import_failure"
     if "permissionerror" in lowered or "permission denied" in lowered:
@@ -810,7 +816,9 @@ def _execute_oracle(attempt: Attempt, oracle: dict) -> RuntimeResult:
             "exit_code": completed.returncode,
             "observation": observation,
             "failure_kind": (
-                "passed" if completed.returncode == 0 else _classify_process_failure(observation)
+                "passed"
+                if completed.returncode == 0
+                else _classify_process_failure(completed.stdout, completed.stderr)
             ),
         }
     )

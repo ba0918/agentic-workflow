@@ -143,6 +143,15 @@ class BindingValidationTest(unittest.TestCase):
         self.assertFalse(oracle_result.ok)
         self.assertEqual(oracle_result.error.code, "oracle_field_invalid")
 
+    def test_generic_runner_summary_is_not_a_behavior_signature(self) -> None:
+        invalid_oracle = oracle()
+        invalid_oracle["failure_signature"] = "FAILED (errors=1)"
+
+        result = cycle_model.validate_oracle(invalid_oracle)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "oracle_failure_signature_invalid")
+
 
 class WriteScopeTest(unittest.TestCase):
     def test_descendant_and_exact_file_are_inside_scope(self) -> None:

@@ -644,6 +644,42 @@ class OracleExecutionTest(unittest.TestCase):
             self.assertEqual(cycle_runtime.derive_attempt_result(attempt)["state"], "stopped")
             self.assertFalse((attempt.evidence_path / "oracles/step-1.json").exists())
 
+    def test_generic_unittest_summary_is_rejected_before_red_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            oracle = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    (
+                        "import sys; "
+                        "sys.stderr.write(\"ModuleNotFoundError: No module named 'src'\\n\""
+                        "+ \"FAILED (errors=1)\\n\"); "
+                        "sys.exit(1)"
+                    ),
+                ]
+            )
+            oracle["failure_signature"] = "FAILED (errors=1)"
+
+            result = cycle_runtime.accept_red(attempt, oracle)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "oracle_failure_signature_invalid")
+            self.assertEqual(cycle_runtime.derive_attempt_result(attempt)["state"], "stopped")
+            self.assertFalse((attempt.evidence_path / "oracles/step-1.json").exists())
+
+    def test_process_classification_uses_diagnostics_before_generic_summary(self) -> None:
+        stderr = "ModuleNotFoundError: No module named 'src'\nFAILED (errors=1)\n"
+
+        self.assertEqual(
+            cycle_runtime._classify_process_failure("", stderr),
+            "import_failure",
+        )
+        self.assertEqual(
+            cycle_runtime._bounded_observation("", stderr),
+            "ModuleNotFoundError: No module named 'src'",
+        )
+
     def test_green_and_refactor_reuse_the_frozen_oracle(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
