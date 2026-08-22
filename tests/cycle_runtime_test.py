@@ -552,7 +552,7 @@ class EventPersistenceTest(unittest.TestCase):
                     "observation": "green",
                 },
             )
-            commit_sha = "7" * 40
+            commit_sha = git(attempt.worktree, "rev-parse", "HEAD")
             cycle_runtime.append_event(
                 attempt,
                 "commit",
@@ -580,6 +580,58 @@ class EventPersistenceTest(unittest.TestCase):
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "step_evidence_missing")
+
+    def test_implementation_green_rejects_post_verification_dirtiness(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            oracle_identity = "sha256:" + "6" * 64
+            cycle_runtime.append_event(
+                attempt,
+                "red",
+                {
+                    "step_id": "step-1",
+                    "oracle_identity": oracle_identity,
+                    "outcome": "expected_failure",
+                    "exit_code": 1,
+                    "observation": "greeting missing",
+                },
+            )
+            cycle_runtime.append_event(
+                attempt,
+                "green",
+                {
+                    "step_id": "step-1",
+                    "oracle_identity": oracle_identity,
+                    "outcome": "passed",
+                    "exit_code": 0,
+                    "observation": "green",
+                },
+            )
+            cycle_runtime.append_event(
+                attempt,
+                "refactor",
+                {
+                    "step_id": "step-1",
+                    "oracle_identity": oracle_identity,
+                    "outcome": "passed",
+                    "observation": "green",
+                },
+            )
+            commit_sha = git(attempt.worktree, "rev-parse", "HEAD")
+            cycle_runtime.append_event(
+                attempt,
+                "commit",
+                {"step_id": "step-1", "commit_sha": commit_sha, "outcome": "committed"},
+            )
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("changed after final verification\n", encoding="utf-8")
+
+            result = cycle_runtime.mark_implementation_green(attempt)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "post_verification_dirty")
+            self.assertEqual(cycle_runtime.derive_attempt_result(attempt)["state"], "stopped")
 
 
 class OracleExecutionTest(unittest.TestCase):

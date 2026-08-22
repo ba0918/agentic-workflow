@@ -1071,6 +1071,32 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
                     return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
         if state != "complete":
             return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
+    final_step = step_ids[-1]
+    context = validate_context(attempt, step_id=final_step)
+    if not context.ok:
+        return _stop(attempt, context.error, final_step)
+    changed = _changed_paths(attempt.worktree)
+    if not changed.ok:
+        return _stop(attempt, changed.error, final_step)
+    if changed.value:
+        return _stop(
+            attempt,
+            RuntimeFailure(
+                "post_verification_dirty",
+                "final verification left the bound worktree dirty",
+            ),
+            final_step,
+        )
+    head = _git(attempt.worktree, "rev-parse", "HEAD")
+    if head.returncode != 0 or head.stdout.strip() != commits[-1]:
+        return _stop(
+            attempt,
+            RuntimeFailure(
+                "commit_identity_drift",
+                "worktree HEAD differs from the last durable commit event",
+            ),
+            final_step,
+        )
     return append_event(attempt, "implementation_green", {"commits": commits})
 
 
