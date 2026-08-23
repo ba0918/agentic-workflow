@@ -36,12 +36,6 @@ plan_artifact = _load_module(
 )
 
 
-PLAN_ID_HEADER = re.compile(r"^\*\*Plan ID:\*\* `([0-9]{14})`\s*$", re.MULTILINE)
-PLAN_REVISION_HEADER = re.compile(r"^\*\*Plan revision:\*\* `([0-9]+)`\s*$", re.MULTILINE)
-SPEC_ENTRY = re.compile(
-    r"^- `([^`]+)`\s*\n\s+- 内容identity: `(sha256:[0-9a-f]{64})`\s*$",
-    re.MULTILINE,
-)
 CREDENTIAL_ASSIGNMENT = re.compile(
     rb"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*[^<\s][^\s]*"
 )
@@ -71,6 +65,7 @@ class ResolvedPlan(NamedTuple):
     specs: tuple[tuple[str, str], ...]
     write_scope: tuple[str, ...]
     human_gates: tuple[dict[str, Any], ...]
+    steps: tuple[Any, ...]
 
 
 class RepositoryInfo(NamedTuple):
@@ -148,60 +143,16 @@ def discover_repository(checkout: Path) -> RuntimeResult:
 
 
 def _parse_plan(text: str) -> RuntimeResult:
-    plan_id = PLAN_ID_HEADER.search(text)
-    revision = PLAN_REVISION_HEADER.search(text)
-    if plan_id is None or revision is None:
-        return _failure("plan_metadata_missing", "plan ID or revision header is missing")
-    target_marker = "**対象仕様:**"
-    if target_marker not in text:
-        return _failure("plan_specs_missing", "plan does not identify its approved specs")
-    target_section = text.split(target_marker, 1)[1]
-    if "**実装境界資料:**" in target_section:
-        target_section = target_section.split("**実装境界資料:**", 1)[0]
-    elif "## 目的" in target_section:
-        target_section = target_section.split("## 目的", 1)[0]
-    specs = tuple(SPEC_ENTRY.findall(target_section))
-    if not specs:
-        return _failure("plan_specs_missing", "plan does not contain spec identities")
-    write_scope = _parse_write_scope(text)
-    if not write_scope:
-        return _failure("plan_write_scope_missing", "plan does not contain a mechanical write scope")
-    return _ok((plan_id.group(1), int(revision.group(1)), specs, write_scope))
-
-
-def _parse_write_scope(text: str) -> tuple[str, ...]:
-    marker = "## 変更するもの"
-    if marker not in text:
-        return ()
-    section = text.split(marker, 1)[1]
-    match = re.search(r"```text\n(.*?)\n```", section, re.DOTALL)
-    if match is None:
-        return ()
-
-    directories: list[tuple[int, PurePosixPath]] = []
-    leaves: list[str] = []
-    pending_directories: set[str] = set()
-    directories_with_leaves: set[str] = set()
-    for raw_line in match.group(1).splitlines():
-        if not raw_line.strip() or "（" in raw_line or "）" in raw_line:
-            continue
-        indent = len(raw_line) - len(raw_line.lstrip(" "))
-        name = raw_line.strip()
-        while directories and indent <= directories[-1][0]:
-            directories.pop()
-        parent = directories[-1][1] if directories else PurePosixPath()
-        path = parent / name.rstrip("/")
-        if name.endswith("/"):
-            directories.append((indent, path))
-            pending_directories.add(path.as_posix())
-            continue
-        if ".." in path.parts or path.is_absolute():
-            return ()
-        leaves.append(path.as_posix())
-        for _, directory in directories:
-            directories_with_leaves.add(directory.as_posix())
-    leaves.extend(sorted(pending_directories - directories_with_leaves))
-    return tuple(dict.fromkeys(leaves))
+    """Read the machine-read parts through the plan skill's reader; implement keeps no parser."""
+    try:
+        header = plan_artifact.read_plan_header(text)
+        write_scope = plan_artifact.read_plan_scope(text)
+        steps = plan_artifact.read_plan_steps(text)
+        human_gates = tuple(_human_gate_value(gate) for gate in plan_artifact.read_plan_human_gates(text))
+    except plan_artifact.InvalidPlanFormat as error:
+        return _failure("plan_format_invalid", str(error))
+    specs = tuple((spec.path, spec.content_identity) for spec in header.specifications)
+    return _ok((header.plan_id, header.revision, specs, write_scope, steps, human_gates))
 
 
 def _raw_identity(text: str) -> str:
@@ -217,7 +168,7 @@ def _human_gate_value(gate: Any) -> dict[str, Any]:
     return {
         "gate_id": gate.gate_id,
         "step_id": gate.step_id,
-        "clauses": list(gate.clauses),
+        "sections": list(gate.sections),
         "criterion": gate.criterion,
         "target": target,
         "timing": gate.timing,
@@ -258,14 +209,7 @@ def resolve_plan(
     parsed = _parse_plan(registered.text)
     if not parsed.ok:
         return parsed
-    try:
-        human_gates = tuple(
-            _human_gate_value(gate)
-            for gate in plan_artifact.read_plan_human_gates(registered.text)
-        )
-    except plan_artifact.InvalidHumanGateDeclaration as error:
-        return _failure("human_gate_declaration_invalid", str(error))
-    header_id, header_revision, specs, write_scope = parsed.value
+    header_id, header_revision, specs, write_scope, steps, human_gates = parsed.value
     if header_id != registered.plan_id:
         return _failure("plan_id_drift", "plan header and locator disagree")
     if header_revision != registered.revision:
@@ -295,6 +239,7 @@ def resolve_plan(
             specs=specs,
             write_scope=write_scope,
             human_gates=human_gates,
+            steps=steps,
         )
     )
 
@@ -1361,15 +1306,10 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
         )
     except (KeyError, TypeError, plan_artifact.PlanArtifactError) as error:
         return _failure("plan_identity_drift", "bound plan cannot be verified", str(error))
-    implementation = registered.text.split("## 実装手順", 1)
-    if len(implementation) != 2:
-        return _failure("step_evidence_missing", "bound plan has no implementation steps")
-    step_ids = tuple(
-        f"step-{number}"
-        for number in re.findall(r"^### ([0-9]+)\.", implementation[1], re.MULTILINE)
-    )
-    if not step_ids:
-        return _failure("step_evidence_missing", "bound plan has no implementation steps")
+    try:
+        step_ids = tuple(f"step-{step.number}" for step in plan_artifact.read_plan_steps(registered.text))
+    except plan_artifact.InvalidPlanFormat as error:
+        return _failure("plan_format_invalid", str(error))
     for step_id in step_ids:
         state = "red"
         for event in loaded.value:

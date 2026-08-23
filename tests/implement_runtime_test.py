@@ -50,7 +50,7 @@ def create_repository(
     git(root, "config", "user.email", "fixture@example.invalid")
     git(root, "config", "user.name", "Fixture User")
     (root / ".gitignore").write_text("/.agents/\n", encoding="utf-8")
-    spec_text = "# Fixture specification\n\nFX-001: return a greeting.\n"
+    spec_text = "# Fixture specification\n\n## Greeting\n\nReturn a greeting.\n"
     spec_path = root / "docs/spec/feature.md"
     spec_path.parent.mkdir(parents=True)
     spec_path.write_text(spec_text, encoding="utf-8")
@@ -74,7 +74,7 @@ def create_repository(
   "gates": [
     {
       "gate_id": "approve-greeting",
-      "clauses": ["FX-001"],
+      "sections": ["Greeting"],
       "criterion": "greeting実装が承認済みである",
       "target": {"kind": "files", "paths": ["src/greeting.py"]},
       "timing": "__HUMAN_GATE_TIMING__",
@@ -88,12 +88,13 @@ def create_repository(
 
 **Plan ID:** `{plan_id}`
 **Plan revision:** `1`
-**対象仕様:**
+**Target specifications:**
 
 - `docs/spec/feature.md`
-  - 内容identity: `{spec_identity}`
+  - content identity: `{spec_identity}`
+  - sections: `Greeting`
 
-## 変更するもの
+## Scope
 
 ```text
 src/
@@ -102,11 +103,11 @@ tests/
   greeting_test.py
 ```
 
-## 実装手順
+## Steps
 
 ### 1. Greetingを実装する
 
-**対応仕様:** `FX-001`
+**Completion:** test
 {gate_declaration}
 """
     publish_text(
@@ -155,7 +156,7 @@ def red_oracle(command: list[str]) -> dict:
     return {
         "version": 1,
         "step_id": "step-1",
-        "clauses": ["FX-001"],
+        "sections": ["Greeting"],
         "test_targets": ["tests/greeting_test.py"],
         "command": command,
         "cwd": ".",
@@ -180,6 +181,42 @@ def publish_text(root: Path, **kwargs):
 
 
 class PlanResolutionTest(unittest.TestCase):
+    def test_legacy_plan_format_is_rejected_as_unreadable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, plan_id, _ = create_repository(Path(directory))
+            plan_path = root / f".agents/artifacts/plans/{plan_id}_fixture.md"
+            legacy = plan_path.read_text(encoding="utf-8").replace("**Target specifications:**", "**対象仕様:**")
+            plan_path.write_text(legacy, encoding="utf-8")
+            index_path = root / ".agents/artifacts/plans/open-plans.json"
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+            index["plans"][0]["content_identity"] = plan_artifact.content_identity(legacy)
+            index_path.write_text(json.dumps(index), encoding="utf-8")
+
+            result = implement_runtime.resolve_plan(root)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "plan_format_invalid")
+            self.assertIn("Target specifications", result.error.message)
+
+    def test_resolved_plan_exposes_steps_with_their_completion_kind(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, _, _ = create_repository(Path(directory))
+
+            result = implement_runtime.resolve_plan(root)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual([(step.number, step.completion_kind) for step in result.value.steps], [(1, "test")])
+
+    def test_declared_human_gate_sections_are_bound(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, _, _ = create_repository(Path(directory), human_gate=True)
+
+            result = implement_runtime.resolve_plan(root)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value.human_gates[0]["sections"], ["Greeting"])
+            self.assertNotIn("clauses", result.value.human_gates[0])
+
     def test_current_plan_metadata_and_specs_are_verified(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, plan_id, spec_identity = create_repository(Path(directory))

@@ -51,7 +51,6 @@ SECRET_ARGUMENT = re.compile(
 )
 GATE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 STEP_ID = re.compile(r"step-[1-9][0-9]*")
-CLAUSE_ID = re.compile(r"[A-Z][A-Z0-9]*-[0-9]{3}")
 HUMAN_GATE_TIMINGS = {
     "before_edit": 0,
     "before_commit": 1,
@@ -145,7 +144,7 @@ def _validate_human_gates(value: object) -> ModelResult:
         if not isinstance(gate, dict) or set(gate) != {
             "gate_id",
             "step_id",
-            "clauses",
+            "sections",
             "criterion",
             "target",
             "timing",
@@ -158,11 +157,11 @@ def _validate_human_gates(value: object) -> ModelResult:
         gate_ids.add(gate_id)
         if not _matches(STEP_ID, gate["step_id"]):
             return _failure("human_gate_binding_invalid", "human_gates.step_id", "human gate step is invalid")
-        clauses = gate["clauses"]
-        if not isinstance(clauses, list) or not clauses or len(clauses) != len(set(clauses)) or any(
-            not _matches(CLAUSE_ID, clause) for clause in clauses
+        sections = gate["sections"]
+        if not isinstance(sections, list) or not sections or len(sections) != len(set(sections)) or any(
+            not isinstance(section, str) or not section.strip() for section in sections
         ):
-            return _failure("human_gate_binding_invalid", "human_gates.clauses", "human gate clauses are invalid")
+            return _failure("human_gate_binding_invalid", "human_gates.sections", "human gate sections are invalid")
         if not isinstance(gate["criterion"], str) or not gate["criterion"].strip() or len(gate["criterion"]) > 500:
             return _failure("human_gate_binding_invalid", "human_gates.criterion", "human gate criterion is invalid")
         target = gate["target"]
@@ -340,7 +339,7 @@ def _validate_oracle(value: object, *, require_observed: bool) -> ModelResult:
     required = {
         "version",
         "step_id",
-        "clauses",
+        "sections",
         "test_targets",
         "command",
         "cwd",
@@ -357,8 +356,8 @@ def _validate_oracle(value: object, *, require_observed: bool) -> ModelResult:
         return _failure("oracle_fields_invalid", None, "oracle fields are unknown or unexpected")
     if value["version"] != 1 or not isinstance(value["step_id"], str) or not value["step_id"]:
         return _failure("oracle_field_invalid", "step_id", "oracle step is invalid")
-    if not isinstance(value["clauses"], list) or not value["clauses"]:
-        return _failure("oracle_field_invalid", "clauses", "oracle clauses are invalid")
+    if not isinstance(value["sections"], list) or not value["sections"]:
+        return _failure("oracle_field_invalid", "sections", "oracle sections are invalid")
     test_targets = value["test_targets"]
     if require_observed:
         if not isinstance(test_targets, list) or not test_targets:
