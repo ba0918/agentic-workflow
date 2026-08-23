@@ -152,6 +152,41 @@ def bootstrap_fixture(
     return root, result.value
 
 
+GREETING_ORACLE_COMMAND = [
+    "python3",
+    "-c",
+    (
+        "from pathlib import Path; import sys; "
+        "exists=Path('src/greeting.py').is_file(); "
+        "print('green' if exists else 'greeting missing'); "
+        "sys.exit(0 if exists else 1)"
+    ),
+]
+
+
+def complete_step_one(attempt) -> str:
+    """Drive step 1 through RED, GREEN, REFACTOR and commit; return the commit SHA."""
+    assert implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok
+    production = attempt.worktree / "src/greeting.py"
+    production.parent.mkdir(parents=True, exist_ok=True)
+    production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+    assert implement_runtime.run_frozen_oracle(attempt, "step-1", "green").ok
+    assert implement_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok
+    assert implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+    previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+    git(attempt.worktree, "commit", "-m", "feat: add greeting")
+    assert implement_runtime.record_commit(attempt, "step-1", previous_head).ok
+    return git(attempt.worktree, "rev-parse", "HEAD")
+
+
+def complete_fixture(parent: Path):
+    root, attempt = bootstrap_fixture(parent)
+    complete_step_one(attempt)
+    terminal = implement_runtime.mark_implementation_green(attempt)
+    assert terminal.ok, terminal.error
+    return root, attempt
+
+
 def red_oracle(command: list[str]) -> dict:
     return {
         "version": 1,
@@ -687,6 +722,94 @@ class FreshSessionTest(unittest.TestCase):
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "worktree_identity_drift")
+
+
+class ResidualWorkTest(unittest.TestCase):
+    def test_unfinished_execution_is_reported_with_its_facts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+
+            result = implement_runtime.residual_executions(root, plan_id=attempt.plan_id)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(len(result.value), 1)
+            facts = result.value[0]
+            self.assertEqual(facts["execution_id"], attempt.attempt_id)
+            self.assertEqual(facts["started_at"], "2026-08-22T15:22:44")
+            self.assertEqual(facts["completed_steps"], 0)
+            self.assertEqual(facts["last_event"], {"event_type": "worktree-bound", "reason": None})
+            self.assertEqual(facts["branch"], {"name": attempt.branch, "exists": True, "extra_commits": []})
+            self.assertEqual(
+                facts["worktree"],
+                {"path": str(attempt.worktree), "exists": True, "registered": True, "changed_files": []},
+            )
+            self.assertEqual(facts["resumable"], {"ok": True, "reason": None})
+
+    def test_finished_execution_is_not_residual(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = complete_fixture(Path(directory))
+
+            result = implement_runtime.residual_executions(root, plan_id=attempt.plan_id)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value, [])
+
+    def test_commits_outside_the_evidence_and_uncommitted_changes_are_shown_not_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            (attempt.worktree / "README.md").write_text("edited by hand\n", encoding="utf-8")
+            git(attempt.worktree, "commit", "-am", "manual: edit readme")
+            manual_sha = git(attempt.worktree, "rev-parse", "HEAD")
+            (attempt.worktree / "notes.txt").write_text("scratch\n", encoding="utf-8")
+
+            facts = implement_runtime.residual_executions(root, plan_id=attempt.plan_id).value[0]
+
+            self.assertEqual([commit["sha"] for commit in facts["branch"]["extra_commits"]], [manual_sha])
+            self.assertEqual(facts["branch"]["extra_commits"][0]["subject"], "manual: edit readme")
+            self.assertEqual(facts["worktree"]["changed_files"], ["notes.txt"])
+            self.assertTrue(facts["resumable"]["ok"])
+
+    def test_specification_drift_makes_the_execution_not_resumable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            spec = root / "docs/spec/feature.md"
+            spec.write_text(spec.read_text(encoding="utf-8") + "revised\n", encoding="utf-8")
+
+            facts = implement_runtime.residual_executions(root, plan_id=attempt.plan_id).value[0]
+
+            self.assertFalse(facts["resumable"]["ok"])
+            self.assertIn("docs/spec/feature.md", facts["resumable"]["reason"])
+
+    def test_a_branch_without_evidence_is_not_residual(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, plan_id, _ = create_repository(Path(directory))
+            git(root, "branch", "implement/20260822t152244-a1b2c3d4")
+
+            result = implement_runtime.residual_executions(root, plan_id=plan_id)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value, [])
+
+    def test_residual_command_prints_the_facts_as_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                code = implement_runtime.main(["residual", "--repo", str(root), "--plan-id", attempt.plan_id])
+
+            self.assertEqual(code, 0)
+            printed = json.loads(stdout.getvalue())
+            self.assertEqual(printed["executions"][0]["execution_id"], attempt.attempt_id)
+
+    def test_residual_detection_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            before = sorted(path.name for path in attempt.evidence_path.iterdir())
+
+            implement_runtime.residual_executions(root, plan_id=attempt.plan_id)
+
+            self.assertEqual(sorted(path.name for path in attempt.evidence_path.iterdir()), before)
 
 
 class EventPersistenceTest(unittest.TestCase):

@@ -516,6 +516,109 @@ def _select_execution(main_checkout: Path) -> RuntimeResult:
     return _ok((registered.plan_id, candidates[0]))
 
 
+def _started_at(execution_id: str) -> str | None:
+    match = re.fullmatch(r"(\d{4})(\d{2})(\d{2})t(\d{2})(\d{2})(\d{2})-.*", execution_id)
+    if match is None:
+        return None
+    year, month, day, hour, minute, second = match.groups()
+    return f"{year}-{month}-{day}T{hour}:{minute}:{second}"
+
+
+def _raw_events(evidence_path: Path) -> list[dict]:
+    events: list[dict] = []
+    for path in sorted(evidence_path.glob("0*.json")):
+        loaded = _read_json(path)
+        if loaded.ok and isinstance(loaded.value, dict):
+            events.append(loaded.value)
+    return events
+
+
+def _binding_fingerprints_match(main_checkout: Path, binding: dict) -> str | None:
+    """Return None when the bound plan and specs still match the repository, else the reason."""
+    try:
+        registered = plan_artifact.read_registered_plan(main_checkout, binding["plan"]["path"])
+    except plan_artifact.PlanArtifactError as error:
+        return f"bound plan cannot be verified: {error}"
+    if registered.content_identity != binding["plan"]["content_identity"]:
+        return "bound plan differs from the registered plan"
+    for spec in binding["specs"]:
+        spec_path = main_checkout.joinpath(*PurePosixPath(spec["path"]).parts)
+        if not spec_path.is_file() or _raw_identity(spec_path.read_text(encoding="utf-8")) != spec["content_identity"]:
+            return f"bound spec differs from the repository: {spec['path']}"
+    return None
+
+
+def _branch_facts(main_checkout: Path, branch: str, last_commit: str | None) -> dict[str, Any]:
+    exists = _git(main_checkout, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode == 0
+    extra: list[dict[str, str]] = []
+    if exists:
+        revision_range = f"{last_commit}..refs/heads/{branch}" if last_commit else f"refs/heads/{branch}"
+        log = _git(main_checkout, "log", "--format=%H%x09%s", revision_range)
+        if log.returncode == 0 and last_commit is not None:
+            for line in log.stdout.splitlines():
+                sha, _, subject = line.partition("\t")
+                extra.append({"sha": sha, "subject": subject})
+    return {"name": branch, "exists": exists, "extra_commits": extra}
+
+
+def _worktree_facts(main_checkout: Path, common_directory: Path, worktree: Path) -> dict[str, Any]:
+    facts: dict[str, Any] = {"path": str(worktree), "exists": worktree.is_dir(), "registered": False, "changed_files": []}
+    if not facts["exists"]:
+        return facts
+    observed = discover_repository(worktree)
+    facts["registered"] = observed.ok and observed.value.common_directory == common_directory
+    if facts["registered"]:
+        changed = _changed_paths(worktree)
+        if changed.ok:
+            facts["changed_files"] = sorted(changed.value)
+    return facts
+
+
+def residual_executions(project_root: Path, *, plan_id: str) -> RuntimeResult:
+    """Describe unfinished executions of one plan without writing anything; the human decides."""
+    repository = discover_repository(project_root)
+    if not repository.ok:
+        return repository
+    main_checkout = repository.value.main_checkout
+    if not plan_artifact.PLAN_ID.fullmatch(plan_id):
+        return _failure("execution_ids_invalid", "plan id is not path-safe")
+    facts: list[dict[str, Any]] = []
+    for evidence_path in _execution_directories(main_checkout, plan_id):
+        events = _raw_events(evidence_path)
+        last = events[-1] if events else None
+        if last is not None and last.get("event_type") == "implementation_green":
+            continue
+        binding_result = _read_json(evidence_path / "binding.json")
+        if not binding_result.ok or not execution_model.validate_binding(binding_result.value).ok:
+            facts.append(
+                {
+                    "execution_id": evidence_path.name,
+                    "started_at": _started_at(evidence_path.name),
+                    "resumable": {"ok": False, "reason": "binding.json is missing or invalid"},
+                }
+            )
+            continue
+        binding = binding_result.value
+        commits = [event for event in events if event.get("event_type") == "commit"]
+        last_commit = commits[-1].get("commit_sha") if commits else binding.get("base_head")
+        mismatch = _binding_fingerprints_match(main_checkout, binding)
+        facts.append(
+            {
+                "execution_id": evidence_path.name,
+                "started_at": _started_at(evidence_path.name),
+                "completed_steps": len({event.get("step_id") for event in commits}),
+                "last_event": {
+                    "event_type": last.get("event_type") if last else None,
+                    "reason": last.get("reason") if last else None,
+                },
+                "branch": _branch_facts(main_checkout, binding["branch"], last_commit),
+                "worktree": _worktree_facts(main_checkout, repository.value.common_directory, Path(binding["worktree"])),
+                "resumable": {"ok": mismatch is None, "reason": mismatch},
+            }
+        )
+    return _ok(facts)
+
+
 def load_current_attempt(
     project_root: Path,
     *,
@@ -553,16 +656,10 @@ def load_current_attempt(
     if binding["attempt_id"] != attempt_id or binding["plan"]["id"] != plan_id:
         return _failure("binding_identity_drift", "binding.json does not describe this execution")
 
-    try:
-        registered = plan_artifact.read_registered_plan(main_checkout, binding["plan"]["path"])
-    except plan_artifact.PlanArtifactError as error:
-        return _failure("plan_identity_drift", "bound plan cannot be verified", str(error))
-    if registered.content_identity != binding["plan"]["content_identity"]:
-        return _failure("plan_identity_drift", "bound plan differs from the registered plan")
-    for spec in binding["specs"]:
-        spec_path = main_checkout.joinpath(*PurePosixPath(spec["path"]).parts)
-        if not spec_path.is_file() or _raw_identity(spec_path.read_text(encoding="utf-8")) != spec["content_identity"]:
-            return _failure("spec_identity_drift", f"bound spec differs from the repository: {spec['path']}")
+    mismatch = _binding_fingerprints_match(main_checkout, binding)
+    if mismatch is not None:
+        code = "spec_identity_drift" if "spec" in mismatch else "plan_identity_drift"
+        return _failure(code, mismatch)
 
     branch = binding["branch"]
     if _git(main_checkout, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode != 0:
@@ -1574,6 +1671,10 @@ def main(argv: list[str] | None = None) -> int:
     green.add_argument("--repo", required=True)
     execution_ids(green)
 
+    residual = commands.add_parser("residual", help="describe unfinished executions of a plan (read-only)")
+    residual.add_argument("--repo", required=True)
+    residual.add_argument("--plan-id", required=True)
+
     result = commands.add_parser("result", help="derive the current result from events")
     result.add_argument("--repo", required=True)
     execution_ids(result)
@@ -1635,6 +1736,13 @@ def main(argv: list[str] | None = None) -> int:
         payload["state"] = "stopped"
         payload["reason"] = "terminal_event_missing"
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        return 0
+
+    if args.command == "residual":
+        found = residual_executions(repo, plan_id=args.plan_id)
+        if not found.ok:
+            return _print_failure(found, state="not_started")
+        print(json.dumps({"plan_id": args.plan_id, "executions": found.value}, ensure_ascii=False))
         return 0
 
     loaded = _load_for_command(args)
