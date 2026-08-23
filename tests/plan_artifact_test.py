@@ -218,6 +218,14 @@ class PlanScopeAndStepsTest(unittest.TestCase):
             ("config/deployment.json", "docs/guide/deploy.md"),
         )
 
+    def test_scope_tree_line_may_hold_several_segments_as_in_the_specification_example(self) -> None:
+        nested_root = PLAN_TEXT.replace("config/\n  deployment.json\n", "ops/config/\n  deployment.json\n")
+
+        self.assertEqual(
+            plan_artifact.read_plan_scope(nested_root),
+            ("ops/config/deployment.json", "docs/guide/deploy.md"),
+        )
+
     def test_scope_tree_accepts_any_consistent_indent_width(self) -> None:
         four_space = PLAN_TEXT.replace("  deployment.json", "    deployment.json").replace(
             "  guide/\n    deploy.md", "    guide/\n        deploy.md"

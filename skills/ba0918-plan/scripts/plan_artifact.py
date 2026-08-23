@@ -25,7 +25,7 @@ INDEX_NAME = "open-plans.json"
 HUMAN_GATE_TIMINGS = {"before_edit", "before_commit", "before_implementation_green"}
 HUMAN_GATE_RESULTS = ("approved", "rejected")
 COMPLETION_KINDS = ("テストで示す", "作った物で示す", "外で確かめる")
-TREE_ENTRY = re.compile(r"[^\s/#][^\s/]*/?")
+TREE_ENTRY = re.compile(r"[^\s/#][^\s]*")
 
 
 class PlanArtifactError(Exception):
@@ -199,8 +199,8 @@ def read_plan_scope(text: str) -> tuple[str, ...]:
     for line in lines:
         indent = len(line) - len(line.lstrip(" "))
         entry = line.strip()
-        if TREE_ENTRY.fullmatch(entry) is None or entry in {".", ".."}:
-            raise InvalidPlanFormat(f"## 変更するもの tree line is not a plain path segment: {line!r}")
+        if TREE_ENTRY.fullmatch(entry) is None or "//" in entry or ".." in entry.split("/"):
+            raise InvalidPlanFormat(f"## 変更するもの tree line is not a plain relative path: {line!r}")
         while stack and stack[-1][0] >= indent:
             stack.pop()
         if indent > 0 and (not stack or not stack[-1][1].endswith("/")):
