@@ -355,4 +355,4 @@ session、artifact、review結果から品質と費用を集計する。推測�
 
 - Anthropic, [Cost Optimization on the Claude API](https://github.com/anthropics/claude-cookbooks/blob/main/cost_optimization/cost_optimization.ipynb), accessed 2026-08-21. Primary source for the optimization sequence, experimental examples, and production-evaluation guidance. The `main` branch is mutable, so numerical results should be rechecked before reuse.
 - Anthropic, [Claude Cookbooks repository](https://github.com/anthropics/claude-cookbooks), accessed 2026-08-21. Repository context and license information.
-- Project specification, [`docs/spec/agentic-workflow.md`](../spec/agentic-workflow.md). Normative workflow requirements; this research note does not modify them.
+- Project specification, [`docs/spec/README.md`](../spec/README.md). Normative workflow requirements; this research note does not modify them.
