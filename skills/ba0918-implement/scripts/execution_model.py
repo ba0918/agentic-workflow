@@ -682,6 +682,78 @@ def compare_event_retry(existing: dict, candidate: dict) -> ModelResult:
     return _ok(existing)
 
 
+def latest_deliverable(events: list[dict], step_id: str) -> dict | None:
+    """The newest artifact or external event of the step: the thing a human approves."""
+    for event in reversed(events):
+        if event.get("event_type") in {"artifact", "external"} and event.get("step_id") == step_id:
+            return event
+    return None
+
+
+def deliverable_is_approved(events: list[dict], step_id: str) -> bool:
+    """True when the step's newest artifact/external event has an approved verdict after it."""
+    step_events = [event for event in events if event.get("step_id") == step_id]
+    target = latest_deliverable(step_events, step_id)
+    if target is None:
+        return False
+    after = step_events[step_events.index(target) + 1 :]
+    return any(
+        event.get("event_type") == "approval"
+        and event.get("target_identity") == target.get("content_identity")
+        and event.get("result") == "approved"
+        for event in after
+    )
+
+
+def _tdd_step_complete(step_events: list[dict]) -> bool:
+    state = "red"
+    for event in step_events:
+        event_type = event["event_type"]
+        if event_type == "red":
+            if state not in {"red", "complete"}:
+                return False
+            state = "green"
+        elif event_type == "green":
+            if state != "green":
+                return False
+            state = "refactor"
+        elif event_type == "refactor":
+            if state != "refactor":
+                return False
+            state = "commit"
+        elif event_type == "commit":
+            if state == "commit":
+                state = "complete"
+            elif state != "complete":
+                return False
+        elif event_type in {"artifact", "external", "approval"}:
+            return False
+    return state == "complete"
+
+
+def validate_step_evidence(events: list[dict], step_id: str, completion_kind: str) -> ModelResult:
+    """Decide whether one step carries the evidence its completion kind demands."""
+    step_events = [event for event in events if event.get("step_id") == step_id]
+    if completion_kind == "test":
+        if not _tdd_step_complete(step_events):
+            return _failure("step_evidence_missing", step_id, f"incomplete TDD evidence: {step_id}")
+        return _ok(step_id)
+    if completion_kind not in {"artifact", "external"}:
+        return _failure("completion_kind_invalid", step_id, f"unknown completion kind: {completion_kind}")
+    if any(event["event_type"] in {"red", "green", "refactor"} for event in step_events):
+        return _failure("step_evidence_missing", step_id, f"test evidence on a {completion_kind} step: {step_id}")
+    if not deliverable_is_approved(events, step_id):
+        return _failure("step_evidence_missing", step_id, f"approved {completion_kind} evidence is missing: {step_id}")
+    target = latest_deliverable(step_events, step_id)
+    committed = any(
+        event["event_type"] == "commit" and step_events.index(event) > step_events.index(target)
+        for event in step_events
+    )
+    if completion_kind == "artifact" and not committed:
+        return _failure("step_evidence_missing", step_id, f"artifact is approved but not committed: {step_id}")
+    return _ok(step_id)
+
+
 def derive_result(events: list[dict]) -> dict:
     if not events:
         return {"state": "not_started", "event_count": 0}

@@ -904,6 +904,93 @@ class ApprovalTest(unittest.TestCase):
             self.assertEqual(json.loads(stdout.getvalue())["event_type"], "approval")
 
 
+def commit_guide(attempt) -> str:
+    assert implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-1").ok
+    previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+    git(attempt.worktree, "commit", "-m", "docs: add guide")
+    assert implement_runtime.record_commit(attempt, "step-1", previous_head).ok
+    return git(attempt.worktree, "rev-parse", "HEAD")
+
+
+class CompletionByKindTest(unittest.TestCase):
+    def test_artifact_step_cannot_be_staged_before_the_human_approved_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            record_guide(attempt)
+
+            result = implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-1")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "approval_missing")
+
+    def test_a_deliverable_changed_after_approval_needs_a_new_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            record_guide(attempt)
+            self.assertTrue(implement_runtime.record_approval(attempt, step_id="step-1", result="approved").ok)
+            record_guide(attempt, "# Guide\n\nrevised\n")
+
+            result = implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-1")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "approval_missing")
+
+    def test_an_artifact_only_plan_reaches_implementation_green(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            record_guide(attempt)
+            self.assertTrue(implement_runtime.record_approval(attempt, step_id="step-1", result="approved").ok)
+            commit_guide(attempt)
+
+            terminal = implement_runtime.mark_implementation_green(attempt)
+
+            self.assertTrue(terminal.ok, terminal.error)
+            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["state"], "implementation_green")
+
+    def test_an_external_step_is_complete_after_approval_with_or_without_a_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact", "external"))
+            record_guide(attempt)
+            self.assertTrue(implement_runtime.record_approval(attempt, step_id="step-1", result="approved").ok)
+            commit_guide(attempt)
+            self.assertTrue(implement_runtime.record_external(attempt, step_id="step-2", checked="確認", summary="OK").ok)
+            missing = implement_runtime.mark_implementation_green(attempt)
+            self.assertFalse(missing.ok)
+            self.assertEqual(missing.error.code, "step_evidence_missing")
+            self.assertTrue(implement_runtime.record_approval(attempt, step_id="step-2", result="approved").ok)
+
+            terminal = implement_runtime.mark_implementation_green(attempt)
+
+            self.assertTrue(terminal.ok, terminal.error)
+
+    def test_three_kinds_in_one_plan_reach_implementation_green(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "artifact", "external"))
+            complete_step_one(attempt)
+            guide = attempt.worktree / "docs/guide.md"
+            guide.parent.mkdir(parents=True, exist_ok=True)
+            guide.write_text("# Guide\n", encoding="utf-8")
+            self.assertTrue(implement_runtime.record_artifact(attempt, step_id="step-2", paths=["docs/guide.md"], checks=[]).ok)
+            self.assertTrue(implement_runtime.record_approval(attempt, step_id="step-2", result="approved").ok)
+            self.assertTrue(implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-2").ok)
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+            git(attempt.worktree, "commit", "-m", "docs: add guide")
+            self.assertTrue(implement_runtime.record_commit(attempt, "step-2", previous_head).ok)
+            self.assertTrue(implement_runtime.record_external(attempt, step_id="step-3", checked="確認", summary="OK").ok)
+            self.assertTrue(implement_runtime.record_approval(attempt, step_id="step-3", result="approved").ok)
+
+            terminal = implement_runtime.mark_implementation_green(attempt)
+
+            self.assertTrue(terminal.ok, terminal.error)
+
+    def test_evidence_of_the_wrong_kind_does_not_complete_a_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            self.assertFalse(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+
+            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["reason"], "completion_kind_mismatch")
+
+
 class ResidualWorkTest(unittest.TestCase):
     def test_unfinished_execution_is_reported_with_its_facts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

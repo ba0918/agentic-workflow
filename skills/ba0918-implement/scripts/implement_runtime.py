@@ -1253,6 +1253,9 @@ def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
             oracle.get("step_id", "unknown"),
         )
     step_id = oracle["step_id"]
+    kind = _require_completion_kind(attempt, step_id, "test")
+    if not kind.ok:
+        return _stop(attempt, kind.error, step_id)
     before = validate_context(attempt, step_id=step_id)
     if not before.ok:
         return _stop(attempt, before.error, step_id)
@@ -1483,14 +1486,6 @@ def record_external(attempt: Attempt, *, step_id: str, checked: str, summary: st
     return append_event(attempt, "external", {"step_id": step_id, "checked": checked, "summary": summary})
 
 
-def _latest_deliverable(events: list[dict], step_id: str) -> dict | None:
-    """The newest artifact or external event of the step: the thing a human approves."""
-    for event in reversed(events):
-        if event.get("event_type") in {"artifact", "external"} and event.get("step_id") == step_id:
-            return event
-    return None
-
-
 def record_approval(attempt: Attempt, *, step_id: str, result: str) -> RuntimeResult:
     """Record the human's verdict on the step's latest deliverable; a rejection stops the execution."""
     kinds = _step_completion_kinds(attempt)
@@ -1505,7 +1500,7 @@ def record_approval(attempt: Attempt, *, step_id: str, result: str) -> RuntimeRe
     events = _load_events(attempt)
     if not events.ok:
         return events
-    target = _latest_deliverable(events.value, step_id)
+    target = execution_model.latest_deliverable(events.value, step_id)
     if target is None:
         return _failure("approval_target_missing", f"{step_id} has no artifact or external evidence to approve")
     recorded = append_event(
@@ -1537,9 +1532,19 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
             return _failure("stage_failed", "approved path could not be inspected", str(error))
         if CREDENTIAL_ASSIGNMENT.search(content):
             return _failure("secret_detected", "candidate content resembles a credential assignment")
-    targets = _validate_step_test_targets(attempt, step_id)
-    if not targets.ok:
-        return targets
+    kinds = _step_completion_kinds(attempt)
+    if not kinds.ok:
+        return kinds
+    if kinds.value.get(step_id) == "test":
+        targets = _validate_step_test_targets(attempt, step_id)
+        if not targets.ok:
+            return targets
+    else:
+        events = _load_events(attempt)
+        if not events.ok:
+            return events
+        if not execution_model.deliverable_is_approved(events.value, step_id):
+            return _failure("approval_missing", f"the latest deliverable of {step_id} has no approved verdict")
     gates = check_human_gates(attempt, step_id=step_id, timing="before_commit")
     if not gates.ok:
         return gates
@@ -1599,9 +1604,13 @@ def record_commit(attempt: Attempt, step_id: str, previous_head: str) -> Runtime
     context = validate_context(attempt, step_id=step_id)
     if not context.ok:
         return context
-    targets = _validate_step_test_targets(attempt, step_id)
-    if not targets.ok:
-        return targets
+    kinds = _step_completion_kinds(attempt)
+    if not kinds.ok:
+        return kinds
+    if kinds.value.get(step_id) == "test":
+        targets = _validate_step_test_targets(attempt, step_id)
+        if not targets.ok:
+            return targets
     changed = _git(
         attempt.worktree,
         "diff",
@@ -1644,37 +1653,19 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
     except (KeyError, TypeError, plan_artifact.PlanArtifactError) as error:
         return _failure("plan_identity_drift", "bound plan cannot be verified", str(error))
     try:
-        step_ids = tuple(f"step-{step.number}" for step in plan_artifact.read_plan_steps(registered.text))
+        steps = plan_artifact.read_plan_steps(registered.text)
     except plan_artifact.InvalidPlanFormat as error:
         return _failure("plan_format_invalid", str(error))
-    for step_id in step_ids:
-        state = "red"
-        for event in loaded.value:
-            if event.get("step_id") != step_id:
-                continue
-            event_type = event["event_type"]
-            if event_type == "red":
-                if state not in {"red", "complete"}:
-                    return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
-                state = "green"
-            elif event_type == "green":
-                if state != "green":
-                    return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
-                state = "refactor"
-            elif event_type == "refactor":
-                if state != "refactor":
-                    return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
-                state = "commit"
-            elif event_type == "commit":
-                if state == "commit":
-                    state = "complete"
-                elif state != "complete":
-                    return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
-        if state != "complete":
-            return _failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}")
-        targets = _validate_step_test_targets(attempt, step_id)
-        if not targets.ok:
-            return targets
+    step_ids = tuple(f"step-{step.number}" for step in steps)
+    for step in steps:
+        step_id = f"step-{step.number}"
+        evidence = execution_model.validate_step_evidence(loaded.value, step_id, step.completion_kind)
+        if not evidence.ok:
+            return _failure(evidence.error.code, evidence.error.message)
+        if step.completion_kind == "test":
+            targets = _validate_step_test_targets(attempt, step_id)
+            if not targets.ok:
+                return targets
     final_step = step_ids[-1]
     context = validate_context(attempt, step_id=final_step)
     if not context.ok:
