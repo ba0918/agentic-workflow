@@ -24,6 +24,8 @@ DRAFT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 INDEX_NAME = "open-plans.json"
 HUMAN_GATE_TIMINGS = {"before_edit", "before_commit", "before_implementation_green"}
 HUMAN_GATE_RESULTS = ("approved", "rejected")
+COMPLETION_KINDS = ("テストで示す", "作った物で示す", "外で確かめる")
+TREE_ENTRY = re.compile(r"[^\s/#][^\s/]*/?")
 
 
 class PlanArtifactError(Exception):
@@ -100,6 +102,13 @@ class PlanHeader(NamedTuple):
     specifications: tuple[TargetSpecification, ...]
 
 
+class PlanStep(NamedTuple):
+    number: int
+    title: str
+    completion_kind: str
+    text: str
+
+
 class HumanGateTarget(NamedTuple):
     kind: str
     paths: tuple[str, ...]
@@ -169,6 +178,63 @@ def read_plan_header(text: str) -> PlanHeader:
     return PlanHeader(plan_id.group(1), int(revision.group(1)), _target_specifications(text))
 
 
+def _section_body(text: str, heading: str) -> str:
+    match = re.search(rf"^## {re.escape(heading)}[ \t]*\n(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL)
+    if match is None:
+        raise InvalidPlanFormat(f"## {heading} is missing")
+    return match.group(1)
+
+
+def read_plan_scope(text: str) -> tuple[str, ...]:
+    body = _section_body(text, "変更するもの")
+    block = re.search(r"^```text[ \t]*\n(.*?)^```", body, re.MULTILINE | re.DOTALL)
+    if block is None:
+        raise InvalidPlanFormat("## 変更するもの needs a text code block holding the file tree")
+    lines = [line for line in block.group(1).splitlines() if line.strip()]
+    if not lines:
+        raise InvalidPlanFormat("## 変更するもの file tree is empty")
+
+    paths: list[str] = []
+    stack: list[tuple[int, str]] = []
+    for line in lines:
+        indent = len(line) - len(line.lstrip(" "))
+        entry = line.strip()
+        if TREE_ENTRY.fullmatch(entry) is None or entry in {".", ".."}:
+            raise InvalidPlanFormat(f"## 変更するもの tree line is not a plain path segment: {line!r}")
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        if indent > 0 and (not stack or not stack[-1][1].endswith("/")):
+            raise InvalidPlanFormat(f"## 変更するもの tree line has no parent directory: {line!r}")
+        full = "".join(parent for _, parent in stack) + entry
+        stack.append((indent, entry))
+        if not entry.endswith("/"):
+            paths.append(full)
+    return tuple(paths)
+
+
+def read_plan_steps(text: str) -> tuple[PlanStep, ...]:
+    body = _section_body(text, "実装手順")
+    matches = list(re.finditer(r"^### ([0-9]+)\. ?([^\n]*)$", body, re.MULTILINE))
+    if not matches:
+        raise InvalidPlanFormat("## 実装手順 has no ### N. step")
+    steps: list[PlanStep] = []
+    for position, match in enumerate(matches):
+        number = int(match.group(1))
+        if number != position + 1:
+            raise InvalidPlanFormat(f"step headings must count from 1 without gaps: ### {match.group(1)}.")
+        end = matches[position + 1].start() if position + 1 < len(matches) else len(body)
+        step_text = body[match.end() : end]
+        kinds = re.findall(r"^\*\*完了の示し方:\*\*[ \t]*(.*?)[ \t]*$", step_text, re.MULTILINE)
+        if len(kinds) != 1:
+            raise InvalidPlanFormat(f"step {number} needs exactly one **完了の示し方:** line")
+        if kinds[0] not in COMPLETION_KINDS:
+            raise InvalidPlanFormat(
+                f"step {number} completion kind must be one of {', '.join(COMPLETION_KINDS)}: {kinds[0]}"
+            )
+        steps.append(PlanStep(number, match.group(2).strip(), kinds[0], step_text))
+    return tuple(steps)
+
+
 def verify_target_specifications(project_root: Path, header: PlanHeader) -> None:
     root = project_root.resolve()
     for spec in header.specifications:
@@ -208,16 +274,13 @@ def _human_gate_target(value: object) -> HumanGateTarget:
 
 
 def read_plan_human_gates(text: str) -> tuple[HumanGateDeclaration, ...]:
-    step_matches = list(re.finditer(r"^### ([1-9][0-9]*)\.[^\n]*$", text, re.MULTILINE))
     declarations: list[HumanGateDeclaration] = []
     gate_ids: set[str] = set()
     listed_sections: set[str] | None = None
-    for position, step_match in enumerate(step_matches):
-        end = step_matches[position + 1].start() if position + 1 < len(step_matches) else len(text)
-        step_text = text[step_match.end() : end]
+    for step in read_plan_steps(text):
         block = re.search(
             r"^\*\*Human gates:\*\*\s*\n+```json\n(.*?)\n```",
-            step_text,
+            step.text,
             re.MULTILINE | re.DOTALL,
         )
         if block is None:
@@ -231,7 +294,7 @@ def read_plan_human_gates(text: str) -> tuple[HumanGateDeclaration, ...]:
         if value["version"] != 1 or not isinstance(value["gates"], list) or not value["gates"]:
             raise InvalidHumanGateDeclaration("human gate declaration has an invalid version or gates")
 
-        step_id = f"step-{step_match.group(1)}"
+        step_id = f"step-{step.number}"
         if listed_sections is None:
             listed_sections = _target_specification_sections(text)
         for gate in value["gates"]:

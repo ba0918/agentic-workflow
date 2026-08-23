@@ -47,6 +47,32 @@ PLAN_TEXT = f"""# 小さな変更のplan
 ## 目的
 
 利用者が変更範囲を判断できるplanを作る。
+
+## 変更するもの
+
+```text
+config/
+  deployment.json
+docs/
+  guide/
+    deploy.md
+```
+"""
+
+PLAN_WITH_STEPS = PLAN_TEXT + """
+## 実装手順
+
+### 1. 配備の入力を整える
+
+**完了の示し方:** テストで示す
+
+### 2. 手引きを書く
+
+**完了の示し方:** 作った物で示す
+
+### 3. 実機で配備を確かめる
+
+**完了の示し方:** 外で確かめる
 """
 
 
@@ -170,6 +196,73 @@ class PlanHeaderTest(unittest.TestCase):
                 plan_artifact.verify_target_specifications(
                     Path(directory), plan_artifact.read_plan_header(PLAN_TEXT)
                 )
+
+
+class PlanScopeAndStepsTest(unittest.TestCase):
+    def test_scope_tree_expands_to_repository_relative_paths(self) -> None:
+        self.assertEqual(
+            plan_artifact.read_plan_scope(PLAN_TEXT),
+            ("config/deployment.json", "docs/guide/deploy.md"),
+        )
+
+    def test_scope_tree_accepts_any_consistent_indent_width(self) -> None:
+        four_space = PLAN_TEXT.replace("  deployment.json", "    deployment.json").replace(
+            "  guide/\n    deploy.md", "    guide/\n        deploy.md"
+        )
+
+        self.assertEqual(
+            plan_artifact.read_plan_scope(four_space),
+            ("config/deployment.json", "docs/guide/deploy.md"),
+        )
+
+    def test_unreadable_scope_tree_is_rejected(self) -> None:
+        invalid_plans = {
+            "annotation": PLAN_TEXT.replace("  deployment.json", "  deployment.json  # 設定"),
+            "absolute path": PLAN_TEXT.replace("config/\n", "/config/\n"),
+            "traversal": PLAN_TEXT.replace("  deployment.json", "  ../deployment.json"),
+            "missing heading": PLAN_TEXT.replace("## 変更するもの", "## 変更範囲"),
+            "empty block": PLAN_TEXT.replace(
+                "config/\n  deployment.json\ndocs/\n  guide/\n    deploy.md\n", ""
+            ),
+            "child without parent directory": PLAN_TEXT.replace("config/\n", "config\n"),
+        }
+
+        for case, malformed in invalid_plans.items():
+            with self.subTest(case=case):
+                with self.assertRaises(plan_artifact.InvalidPlanFormat):
+                    plan_artifact.read_plan_scope(malformed)
+
+    def test_steps_are_read_in_order_with_their_completion_kind(self) -> None:
+        steps = plan_artifact.read_plan_steps(PLAN_WITH_STEPS)
+
+        self.assertEqual([step.number for step in steps], [1, 2, 3])
+        self.assertEqual(steps[0].title, "配備の入力を整える")
+        self.assertEqual(
+            [step.completion_kind for step in steps],
+            ["テストで示す", "作った物で示す", "外で確かめる"],
+        )
+
+    def test_unreadable_steps_are_rejected(self) -> None:
+        invalid_plans = {
+            "missing steps heading": PLAN_WITH_STEPS.replace("## 実装手順", "## 手順"),
+            "no step": PLAN_TEXT + "\n## 実装手順\n\n本文だけ\n",
+            "gap in numbering": PLAN_WITH_STEPS.replace("### 2.", "### 4."),
+            "duplicate number": PLAN_WITH_STEPS.replace("### 2.", "### 1."),
+            "not starting at one": PLAN_WITH_STEPS.replace("### 1.", "### 0."),
+            "missing completion kind": PLAN_WITH_STEPS.replace(
+                "**完了の示し方:** テストで示す\n", ""
+            ),
+            "two completion kinds": PLAN_WITH_STEPS.replace(
+                "**完了の示し方:** テストで示す\n",
+                "**完了の示し方:** テストで示す\n**完了の示し方:** 外で確かめる\n",
+            ),
+            "unknown completion kind": PLAN_WITH_STEPS.replace("テストで示す", "動かして示す"),
+        }
+
+        for case, malformed in invalid_plans.items():
+            with self.subTest(case=case):
+                with self.assertRaises(plan_artifact.InvalidPlanFormat):
+                    plan_artifact.read_plan_steps(malformed)
 
 
 class RegisteredPlanConsumerTest(unittest.TestCase):
