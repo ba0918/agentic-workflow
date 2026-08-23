@@ -8,6 +8,10 @@
 - Do not perform irreversible, destructive, or externally visible actions without approval.
 - Apply the project's own instructions where they are more specific than these.
 
+## 重要
+
+- チャットの応答は常に `ba0918-readability` を読み込んだうえで作成すること
+
 ## Rule Routing
 
 | When | Read |
