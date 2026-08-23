@@ -397,35 +397,86 @@ Phase 3でGREENと実装証拠が得られている。
 
 ### 利用者価値
 
-問題を見つけながら、findingを無限に増やすreview loopを発生させない。
+問題を見つけながら、findingを無限に増やすreview loopを発生させない。旧`plan-reviewer`の
+7観点並列subagentと常時second opinionによるtoken消費を、security findingとcritical級の
+指摘を落とさずに減らす。
 
 ### 対象
 
-- 初回reviewからstable findingを生成する。
-- severityと必要actionを分離する。
-- 同じ原因のfindingをまとめる。
-- findingごとに再現oracleを固定する。
-- 修正後は未解決findingと関連diffだけを再確認する。
-- 必須security・release gateと任意second reviewerを分離する。
+- Phase 3の引き渡し物（attempt、branch、linked worktree、commit列、`regression-lock.json`）のidentityを検証してから初回full reviewを行う。
+- 初回reviewから安定ID付きのfinding集合を固定する。安定IDは再現oracleから導出する。
+- severityと必要actionを分離する。severityは`security`、`critical`、`warn`、`info`とする。
+- 同じ根本原因のfindingをまとめる。
+- findingごとに再現oracleを固定し、作成時点でREDを観測する。
+- severityの候補ごとに入力範囲を変え、観点ごとに入力を読み直さない。
+- 修正後は未解決findingと、finding IDをtrailerに持つ修正commitのdiffだけを再確認する。
+- 差分再reviewで見つかった別問題は現在の合否へ混ぜず、後続候補へ分離する。
+- 必須security項目と任意second reviewerを分離する。
+- finding集合とround判定を、cycleのattempt配下のdurable eventとして保存する。
+- fix側との受け渡し契約（読み取り専用のfinding集合、ID trailer付きcommit、後続候補の出口、完了claimを信用しないoracle再実行）を定義する。
+- review観点をprofile（`references/profile/default.md`、`skill.md`）として分離し、diffのfile種別から自動選択、明示optionで上書きできるようにする。SKILL本体は選ばれたprofileだけを読む。
+- review強度を`--level=light|standard`で指定できる。既定はstandard、lightはsecurity/criticalだけを見る。oracle必須と収束契約はlevelで変えず、変更量からの自動選択はしない。
 
 ### 対象外
 
-- 全文敵対reviewの反復
+- 全文敵対reviewの自動反復
 - INFOの自動修正
-- 再review中の新規finding追加
+- 差分再review中の新規finding追加
 - 明示されていないsecond reviewer
+- fixの実装、fix loopの進行制御、修正主体の呼出し
+- final gate、doc-check、merge、worktree cleanup
+- round上限による自動loop
+
+### 全体flowにおける位置
+
+```text
+brainstorm -> plan -> cycle(TDD実装) -> review(初回full review)
+  -> fix-loop( 修正 -> review(差分再review) の往復 ) -> doc-check -> final gate -> done
+```
+
+- fix-loopは渡された修正事項を収束させるだけの薄いオーケストレータとし、後続phaseで扱う。reviewもfix-loop内の修正主体も、単体ではloopの責務を持たない。
+- fix-loop内の修正主体を利用者向けskill（`iterate`）として分離するかは、`investigate`等の移植時の修正flowと合わせて後続phaseで判断する。
+- final gateは人間確認と仕様整合の最終品質gateとし、致命的な問題はbrainstormへ、調整はfix-loopへ戻す。位置づけのみ記録し、本phaseでは実装しない。
+- 工程遷移（cycle→review→fix-loop→doc-check→final gate）を誰が駆動するかは未決である。オーケストレータにworkflow domainが注入されないと正しいskillを読めず自走できないため、後続phaseで所有者を決める。
+- `ba0918-cycle`の名前は旧版のloop全体のオーケストレータを想起させるが、新版の実態はTDD実装である。改名するかは本phaseの範囲外として別途判断する。
+
+### 成果物
+
+```text
+skills/ba0918-review/
+├── SKILL.md
+├── scripts/
+└── references/
+    └── profile/
+        ├── default.md
+        └── skill.md
+```
 
 ### 必須fixture
 
 - 全テストGREEN後、reviewのたびに新しいfindingが追加されるケースを拒否する。
 - 同じfindingのoracleがGREENなら、そのfindingを閉じる。
 - 別問題は現在の合否へ混ぜず、後続候補へ分離する。
+- `--second-reviewer`相当の明示optionなしにsecond reviewerを起動しない。
+- profile散文にはfixtureを作らず、dogfoodingで直す。
 
 ### 完了条件
 
 - 固定finding集合が有限回で収束する。
 - review一回あたりの入力範囲とトークンが記録される。
 - 旧版より全文再読とreview回数が減っている。
+- 旧版が検出したsecurity/critical findingを新版が落としていない。
+
+### 現在の設計状況
+
+- Phase 4固有の承認済み仕様と旧`plan-reviewer`のsource auditを`docs/spec/review-skill-migration.md`へ記録した。
+- review skillは初回full reviewと差分再reviewに限定し、fix loopと修正主体、final gateを後続phaseへ移す。`docs/spec/cycle-skill-migration.md`のSource audit表が「fix loop、final gate」をPhase 4へ割り当てている点は、cycle仕様を書き換えずにreview仕様側で再routingを明記する。
+- 初回full reviewは現在の実行agentが一回だけ行い、7観点を並列subagentではなく同一contextのchecklistとして回す。second opinionは明示optionがある場合だけ初回に一回併走させる。
+- 仕上げのfull reviewは人間が明示するたびに新規contextのagentで一回だけ追加し、結果を固定集合へ合流させてから差分再reviewで閉じる。
+- Claude Code組み込みの`/code-review`と公式`code-review` pluginは、実行agentによって存在せず品質がぶれ、finding IDと限定再reviewを持たないため、初回reviewの委譲先にしない。
+- 旧`skill-reviewer`は実装のreviewでありmetaの責務ではないため、観点を`skill.md` profileとして本phaseへ同梱する。profileは散文1 fileで副作用がないため、cycle分割やprofile専用fixtureは作らない。
+- 旧版比較と受け入れ実測のfixtureはPhase 3が残した実branch `cycle/20260822143915-implementation`を使い、合成fixtureは作らない。
+- 実process実測と旧版比較は利用者指定のopencode backendの回復を待つ。設計、実装、unit testは先行してよいが、Phase 4の完了判定は実測後とする。
 
 ## Phase 5: Artifacts, Handoff, and Recovery
 
