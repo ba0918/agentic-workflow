@@ -22,7 +22,7 @@ does not make.
 ### Candidate oracle contract
 
 The helper validates the candidate byte-exactly. Write it as a JSON object with exactly these
-nine fields and nothing else; an unknown field is rejected as `oracle_fields_invalid`.
+ten fields and nothing else; an unknown field is rejected as `oracle_fields_invalid`.
 
 | Field | Value |
 |---|---|
@@ -41,8 +41,8 @@ Do not supply target identities or `observed_failure_kind`. Never store environm
 a secret in the command.
 
 The helper accepts RED only when `failure_signature` is a substring of its bounded observation:
-the last output line that mentions an assertion, import, permission, fixture, collection, or
-network problem, stripped and cut to 512 characters. Therefore write the signature exactly as the
+the last output line that mentions an assertion, import, permission, fixture, collection,
+network, or connection problem, stripped and cut to 512 characters. Therefore write the signature exactly as the
 runner will print it — for a `unittest` assertion such as `AssertionError: None != 'hello'`, the
 signature `None != 'hello'` is right and a sentence describing the missing behavior is wrong. A
 generic runner summary such as `FAILED (errors=1)` or a bare exit code is rejected, because it
@@ -135,8 +135,9 @@ available.
 
 ## Terminal hand-off
 
-After every plan step has current RED, GREEN, REFACTOR, and commit evidence, run any wider
-project verification the plan requires (it never replaces the frozen oracle), then:
+After every plan step carries the evidence its completion kind demands (for `test` steps:
+current RED, GREEN, REFACTOR, and commit; see [artifacts.md](artifacts.md) for the other kinds),
+run any wider project verification the plan requires (it never replaces the frozen oracle), then:
 
 ```text
 python3 <implement-runtime> implementation-green --repo <main-checkout>

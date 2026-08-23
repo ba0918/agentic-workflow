@@ -39,10 +39,12 @@ python3 <implement-runtime> residual --repo <main-checkout> --plan-id <plan-id>
 It reads only the evidence directories under `.agents/artifacts/executions/<plan-id>/` — never
 the branch list, so a branch someone created by hand is not mistaken for an execution — and
 returns, per unfinished execution: when it started, how many steps were committed, the last
-event and its reason, whether the branch exists and which commits it holds beyond the last
-recorded commit, and whether the worktree exists, is registered, and has uncommitted changes.
-`resumable.ok` is false only when the bound plan or specification identities no longer match the
-repository; that execution cannot be continued and only "start over" remains.
+event and its reason, whether the branch exists and which commits (SHA and subject) it holds
+beyond the last recorded commit, and whether the worktree exists, is registered, and which files
+it has changed without a commit. `resumable.ok` is false only when the bound plan or
+specification identities no longer match the repository; that execution cannot be continued and
+only "start over" remains. An execution whose `binding.json` is missing or unreadable is listed
+with its id and `resumable.ok: false` alone.
 
 When the list is empty, bootstrap a new execution. Otherwise present the facts to the human in
 plain language and let them choose between continuing one execution and starting over. The
@@ -59,18 +61,22 @@ evidence. The choice is theirs; do not infer it from silence or from the facts a
 Before bootstrap, ensure the approved spec identities are committed at the selected base HEAD.
 Do not copy dirty main-checkout files into the execution.
 
-Choose a dedicated worktree path and run:
+Choose a dedicated worktree path and run, passing the same plan selection you gave `resolve`
+(`--plan-path`, or `--receipt-path` with `--receipt-identity`; without them the `current` plan is
+taken):
 
 ```text
 python3 <implement-runtime> bootstrap \
   --repo <main-checkout> \
+  [--plan-path <repo-relative-plan> | --receipt-path <path> --receipt-identity <identity>] \
   --worktree <dedicated-path> \
   --executor <safe-executor-name> \
   [--backend <safe-backend-name>] \
   [--session-id <safe-session-or-unavailable>]
 ```
 
-The helper performs a real write preflight, generates a path-safe execution id, writes immutable
+The helper performs a real write preflight, generates a path-safe execution id (a timestamp
+plus random hex, which is also how the start time of an execution is read back later), writes immutable
 `binding.json` (including the worktree path), creates the branch `implement/<execution-id>` and
 the linked worktree from base HEAD, verifies Git identity, and writes `worktree-bound`. Test
 editing is forbidden until this succeeds.
@@ -126,6 +132,10 @@ The context check compares the immutable binding with the current locator, plan,
 common directory, linked worktree, branch, base ancestry, current step, and every changed path.
 Run it again at every RED, GREEN, REFACTOR, and commit boundary.
 
+Each step's `**Completion:**` line decides how it is executed: `test` follows [tdd.md](tdd.md);
+`artifact` and `external` follow [artifacts.md](artifacts.md). Evidence of the wrong kind for a
+step is `completion_kind_mismatch` and a blocking stop.
+
 ## Planned human gates
 
 Only decisions declared in the bound plan are valid. Record a decision without free-form text;
@@ -163,8 +173,10 @@ python3 <implement-runtime> stop \
   --reason <stable-failure-code>
 ```
 
-Do not analyze later steps for independence. Preserve already committed steps, evidence, branch,
-and worktree. Never write progress or completion into the plan text, `open-plans.json`,
+A decision the plan does not make — a new input class, an error case, a product choice — is a
+blocking stop of this kind: do not fill the gap; report it so the human can return it to
+brainstorm. Do not analyze later steps for independence. Preserve already committed steps,
+evidence, branch, and worktree. Never write progress or completion into the plan text, `open-plans.json`,
 `status.md`, `session-history.md`, or `plans/progress`; the durable events are the only
 record. Return the derived result, including the execution id, stop reason, step, last
 sequence, branch, worktree, commits, and evidence path. The next invocation for the same plan

@@ -15,6 +15,8 @@ evidence directory under `.agents/artifacts/executions/<plan-id>/<execution-id>/
   from a fresh session, or stopping, read [execution.md](references/execution.md).
 - While executing a `test` step through RED, GREEN, REFACTOR, and commit, read
   [tdd.md](references/tdd.md).
+- While executing an `artifact` or `external` step (deliverables a test cannot prove, recorded
+  and then approved by the human), read [artifacts.md](references/artifacts.md).
 - Before writing or retrying binding, oracle, event, permission, or result evidence, read
   [evidence.md](references/evidence.md).
 - Do not preload every reference. Read the reference for the current boundary.
@@ -49,14 +51,13 @@ The helper creates and validates durable evidence. The agent still owns the sema
 reading the approved step, writing its test first, making the smallest implementation, deciding
 whether refactoring is warranted, and applying the project's commit rules.
 
-Steps whose `**Completion:**` is not `test` are not executable by this version of the helper;
-stop with `completion_kind_unsupported` and report it.
-
 ## Completion
 
-Complete only when every approved step has a current expected RED, the same frozen oracle passes
-after GREEN and REFACTOR, every concern is committed within scope, durable evidence is intact,
-and the terminal event is `implementation_green`.
+Complete only when every step carries the evidence its completion kind demands — a `test` step
+its current expected RED, the same frozen oracle passing after GREEN and REFACTOR, and a commit;
+an `artifact` step its recorded files and checks, the human's approval, and a commit; an
+`external` step its recorded check and the human's approval — every concern is committed within
+scope, durable evidence is intact, and the terminal event is `implementation_green`.
 
 `implementation_green` is not plan completion. Preserve the branch, linked worktree, commits,
 and evidence for the independent review phase.

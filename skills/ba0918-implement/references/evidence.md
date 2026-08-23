@@ -20,8 +20,16 @@ to reconstruct the execution.
 
 Events are one atomic file per sequence. Each carries the execution, plan and spec identities,
 previous-event identity, and its own content identity. Event types are `worktree-bound`, `red`,
-`green`, `refactor`, `commit`, `human_gate`, `resumed`, `permission_required`, `stopped`, and
-`implementation_green`. Existing files are never overwritten. `stopped` ends the chain except
+`green`, `refactor`, `artifact`, `external`, `approval`, `commit`, `human_gate`, `resumed`,
+`permission_required`, `stopped`, and `implementation_green`. Existing files are never
+overwritten.
+
+`artifact` holds the files a step produced (path and content identity) and the format checks it
+ran (command and exit code); `external` holds what was checked and a short result. `approval` is
+the human's verdict on the newest of those, bound to that event's identity. It is not a
+`human_gate`: a `human_gate` records a decision the plan declared under `**Human gates:**`, while
+an `approval` is required for every `artifact` and `external` step whether or not the plan
+declares anything. `stopped` ends the chain except
 for one `resumed` event, which the human's choice to continue appends; after it the chain goes
 on as usual.
 
