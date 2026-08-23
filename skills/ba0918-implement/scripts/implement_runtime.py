@@ -619,6 +619,73 @@ def residual_executions(project_root: Path, *, plan_id: str) -> RuntimeResult:
     return _ok(facts)
 
 
+def _next_step_after_evidence(events: list[dict], step_ids: list[str]) -> tuple[str | None, bool, list[str]]:
+    """Derive the step to continue from: after the last committed step, redoing an unfinished RED."""
+    committed = [event["step_id"] for event in events if event.get("event_type") == "commit"]
+    completed = [step for step in step_ids if step in committed]
+    remaining = [step for step in step_ids if step not in committed]
+    if not remaining:
+        return None, False, completed
+    next_step = remaining[0]
+    redo = any(
+        event.get("event_type") in {"red", "green", "refactor"} and event.get("step_id") == next_step
+        for event in events
+    )
+    return next_step, redo, completed
+
+
+def resume_execution(project_root: Path, *, plan_id: str, attempt_id: str) -> RuntimeResult:
+    """Continue an unfinished execution: record what is inherited, then name the next step."""
+    loaded = load_current_attempt(project_root, plan_id=plan_id, attempt_id=attempt_id)
+    if not loaded.ok:
+        return loaded
+    attempt = loaded.value
+    events_result = _load_events(attempt)
+    if not events_result.ok:
+        return events_result
+    events = events_result.value
+    if events and events[-1]["event_type"] == "implementation_green":
+        return _failure("execution_finished", "this execution already reached implementation_green")
+    binding = _read_json(attempt.binding_path).value
+    try:
+        registered = plan_artifact.read_registered_plan(attempt.main_checkout, binding["plan"]["path"])
+        step_ids = [f"step-{step.number}" for step in plan_artifact.read_plan_steps(registered.text)]
+    except plan_artifact.PlanArtifactError as error:
+        return _failure("plan_format_invalid", str(error))
+    commits = [event for event in events if event["event_type"] == "commit"]
+    last_commit = commits[-1]["commit_sha"] if commits else binding["base_head"]
+    branch = _branch_facts(attempt.main_checkout, attempt.branch, last_commit)
+    head = _git(attempt.main_checkout, "rev-parse", f"refs/heads/{attempt.branch}").stdout.strip()
+    changed = _changed_paths(attempt.worktree)
+    if not changed.ok:
+        return changed
+    next_step, redo, completed = _next_step_after_evidence(events, step_ids)
+    recorded = append_event(
+        attempt,
+        "resumed",
+        {
+            "head": head,
+            "extra_commits": [commit["sha"] for commit in branch["extra_commits"]],
+            "uncommitted_changes": bool(changed.value),
+            "next_step": next_step,
+            "redo": redo,
+        },
+    )
+    if not recorded.ok:
+        return recorded
+    return _ok(
+        {
+            "execution_id": attempt.attempt_id,
+            "branch": attempt.branch,
+            "worktree": str(attempt.worktree),
+            "next_step": next_step,
+            "redo": redo,
+            "completed_steps": completed,
+            "all_steps_committed": next_step is None,
+        }
+    )
+
+
 def load_current_attempt(
     project_root: Path,
     *,
@@ -1165,6 +1232,17 @@ def record_human_gate(
     return recorded
 
 
+def _redo_after_resume(attempt: Attempt, step_id: str) -> bool:
+    """True when the latest resumed event marks this step as a redo and no RED followed it."""
+    events = _raw_events(attempt.evidence_path)
+    for event in reversed(events):
+        if event.get("event_type") == "red" and event.get("step_id") == step_id:
+            return False
+        if event.get("event_type") == "resumed":
+            return bool(event.get("redo")) and event.get("next_step") == step_id
+    return False
+
+
 def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
     validation = execution_model.validate_oracle_candidate(oracle)
     if not validation.ok:
@@ -1229,7 +1307,11 @@ def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
     if not persisted.ok:
         if persisted.error.code == "write_collision":
             existing = _read_json(oracle_path)
-            if not existing.ok or execution_model.content_identity(existing.value) != oracle_identity:
+            if _redo_after_resume(attempt, step_id):
+                # A resumed execution redoes an unfinished step from RED; the earlier freeze is
+                # superseded rather than trusted, so the new freeze replaces it.
+                oracle_path.write_bytes(execution_model.canonical_json(frozen))
+            elif not existing.ok or execution_model.content_identity(existing.value) != oracle_identity:
                 return _stop(
                     attempt,
                     RuntimeFailure("oracle_identity_collision", "frozen oracle differs from existing evidence"),
@@ -1671,6 +1753,11 @@ def main(argv: list[str] | None = None) -> int:
     green.add_argument("--repo", required=True)
     execution_ids(green)
 
+    resume = commands.add_parser("resume", help="continue an unfinished execution after the human chose to")
+    resume.add_argument("--repo", required=True)
+    resume.add_argument("--plan-id", required=True)
+    resume.add_argument("--execution-id", required=True)
+
     residual = commands.add_parser("residual", help="describe unfinished executions of a plan (read-only)")
     residual.add_argument("--repo", required=True)
     residual.add_argument("--plan-id", required=True)
@@ -1738,6 +1825,12 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
         return 0
 
+    if args.command == "resume":
+        resumed = resume_execution(repo, plan_id=args.plan_id, attempt_id=args.execution_id)
+        if not resumed.ok:
+            return _print_failure(resumed, state="stopped")
+        print(json.dumps(resumed.value, ensure_ascii=False, sort_keys=True))
+        return 0
     if args.command == "residual":
         found = residual_executions(repo, plan_id=args.plan_id)
         if not found.ok:

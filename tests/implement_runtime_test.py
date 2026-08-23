@@ -812,6 +812,119 @@ class ResidualWorkTest(unittest.TestCase):
             self.assertEqual(sorted(path.name for path in attempt.evidence_path.iterdir()), before)
 
 
+class ResumeTest(unittest.TestCase):
+    def test_resume_records_the_resumed_event_and_names_the_next_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+
+            result = implement_runtime.resume_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value["next_step"], "step-1")
+            self.assertFalse(result.value["redo"])
+            events = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
+            self.assertEqual(events[-1], "000002-resumed.json")
+            resumed = json.loads((attempt.evidence_path / events[-1]).read_text(encoding="utf-8"))
+            self.assertEqual(resumed["head"], git(attempt.worktree, "rev-parse", "HEAD"))
+            self.assertEqual(resumed["extra_commits"], [])
+            self.assertFalse(resumed["uncommitted_changes"])
+
+    def test_resume_after_the_last_committed_step_reports_that_every_step_is_committed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            complete_step_one(attempt)
+
+            result = implement_runtime.resume_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+
+            self.assertTrue(result.ok, result.error)
+            self.assertIsNone(result.value["next_step"])
+            self.assertTrue(result.value["all_steps_committed"])
+            self.assertEqual(result.value["completed_steps"], ["step-1"])
+
+    def test_resume_after_a_stop_is_allowed_and_the_chain_continues(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            stopped = implement_runtime.accept_red(attempt, red_oracle(["python3", "-c", "print('fine')"]))
+            self.assertFalse(stopped.ok)
+            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["state"], "stopped")
+
+            result = implement_runtime.resume_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+
+            self.assertTrue(result.ok, result.error)
+            self.assertTrue(implement_runtime.validate_context(attempt, step_id="step-1").ok)
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+
+    def test_resume_after_an_unfinished_red_redoes_that_step_with_a_fresh_freeze(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+
+            result = implement_runtime.resume_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value["next_step"], "step-1")
+            self.assertTrue(result.value["redo"])
+            different = red_oracle(GREETING_ORACLE_COMMAND)
+            different["failure_signature"] = "greeting"
+            self.assertTrue(implement_runtime.accept_red(attempt, different).ok, "a new RED replaces the old freeze")
+
+    def test_resume_records_commits_outside_the_evidence_and_uncommitted_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            (attempt.worktree / "README.md").write_text("edited by hand\n", encoding="utf-8")
+            git(attempt.worktree, "commit", "-am", "manual: edit readme")
+            manual_sha = git(attempt.worktree, "rev-parse", "HEAD")
+            (attempt.worktree / "notes.txt").write_text("scratch\n", encoding="utf-8")
+
+            result = implement_runtime.resume_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+
+            self.assertTrue(result.ok, result.error)
+            resumed = json.loads((attempt.evidence_path / "000002-resumed.json").read_text(encoding="utf-8"))
+            self.assertEqual(resumed["extra_commits"], [manual_sha])
+            self.assertTrue(resumed["uncommitted_changes"])
+            self.assertTrue((attempt.worktree / "notes.txt").is_file())
+
+    def test_resume_command_prints_the_next_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                code = implement_runtime.main(
+                    ["resume", "--repo", str(root), "--plan-id", attempt.plan_id, "--execution-id", attempt.attempt_id]
+                )
+
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(stdout.getvalue())["next_step"], "step-1")
+
+    def test_resume_refuses_an_execution_bound_to_a_changed_specification(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            spec = root / "docs/spec/feature.md"
+            spec.write_text(spec.read_text(encoding="utf-8") + "revised\n", encoding="utf-8")
+
+            result = implement_runtime.resume_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "spec_identity_drift")
+            self.assertEqual(
+                sorted(path.name for path in attempt.evidence_path.glob("0*.json")),
+                ["000001-worktree-bound.json"],
+            )
+
+
 class EventPersistenceTest(unittest.TestCase):
     def test_terminal_requires_current_approval_for_a_declared_human_gate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -37,6 +37,7 @@ EVENT_TYPES = {
     "human_gate": {"gate_id", "step_id", "target_identity", "result"},
     "permission_required": {"step_id", "operation_identity", "outcome"},
     "stopped": {"reason"},
+    "resumed": {"head", "extra_commits", "uncommitted_changes", "next_step", "redo"},
     "implementation_green": {"commits"},
 }
 EVENT_OPTIONAL_FIELDS = {
@@ -493,7 +494,9 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         if candidate["sequence"] != 1 or candidate["previous_identity"] is not None:
             return _failure("stale_event_chain", "sequence", "first event must start the chain")
     else:
-        if previous_event["event_type"] in {"stopped", "implementation_green"}:
+        if previous_event["event_type"] == "implementation_green" or (
+            previous_event["event_type"] == "stopped" and event_type != "resumed"
+        ):
             return _failure(
                 "terminal_event_chain",
                 "previous_identity",
