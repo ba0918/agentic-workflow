@@ -1,11 +1,12 @@
 # Direct TDD execution
 
-Read this reference only after bootstrap has produced `worktree-bound`. Work inside the linked
-worktree. The current agent performs every action directly.
+Read this reference only after bootstrap has produced `worktree-bound` (or `resume` has named
+the step to continue from), and only for steps whose `**Completion:**` is `test`. Work inside the
+linked worktree. The current agent performs every action directly.
 
 ## Resolve an executable oracle
 
-The Plan owns the semantic oracle: clauses, observable behavior, expected missing-behavior
+The plan owns the semantic oracle: the specification sections it rests on, observable behavior, expected missing-behavior
 reason, verification method, evidence, and human gates. Convert it to one executable command in
 this order:
 
@@ -26,8 +27,8 @@ nine fields and nothing else; an unknown field is rejected as `oracle_fields_inv
 | Field | Value |
 |---|---|
 | `version` | `1` |
-| `step_id` | `step-<n>`, where `<n>` is the number of the `### <n>.` heading under the Plan's `## 実装手順` section |
-| `clauses` | non-empty list of the spec clause IDs this step implements |
+| `step_id` | `step-<n>`, where `<n>` is the number of the `### <n>.` heading under the plan's `## Steps` section |
+| `sections` | non-empty list of the specification section names this step implements, as listed under the plan's `**Target specifications:**` |
 | `test_targets` | non-empty list of unique, repository-relative path strings: the test, fixture, and inspection-config files the RED depends on. Strings only; the helper reads their bytes and adds each content identity when it freezes the oracle |
 | `command` | the test command as a string array, e.g. `["python3", "-m", "unittest", "tests/greeting_test.py"]` |
 | `cwd` | `"."` for the linked worktree root, or a repository-relative subdirectory inside it |
@@ -56,7 +57,7 @@ failure is not an expected RED.
 
 1. Run `context` for the current step.
 2. Write one small test for one approved behavior before production code.
-3. Save the candidate oracle as a JSON file under the attempt's temporary tree.
+3. Save the candidate oracle as a JSON file under the execution's temporary tree.
 4. Run, passing the file path (not inline JSON):
 
 ```text
@@ -132,10 +133,10 @@ auto-fix, restage, or retry. A sandbox permission denial is the sole exception: 
 request only the required scope, and retry the exact same staged identity once permission is
 available.
 
-## Phase 3 terminal
+## Terminal hand-off
 
-After every Plan step has current RED, GREEN, REFACTOR, and commit evidence, run any wider
-project verification the Plan requires (it never replaces the frozen oracle), then:
+After every plan step has current RED, GREEN, REFACTOR, and commit evidence, run any wider
+project verification the plan requires (it never replaces the frozen oracle), then:
 
 ```text
 python3 <implement-runtime> implementation-green --repo <main-checkout>
