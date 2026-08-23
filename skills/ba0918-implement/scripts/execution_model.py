@@ -38,8 +38,13 @@ EVENT_TYPES = {
     "permission_required": {"step_id", "operation_identity", "outcome"},
     "stopped": {"reason"},
     "resumed": {"head", "extra_commits", "uncommitted_changes", "next_step", "redo"},
+    "artifact": {"step_id", "files", "checks"},
+    "external": {"step_id", "checked", "summary"},
+    "approval": {"step_id", "target_identity", "result"},
     "implementation_green": {"commits"},
 }
+APPROVAL_RESULTS = ["approved", "rejected"]
+BOUNDED_TEXT = 500
 EVENT_OPTIONAL_FIELDS = {
     "worktree-bound": {"repository_identity", "base_head", "branch", "worktree_identity"},
     "stopped": {"step_id"},
@@ -445,6 +450,41 @@ def event_identity(event: dict) -> str:
     return content_identity(unsigned)
 
 
+def _bounded_text(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip()) and len(value) <= BOUNDED_TEXT
+
+
+def _validate_artifact_event(candidate: dict) -> ModelResult:
+    if not _matches(STEP_ID, candidate["step_id"]):
+        return _failure("event_field_invalid", "step_id", "artifact step is invalid")
+    files = candidate["files"]
+    if not isinstance(files, list) or not files:
+        return _failure("event_field_invalid", "files", "artifact needs at least one file")
+    seen: set[str] = set()
+    for entry in files:
+        if not isinstance(entry, dict) or set(entry) != {"path", "content_identity"}:
+            return _failure("event_field_invalid", "files", "artifact file fields are invalid")
+        if not _safe_relative_path(entry["path"]) or entry["path"] in seen:
+            return _failure("event_field_invalid", "files.path", "artifact file path is unsafe or duplicated")
+        if not _matches(IDENTITY, entry["content_identity"]):
+            return _failure("event_field_invalid", "files.content_identity", "artifact file identity is invalid")
+        seen.add(entry["path"])
+    checks = candidate["checks"]
+    if not isinstance(checks, list):
+        return _failure("event_field_invalid", "checks", "artifact checks must be a list")
+    for check in checks:
+        if not isinstance(check, dict) or set(check) != {"command", "exit_code"}:
+            return _failure("event_field_invalid", "checks", "artifact check fields are invalid")
+        command = check["command"]
+        if not isinstance(command, list) or not command or any(not isinstance(part, str) for part in command):
+            return _failure("event_field_invalid", "checks.command", "artifact check command is invalid")
+        if any(SECRET_ARGUMENT.search(part) for part in command):
+            return _failure("secret_value_forbidden", "checks.command", "secret-shaped argument in check command")
+        if not isinstance(check["exit_code"], int) or isinstance(check["exit_code"], bool):
+            return _failure("event_field_invalid", "checks.exit_code", "artifact check exit code is invalid")
+    return _ok(candidate)
+
+
 def seal_event(candidate: object, previous_event: dict | None = None) -> ModelResult:
     raw_log = _first_forbidden_field(candidate, RAW_LOG_FIELDS)
     if raw_log is not None:
@@ -535,6 +575,22 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         or candidate["outcome"] != "permission_required"
     ):
         return _failure("event_field_invalid", "permission_required", "permission event is invalid")
+    if event_type == "artifact":
+        artifact = _validate_artifact_event(candidate)
+        if not artifact.ok:
+            return artifact
+    if event_type == "external" and (
+        not _matches(STEP_ID, candidate["step_id"])
+        or not _bounded_text(candidate["checked"])
+        or not _bounded_text(candidate["summary"])
+    ):
+        return _failure("event_field_invalid", "external", "external event needs bounded checked and summary text")
+    if event_type == "approval" and (
+        not _matches(STEP_ID, candidate["step_id"])
+        or not _matches(IDENTITY, candidate["target_identity"])
+        or candidate["result"] not in APPROVAL_RESULTS
+    ):
+        return _failure("event_field_invalid", "approval", "approval event is invalid")
     if event_type == "implementation_green" and (
         not isinstance(candidate["commits"], list)
         or not candidate["commits"]

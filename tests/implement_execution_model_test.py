@@ -557,6 +557,64 @@ class EventChainTest(unittest.TestCase):
 
         self.assertTrue(resumed.ok, resumed.error)
 
+    def _common(self, event_type: str, **fields) -> dict:
+        return {
+            "version": 1,
+            "sequence": 1,
+            "event_type": event_type,
+            "attempt_id": binding()["attempt_id"],
+            "plan_identity": PLAN_IDENTITY,
+            "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+            "previous_identity": None,
+            **fields,
+        }
+
+    def test_artifact_event_records_files_with_identities_and_format_checks(self) -> None:
+        event = self._common(
+            "artifact",
+            step_id="step-2",
+            files=[{"path": "skills/ba0918-cycle/SKILL.md", "content_identity": "sha256:" + "6" * 64}],
+            checks=[{"command": ["bunx", "skills-ref", "validate", "skills/ba0918-cycle"], "exit_code": 0}],
+        )
+
+        sealed = implement_model.seal_event(event)
+
+        self.assertTrue(sealed.ok, sealed.error)
+        self.assertTrue(implement_model.seal_event({**event, "checks": []}).ok)
+
+    def test_artifact_event_rejects_empty_or_unsafe_files(self) -> None:
+        base = self._common(
+            "artifact",
+            step_id="step-2",
+            files=[{"path": "skills/ba0918-cycle/SKILL.md", "content_identity": "sha256:" + "6" * 64}],
+            checks=[],
+        )
+        invalid = {
+            "no files": {**base, "files": []},
+            "absolute path": {**base, "files": [{"path": "/etc/passwd", "content_identity": "sha256:" + "6" * 64}]},
+            "bad identity": {**base, "files": [{"path": "a.md", "content_identity": "sha256:zz"}]},
+            "unknown field": {**base, "stdout": "..."},
+            "check without exit code": {**base, "checks": [{"command": ["true"]}]},
+        }
+        for case, event in invalid.items():
+            with self.subTest(case=case):
+                self.assertFalse(implement_model.seal_event(event).ok)
+
+    def test_external_event_records_what_was_checked_and_a_bounded_summary(self) -> None:
+        event = self._common("external", step_id="step-3", checked="手順 3 の実機確認", summary="起動して応答した")
+
+        self.assertTrue(implement_model.seal_event(event).ok)
+        self.assertFalse(implement_model.seal_event({**event, "summary": "x" * 501}).ok)
+        self.assertFalse(implement_model.seal_event({**event, "checked": ""}).ok)
+
+    def test_approval_event_records_the_human_verdict_on_a_target_identity(self) -> None:
+        event = self._common("approval", step_id="step-2", target_identity="sha256:" + "7" * 64, result="approved")
+
+        self.assertTrue(implement_model.seal_event(event).ok)
+        self.assertTrue(implement_model.seal_event({**event, "result": "rejected"}).ok)
+        self.assertFalse(implement_model.seal_event({**event, "result": "maybe"}).ok)
+        self.assertFalse(implement_model.seal_event({**event, "target_identity": "nope"}).ok)
+
     def test_event_type_requires_its_own_fields(self) -> None:
         incomplete = {
             "version": 1,
