@@ -30,10 +30,18 @@ def publish_text(root: Path, **kwargs):
     return plan_artifact.publish_plan(root, source=draft.path, **kwargs)
 
 
-PLAN_TEXT = """# 小さな変更のplan
+SPEC_IDENTITY = "sha256:" + "a" * 64
+
+PLAN_TEXT = f"""# 小さな変更のplan
 
 **Plan ID:** `20260822022624`
 **Plan revision:** `1`
+
+**対象仕様:**
+
+- `docs/spec/deployment.md`
+  - 内容identity: `{SPEC_IDENTITY}`
+  - 該当する節: 「配備の入力」「配備の確認」
 
 ## 目的
 
@@ -46,7 +54,8 @@ PLAN_WITH_HUMAN_GATE = PLAN_TEXT + r"""
 
 ### 1. 配備前に対象を確認する
 
-**対応仕様:** `CY-096`
+**完了の示し方:** 作った物で示す
+
 **Human gates:**
 
 ```json
@@ -55,7 +64,7 @@ PLAN_WITH_HUMAN_GATE = PLAN_TEXT + r"""
   "gates": [
     {
       "gate_id": "approve-deployment-input",
-      "clauses": ["CY-096"],
+      "sections": ["配備の入力"],
       "criterion": "対象fileが承認済みの内容である",
       "target": {
         "kind": "files",
@@ -80,7 +89,7 @@ class PlanCreationInstructionTest(unittest.TestCase):
         self.assertIn('"version": 1', instruction)
         for field in (
             "gate_id",
-            "clauses",
+            "sections",
             "criterion",
             "target",
             "timing",
@@ -115,7 +124,7 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
         self.assertEqual(len(gates), 1)
         self.assertEqual(gates[0].gate_id, "approve-deployment-input")
         self.assertEqual(gates[0].step_id, "step-1")
-        self.assertEqual(gates[0].clauses, ("CY-096",))
+        self.assertEqual(gates[0].sections, ("配備の入力",))
         self.assertEqual(gates[0].target.kind, "files")
         self.assertEqual(gates[0].target.paths, ("config/deployment.json",))
         self.assertEqual(gates[0].timing, "before_edit")
@@ -138,12 +147,16 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
         duplicate_gate = (
             PLAN_WITH_HUMAN_GATE
             + "\n### 2. commit前に同じgateを確認する\n"
-            + second_step.split("\n", 1)[1].replace("CY-096", "CY-097")
+            + second_step.split("\n", 1)[1].replace("配備の入力", "配備の確認")
         )
         invalid_plans = {
-            "clause outside step": PLAN_WITH_HUMAN_GATE.replace(
+            "legacy clause field": PLAN_WITH_HUMAN_GATE.replace(
+                '"sections": ["配備の入力"]',
                 '"clauses": ["CY-096"]',
-                '"clauses": ["CY-999"]',
+            ),
+            "empty sections": PLAN_WITH_HUMAN_GATE.replace(
+                '"sections": ["配備の入力"]',
+                '"sections": []',
             ),
             "unsupported timing": PLAN_WITH_HUMAN_GATE.replace("before_edit", "during_edit"),
             "unsupported results": PLAN_WITH_HUMAN_GATE.replace(
@@ -165,6 +178,18 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
             with self.subTest(case=case):
                 with self.assertRaises(plan_artifact.InvalidHumanGateDeclaration):
                     plan_artifact.read_plan_human_gates(malformed)
+
+    def test_human_gate_section_must_be_listed_under_the_plan_target_specifications(self) -> None:
+        unlisted = PLAN_WITH_HUMAN_GATE.replace('"sections": ["配備の入力"]', '"sections": ["配備の取消"]')
+
+        with self.assertRaisesRegex(plan_artifact.InvalidHumanGateDeclaration, "配備の取消"):
+            plan_artifact.read_plan_human_gates(unlisted)
+
+    def test_human_gate_section_is_compared_without_the_quoting_brackets(self) -> None:
+        bracketed = PLAN_WITH_HUMAN_GATE.replace('"sections": ["配備の入力"]', '"sections": ["「配備の入力」"]')
+
+        with self.assertRaises(plan_artifact.InvalidHumanGateDeclaration):
+            plan_artifact.read_plan_human_gates(bracketed)
 
     def test_human_gate_event_target_requires_an_immutable_content_identity(self) -> None:
         event_plan = PLAN_WITH_HUMAN_GATE.replace(

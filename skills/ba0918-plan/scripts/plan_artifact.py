@@ -17,7 +17,7 @@ from typing import NamedTuple
 PLAN_ID = re.compile(r"[0-9]{14}")
 IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")
 GATE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
-CLAUSE_ID = re.compile(r"[A-Z][A-Z0-9]*-[0-9]{3}")
+SECTION_NAME = re.compile(r"「([^「」]+)」")
 PLAN_STORE = PurePosixPath(".agents/artifacts/plans")
 DRAFT_STORE = PurePosixPath(".agents/tmp/plans")
 DRAFT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
@@ -89,7 +89,7 @@ class HumanGateTarget(NamedTuple):
 class HumanGateDeclaration(NamedTuple):
     gate_id: str
     step_id: str
-    clauses: tuple[str, ...]
+    sections: tuple[str, ...]
     criterion: str
     target: HumanGateTarget
     timing: str
@@ -100,18 +100,18 @@ def content_identity(text: str) -> str:
     return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _step_clauses(step_text: str) -> set[str]:
-    line = re.search(r"^\*\*対応仕様:\*\*(.*)$", step_text, re.MULTILINE)
-    if line is None:
-        return set()
-    clauses = set(CLAUSE_ID.findall(line.group(1)))
-    for item in re.finditer(
-        r"`([A-Z][A-Z0-9]*)-([0-9]{3})`〜`\1-([0-9]{3})`",
-        line.group(1),
-    ):
-        prefix, first, last = item.groups()
-        clauses.update(f"{prefix}-{number:03d}" for number in range(int(first), int(last) + 1))
-    return clauses
+def _target_specification_block(text: str) -> str:
+    match = re.search(r"^\*\*対象仕様:\*\*[ \t]*\n+(.*?)(?=\n\s*\n|\Z)", text, re.MULTILINE | re.DOTALL)
+    if match is None:
+        return ""
+    return match.group(1)
+
+
+def _target_specification_sections(text: str) -> set[str]:
+    sections: set[str] = set()
+    for line in re.finditer(r"^\s*- 該当する節:(.*)$", _target_specification_block(text), re.MULTILINE):
+        sections.update(SECTION_NAME.findall(line.group(1)))
+    return sections
 
 
 def _human_gate_target(value: object) -> HumanGateTarget:
@@ -143,6 +143,7 @@ def read_plan_human_gates(text: str) -> tuple[HumanGateDeclaration, ...]:
     step_matches = list(re.finditer(r"^### ([1-9][0-9]*)\.[^\n]*$", text, re.MULTILINE))
     declarations: list[HumanGateDeclaration] = []
     gate_ids: set[str] = set()
+    listed_sections = _target_specification_sections(text)
     for position, step_match in enumerate(step_matches):
         end = step_matches[position + 1].start() if position + 1 < len(step_matches) else len(text)
         step_text = text[step_match.end() : end]
@@ -163,11 +164,10 @@ def read_plan_human_gates(text: str) -> tuple[HumanGateDeclaration, ...]:
             raise InvalidHumanGateDeclaration("human gate declaration has an invalid version or gates")
 
         step_id = f"step-{step_match.group(1)}"
-        step_clauses = _step_clauses(step_text)
         for gate in value["gates"]:
             if not isinstance(gate, dict) or set(gate) != {
                 "gate_id",
-                "clauses",
+                "sections",
                 "criterion",
                 "target",
                 "timing",
@@ -181,14 +181,20 @@ def read_plan_human_gates(text: str) -> tuple[HumanGateDeclaration, ...]:
                 or gate_id in gate_ids
             ):
                 raise InvalidHumanGateDeclaration("human gate ids must be unique safe identifiers")
-            clauses = gate["clauses"]
+            sections = gate["sections"]
             if (
-                not isinstance(clauses, list)
-                or not clauses
-                or len(clauses) != len(set(clauses))
-                or any(not isinstance(clause, str) or clause not in step_clauses for clause in clauses)
+                not isinstance(sections, list)
+                or not sections
+                or len(sections) != len(set(sections))
+                or any(not isinstance(section, str) for section in sections)
             ):
-                raise InvalidHumanGateDeclaration("human gate clauses must belong to the plan step")
+                raise InvalidHumanGateDeclaration("human gate sections must be a non-empty unique list")
+            unlisted = [section for section in sections if section not in listed_sections]
+            if unlisted:
+                raise InvalidHumanGateDeclaration(
+                    "human gate sections must be listed under the plan's target specifications: "
+                    + ", ".join(unlisted)
+                )
             criterion = gate["criterion"]
             if not isinstance(criterion, str) or not criterion.strip() or len(criterion) > 500:
                 raise InvalidHumanGateDeclaration("human gate criterion must be bounded text")
@@ -201,7 +207,7 @@ def read_plan_human_gates(text: str) -> tuple[HumanGateDeclaration, ...]:
                 HumanGateDeclaration(
                     gate_id=gate_id,
                     step_id=step_id,
-                    clauses=tuple(clauses),
+                    sections=tuple(sections),
                     criterion=criterion,
                     target=_human_gate_target(gate["target"]),
                     timing=gate["timing"],
