@@ -1503,6 +1503,15 @@ def record_approval(attempt: Attempt, *, step_id: str, result: str) -> RuntimeRe
     target = execution_model.latest_deliverable(events.value, step_id)
     if target is None:
         return _failure("approval_target_missing", f"{step_id} has no artifact or external evidence to approve")
+    failed_checks = [check for check in target.get("checks", []) if check.get("exit_code") != 0]
+    if failed_checks:
+        # The specification makes passing the format check part of the completion itself, so a
+        # human verdict cannot stand in for a check that failed: fix and record again first.
+        return _failure(
+            "format_check_failed",
+            f"the latest deliverable of {step_id} failed a format check; fix it and record it again",
+            ", ".join(" ".join(check["command"]) for check in failed_checks),
+        )
     recorded = append_event(
         attempt,
         "approval",

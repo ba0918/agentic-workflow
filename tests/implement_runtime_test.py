@@ -860,6 +860,24 @@ class ApprovalTest(unittest.TestCase):
             self.assertEqual(result.value["target_identity"], artifact["content_identity"])
             self.assertEqual(result.value["result"], "approved")
 
+    def test_a_deliverable_whose_format_check_failed_cannot_be_approved(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            guide = attempt.worktree / "docs/guide.md"
+            guide.parent.mkdir(parents=True, exist_ok=True)
+            guide.write_text("# Guide\n", encoding="utf-8")
+            recorded = implement_runtime.record_artifact(
+                attempt, step_id="step-1", paths=["docs/guide.md"], checks=[["python3", "-c", "raise SystemExit(3)"]]
+            )
+            self.assertTrue(recorded.ok, recorded.error)
+
+            result = implement_runtime.record_approval(attempt, step_id="step-1", result="approved")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "format_check_failed")
+            names = sorted(p.name for p in attempt.evidence_path.glob("0*.json"))
+            self.assertEqual(names[-1], "000002-artifact.json")
+
     def test_approval_without_anything_to_approve_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
