@@ -13,6 +13,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import secrets
+import shlex
 import subprocess
 from typing import Any, Callable, NamedTuple
 
@@ -1394,6 +1395,80 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
     )
 
 
+def _step_completion_kinds(attempt: Attempt) -> RuntimeResult:
+    binding = _read_json(attempt.binding_path)
+    if not binding.ok:
+        return binding
+    try:
+        registered = plan_artifact.read_registered_plan(attempt.main_checkout, binding.value["plan"]["path"])
+        steps = plan_artifact.read_plan_steps(registered.text)
+    except plan_artifact.PlanArtifactError as error:
+        return _failure("plan_format_invalid", str(error))
+    return _ok({f"step-{step.number}": step.completion_kind for step in steps})
+
+
+def _require_completion_kind(attempt: Attempt, step_id: str, expected: str) -> RuntimeResult:
+    kinds = _step_completion_kinds(attempt)
+    if not kinds.ok:
+        return kinds
+    actual = kinds.value.get(step_id)
+    if actual is None:
+        return _failure("step_unknown", f"the plan has no step {step_id}")
+    if actual != expected:
+        return _failure(
+            "completion_kind_mismatch",
+            f"{step_id} is shown by '{actual}', not '{expected}'",
+        )
+    return _ok(actual)
+
+
+def _run_check(attempt: Attempt, command: list[str]) -> RuntimeResult:
+    if any(execution_model.SECRET_ARGUMENT.search(part) for part in command):
+        return _failure("secret_value_forbidden", "check command carries a secret-shaped argument")
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=attempt.worktree,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return _failure("check_failed", "format check could not be executed", str(error))
+    return _ok({"command": list(command), "exit_code": completed.returncode})
+
+
+def record_artifact(attempt: Attempt, *, step_id: str, paths: list[str], checks: list[list[str]]) -> RuntimeResult:
+    """Record the files an artifact step produced, with their identities and format checks."""
+    kind = _require_completion_kind(attempt, step_id, "artifact")
+    if not kind.ok:
+        return _stop(attempt, kind.error, step_id)
+    context = validate_context(attempt, step_id=step_id)
+    if not context.ok:
+        return _stop(attempt, context.error, step_id)
+    scopes = context.value["write_scope"]
+    files: list[dict[str, str]] = []
+    for path in paths:
+        validation = execution_model.validate_write_path(path, scopes)
+        if not validation.ok:
+            return _failure(validation.error.code, validation.error.message, path)
+        candidate = attempt.worktree.joinpath(*PurePosixPath(path).parts)
+        if candidate.is_symlink() or not candidate.is_file():
+            return _failure("artifact_missing", f"artifact file does not exist: {path}")
+        files.append({"path": path, "content_identity": _raw_identity(candidate.read_text(encoding="utf-8"))})
+    results: list[dict[str, Any]] = []
+    for command in checks:
+        ran = _run_check(attempt, command)
+        if not ran.ok:
+            return ran
+        results.append(ran.value)
+    after = validate_context(attempt, step_id=step_id)
+    if not after.ok:
+        return _stop(attempt, after.error, step_id)
+    return append_event(attempt, "artifact", {"step_id": step_id, "files": files, "checks": results})
+
+
 def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeResult:
     context = validate_context(attempt, step_id=step_id)
     if not context.ok:
@@ -1714,6 +1789,13 @@ def main(argv: list[str] | None = None) -> int:
     stage.add_argument("--step", required=True)
     stage.add_argument("--path", action="append", required=True)
 
+    artifact = commands.add_parser("record-artifact", help="record the files an artifact step produced")
+    artifact.add_argument("--repo", required=True)
+    execution_ids(artifact)
+    artifact.add_argument("--step", required=True)
+    artifact.add_argument("--path", action="append", required=True)
+    artifact.add_argument("--check", action="append", default=[], help="a format check command, quoted as one shell-style string")
+
     record = commands.add_parser("record-commit", help="verify and record an existing commit")
     record.add_argument("--repo", required=True)
     execution_ids(record)
@@ -1844,6 +1926,14 @@ def main(argv: list[str] | None = None) -> int:
     attempt = loaded.value
     if args.command == "load":
         print(json.dumps(_attempt_payload(attempt), ensure_ascii=False, sort_keys=True))
+        return 0
+    if args.command == "record-artifact":
+        recorded = record_artifact(
+            attempt, step_id=args.step, paths=args.path, checks=[shlex.split(check) for check in args.check]
+        )
+        if not recorded.ok:
+            return _print_failure(recorded, state="stopped")
+        print(json.dumps(recorded.value, ensure_ascii=False, sort_keys=True))
         return 0
     if args.command == "context":
         operation = validate_context(attempt, step_id=args.step)

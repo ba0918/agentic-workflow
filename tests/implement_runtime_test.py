@@ -43,6 +43,7 @@ def create_repository(
     *,
     human_gate: bool = False,
     human_gate_timing: str = "before_implementation_green",
+    step_kinds: tuple[str, ...] = ("test",),
 ) -> tuple[Path, str, str]:
     root = parent / "repository"
     root.mkdir()
@@ -101,15 +102,20 @@ src/
   greeting.py
 tests/
   greeting_test.py
+docs/
+  guide.md
 ```
 
 ## Steps
 
 ### 1. Greetingを実装する
 
-**Completion:** test
+**Completion:** {step_kinds[0]}
 {gate_declaration}
-"""
+""" + "".join(
+        f"\n### {number}. 手順 {number}\n\n**Completion:** {kind}\n"
+        for number, kind in enumerate(step_kinds[1:], start=2)
+    )
     publish_text(
         root,
         plan_id=plan_id,
@@ -128,11 +134,13 @@ def bootstrap_fixture(
     *,
     human_gate: bool = False,
     human_gate_timing: str = "before_implementation_green",
+    step_kinds: tuple[str, ...] = ("test",),
 ):
     root, _, _ = create_repository(
         parent,
         human_gate=human_gate,
         human_gate_timing=human_gate_timing,
+        step_kinds=step_kinds,
     )
     resolved = implement_runtime.resolve_plan(root).value
     result = implement_runtime.bootstrap_attempt(
@@ -267,7 +275,7 @@ class PlanResolutionTest(unittest.TestCase):
             )
             self.assertEqual(
                 result.value.write_scope,
-                ("src/greeting.py", "tests/greeting_test.py"),
+                ("src/greeting.py", "tests/greeting_test.py", "docs/guide.md"),
             )
 
     def test_a_temporary_plan_draft_is_never_resolved_as_the_current_plan(self) -> None:
@@ -722,6 +730,65 @@ class FreshSessionTest(unittest.TestCase):
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "worktree_identity_drift")
+
+
+class ArtifactStepTest(unittest.TestCase):
+    def test_artifact_files_inside_the_scope_are_recorded_with_their_identities(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            guide = attempt.worktree / "docs/guide.md"
+            guide.parent.mkdir(parents=True, exist_ok=True)
+            guide.write_text("# Guide\n", encoding="utf-8")
+
+            result = implement_runtime.record_artifact(attempt, step_id="step-1", paths=["docs/guide.md"], checks=[])
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value["event_type"], "artifact")
+            self.assertEqual(
+                result.value["files"],
+                [{"path": "docs/guide.md", "content_identity": plan_artifact.content_identity("# Guide\n")}],
+            )
+            self.assertEqual(result.value["checks"], [])
+
+    def test_artifact_paths_outside_the_scope_or_missing_are_refused_without_an_event(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            for case, path in {"outside scope": "README.md", "missing": "docs/guide.md", "traversal": "../x"}.items():
+                with self.subTest(case=case):
+                    result = implement_runtime.record_artifact(attempt, step_id="step-1", paths=[path], checks=[])
+
+                    self.assertFalse(result.ok)
+            events = sorted(p.name for p in attempt.evidence_path.glob("0*.json"))
+            self.assertEqual(events, ["000001-worktree-bound.json"])
+
+    def test_format_checks_run_in_the_worktree_and_their_exit_code_is_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            guide = attempt.worktree / "docs/guide.md"
+            guide.parent.mkdir(parents=True, exist_ok=True)
+            guide.write_text("# Guide\n", encoding="utf-8")
+            checks = [
+                ["python3", "-c", "from pathlib import Path; raise SystemExit(0 if Path('docs/guide.md').is_file() else 1)"],
+                ["python3", "-c", "raise SystemExit(3)"],
+            ]
+
+            result = implement_runtime.record_artifact(attempt, step_id="step-1", paths=["docs/guide.md"], checks=checks)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual([check["exit_code"] for check in result.value["checks"]], [0, 3])
+
+    def test_artifact_evidence_is_refused_on_a_test_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            guide = attempt.worktree / "docs/guide.md"
+            guide.parent.mkdir(parents=True, exist_ok=True)
+            guide.write_text("# Guide\n", encoding="utf-8")
+
+            result = implement_runtime.record_artifact(attempt, step_id="step-1", paths=["docs/guide.md"], checks=[])
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "completion_kind_mismatch")
+            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["state"], "stopped")
 
 
 class ResidualWorkTest(unittest.TestCase):
