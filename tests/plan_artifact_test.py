@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest import mock
@@ -115,6 +116,60 @@ class ContentIdentityTest(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(output.getvalue().strip(), plan_artifact.content_identity(PLAN_TEXT))
+
+
+class PlanHeaderTest(unittest.TestCase):
+    def test_plan_id_revision_and_target_specifications_are_read_from_the_header(self) -> None:
+        header = plan_artifact.read_plan_header(PLAN_TEXT)
+
+        self.assertEqual(header.plan_id, "20260822022624")
+        self.assertEqual(header.revision, 1)
+        self.assertEqual(len(header.specifications), 1)
+        self.assertEqual(header.specifications[0].path, "docs/spec/deployment.md")
+        self.assertEqual(header.specifications[0].content_identity, SPEC_IDENTITY)
+        self.assertEqual(header.specifications[0].sections, ("配備の入力", "配備の確認"))
+
+    def test_unreadable_header_is_rejected_with_the_missing_part_named(self) -> None:
+        invalid_plans = {
+            "missing plan id": (PLAN_TEXT.replace("**Plan ID:** `20260822022624`\n", ""), "Plan ID"),
+            "missing revision": (PLAN_TEXT.replace("**Plan revision:** `1`\n", ""), "Plan revision"),
+            "missing target specifications": (PLAN_TEXT.replace("**対象仕様:**", "**参考:**"), "対象仕様"),
+            "no specification item": (
+                PLAN_TEXT.replace("- `docs/spec/deployment.md`\n", "").replace(
+                    f"  - 内容identity: `{SPEC_IDENTITY}`\n  - 該当する節: 「配備の入力」「配備の確認」\n", ""
+                ),
+                "対象仕様",
+            ),
+            "malformed identity": (PLAN_TEXT.replace(SPEC_IDENTITY, "sha256:zz"), "内容identity"),
+            "missing sections": (PLAN_TEXT.replace("  - 該当する節: 「配備の入力」「配備の確認」\n", ""), "該当する節"),
+            "absolute path": (PLAN_TEXT.replace("docs/spec/deployment.md", "/etc/deployment.md"), "/etc/deployment.md"),
+            "traversal": (PLAN_TEXT.replace("docs/spec/deployment.md", "../deployment.md"), "../deployment.md"),
+        }
+
+        for case, (malformed, named) in invalid_plans.items():
+            with self.subTest(case=case):
+                with self.assertRaisesRegex(plan_artifact.InvalidPlanFormat, re.escape(named)):
+                    plan_artifact.read_plan_header(malformed)
+
+    def test_target_specification_identity_must_match_the_file_in_the_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spec = root / "docs/spec/deployment.md"
+            spec.parent.mkdir(parents=True)
+            spec.write_text("承認済みの仕様\n", encoding="utf-8")
+            matching = PLAN_TEXT.replace(SPEC_IDENTITY, plan_artifact.content_identity("承認済みの仕様\n"))
+
+            plan_artifact.verify_target_specifications(root, plan_artifact.read_plan_header(matching))
+
+            with self.assertRaisesRegex(plan_artifact.TargetSpecificationMismatch, "docs/spec/deployment.md"):
+                plan_artifact.verify_target_specifications(root, plan_artifact.read_plan_header(PLAN_TEXT))
+
+    def test_missing_target_specification_file_is_reported_by_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(plan_artifact.TargetSpecificationMismatch, "docs/spec/deployment.md"):
+                plan_artifact.verify_target_specifications(
+                    Path(directory), plan_artifact.read_plan_header(PLAN_TEXT)
+                )
 
 
 class RegisteredPlanConsumerTest(unittest.TestCase):

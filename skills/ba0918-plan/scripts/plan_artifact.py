@@ -58,8 +58,16 @@ class RegisteredPlanMismatch(PlanArtifactError):
     """A registered plan no longer matches its locator entry."""
 
 
-class InvalidHumanGateDeclaration(PlanArtifactError):
+class InvalidPlanFormat(PlanArtifactError):
+    """A machine-read part of the plan is missing or malformed."""
+
+
+class InvalidHumanGateDeclaration(InvalidPlanFormat):
     """A plan step contains a malformed human-gate declaration."""
+
+
+class TargetSpecificationMismatch(PlanArtifactError):
+    """A target specification named by the plan is missing or has different content."""
 
 
 class DraftConflict(PlanArtifactError):
@@ -78,6 +86,18 @@ class RegisteredPlan(NamedTuple):
     content_identity: str
     state: str
     text: str
+
+
+class TargetSpecification(NamedTuple):
+    path: str
+    content_identity: str
+    sections: tuple[str, ...]
+
+
+class PlanHeader(NamedTuple):
+    plan_id: str
+    revision: int
+    specifications: tuple[TargetSpecification, ...]
 
 
 class HumanGateTarget(NamedTuple):
@@ -107,11 +127,59 @@ def _target_specification_block(text: str) -> str:
     return match.group(1)
 
 
+def _target_specifications(text: str) -> tuple[TargetSpecification, ...]:
+    block = _target_specification_block(text)
+    items = re.split(r"^- ", block, flags=re.MULTILINE)[1:]
+    if not items:
+        raise InvalidPlanFormat("**対象仕様:** must list at least one specification")
+    specifications = []
+    for item in items:
+        head, _, details = item.partition("\n")
+        path_match = re.fullmatch(r"`([^`]+)`\s*", head)
+        if path_match is None:
+            raise InvalidPlanFormat(f"対象仕様 item must start with a backquoted path: {head.strip()}")
+        path = path_match.group(1)
+        candidate = PurePosixPath(path)
+        if candidate.is_absolute() or ".." in candidate.parts or not candidate.parts:
+            raise InvalidPlanFormat(f"対象仕様 path must be repository-relative: {path}")
+        identity_match = re.search(r"^\s*- 内容identity: `([^`]*)`\s*$", details, re.MULTILINE)
+        if identity_match is None or IDENTITY.fullmatch(identity_match.group(1)) is None:
+            raise InvalidPlanFormat(f"対象仕様 item needs a sha256 内容identity: {path}")
+        sections_match = re.search(r"^\s*- 該当する節:(.*)$", details, re.MULTILINE)
+        sections = tuple(SECTION_NAME.findall(sections_match.group(1))) if sections_match else ()
+        if not sections:
+            raise InvalidPlanFormat(f"対象仕様 item needs at least one 該当する節 in 「」: {path}")
+        specifications.append(TargetSpecification(path, identity_match.group(1), sections))
+    return tuple(specifications)
+
+
 def _target_specification_sections(text: str) -> set[str]:
-    sections: set[str] = set()
-    for line in re.finditer(r"^\s*- 該当する節:(.*)$", _target_specification_block(text), re.MULTILINE):
-        sections.update(SECTION_NAME.findall(line.group(1)))
-    return sections
+    return {section for spec in _target_specifications(text) for section in spec.sections}
+
+
+def read_plan_header(text: str) -> PlanHeader:
+    plan_id = re.search(r"^\*\*Plan ID:\*\* `([^`]*)`", text, re.MULTILINE)
+    if plan_id is None or PLAN_ID.fullmatch(plan_id.group(1)) is None:
+        raise InvalidPlanFormat("**Plan ID:** with a 14-digit id is missing")
+    revision = re.search(r"^\*\*Plan revision:\*\* `([^`]*)`", text, re.MULTILINE)
+    if revision is None or re.fullmatch(r"[1-9][0-9]*", revision.group(1)) is None:
+        raise InvalidPlanFormat("**Plan revision:** with a positive integer is missing")
+    if re.search(r"^\*\*対象仕様:\*\*", text, re.MULTILINE) is None:
+        raise InvalidPlanFormat("**対象仕様:** is missing")
+    return PlanHeader(plan_id.group(1), int(revision.group(1)), _target_specifications(text))
+
+
+def verify_target_specifications(project_root: Path, header: PlanHeader) -> None:
+    root = project_root.resolve()
+    for spec in header.specifications:
+        target = root.joinpath(*PurePosixPath(spec.path).parts)
+        if not target.is_file():
+            raise TargetSpecificationMismatch(f"target specification does not exist: {spec.path}")
+        actual = content_identity(target.read_text(encoding="utf-8"))
+        if actual != spec.content_identity:
+            raise TargetSpecificationMismatch(
+                f"target specification content differs from the plan: {spec.path} (now {actual})"
+            )
 
 
 def _human_gate_target(value: object) -> HumanGateTarget:
@@ -143,7 +211,7 @@ def read_plan_human_gates(text: str) -> tuple[HumanGateDeclaration, ...]:
     step_matches = list(re.finditer(r"^### ([1-9][0-9]*)\.[^\n]*$", text, re.MULTILINE))
     declarations: list[HumanGateDeclaration] = []
     gate_ids: set[str] = set()
-    listed_sections = _target_specification_sections(text)
+    listed_sections: set[str] | None = None
     for position, step_match in enumerate(step_matches):
         end = step_matches[position + 1].start() if position + 1 < len(step_matches) else len(text)
         step_text = text[step_match.end() : end]
@@ -164,6 +232,8 @@ def read_plan_human_gates(text: str) -> tuple[HumanGateDeclaration, ...]:
             raise InvalidHumanGateDeclaration("human gate declaration has an invalid version or gates")
 
         step_id = f"step-{step_match.group(1)}"
+        if listed_sections is None:
+            listed_sections = _target_specification_sections(text)
         for gate in value["gates"]:
             if not isinstance(gate, dict) or set(gate) != {
                 "gate_id",
