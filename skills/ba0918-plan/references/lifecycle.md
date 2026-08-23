@@ -6,9 +6,12 @@ Never edit a published plan revision in place. Progress does not change plan byt
 
 When a requested change alters product meaning, a prohibition, an allowed difference, or an
 unapproved architectural choice, stop and return to brainstorm. When it only corrects execution
-steps within the approved meaning, create a new plan revision at a new stable path, present the
-full revision, and require the normal human gate. Later consumers treat evidence bound to the old
-identity as stale.
+steps within the approved meaning (for example a machine-read part the helper could not read),
+create a new plan revision at a new stable path, present the full revision, and require the
+normal human gate. Later consumers treat evidence bound to the old identity as stale.
+
+When a target specification is revised, every plan citing its old identity is stale: the helper
+refuses to publish such a plan, and a new revision must cite the new identity.
 
 ## Open-plan locator
 
