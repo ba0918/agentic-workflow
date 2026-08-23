@@ -1483,6 +1483,43 @@ def record_external(attempt: Attempt, *, step_id: str, checked: str, summary: st
     return append_event(attempt, "external", {"step_id": step_id, "checked": checked, "summary": summary})
 
 
+def _latest_deliverable(events: list[dict], step_id: str) -> dict | None:
+    """The newest artifact or external event of the step: the thing a human approves."""
+    for event in reversed(events):
+        if event.get("event_type") in {"artifact", "external"} and event.get("step_id") == step_id:
+            return event
+    return None
+
+
+def record_approval(attempt: Attempt, *, step_id: str, result: str) -> RuntimeResult:
+    """Record the human's verdict on the step's latest deliverable; a rejection stops the execution."""
+    kinds = _step_completion_kinds(attempt)
+    if not kinds.ok:
+        return kinds
+    kind = kinds.value.get(step_id)
+    if kind not in {"artifact", "external"}:
+        failure = RuntimeFailure("completion_kind_mismatch", f"{step_id} is shown by '{kind}', which needs no approval")
+        return _stop(attempt, failure, step_id)
+    if result not in execution_model.APPROVAL_RESULTS:
+        return _failure("approval_result_invalid", "approval result must be approved or rejected")
+    events = _load_events(attempt)
+    if not events.ok:
+        return events
+    target = _latest_deliverable(events.value, step_id)
+    if target is None:
+        return _failure("approval_target_missing", f"{step_id} has no artifact or external evidence to approve")
+    recorded = append_event(
+        attempt,
+        "approval",
+        {"step_id": step_id, "target_identity": target["content_identity"], "result": result},
+    )
+    if not recorded.ok:
+        return recorded
+    if result == "rejected":
+        return _stop(attempt, RuntimeFailure("approval_rejected", f"the human rejected the deliverable of {step_id}"), step_id)
+    return recorded
+
+
 def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeResult:
     context = validate_context(attempt, step_id=step_id)
     if not context.ok:
@@ -1817,6 +1854,12 @@ def main(argv: list[str] | None = None) -> int:
     external.add_argument("--checked", required=True)
     external.add_argument("--summary", required=True)
 
+    approve = commands.add_parser("approve", help="record the human's verdict on a step's deliverable")
+    approve.add_argument("--repo", required=True)
+    execution_ids(approve)
+    approve.add_argument("--step", required=True)
+    approve.add_argument("--result", choices=("approved", "rejected"), required=True)
+
     record = commands.add_parser("record-commit", help="verify and record an existing commit")
     record.add_argument("--repo", required=True)
     execution_ids(record)
@@ -1958,6 +2001,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "record-external":
         recorded = record_external(attempt, step_id=args.step, checked=args.checked, summary=args.summary)
+        if not recorded.ok:
+            return _print_failure(recorded, state="stopped")
+        print(json.dumps(recorded.value, ensure_ascii=False, sort_keys=True))
+        return 0
+    if args.command == "approve":
+        recorded = record_approval(attempt, step_id=args.step, result=args.result)
         if not recorded.ok:
             return _print_failure(recorded, state="stopped")
         print(json.dumps(recorded.value, ensure_ascii=False, sort_keys=True))

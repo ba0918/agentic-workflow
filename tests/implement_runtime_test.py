@@ -838,6 +838,72 @@ class ExternalStepTest(unittest.TestCase):
             self.assertEqual(json.loads(stdout.getvalue())["event_type"], "external")
 
 
+def record_guide(attempt, text: str = "# Guide\n"):
+    guide = attempt.worktree / "docs/guide.md"
+    guide.parent.mkdir(parents=True, exist_ok=True)
+    guide.write_text(text, encoding="utf-8")
+    result = implement_runtime.record_artifact(attempt, step_id="step-1", paths=["docs/guide.md"], checks=[])
+    assert result.ok, result.error
+    return result.value
+
+
+class ApprovalTest(unittest.TestCase):
+    def test_approval_targets_the_latest_artifact_evidence_of_the_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            artifact = record_guide(attempt)
+
+            result = implement_runtime.record_approval(attempt, step_id="step-1", result="approved")
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value["event_type"], "approval")
+            self.assertEqual(result.value["target_identity"], artifact["content_identity"])
+            self.assertEqual(result.value["result"], "approved")
+
+    def test_approval_without_anything_to_approve_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+
+            result = implement_runtime.record_approval(attempt, step_id="step-1", result="approved")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "approval_target_missing")
+
+    def test_rejection_is_recorded_and_stops_the_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            record_guide(attempt)
+
+            result = implement_runtime.record_approval(attempt, step_id="step-1", result="rejected")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "approval_rejected")
+            names = sorted(p.name for p in attempt.evidence_path.glob("0*.json"))
+            self.assertEqual(names[-2:], ["000003-approval.json", "000004-stopped.json"])
+            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["state"], "stopped")
+
+    def test_approval_is_refused_on_a_test_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+
+            result = implement_runtime.record_approval(attempt, step_id="step-1", result="approved")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "completion_kind_mismatch")
+
+    def test_approve_command_records_the_verdict(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("external",))
+            self.assertTrue(implement_runtime.record_external(attempt, step_id="step-1", checked="確認", summary="OK").ok)
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                code = implement_runtime.main(["approve", "--repo", str(root), "--step", "step-1", "--result", "approved"])
+
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(stdout.getvalue())["event_type"], "approval")
+
+
 class ResidualWorkTest(unittest.TestCase):
     def test_unfinished_execution_is_reported_with_its_facts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
