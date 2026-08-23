@@ -83,7 +83,6 @@ class Attempt(NamedTuple):
     worktree: Path
     binding_path: Path
     evidence_path: Path
-    runtime_path: Path
     tmp_path: Path
     main_checkout: Path
 
@@ -291,7 +290,6 @@ def _safe_agent_roots(main_checkout: Path) -> RuntimeResult:
     paths = [
         root / ".agents",
         root / ".agents/artifacts",
-        root / ".agents/runtime",
         root / ".agents/tmp",
     ]
     for path in paths:
@@ -309,7 +307,6 @@ def _safe_agent_roots(main_checkout: Path) -> RuntimeResult:
 def _preflight(main_checkout: Path, common_directory: Path) -> RuntimeResult:
     probes = [
         main_checkout / ".agents/artifacts/executions/.preflight",
-        main_checkout / ".agents/runtime/cycles/.preflight",
         main_checkout / ".agents/tmp/cycles/.preflight",
         common_directory / ".cycle-preflight",
     ]
@@ -340,9 +337,6 @@ def bootstrap_attempt(
     if not repository.ok:
         return repository
     main_checkout = repository.value.main_checkout
-    claim_path = main_checkout / ".agents/runtime/cycles/current.claim"
-    if claim_path.exists() or claim_path.is_symlink():
-        return _failure("cycle_claimed", "another normal Cycle claim already exists")
     if resolved_plan is None:
         return _failure("plan_registration_missing", "a validated plan is required")
     if worktree_path.exists() or worktree_path.is_symlink():
@@ -361,41 +355,12 @@ def bootstrap_attempt(
         / resolved_plan.plan_id
         / attempt_id
     )
-    runtime_path = main_checkout / ".agents/runtime/cycles" / attempt_id
     tmp_path = main_checkout / ".agents/tmp/cycles" / attempt_id
-    if any(path.exists() or path.is_symlink() for path in (evidence_path, runtime_path, tmp_path)):
-        claim = {
-            "version": 1,
-            "attempt_id": attempt_id,
-            "plan_id": resolved_plan.plan_id,
-            "plan_identity": resolved_plan.content_identity,
-            "branch": branch,
-            "worktree": str(worktree_path.resolve(strict=False)),
-            "executor": executor,
-        }
-        claim_result = write_once(claim_path, execution_model.canonical_json(claim))
-        if not claim_result.ok:
-            return claim_result
+    if any(path.exists() or path.is_symlink() for path in (evidence_path, tmp_path)):
         return _failure("attempt_collision", "generated attempt id is already in use")
-
-    claim = {
-        "version": 1,
-        "attempt_id": attempt_id,
-        "plan_id": resolved_plan.plan_id,
-        "plan_identity": resolved_plan.content_identity,
-        "branch": branch,
-        "worktree": str(worktree_path.resolve(strict=False)),
-        "executor": executor,
-    }
-    claim_result = write_once(claim_path, execution_model.canonical_json(claim))
-    if not claim_result.ok:
-        if claim_result.error.code == "write_collision":
-            return _failure("cycle_claimed", "another Cycle acquired the repository claim")
-        return claim_result
 
     try:
         evidence_path.mkdir(parents=True, exist_ok=False)
-        runtime_path.mkdir(parents=True, exist_ok=False)
         tmp_path.mkdir(parents=True, exist_ok=False)
     except FileExistsError:
         return _failure("attempt_collision", "generated attempt id collided during bootstrap")
@@ -418,6 +383,7 @@ def bootstrap_attempt(
         "repository_identity": repository.value.repository_identity,
         "base_head": repository.value.base_head,
         "branch": branch,
+        "worktree": str(worktree_path.resolve(strict=False)),
         "write_scope": list(resolved_plan.write_scope),
         "human_gates": list(resolved_plan.human_gates),
         "executor": executor,
@@ -487,7 +453,6 @@ def bootstrap_attempt(
             worktree=worktree_path.resolve(),
             binding_path=binding_path,
             evidence_path=evidence_path,
-            runtime_path=runtime_path,
             tmp_path=tmp_path,
             main_checkout=main_checkout,
         )
@@ -503,7 +468,60 @@ def _read_json(path: Path) -> RuntimeResult:
         return _failure("artifact_invalid", f"artifact is invalid: {path.name}", str(error))
 
 
-def load_current_attempt(project_root: Path) -> RuntimeResult:
+def _execution_directories(main_checkout: Path, plan_id: str) -> list[Path]:
+    store = main_checkout / ".agents/artifacts/executions" / plan_id
+    if not store.is_dir():
+        return []
+    return sorted(
+        path for path in store.iterdir()
+        if path.is_dir() and not path.is_symlink() and (path / "binding.json").is_file()
+    )
+
+
+def _last_event_type(evidence_path: Path) -> str | None:
+    files = sorted(evidence_path.glob("0*.json"))
+    if not files:
+        return None
+    loaded = _read_json(files[-1])
+    if not loaded.ok or not isinstance(loaded.value, dict):
+        return None
+    return loaded.value.get("event_type")
+
+
+def _unfinished_executions(main_checkout: Path, plan_id: str) -> list[str]:
+    return [
+        path.name
+        for path in _execution_directories(main_checkout, plan_id)
+        if _last_event_type(path) != "implementation_green"
+    ]
+
+
+def _select_execution(main_checkout: Path) -> RuntimeResult:
+    """Without explicit ids, only the single unfinished execution of the current plan is implied."""
+    try:
+        registered = plan_artifact.read_registered_plan(main_checkout, None)
+    except plan_artifact.PlanArtifactError as error:
+        return _failure("plan_registration_missing", "no current plan identifies an execution", str(error))
+    candidates = _unfinished_executions(main_checkout, registered.plan_id)
+    if not candidates:
+        candidates = [path.name for path in _execution_directories(main_checkout, registered.plan_id)]
+    if not candidates:
+        return _failure("execution_missing", "the current plan has no execution")
+    if len(candidates) > 1:
+        return _failure(
+            "execution_ambiguous",
+            "several unfinished executions exist; name one with --plan-id and --execution-id",
+            ", ".join(candidates),
+        )
+    return _ok((registered.plan_id, candidates[0]))
+
+
+def load_current_attempt(
+    project_root: Path,
+    *,
+    plan_id: str | None = None,
+    attempt_id: str | None = None,
+) -> RuntimeResult:
     safe = _safe_agent_roots(project_root)
     if not safe.ok:
         return safe
@@ -511,44 +529,58 @@ def load_current_attempt(project_root: Path) -> RuntimeResult:
     if not repository.ok:
         return repository
     main_checkout = repository.value.main_checkout
-    claim_result = _read_json(main_checkout / ".agents/runtime/cycles/current.claim")
-    if not claim_result.ok:
-        return _failure("cycle_claim_missing", "no readable current Cycle claim exists")
-    claim = claim_result.value
-    required = {"attempt_id", "plan_id", "plan_identity", "branch", "worktree"}
-    if not isinstance(claim, dict) or not required.issubset(claim):
-        return _failure("cycle_claim_invalid", "current Cycle claim fields are invalid")
-    attempt_id = claim["attempt_id"]
-    plan_id = claim["plan_id"]
+    if (plan_id is None) != (attempt_id is None):
+        return _failure("execution_ids_incomplete", "plan id and execution id must be given together")
+    if plan_id is None:
+        selected = _select_execution(main_checkout)
+        if not selected.ok:
+            return selected
+        plan_id, attempt_id = selected.value
     if not execution_model.ATTEMPT_ID.fullmatch(attempt_id) or not plan_artifact.PLAN_ID.fullmatch(plan_id):
-        return _failure("cycle_claim_invalid", "claim identity is invalid")
+        return _failure("execution_ids_invalid", "plan id or execution id is not path-safe")
     evidence_path = main_checkout / ".agents/artifacts/executions" / plan_id / attempt_id
-    runtime_path = main_checkout / ".agents/runtime/cycles" / attempt_id
     tmp_path = main_checkout / ".agents/tmp/cycles" / attempt_id
     binding_path = evidence_path / "binding.json"
+    if not binding_path.is_file():
+        return _failure("binding_missing", f"no binding.json exists for execution {attempt_id}", str(binding_path))
     binding_result = _read_json(binding_path)
     if not binding_result.ok:
-        return binding_result
+        return _failure("binding_invalid", "binding.json cannot be read", binding_result.error.message)
     validation = execution_model.validate_binding(binding_result.value)
     if not validation.ok:
         return _failure(validation.error.code, validation.error.message)
     binding = binding_result.value
-    if (
-        binding["attempt_id"] != attempt_id
-        or binding["plan"]["id"] != plan_id
-        or binding["plan"]["content_identity"] != claim["plan_identity"]
-        or binding["branch"] != claim["branch"]
-    ):
-        return _failure("binding_identity_drift", "claim and immutable binding disagree")
+    if binding["attempt_id"] != attempt_id or binding["plan"]["id"] != plan_id:
+        return _failure("binding_identity_drift", "binding.json does not describe this execution")
+
+    try:
+        registered = plan_artifact.read_registered_plan(main_checkout, binding["plan"]["path"])
+    except plan_artifact.PlanArtifactError as error:
+        return _failure("plan_identity_drift", "bound plan cannot be verified", str(error))
+    if registered.content_identity != binding["plan"]["content_identity"]:
+        return _failure("plan_identity_drift", "bound plan differs from the registered plan")
+    for spec in binding["specs"]:
+        spec_path = main_checkout.joinpath(*PurePosixPath(spec["path"]).parts)
+        if not spec_path.is_file() or _raw_identity(spec_path.read_text(encoding="utf-8")) != spec["content_identity"]:
+            return _failure("spec_identity_drift", f"bound spec differs from the repository: {spec['path']}")
+
+    branch = binding["branch"]
+    if _git(main_checkout, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode != 0:
+        return _failure("branch_missing", f"execution branch does not exist: {branch}")
+    worktree = Path(binding["worktree"])
+    if not worktree.is_dir():
+        return _failure("worktree_missing", f"execution worktree does not exist: {worktree}")
+    observed = discover_repository(worktree)
+    if not observed.ok or observed.value.common_directory != repository.value.common_directory:
+        return _failure("worktree_identity_drift", "execution worktree is not a linked worktree of this repository")
     return _ok(
         Attempt(
             attempt_id=attempt_id,
             plan_id=plan_id,
-            branch=claim["branch"],
-            worktree=Path(claim["worktree"]).resolve(),
+            branch=branch,
+            worktree=worktree.resolve(),
             binding_path=binding_path,
             evidence_path=evidence_path,
-            runtime_path=runtime_path,
             tmp_path=tmp_path,
             main_checkout=main_checkout,
         )
@@ -1445,8 +1477,12 @@ def _print_failure(result: RuntimeResult, *, state: str) -> int:
     return 2
 
 
-def _load_for_command(repo: Path) -> RuntimeResult:
-    return load_current_attempt(repo)
+def _load_for_command(args: argparse.Namespace) -> RuntimeResult:
+    return load_current_attempt(
+        Path(args.repo),
+        plan_id=getattr(args, "plan_id", None),
+        attempt_id=getattr(args, "execution_id", None),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1459,7 +1495,7 @@ def main(argv: list[str] | None = None) -> int:
     resolve.add_argument("--receipt-path")
     resolve.add_argument("--receipt-identity")
 
-    bootstrap = commands.add_parser("bootstrap", help="claim a repository and create a worktree")
+    bootstrap = commands.add_parser("bootstrap", help="create the execution branch and worktree")
     bootstrap.add_argument("--repo", required=True)
     bootstrap.add_argument("--plan-path")
     bootstrap.add_argument("--receipt-path")
@@ -1469,34 +1505,45 @@ def main(argv: list[str] | None = None) -> int:
     bootstrap.add_argument("--backend", default="unavailable")
     bootstrap.add_argument("--session-id", default="unavailable")
 
-    load = commands.add_parser("load", help="reconstruct the current attempt")
+    def execution_ids(command: argparse.ArgumentParser) -> None:
+        command.add_argument("--plan-id")
+        command.add_argument("--execution-id")
+
+    load = commands.add_parser("load", help="reconstruct an execution from its evidence")
     load.add_argument("--repo", required=True)
+    execution_ids(load)
 
     context = commands.add_parser("context", help="revalidate the current execution boundary")
     context.add_argument("--repo", required=True)
+    execution_ids(context)
     context.add_argument("--step", required=True)
 
     red = commands.add_parser("accept-red", help="run and freeze an expected RED oracle")
     red.add_argument("--repo", required=True)
+    execution_ids(red)
     red.add_argument("--oracle", required=True)
 
     run = commands.add_parser("run-oracle", help="run the frozen GREEN or REFACTOR oracle")
     run.add_argument("--repo", required=True)
+    execution_ids(run)
     run.add_argument("--step", required=True)
     run.add_argument("--phase", choices=("green", "refactor"), required=True)
 
     stage = commands.add_parser("stage", help="stage approved files individually")
     stage.add_argument("--repo", required=True)
+    execution_ids(stage)
     stage.add_argument("--step", required=True)
     stage.add_argument("--path", action="append", required=True)
 
     record = commands.add_parser("record-commit", help="verify and record an existing commit")
     record.add_argument("--repo", required=True)
+    execution_ids(record)
     record.add_argument("--step", required=True)
     record.add_argument("--previous-head", required=True)
 
     human_gate = commands.add_parser("human-gate", help="record a declared human gate decision")
     human_gate.add_argument("--repo", required=True)
+    execution_ids(human_gate)
     human_gate.add_argument("--step", required=True)
     human_gate.add_argument("--gate", required=True)
     human_gate.add_argument("--result", choices=("approved", "rejected"), required=True)
@@ -1506,6 +1553,7 @@ def main(argv: list[str] | None = None) -> int:
         help="verify declared human gates before crossing a boundary",
     )
     check_gates.add_argument("--repo", required=True)
+    execution_ids(check_gates)
     check_gates.add_argument("--step", required=True)
     check_gates.add_argument(
         "--timing",
@@ -1515,6 +1563,7 @@ def main(argv: list[str] | None = None) -> int:
 
     stop = commands.add_parser("stop", help="record a blocking stop")
     stop.add_argument("--repo", required=True)
+    execution_ids(stop)
     stop.add_argument("--step", required=True)
     stop.add_argument("--reason", required=True)
 
@@ -1523,9 +1572,11 @@ def main(argv: list[str] | None = None) -> int:
         help="record the Phase 3 terminal event",
     )
     green.add_argument("--repo", required=True)
+    execution_ids(green)
 
     result = commands.add_parser("result", help="derive the current result from events")
     result.add_argument("--repo", required=True)
+    execution_ids(result)
 
     args = parser.parse_args(argv)
     repo = Path(args.repo)
@@ -1586,7 +1637,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
         return 0
 
-    loaded = _load_for_command(repo)
+    loaded = _load_for_command(args)
     if not loaded.ok:
         return _print_failure(loaded, state="not_started")
     attempt = loaded.value

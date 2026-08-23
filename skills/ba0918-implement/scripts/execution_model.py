@@ -228,6 +228,7 @@ def validate_binding(value: object) -> ModelResult:
         "repository_identity",
         "base_head",
         "branch",
+        "worktree",
         "write_scope",
         "human_gates",
         "executor",
@@ -275,6 +276,8 @@ def validate_binding(value: object) -> ModelResult:
         return _failure("base_head_invalid", "base_head", "base HEAD is invalid")
     if not isinstance(value["branch"], str) or not value["branch"] or value["branch"].startswith("-"):
         return _failure("branch_invalid", "branch", "branch name is invalid")
+    if not isinstance(value["worktree"], str) or not value["worktree"].strip():
+        return _failure("worktree_invalid", "worktree", "worktree path is invalid")
     scopes = value["write_scope"]
     if not isinstance(scopes, list) or not scopes or any(not _safe_relative_path(item) for item in scopes):
         return _failure("write_scope_invalid", "write_scope", "write scope is invalid")

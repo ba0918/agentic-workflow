@@ -424,11 +424,9 @@ class BootstrapTest(unittest.TestCase):
             self.assertFalse(worktree.joinpath("dirty-only.txt").exists())
             self.assertEqual(git(worktree, "rev-parse", "HEAD"), git(root, "rev-parse", "HEAD"))
             self.assertEqual(git(worktree, "rev-parse", "--show-toplevel"), str(worktree.resolve()))
-            claim = json.loads(
-                (root / ".agents/runtime/cycles/current.claim").read_text(encoding="utf-8")
-            )
-            self.assertEqual(claim["attempt_id"], attempt.attempt_id)
-            self.assertEqual(claim["plan_id"], plan_id)
+            self.assertFalse((root / ".agents/runtime").exists())
+            binding = json.loads(attempt.binding_path.read_text(encoding="utf-8"))
+            self.assertEqual(binding["worktree"], str(worktree.resolve()))
             events = sorted(attempt.evidence_path.glob("0*.json"))
             self.assertEqual([path.name for path in events], ["000001-worktree-bound.json"])
             self.assertLess(
@@ -436,29 +434,49 @@ class BootstrapTest(unittest.TestCase):
                 events[0].stat().st_mtime_ns,
             )
 
-    def test_existing_claim_prevents_all_attempt_writes(self) -> None:
+    def test_a_second_execution_of_the_same_plan_is_not_refused(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)
             root, _, _ = create_repository(parent)
-            claim = root / ".agents/runtime/cycles/current.claim"
-            claim.parent.mkdir(parents=True)
-            claim.write_text('{"attempt_id":"existing"}\n', encoding="utf-8")
-            before = claim.read_bytes()
             resolved = implement_runtime.resolve_plan(root).value
-
-            result = implement_runtime.bootstrap_attempt(
+            executor = {
+                "executor": "codex",
+                "backend": "unavailable",
+                "session_id": "unavailable",
+                "reason": "not exposed safely",
+            }
+            first = implement_runtime.bootstrap_attempt(
                 root,
                 resolved,
-                worktree_path=parent / "should-not-exist",
+                worktree_path=parent / "first-worktree",
                 attempt_id_factory=lambda: "20260822t152244-a1b2c3d4",
-                executor={"executor": "codex", "backend": "unavailable", "session_id": "unavailable"},
+                executor=executor,
+            )
+            self.assertTrue(first.ok, first.error)
+
+            second = implement_runtime.bootstrap_attempt(
+                root,
+                resolved,
+                worktree_path=parent / "second-worktree",
+                attempt_id_factory=lambda: "20260822t160000-b2c3d4e5",
+                executor=executor,
             )
 
+            self.assertTrue(second.ok, second.error)
+            self.assertNotEqual(first.value.branch, second.value.branch)
+            self.assertTrue((parent / "first-worktree").is_dir())
+            self.assertTrue((parent / "second-worktree").is_dir())
+
+    def test_binding_requires_the_worktree_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            binding = json.loads(attempt.binding_path.read_text(encoding="utf-8"))
+            del binding["worktree"]
+
+            result = implement_runtime.execution_model.validate_binding(binding)
+
             self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "cycle_claimed")
-            self.assertEqual(claim.read_bytes(), before)
-            self.assertFalse((root / ".agents/artifacts/executions").exists())
-            self.assertFalse((parent / "should-not-exist").exists())
+            self.assertEqual(result.error.code, "binding_fields_invalid")
 
     def test_attempt_id_collision_is_not_overwritten(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -557,7 +575,21 @@ class AtomicWriteTest(unittest.TestCase):
 
 
 class FreshSessionTest(unittest.TestCase):
-    def test_current_attempt_is_reconstructed_from_claim_binding_and_git(self) -> None:
+    def test_execution_is_reconstructed_from_its_evidence_directory_alone(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+
+            result = implement_runtime.load_current_attempt(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value.attempt_id, attempt.attempt_id)
+            self.assertEqual(result.value.worktree, attempt.worktree)
+            self.assertEqual(result.value.binding_path, attempt.binding_path)
+            self.assertFalse((root / ".agents/runtime").exists())
+
+    def test_the_only_unfinished_execution_of_the_current_plan_is_loaded_without_ids(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory))
 
@@ -565,8 +597,68 @@ class FreshSessionTest(unittest.TestCase):
 
             self.assertTrue(result.ok, result.error)
             self.assertEqual(result.value.attempt_id, attempt.attempt_id)
-            self.assertEqual(result.value.worktree, attempt.worktree)
-            self.assertEqual(result.value.binding_path, attempt.binding_path)
+
+    def test_several_unfinished_executions_require_explicit_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root, attempt = bootstrap_fixture(parent)
+            resolved = implement_runtime.resolve_plan(root).value
+            second = implement_runtime.bootstrap_attempt(
+                root,
+                resolved,
+                worktree_path=parent / "second-worktree",
+                attempt_id_factory=lambda: "20260822t160000-b2c3d4e5",
+                executor={
+                    "executor": "codex",
+                    "backend": "unavailable",
+                    "session_id": "unavailable",
+                    "reason": "not exposed safely",
+                },
+            )
+            self.assertTrue(second.ok, second.error)
+
+            result = implement_runtime.load_current_attempt(root)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "execution_ambiguous")
+            self.assertIn(attempt.attempt_id, result.error.detail)
+            self.assertIn("20260822t160000-b2c3d4e5", result.error.detail)
+
+    def test_missing_or_broken_evidence_is_reported_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            cases = {
+                "missing binding": lambda: attempt.binding_path.unlink(),
+                "broken binding": lambda: attempt.binding_path.write_text("{", encoding="utf-8"),
+                "missing worktree": lambda: git(root, "worktree", "remove", "--force", str(attempt.worktree)),
+            }
+            for case, damage in cases.items():
+                with self.subTest(case=case):
+                    before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
+                    damage()
+
+                    result = implement_runtime.load_current_attempt(
+                        root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+                    )
+
+                    self.assertFalse(result.ok)
+                    self.assertEqual(
+                        sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before
+                    )
+
+    def test_plan_identity_drift_stops_reconstruction(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            binding = json.loads(attempt.binding_path.read_text(encoding="utf-8"))
+            binding["plan"]["content_identity"] = "sha256:" + "0" * 64
+            attempt.binding_path.write_text(json.dumps(binding), encoding="utf-8")
+
+            result = implement_runtime.load_current_attempt(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "plan_identity_drift")
 
     def test_context_rejects_spec_drift_and_scope_drift(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
