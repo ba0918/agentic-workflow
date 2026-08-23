@@ -21,7 +21,7 @@ is not registered is `plan_registration_missing`; do not repair its locator or a
 path.
 
 ```text
-python3 <cycle-runtime> resolve --repo <main-checkout> [--plan-path <repo-relative-plan>]
+python3 <implement-runtime> resolve --repo <main-checkout> [--plan-path <repo-relative-plan>]
 ```
 
 When using a publication receipt, provide both `--receipt-path` and `--receipt-identity`.
@@ -34,7 +34,7 @@ Do not copy dirty main-checkout files into the execution.
 Choose a dedicated worktree path and run:
 
 ```text
-python3 <cycle-runtime> bootstrap \
+python3 <implement-runtime> bootstrap \
   --repo <main-checkout> \
   --worktree <dedicated-path> \
   --executor <safe-executor-name> \
@@ -61,7 +61,7 @@ that resolves outside the boundary is rejected.
 Conversation history is optional. Reconstruct the attempt from the main checkout:
 
 ```text
-python3 <cycle-runtime> load --repo <main-checkout>
+python3 <implement-runtime> load --repo <main-checkout>
 ```
 
 Then revalidate the current plan step before reading or editing implementation files. Step IDs
@@ -69,7 +69,7 @@ are `step-<n>`, taken from the `### <n>.` headings under the bound Plan's `## хо
 a Plan without that structure cannot be executed:
 
 ```text
-python3 <cycle-runtime> context --repo <main-checkout> --step step-<n>
+python3 <implement-runtime> context --repo <main-checkout> --step step-<n>
 ```
 
 The context check compares the immutable binding with the current locator, plan, specs, Git
@@ -82,7 +82,7 @@ Only decisions declared in the bound Plan are valid. Record a decision without f
 the helper computes the current target identity itself:
 
 ```text
-python3 <cycle-runtime> human-gate \
+python3 <implement-runtime> human-gate \
   --repo <main-checkout> --step step-<n> \
   --gate <declared-gate-id> --result <approved-or-rejected>
 ```
@@ -90,7 +90,7 @@ python3 <cycle-runtime> human-gate \
 Before editing a step, explicitly check its `before_edit` boundary:
 
 ```text
-python3 <cycle-runtime> check-gates \
+python3 <implement-runtime> check-gates \
   --repo <main-checkout> --step step-<n> --timing before_edit
 ```
 
@@ -107,7 +107,7 @@ On a blocking failure, freeze edits and commits first. Record the reason when du
 is writable:
 
 ```text
-python3 <cycle-runtime> stop \
+python3 <implement-runtime> stop \
   --repo <main-checkout> \
   --step step-<n> \
   --reason <stable-failure-code>

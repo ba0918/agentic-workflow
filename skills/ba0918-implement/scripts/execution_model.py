@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pure validation and state derivation for Cycle execution evidence."""
+"""Pure validation and state derivation for implement execution evidence."""
 
 from __future__ import annotations
 

@@ -13,11 +13,11 @@ from unittest import mock
 
 
 ROOT = Path(__file__).parents[1]
-RUNTIME_MODULE = ROOT / "skills/ba0918-cycle/scripts/cycle_runtime.py"
-SPEC = importlib.util.spec_from_file_location("cycle_runtime", RUNTIME_MODULE)
-cycle_runtime = importlib.util.module_from_spec(SPEC)
+RUNTIME_MODULE = ROOT / "skills/ba0918-implement/scripts/implement_runtime.py"
+SPEC = importlib.util.spec_from_file_location("implement_runtime", RUNTIME_MODULE)
+implement_runtime = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
-SPEC.loader.exec_module(cycle_runtime)
+SPEC.loader.exec_module(implement_runtime)
 
 
 PLAN_ARTIFACT_MODULE = ROOT / "skills/ba0918-plan/scripts/plan_artifact.py"
@@ -57,7 +57,7 @@ def create_repository(
     (root / "README.md").write_text("fixture\n", encoding="utf-8")
     test_target = root / "tests/greeting_test.py"
     test_target.parent.mkdir(parents=True)
-    test_target.write_text("# Cycle runtime target fixture\n", encoding="utf-8")
+    test_target.write_text("# implement runtime target fixture\n", encoding="utf-8")
     git(root, "add", ".gitignore", "README.md", "docs/spec/feature.md", "tests/greeting_test.py")
     git(root, "commit", "-m", "fixture baseline")
 
@@ -133,8 +133,8 @@ def bootstrap_fixture(
         human_gate=human_gate,
         human_gate_timing=human_gate_timing,
     )
-    resolved = cycle_runtime.resolve_plan(root).value
-    result = cycle_runtime.bootstrap_attempt(
+    resolved = implement_runtime.resolve_plan(root).value
+    result = implement_runtime.bootstrap_attempt(
         root,
         resolved,
         worktree_path=parent / "linked-worktree",
@@ -184,7 +184,7 @@ class PlanResolutionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root, plan_id, spec_identity = create_repository(Path(directory))
 
-            result = cycle_runtime.resolve_plan(root)
+            result = implement_runtime.resolve_plan(root)
 
             self.assertTrue(result.ok)
             self.assertEqual(result.value.plan_id, plan_id)
@@ -201,7 +201,7 @@ class PlanResolutionTest(unittest.TestCase):
     def test_a_temporary_plan_draft_is_never_resolved_as_the_current_plan(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, _, _ = create_repository(Path(directory))
-            registered = cycle_runtime.resolve_plan(root)
+            registered = implement_runtime.resolve_plan(root)
             self.assertTrue(registered.ok, registered.error)
             draft = plan_artifact.save_draft(
                 root,
@@ -211,13 +211,13 @@ class PlanResolutionTest(unittest.TestCase):
                 text=registered.value.text.replace("20260822150000", "20260822150001"),
             )
 
-            result = cycle_runtime.resolve_plan(
+            result = implement_runtime.resolve_plan(
                 root, explicit_path=draft.path.relative_to(root).as_posix()
             )
 
             self.assertFalse(result.ok)
             self.assertIn(result.error.code, {"plan_registration_missing", "unsafe_path"})
-            self.assertEqual(cycle_runtime.resolve_plan(root).value.plan_id, registered.value.plan_id)
+            self.assertEqual(implement_runtime.resolve_plan(root).value.plan_id, registered.value.plan_id)
 
     def test_explicit_unregistered_plan_is_rejected_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -228,7 +228,7 @@ class PlanResolutionTest(unittest.TestCase):
                 if path.is_file()
             }
 
-            result = cycle_runtime.resolve_plan(
+            result = implement_runtime.resolve_plan(
                 root,
                 explicit_path=".agents/artifacts/plans/20260822150001_missing.md",
             )
@@ -246,7 +246,7 @@ class PlanResolutionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root, plan_id, _ = create_repository(Path(directory))
 
-            result = cycle_runtime.resolve_plan(
+            result = implement_runtime.resolve_plan(
                 root,
                 receipt={
                     "path": f".agents/artifacts/plans/{plan_id}_fixture.md",
@@ -262,7 +262,7 @@ class PlanResolutionTest(unittest.TestCase):
             root, plan_id, _ = create_repository(Path(directory))
             path = f".agents/artifacts/plans/{plan_id}_fixture.md"
 
-            result = cycle_runtime.resolve_plan(
+            result = implement_runtime.resolve_plan(
                 root,
                 explicit_path=path,
                 receipt={
@@ -288,7 +288,7 @@ class PlanResolutionTest(unittest.TestCase):
             index["plans"][0]["content_identity"] = plan_artifact.content_identity(changed)
             index_path.write_text(json.dumps(index), encoding="utf-8")
 
-            result = cycle_runtime.resolve_plan(root)
+            result = implement_runtime.resolve_plan(root)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "plan_revision_drift")
@@ -300,7 +300,7 @@ class RepositoryDiscoveryTest(unittest.TestCase):
             bare = Path(directory) / "bare.git"
             subprocess.run(["git", "init", "--bare", str(bare)], check=True, capture_output=True)
 
-            result = cycle_runtime.discover_repository(bare)
+            result = implement_runtime.discover_repository(bare)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "bare_repository")
@@ -310,7 +310,7 @@ class RepositoryDiscoveryTest(unittest.TestCase):
             root = Path(directory)
             (root / ".git").write_text("gitdir: /definitely/missing\n", encoding="utf-8")
 
-            result = cycle_runtime.discover_repository(root)
+            result = implement_runtime.discover_repository(root)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "repository_unavailable")
@@ -344,10 +344,18 @@ class RepositoryDiscoveryTest(unittest.TestCase):
                 "nested",
             )
 
-            result = cycle_runtime.discover_repository(superproject / "nested")
+            result = implement_runtime.discover_repository(superproject / "nested")
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "submodule_repository")
+
+
+class BranchNamingTest(unittest.TestCase):
+    def test_execution_branch_is_named_implement_followed_by_the_execution_id(self) -> None:
+        self.assertEqual(
+            implement_runtime.execution_branch("20260822t152244-a1b2c3d4"),
+            "implement/20260822t152244-a1b2c3d4",
+        )
 
 
 class BootstrapTest(unittest.TestCase):
@@ -356,10 +364,10 @@ class BootstrapTest(unittest.TestCase):
             parent = Path(directory)
             root, plan_id, _ = create_repository(parent)
             (root / "dirty-only.txt").write_text("must stay in main\n", encoding="utf-8")
-            resolved = cycle_runtime.resolve_plan(root).value
+            resolved = implement_runtime.resolve_plan(root).value
             worktree = parent / "linked-worktree"
 
-            result = cycle_runtime.bootstrap_attempt(
+            result = implement_runtime.bootstrap_attempt(
                 root,
                 resolved,
                 worktree_path=worktree,
@@ -399,9 +407,9 @@ class BootstrapTest(unittest.TestCase):
             claim.parent.mkdir(parents=True)
             claim.write_text('{"attempt_id":"existing"}\n', encoding="utf-8")
             before = claim.read_bytes()
-            resolved = cycle_runtime.resolve_plan(root).value
+            resolved = implement_runtime.resolve_plan(root).value
 
-            result = cycle_runtime.bootstrap_attempt(
+            result = implement_runtime.bootstrap_attempt(
                 root,
                 resolved,
                 worktree_path=parent / "should-not-exist",
@@ -424,9 +432,9 @@ class BootstrapTest(unittest.TestCase):
             existing.mkdir(parents=True)
             marker = existing / "marker"
             marker.write_text("keep\n", encoding="utf-8")
-            resolved = cycle_runtime.resolve_plan(root).value
+            resolved = implement_runtime.resolve_plan(root).value
 
-            result = cycle_runtime.bootstrap_attempt(
+            result = implement_runtime.bootstrap_attempt(
                 root,
                 resolved,
                 worktree_path=parent / "should-not-exist",
@@ -456,7 +464,7 @@ class BootstrapTest(unittest.TestCase):
             marker = outside / "marker"
             marker.write_text("keep\n", encoding="utf-8")
 
-            result = cycle_runtime.bootstrap_attempt(
+            result = implement_runtime.bootstrap_attempt(
                 root,
                 None,
                 worktree_path=parent / "should-not-exist",
@@ -477,7 +485,7 @@ class AtomicWriteTest(unittest.TestCase):
             def deny(*_args, **_kwargs):
                 raise PermissionError("sandbox denied")
 
-            result = cycle_runtime.write_once(target, b"candidate\n", opener=deny)
+            result = implement_runtime.write_once(target, b"candidate\n", opener=deny)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "permission_required")
@@ -490,7 +498,7 @@ class AtomicWriteTest(unittest.TestCase):
             def read_only(*_args, **_kwargs):
                 raise OSError(30, "read-only filesystem")
 
-            result = cycle_runtime.write_once(target, b"candidate\n", opener=read_only)
+            result = implement_runtime.write_once(target, b"candidate\n", opener=read_only)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "persistence_unavailable")
@@ -504,7 +512,7 @@ class AtomicWriteTest(unittest.TestCase):
                 "mkdir",
                 side_effect=PermissionError(errno.EACCES, "denied"),
             ):
-                result = cycle_runtime.write_once(target, b"evidence")
+                result = implement_runtime.write_once(target, b"evidence")
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "permission_required")
@@ -516,7 +524,7 @@ class FreshSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory))
 
-            result = cycle_runtime.load_current_attempt(root)
+            result = implement_runtime.load_current_attempt(root)
 
             self.assertTrue(result.ok, result.error)
             self.assertEqual(result.value.attempt_id, attempt.attempt_id)
@@ -529,14 +537,14 @@ class FreshSessionTest(unittest.TestCase):
             spec = attempt.worktree / "docs/spec/feature.md"
             spec.write_text(spec.read_text(encoding="utf-8") + "changed\n", encoding="utf-8")
 
-            spec_result = cycle_runtime.validate_context(attempt, step_id="step-1")
+            spec_result = implement_runtime.validate_context(attempt, step_id="step-1")
 
             self.assertFalse(spec_result.ok)
             self.assertEqual(spec_result.error.code, "spec_identity_drift")
             git(attempt.worktree, "checkout", "--", "docs/spec/feature.md")
             (attempt.worktree / "outside.txt").write_text("outside\n", encoding="utf-8")
 
-            scope_result = cycle_runtime.validate_context(attempt, step_id="step-1")
+            scope_result = implement_runtime.validate_context(attempt, step_id="step-1")
 
             self.assertFalse(scope_result.ok)
             self.assertEqual(scope_result.error.code, "write_scope_violation")
@@ -546,7 +554,7 @@ class FreshSessionTest(unittest.TestCase):
             root, attempt = bootstrap_fixture(Path(directory))
             forged = attempt._replace(worktree=Path(directory) / "repository")
 
-            result = cycle_runtime.validate_context(forged, step_id="step-1")
+            result = implement_runtime.validate_context(forged, step_id="step-1")
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "worktree_identity_drift")
@@ -568,29 +576,29 @@ class EventPersistenceTest(unittest.TestCase):
                     ),
                 ]
             )
-            self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
+            self.assertTrue(implement_runtime.accept_red(attempt, candidate).ok)
             production = attempt.worktree / "src/greeting.py"
             production.parent.mkdir(parents=True)
             production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
-            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
-            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
             self.assertTrue(
-                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+                implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
             )
             previous_head = git(attempt.worktree, "rev-parse", "HEAD")
             git(attempt.worktree, "commit", "-m", "feat: add greeting")
             self.assertTrue(
-                cycle_runtime.record_commit(attempt, "step-1", previous_head).ok
+                implement_runtime.record_commit(attempt, "step-1", previous_head).ok
             )
 
-            missing = cycle_runtime.mark_implementation_green(attempt)
-            approved = cycle_runtime.record_human_gate(
+            missing = implement_runtime.mark_implementation_green(attempt)
+            approved = implement_runtime.record_human_gate(
                 attempt,
                 step_id="step-1",
                 gate_id="approve-greeting",
                 result="approved",
             )
-            terminal = cycle_runtime.mark_implementation_green(attempt)
+            terminal = implement_runtime.mark_implementation_green(attempt)
 
             self.assertEqual(missing.error.code, "human_gate_missing")
             self.assertTrue(approved.ok, approved.error)
@@ -611,24 +619,24 @@ class EventPersistenceTest(unittest.TestCase):
                     ),
                 ]
             )
-            self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
+            self.assertTrue(implement_runtime.accept_red(attempt, candidate).ok)
             production = attempt.worktree / "src/greeting.py"
             production.parent.mkdir(parents=True)
             production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
-            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
-            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
             self.assertTrue(
-                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+                implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
             )
             previous_head = git(attempt.worktree, "rev-parse", "HEAD")
             git(attempt.worktree, "commit", "-m", "feat: add greeting")
-            self.assertTrue(cycle_runtime.record_commit(attempt, "step-1", previous_head).ok)
+            self.assertTrue(implement_runtime.record_commit(attempt, "step-1", previous_head).ok)
             (attempt.worktree / "tests/greeting_test.py").write_text(
                 "# weakened after the commit\n",
                 encoding="utf-8",
             )
 
-            result = cycle_runtime.mark_implementation_green(attempt)
+            result = implement_runtime.mark_implementation_green(attempt)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "test_identity_drift")
@@ -637,19 +645,19 @@ class EventPersistenceTest(unittest.TestCase):
             _, attempt = bootstrap_fixture(Path(directory))
             details = {"reason": "permission_required", "step_id": "step-1"}
 
-            first = cycle_runtime.append_event(
+            first = implement_runtime.append_event(
                 attempt,
                 "stopped",
                 details,
                 sequence=2,
             )
-            same = cycle_runtime.append_event(
+            same = implement_runtime.append_event(
                 attempt,
                 "stopped",
                 details,
                 sequence=2,
             )
-            collision = cycle_runtime.append_event(
+            collision = implement_runtime.append_event(
                 attempt,
                 "stopped",
                 {"reason": "persistence_unavailable", "step_id": "step-1"},
@@ -667,13 +675,13 @@ class EventPersistenceTest(unittest.TestCase):
     def test_result_is_derived_without_a_result_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
-            cycle_runtime.append_event(
+            implement_runtime.append_event(
                 attempt,
                 "stopped",
                 {"reason": "identity_drift", "step_id": "step-1"},
             )
 
-            result = cycle_runtime.derive_attempt_result(attempt)
+            result = implement_runtime.derive_attempt_result(attempt)
 
             self.assertEqual(result["state"], "stopped")
             self.assertEqual(result["reason"], "identity_drift")
@@ -684,7 +692,7 @@ class EventPersistenceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
 
-            missing = cycle_runtime.mark_implementation_green(attempt)
+            missing = implement_runtime.mark_implementation_green(attempt)
             self.assertFalse(missing.ok)
             self.assertEqual(missing.error.code, "commit_missing")
             candidate = red_oracle(
@@ -699,24 +707,24 @@ class EventPersistenceTest(unittest.TestCase):
                     ),
                 ]
             )
-            self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
+            self.assertTrue(implement_runtime.accept_red(attempt, candidate).ok)
             production = attempt.worktree / "src/greeting.py"
             production.parent.mkdir(parents=True)
             production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
-            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
-            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
             self.assertTrue(
-                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+                implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
             )
             previous_head = git(attempt.worktree, "rev-parse", "HEAD")
             git(attempt.worktree, "commit", "-m", "feat: add greeting")
             commit_sha = git(attempt.worktree, "rev-parse", "HEAD")
             self.assertTrue(
-                cycle_runtime.record_commit(attempt, "step-1", previous_head).ok
+                implement_runtime.record_commit(attempt, "step-1", previous_head).ok
             )
 
-            terminal = cycle_runtime.mark_implementation_green(attempt)
-            result = cycle_runtime.derive_attempt_result(attempt)
+            terminal = implement_runtime.mark_implementation_green(attempt)
+            result = implement_runtime.derive_attempt_result(attempt)
 
             self.assertTrue(terminal.ok, terminal.error)
             self.assertEqual(terminal.value["event_type"], "implementation_green")
@@ -726,13 +734,13 @@ class EventPersistenceTest(unittest.TestCase):
     def test_implementation_green_rejects_a_committed_step_without_tdd_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
-            cycle_runtime.append_event(
+            implement_runtime.append_event(
                 attempt,
                 "commit",
                 {"step_id": "step-1", "commit_sha": "7" * 40, "outcome": "committed"},
             )
 
-            result = cycle_runtime.mark_implementation_green(attempt)
+            result = implement_runtime.mark_implementation_green(attempt)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "step_evidence_missing")
@@ -752,27 +760,27 @@ class EventPersistenceTest(unittest.TestCase):
                     ),
                 ]
             )
-            self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
+            self.assertTrue(implement_runtime.accept_red(attempt, candidate).ok)
             production = attempt.worktree / "src/greeting.py"
             production.parent.mkdir(parents=True)
             production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
-            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
-            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
             self.assertTrue(
-                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+                implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
             )
             previous_head = git(attempt.worktree, "rev-parse", "HEAD")
             git(attempt.worktree, "commit", "-m", "feat: add greeting")
             self.assertTrue(
-                cycle_runtime.record_commit(attempt, "step-1", previous_head).ok
+                implement_runtime.record_commit(attempt, "step-1", previous_head).ok
             )
             production.write_text("changed after final verification\n", encoding="utf-8")
 
-            result = cycle_runtime.mark_implementation_green(attempt)
+            result = implement_runtime.mark_implementation_green(attempt)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "post_verification_dirty")
-            self.assertEqual(cycle_runtime.derive_attempt_result(attempt)["state"], "stopped")
+            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["state"], "stopped")
 
 
 class OracleExecutionTest(unittest.TestCase):
@@ -784,7 +792,7 @@ Ran 5 tests in 0.012s
 FAILED (failures=1, errors=1, skipped=1)
 """
 
-        summary = cycle_runtime._test_summary("", output)
+        summary = implement_runtime._test_summary("", output)
 
         self.assertEqual(
             summary,
@@ -822,7 +830,7 @@ FAILED (failures=1, errors=1, skipped=1)
 
         for case, (output, expected) in cases.items():
             with self.subTest(case=case):
-                self.assertEqual(cycle_runtime._test_summary("", output), expected)
+                self.assertEqual(implement_runtime._test_summary("", output), expected)
 
     def test_oracle_cwd_cannot_escape_the_worktree_through_a_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -834,7 +842,7 @@ FAILED (failures=1, errors=1, skipped=1)
             oracle = red_oracle(["python3", "-c", "raise SystemExit(0)"])
             oracle["cwd"] = "linked-cwd"
 
-            result = cycle_runtime._execute_oracle(attempt, oracle)
+            result = implement_runtime._execute_oracle(attempt, oracle)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "unsafe_path")
@@ -850,7 +858,7 @@ FAILED (failures=1, errors=1, skipped=1)
                 ]
             )
 
-            result = cycle_runtime.accept_red(attempt, oracle)
+            result = implement_runtime.accept_red(attempt, oracle)
 
             self.assertTrue(result.ok, result.error)
             oracle_path = attempt.evidence_path / "oracles/step-1.json"
@@ -866,7 +874,7 @@ FAILED (failures=1, errors=1, skipped=1)
             oracle = red_oracle(
                 ["python3", "-c", "import sys; print('greeting missing'); sys.exit(1)"]
             )
-            result = cycle_runtime.accept_red(attempt, oracle)
+            result = implement_runtime.accept_red(attempt, oracle)
 
             self.assertTrue(result.ok, result.error)
             frozen = json.loads(
@@ -889,12 +897,12 @@ FAILED (failures=1, errors=1, skipped=1)
                 ]
             )
 
-            result = cycle_runtime.accept_red(attempt, oracle)
+            result = implement_runtime.accept_red(attempt, oracle)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "spec_identity_drift")
             self.assertFalse((attempt.evidence_path / "oracles/step-1.json").exists())
-            self.assertEqual(cycle_runtime.derive_attempt_result(attempt)["state"], "stopped")
+            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["state"], "stopped")
 
     def test_import_failure_is_not_accepted_as_red(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -903,15 +911,15 @@ FAILED (failures=1, errors=1, skipped=1)
                 [
                     "python3",
                     "-c",
-                    "import module_that_does_not_exist_for_cycle_fixture",
+                    "import module_that_does_not_exist_for_implement_fixture",
                 ]
             )
 
-            result = cycle_runtime.accept_red(attempt, oracle)
+            result = implement_runtime.accept_red(attempt, oracle)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "unintended_red")
-            self.assertEqual(cycle_runtime.derive_attempt_result(attempt)["state"], "stopped")
+            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["state"], "stopped")
             self.assertFalse((attempt.evidence_path / "oracles/step-1.json").exists())
 
     def test_generic_unittest_summary_is_rejected_before_red_execution(self) -> None:
@@ -931,22 +939,22 @@ FAILED (failures=1, errors=1, skipped=1)
             )
             oracle["failure_signature"] = "FAILED (errors=1)"
 
-            result = cycle_runtime.accept_red(attempt, oracle)
+            result = implement_runtime.accept_red(attempt, oracle)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "oracle_failure_signature_invalid")
-            self.assertEqual(cycle_runtime.derive_attempt_result(attempt)["state"], "stopped")
+            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["state"], "stopped")
             self.assertFalse((attempt.evidence_path / "oracles/step-1.json").exists())
 
     def test_process_classification_uses_diagnostics_before_generic_summary(self) -> None:
         stderr = "ModuleNotFoundError: No module named 'src'\nFAILED (errors=1)\n"
 
         self.assertEqual(
-            cycle_runtime._classify_process_failure("", stderr),
+            implement_runtime._classify_process_failure("", stderr),
             "import_failure",
         )
         self.assertEqual(
-            cycle_runtime._bounded_observation("", stderr),
+            implement_runtime._bounded_observation("", stderr),
             "ModuleNotFoundError: No module named 'src'",
         )
 
@@ -965,13 +973,13 @@ FAILED (failures=1, errors=1, skipped=1)
                     ),
                 ]
             )
-            self.assertTrue(cycle_runtime.accept_red(attempt, oracle).ok)
+            self.assertTrue(implement_runtime.accept_red(attempt, oracle).ok)
             production = attempt.worktree / "src/greeting.py"
             production.parent.mkdir(parents=True)
             production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
 
-            green = cycle_runtime.run_frozen_oracle(attempt, "step-1", "green")
-            refactor = cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor")
+            green = implement_runtime.run_frozen_oracle(attempt, "step-1", "green")
+            refactor = implement_runtime.run_frozen_oracle(attempt, "step-1", "refactor")
 
             self.assertTrue(green.ok, green.error)
             self.assertTrue(refactor.ok, refactor.error)
@@ -989,14 +997,14 @@ FAILED (failures=1, errors=1, skipped=1)
                     "import sys; print('greeting missing'); sys.exit(1)",
                 ]
             )
-            red = cycle_runtime.accept_red(attempt, oracle)
+            red = implement_runtime.accept_red(attempt, oracle)
             self.assertTrue(red.ok)
             oracle_path = attempt.evidence_path / "oracles/step-1.json"
             changed = json.loads(oracle_path.read_text(encoding="utf-8"))
             changed["command"] = ["python3", "-c", "raise SystemExit(0)"]
             oracle_path.write_text(json.dumps(changed), encoding="utf-8")
 
-            result = cycle_runtime.run_frozen_oracle(attempt, "step-1", "green")
+            result = implement_runtime.run_frozen_oracle(attempt, "step-1", "green")
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "oracle_identity_drift")
@@ -1007,14 +1015,14 @@ FAILED (failures=1, errors=1, skipped=1)
             candidate = red_oracle(
                 ["python3", "-c", "import sys; print('greeting missing'); sys.exit(1)"]
             )
-            red = cycle_runtime.accept_red(attempt, candidate)
+            red = implement_runtime.accept_red(attempt, candidate)
             self.assertTrue(red.ok, red.error)
             (attempt.worktree / "tests/greeting_test.py").write_text(
                 "# weakened after RED\n",
                 encoding="utf-8",
             )
 
-            result = cycle_runtime.run_frozen_oracle(attempt, "step-1", "green")
+            result = implement_runtime.run_frozen_oracle(attempt, "step-1", "green")
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "test_identity_drift")
@@ -1025,11 +1033,11 @@ FAILED (failures=1, errors=1, skipped=1)
             candidate = red_oracle(
                 ["python3", "-c", "import sys; print('greeting missing'); sys.exit(1)"]
             )
-            denied = cycle_runtime._failure(
+            denied = implement_runtime._failure(
                 "permission_required",
                 "oracle command requires additional permission",
             )
-            expected_red = cycle_runtime._ok(
+            expected_red = implement_runtime._ok(
                 {
                     "exit_code": 1,
                     "observation": "greeting missing",
@@ -1041,14 +1049,14 @@ FAILED (failures=1, errors=1, skipped=1)
                 }
             )
             with mock.patch.object(
-                cycle_runtime,
+                implement_runtime,
                 "_execute_oracle",
                 side_effect=[denied, expected_red],
             ):
-                first = cycle_runtime.accept_red(attempt, candidate)
-                second = cycle_runtime.accept_red(attempt, candidate)
+                first = implement_runtime.accept_red(attempt, candidate)
+                second = implement_runtime.accept_red(attempt, candidate)
 
-            events = cycle_runtime._load_events(attempt).value
+            events = implement_runtime._load_events(attempt).value
             self.assertEqual(first.error.code, "permission_required")
             self.assertTrue(second.ok, second.error)
             self.assertEqual([event["event_type"] for event in events], [
@@ -1072,12 +1080,12 @@ class CommitBoundaryTest(unittest.TestCase):
                 ),
             ]
         )
-        self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
+        self.assertTrue(implement_runtime.accept_red(attempt, candidate).ok)
         production = attempt.worktree / "src/greeting.py"
         production.parent.mkdir(parents=True)
         production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
-        self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
-        self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+        self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+        self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
         return production
 
     def test_frozen_test_target_drift_blocks_staging(self) -> None:
@@ -1095,18 +1103,18 @@ class CommitBoundaryTest(unittest.TestCase):
                     ),
                 ]
             )
-            self.assertTrue(cycle_runtime.accept_red(attempt, candidate).ok)
+            self.assertTrue(implement_runtime.accept_red(attempt, candidate).ok)
             production = attempt.worktree / "src/greeting.py"
             production.parent.mkdir(parents=True)
             production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
-            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
-            self.assertTrue(cycle_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
             (attempt.worktree / "tests/greeting_test.py").write_text(
                 "# weakened before staging\n",
                 encoding="utf-8",
             )
 
-            result = cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1")
+            result = implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1")
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "test_identity_drift")
@@ -1117,11 +1125,11 @@ class CommitBoundaryTest(unittest.TestCase):
             _, attempt = bootstrap_fixture(Path(directory))
             self.prepare_green_change(attempt)
 
-            staged = cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1")
+            staged = implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1")
             self.assertTrue(staged.ok, staged.error)
             previous_head = git(attempt.worktree, "rev-parse", "HEAD")
             git(attempt.worktree, "commit", "-m", "feat: add greeting")
-            recorded = cycle_runtime.record_commit(attempt, "step-1", previous_head)
+            recorded = implement_runtime.record_commit(attempt, "step-1", previous_head)
 
             self.assertTrue(recorded.ok, recorded.error)
             self.assertEqual(recorded.value["event_type"], "commit")
@@ -1137,11 +1145,11 @@ class CommitBoundaryTest(unittest.TestCase):
             git(attempt.worktree, "add", "outside.txt")
             git(attempt.worktree, "commit", "-m", "chore: hidden outside change")
             self.assertTrue(
-                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+                implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
             )
             git(attempt.worktree, "commit", "-m", "feat: add greeting")
 
-            result = cycle_runtime.record_commit(attempt, "step-1", previous_head)
+            result = implement_runtime.record_commit(attempt, "step-1", previous_head)
 
             self.assertFalse(result.ok)
             self.assertIn(result.error.code, {"commit_range_invalid", "write_scope_violation"})
@@ -1156,13 +1164,13 @@ class CommitBoundaryTest(unittest.TestCase):
             git(attempt.worktree, "commit", "-m", "chore: hidden outside change")
             hidden_head = git(attempt.worktree, "rev-parse", "HEAD")
             self.assertTrue(
-                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+                implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
             )
             git(attempt.worktree, "commit", "-m", "feat: add greeting")
-            recorded = cycle_runtime.record_commit(attempt, "step-1", hidden_head)
+            recorded = implement_runtime.record_commit(attempt, "step-1", hidden_head)
             self.assertTrue(recorded.ok, recorded.error)
 
-            result = cycle_runtime.mark_implementation_green(attempt)
+            result = implement_runtime.mark_implementation_green(attempt)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "commit_history_mismatch")
@@ -1172,13 +1180,13 @@ class CommitBoundaryTest(unittest.TestCase):
             _, attempt = bootstrap_fixture(Path(directory))
             production = self.prepare_green_change(attempt)
             self.assertTrue(
-                cycle_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+                implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
             )
             previous_head = git(attempt.worktree, "rev-parse", "HEAD")
             git(attempt.worktree, "commit", "-m", "feat: add greeting")
             production.write_text("changed after commit\n", encoding="utf-8")
 
-            result = cycle_runtime.record_commit(attempt, "step-1", previous_head)
+            result = implement_runtime.record_commit(attempt, "step-1", previous_head)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "post_commit_dirty")
@@ -1189,7 +1197,7 @@ class CommitBoundaryTest(unittest.TestCase):
             outside = attempt.worktree / "outside.txt"
             outside.write_text("outside\n", encoding="utf-8")
 
-            result = cycle_runtime.stage_paths(attempt, ["outside.txt"], step_id="step-1")
+            result = implement_runtime.stage_paths(attempt, ["outside.txt"], step_id="step-1")
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "write_scope_violation")
@@ -1203,7 +1211,7 @@ class CommitBoundaryTest(unittest.TestCase):
             production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
             (attempt.worktree / "outside.txt").write_text("outside\n", encoding="utf-8")
 
-            result = cycle_runtime.stage_paths(
+            result = implement_runtime.stage_paths(
                 attempt,
                 ["src/greeting.py", "outside.txt"],
                 step_id="step-1",
@@ -1220,7 +1228,7 @@ class CommitBoundaryTest(unittest.TestCase):
             production.parent.mkdir(parents=True)
             production.write_text("API_TOKEN=not-a-real-token\n", encoding="utf-8")
 
-            result = cycle_runtime.stage_paths(
+            result = implement_runtime.stage_paths(
                 attempt,
                 ["src/greeting.py"],
                 step_id="step-1",
@@ -1233,7 +1241,7 @@ class CommitBoundaryTest(unittest.TestCase):
 
 class InstructionContractTest(unittest.TestCase):
     def test_instructions_describe_the_current_runtime_boundaries(self) -> None:
-        skill_root = ROOT / "skills/ba0918-cycle"
+        skill_root = ROOT / "skills/ba0918-implement"
         skill = (skill_root / "SKILL.md").read_text(encoding="utf-8")
         execution = (skill_root / "references/execution.md").read_text(encoding="utf-8")
         tdd = (skill_root / "references/tdd.md").read_text(encoding="utf-8")
@@ -1253,26 +1261,26 @@ class CommandLineTest(unittest.TestCase):
     def call_main(self, arguments: list[str]) -> tuple[int, dict]:
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            exit_code = cycle_runtime.main(arguments)
+            exit_code = implement_runtime.main(arguments)
         return exit_code, json.loads(output.getvalue())
 
     def test_attempt_id_generation_is_path_safe_and_injectable(self) -> None:
-        attempt_id = cycle_runtime.generate_attempt_id(
+        attempt_id = implement_runtime.generate_attempt_id(
             now=lambda: "20260822t160000",
             random_suffix=lambda: "a1b2c3d4",
         )
 
         self.assertEqual(attempt_id, "20260822t160000-a1b2c3d4")
-        self.assertIsNotNone(cycle_runtime.execution_model.ATTEMPT_ID.fullmatch(attempt_id))
+        self.assertIsNotNone(implement_runtime.execution_model.ATTEMPT_ID.fullmatch(attempt_id))
 
     def test_help_lists_human_gate_commands_and_invalid_results_are_cli_errors(self) -> None:
         help_output = io.StringIO()
         with contextlib.redirect_stdout(help_output), self.assertRaises(SystemExit) as help_exit:
-            cycle_runtime.main(["--help"])
+            implement_runtime.main(["--help"])
 
         error_output = io.StringIO()
         with contextlib.redirect_stderr(error_output), self.assertRaises(SystemExit) as error_exit:
-            cycle_runtime.main(
+            implement_runtime.main(
                 [
                     "human-gate",
                     "--repo",
@@ -1298,7 +1306,7 @@ class CommandLineTest(unittest.TestCase):
             output = io.StringIO()
 
             with contextlib.redirect_stdout(output):
-                exit_code = cycle_runtime.main(["resolve", "--repo", str(root)])
+                exit_code = implement_runtime.main(["resolve", "--repo", str(root)])
 
             payload = json.loads(output.getvalue())
             self.assertEqual(exit_code, 0)
@@ -1356,7 +1364,7 @@ class CommandLineTest(unittest.TestCase):
             self.assertEqual(missing_code, 2)
             self.assertEqual(missing["reason"], "human_gate_missing")
             self.assertTrue(
-                cycle_runtime.record_human_gate(
+                implement_runtime.record_human_gate(
                     attempt,
                     step_id="step-1",
                     gate_id="approve-greeting",
@@ -1386,7 +1394,7 @@ class CommandLineTest(unittest.TestCase):
             output = io.StringIO()
 
             with contextlib.redirect_stdout(output):
-                exit_code = cycle_runtime.main(["resolve", "--repo", str(root)])
+                exit_code = implement_runtime.main(["resolve", "--repo", str(root)])
 
             payload = json.loads(output.getvalue())
             self.assertEqual(exit_code, 2)

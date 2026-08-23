@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Filesystem, Git, and process boundaries for a normal Cycle execution."""
+"""Filesystem, Git, and process boundaries for one implement execution."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ def _load_module(name: str, path: Path):
     return module
 
 
-execution_model = _load_module("ba0918_cycle_execution_model", SCRIPT_DIR / "execution_model.py")
+execution_model = _load_module("ba0918_implement_execution_model", SCRIPT_DIR / "execution_model.py")
 plan_artifact = _load_module(
     "ba0918_plan_artifact_consumer",
     SCRIPT_DIR.parents[1] / "ba0918-plan/scripts/plan_artifact.py",
@@ -117,11 +117,11 @@ def discover_repository(checkout: Path) -> RuntimeResult:
     if bare.returncode != 0:
         return _failure("repository_unavailable", "path is not a Git repository", bare.stderr.strip())
     if bare.stdout.strip() == "true":
-        return _failure("bare_repository", "bare repositories cannot host Cycle worktrees")
+        return _failure("bare_repository", "bare repositories cannot host implement worktrees")
 
     superproject = _git(candidate, "rev-parse", "--show-superproject-working-tree")
     if superproject.returncode == 0 and superproject.stdout.strip():
-        return _failure("submodule_repository", "submodules are not accepted as Cycle repositories")
+        return _failure("submodule_repository", "submodules are not accepted as implement repositories")
     top = _git(candidate, "rev-parse", "--show-toplevel")
     common = _git(candidate, "rev-parse", "--path-format=absolute", "--git-common-dir")
     head = _git(candidate, "rev-parse", "HEAD")
@@ -376,6 +376,10 @@ def _preflight(main_checkout: Path, common_directory: Path) -> RuntimeResult:
     return _ok()
 
 
+def execution_branch(execution_id: str) -> str:
+    return f"implement/{execution_id}"
+
+
 def bootstrap_attempt(
     project_root: Path,
     resolved_plan: ResolvedPlan | None,
@@ -405,7 +409,7 @@ def bootstrap_attempt(
     attempt_id = attempt_id_factory()
     if not execution_model.ATTEMPT_ID.fullmatch(attempt_id):
         return _failure("attempt_id_invalid", "generated attempt id is not path-safe")
-    branch = f"cycle/{attempt_id}"
+    branch = execution_branch(attempt_id)
     evidence_path = (
         main_checkout
         / ".agents/artifacts/executions"
@@ -1506,7 +1510,7 @@ def _load_for_command(repo: Path) -> RuntimeResult:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Bind and verify one normal Cycle execution")
+    parser = argparse.ArgumentParser(description="Bind and verify one implement execution")
     commands = parser.add_subparsers(dest="command", required=True)
 
     resolve = commands.add_parser("resolve", help="resolve and validate a registered plan")

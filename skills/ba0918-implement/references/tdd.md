@@ -60,7 +60,7 @@ failure is not an expected RED.
 4. Run, passing the file path (not inline JSON):
 
 ```text
-python3 <cycle-runtime> accept-red --repo <main-checkout> --oracle <path-to-oracle.json>
+python3 <implement-runtime> accept-red --repo <main-checkout> --oracle <path-to-oracle.json>
 ```
 
 The helper runs the command inside the linked worktree, revalidates identities after the command,
@@ -77,7 +77,7 @@ Write only the production code needed for the accepted RED. Do not change the fr
 fixture, command, cwd, environment names, timeout, or expected signature.
 
 ```text
-python3 <cycle-runtime> run-oracle \
+python3 <implement-runtime> run-oracle \
   --repo <main-checkout> --step step-<n> --phase green
 ```
 
@@ -94,7 +94,7 @@ in the hand-off instead of editing.
 Run the same frozen oracle afterwards, including when no code change was needed:
 
 ```text
-python3 <cycle-runtime> run-oracle \
+python3 <implement-runtime> run-oracle \
   --repo <main-checkout> --step step-<n> --phase refactor
 ```
 
@@ -111,7 +111,7 @@ share a commit.
    for a further file is reported as `stage_scope_mismatch`:
 
 ```text
-python3 <cycle-runtime> stage \
+python3 <implement-runtime> stage \
   --repo <main-checkout> --step step-<n> \
   --path <first-file> [--path <next-file>]
 ```
@@ -123,7 +123,7 @@ python3 <cycle-runtime> stage \
 5. Record the resulting commit:
 
 ```text
-python3 <cycle-runtime> record-commit \
+python3 <implement-runtime> record-commit \
   --repo <main-checkout> --step step-<n> --previous-head <sha>
 ```
 
@@ -138,8 +138,8 @@ After every Plan step has current RED, GREEN, REFACTOR, and commit evidence, run
 project verification the Plan requires (it never replaces the frozen oracle), then:
 
 ```text
-python3 <cycle-runtime> implementation-green --repo <main-checkout>
-python3 <cycle-runtime> result --repo <main-checkout>
+python3 <implement-runtime> implementation-green --repo <main-checkout>
+python3 <implement-runtime> result --repo <main-checkout>
 ```
 
 Return `implementation_green` as a review hand-off. Do not call it completed, merge it, update the

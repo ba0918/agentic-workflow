@@ -1,9 +1,9 @@
 ---
-name: ba0918-cycle
+name: ba0918-implement
 description: Use when an approved, registered implementation plan must be executed through RED, GREEN, REFACTOR, and scoped commits in a dedicated linked worktree. Stops on drift or unintended RED and hands implementation_green evidence to review without completing or recovering the plan.
 ---
 
-# Cycle
+# Implement
 
 Execute one approved plan directly. Keep the main checkout unchanged and bind every edit, test,
 and commit to one immutable attempt.
@@ -34,7 +34,7 @@ and commit to one immutable attempt.
 
 ## Runtime
 
-Use the deterministic helper at `scripts/cycle_runtime.py`. Resolve its absolute path from this
+Use the deterministic helper at `scripts/implement_runtime.py`. Resolve its absolute path from this
 skill directory; do not recreate its validation in shell or prose.
 
 The helper creates and validates durable evidence. The agent still owns the semantic work:
