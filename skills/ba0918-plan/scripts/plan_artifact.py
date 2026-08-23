@@ -17,14 +17,14 @@ from typing import NamedTuple
 PLAN_ID = re.compile(r"[0-9]{14}")
 IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")
 GATE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
-SECTION_NAME = re.compile(r"「([^「」]+)」")
+SECTION_NAME = re.compile(r"`([^`]+)`")
 PLAN_STORE = PurePosixPath(".agents/artifacts/plans")
 DRAFT_STORE = PurePosixPath(".agents/tmp/plans")
 DRAFT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 INDEX_NAME = "open-plans.json"
 HUMAN_GATE_TIMINGS = {"before_edit", "before_commit", "before_implementation_green"}
 HUMAN_GATE_RESULTS = ("approved", "rejected")
-COMPLETION_KINDS = ("テストで示す", "作った物で示す", "外で確かめる")
+COMPLETION_KINDS = ("test", "artifact", "external")
 TREE_ENTRY = re.compile(r"[^\s/#][^\s]*")
 
 
@@ -130,7 +130,7 @@ def content_identity(text: str) -> str:
 
 
 def _target_specification_block(text: str) -> str:
-    match = re.search(r"^\*\*対象仕様:\*\*[ \t]*\n+(.*?)(?=\n\s*\n|\Z)", text, re.MULTILINE | re.DOTALL)
+    match = re.search(r"^\*\*Target specifications:\*\*[ \t]*\n+(.*?)(?=\n\s*\n|\Z)", text, re.MULTILINE | re.DOTALL)
     if match is None:
         return ""
     return match.group(1)
@@ -140,24 +140,24 @@ def _target_specifications(text: str) -> tuple[TargetSpecification, ...]:
     block = _target_specification_block(text)
     items = re.split(r"^- ", block, flags=re.MULTILINE)[1:]
     if not items:
-        raise InvalidPlanFormat("**対象仕様:** must list at least one specification")
+        raise InvalidPlanFormat("**Target specifications:** must list at least one specification")
     specifications = []
     for item in items:
         head, _, details = item.partition("\n")
         path_match = re.fullmatch(r"`([^`]+)`\s*", head)
         if path_match is None:
-            raise InvalidPlanFormat(f"対象仕様 item must start with a backquoted path: {head.strip()}")
+            raise InvalidPlanFormat(f"Target specifications item must start with a backquoted path: {head.strip()}")
         path = path_match.group(1)
         candidate = PurePosixPath(path)
         if candidate.is_absolute() or ".." in candidate.parts or not candidate.parts:
-            raise InvalidPlanFormat(f"対象仕様 path must be repository-relative: {path}")
-        identity_match = re.search(r"^\s*- 内容identity: `([^`]*)`\s*$", details, re.MULTILINE)
+            raise InvalidPlanFormat(f"Target specifications path must be repository-relative: {path}")
+        identity_match = re.search(r"^\s*- content identity: `([^`]*)`\s*$", details, re.MULTILINE)
         if identity_match is None or IDENTITY.fullmatch(identity_match.group(1)) is None:
-            raise InvalidPlanFormat(f"対象仕様 item needs a sha256 内容identity: {path}")
-        sections_match = re.search(r"^\s*- 該当する節:(.*)$", details, re.MULTILINE)
+            raise InvalidPlanFormat(f"Target specifications item needs a sha256 content identity: {path}")
+        sections_match = re.search(r"^\s*- sections:(.*)$", details, re.MULTILINE)
         sections = tuple(SECTION_NAME.findall(sections_match.group(1))) if sections_match else ()
         if not sections:
-            raise InvalidPlanFormat(f"対象仕様 item needs at least one 該当する節 in 「」: {path}")
+            raise InvalidPlanFormat(f"Target specifications item needs at least one backquoted name under sections: {path}")
         specifications.append(TargetSpecification(path, identity_match.group(1), sections))
     return tuple(specifications)
 
@@ -173,8 +173,8 @@ def read_plan_header(text: str) -> PlanHeader:
     revision = re.search(r"^\*\*Plan revision:\*\* `([^`]*)`", text, re.MULTILINE)
     if revision is None or re.fullmatch(r"[1-9][0-9]*", revision.group(1)) is None:
         raise InvalidPlanFormat("**Plan revision:** with a positive integer is missing")
-    if re.search(r"^\*\*対象仕様:\*\*", text, re.MULTILINE) is None:
-        raise InvalidPlanFormat("**対象仕様:** is missing")
+    if re.search(r"^\*\*Target specifications:\*\*", text, re.MULTILINE) is None:
+        raise InvalidPlanFormat("**Target specifications:** is missing")
     return PlanHeader(plan_id.group(1), int(revision.group(1)), _target_specifications(text))
 
 
@@ -186,13 +186,13 @@ def _section_body(text: str, heading: str) -> str:
 
 
 def read_plan_scope(text: str) -> tuple[str, ...]:
-    body = _section_body(text, "変更するもの")
+    body = _section_body(text, "Scope")
     block = re.search(r"^```text[ \t]*\n(.*?)^```", body, re.MULTILINE | re.DOTALL)
     if block is None:
-        raise InvalidPlanFormat("## 変更するもの needs a text code block holding the file tree")
+        raise InvalidPlanFormat("## Scope needs a text code block holding the file tree")
     lines = [line for line in block.group(1).splitlines() if line.strip()]
     if not lines:
-        raise InvalidPlanFormat("## 変更するもの file tree is empty")
+        raise InvalidPlanFormat("## Scope file tree is empty")
 
     paths: list[str] = []
     stack: list[tuple[int, str]] = []
@@ -200,11 +200,11 @@ def read_plan_scope(text: str) -> tuple[str, ...]:
         indent = len(line) - len(line.lstrip(" "))
         entry = line.strip()
         if TREE_ENTRY.fullmatch(entry) is None or "//" in entry or ".." in entry.split("/"):
-            raise InvalidPlanFormat(f"## 変更するもの tree line is not a plain relative path: {line!r}")
+            raise InvalidPlanFormat(f"## Scope tree line is not a plain relative path: {line!r}")
         while stack and stack[-1][0] >= indent:
             stack.pop()
         if indent > 0 and (not stack or not stack[-1][1].endswith("/")):
-            raise InvalidPlanFormat(f"## 変更するもの tree line has no parent directory: {line!r}")
+            raise InvalidPlanFormat(f"## Scope tree line has no parent directory: {line!r}")
         full = "".join(parent for _, parent in stack) + entry
         stack.append((indent, entry))
         if not entry.endswith("/"):
@@ -213,10 +213,10 @@ def read_plan_scope(text: str) -> tuple[str, ...]:
 
 
 def read_plan_steps(text: str) -> tuple[PlanStep, ...]:
-    body = _section_body(text, "実装手順")
+    body = _section_body(text, "Steps")
     matches = list(re.finditer(r"^### ([0-9]+)\. ?([^\n]*)$", body, re.MULTILINE))
     if not matches:
-        raise InvalidPlanFormat("## 実装手順 has no ### N. step")
+        raise InvalidPlanFormat("## Steps has no ### N. step")
     steps: list[PlanStep] = []
     for position, match in enumerate(matches):
         number = int(match.group(1))
@@ -224,9 +224,9 @@ def read_plan_steps(text: str) -> tuple[PlanStep, ...]:
             raise InvalidPlanFormat(f"step headings must count from 1 without gaps: ### {match.group(1)}.")
         end = matches[position + 1].start() if position + 1 < len(matches) else len(body)
         step_text = body[match.end() : end]
-        kinds = re.findall(r"^\*\*完了の示し方:\*\*[ \t]*(.*?)[ \t]*$", step_text, re.MULTILINE)
+        kinds = re.findall(r"^\*\*Completion:\*\*[ \t]*(.*?)[ \t]*$", step_text, re.MULTILINE)
         if len(kinds) != 1:
-            raise InvalidPlanFormat(f"step {number} needs exactly one **完了の示し方:** line")
+            raise InvalidPlanFormat(f"step {number} needs exactly one **Completion:** line")
         if kinds[0] not in COMPLETION_KINDS:
             raise InvalidPlanFormat(
                 f"step {number} completion kind must be one of {', '.join(COMPLETION_KINDS)}: {kinds[0]}"

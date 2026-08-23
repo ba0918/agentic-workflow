@@ -51,17 +51,17 @@ PLAN_HEADER = f"""# 小さな変更のplan
 **Plan ID:** `20260822022624`
 **Plan revision:** `1`
 
-**対象仕様:**
+**Target specifications:**
 
 - `docs/spec/deployment.md`
-  - 内容identity: `{SPEC_IDENTITY}`
-  - 該当する節: 「配備の入力」「配備の確認」
+  - content identity: `{SPEC_IDENTITY}`
+  - sections: `配備の入力`, `配備の確認`
 
 ## 目的
 
 利用者が変更範囲を判断できるplanを作る。
 
-## 変更するもの
+## Scope
 
 ```text
 config/
@@ -73,28 +73,28 @@ docs/
 """
 
 PLAN_TEXT = PLAN_HEADER + """
-## 実装手順
+## Steps
 
 ### 1. 配備の入力を整える
 
-**完了の示し方:** テストで示す
+**Completion:** test
 
 ### 2. 手引きを書く
 
-**完了の示し方:** 作った物で示す
+**Completion:** artifact
 
 ### 3. 実機で配備を確かめる
 
-**完了の示し方:** 外で確かめる
+**Completion:** external
 """
 
 
 PLAN_WITH_HUMAN_GATE = PLAN_HEADER + r"""
-## 実装手順
+## Steps
 
 ### 1. 配備前に対象を確認する
 
-**完了の示し方:** 作った物で示す
+**Completion:** artifact
 
 **Human gates:**
 
@@ -172,15 +172,15 @@ class PlanHeaderTest(unittest.TestCase):
         invalid_plans = {
             "missing plan id": (PLAN_TEXT.replace("**Plan ID:** `20260822022624`\n", ""), "Plan ID"),
             "missing revision": (PLAN_TEXT.replace("**Plan revision:** `1`\n", ""), "Plan revision"),
-            "missing target specifications": (PLAN_TEXT.replace("**対象仕様:**", "**参考:**"), "対象仕様"),
+            "missing target specifications": (PLAN_TEXT.replace("**Target specifications:**", "**References:**"), "Target specifications"),
             "no specification item": (
                 PLAN_TEXT.replace("- `docs/spec/deployment.md`\n", "").replace(
-                    f"  - 内容identity: `{SPEC_IDENTITY}`\n  - 該当する節: 「配備の入力」「配備の確認」\n", ""
+                    f"  - content identity: `{SPEC_IDENTITY}`\n  - sections: `配備の入力`, `配備の確認`\n", ""
                 ),
-                "対象仕様",
+                "Target specifications",
             ),
-            "malformed identity": (PLAN_TEXT.replace(SPEC_IDENTITY, "sha256:zz"), "内容identity"),
-            "missing sections": (PLAN_TEXT.replace("  - 該当する節: 「配備の入力」「配備の確認」\n", ""), "該当する節"),
+            "malformed identity": (PLAN_TEXT.replace(SPEC_IDENTITY, "sha256:zz"), "content identity"),
+            "missing sections": (PLAN_TEXT.replace("  - sections: `配備の入力`, `配備の確認`\n", ""), "sections"),
             "absolute path": (PLAN_TEXT.replace("docs/spec/deployment.md", "/etc/deployment.md"), "/etc/deployment.md"),
             "traversal": (PLAN_TEXT.replace("docs/spec/deployment.md", "../deployment.md"), "../deployment.md"),
         }
@@ -241,7 +241,7 @@ class PlanScopeAndStepsTest(unittest.TestCase):
             "annotation": PLAN_TEXT.replace("  deployment.json", "  deployment.json  # 設定"),
             "absolute path": PLAN_TEXT.replace("config/\n", "/config/\n"),
             "traversal": PLAN_TEXT.replace("  deployment.json", "  ../deployment.json"),
-            "missing heading": PLAN_TEXT.replace("## 変更するもの", "## 変更範囲"),
+            "missing heading": PLAN_TEXT.replace("## Scope", "## Changed files"),
             "empty block": PLAN_TEXT.replace(
                 "config/\n  deployment.json\ndocs/\n  guide/\n    deploy.md\n", ""
             ),
@@ -260,24 +260,24 @@ class PlanScopeAndStepsTest(unittest.TestCase):
         self.assertEqual(steps[0].title, "配備の入力を整える")
         self.assertEqual(
             [step.completion_kind for step in steps],
-            ["テストで示す", "作った物で示す", "外で確かめる"],
+            ["test", "artifact", "external"],
         )
 
     def test_unreadable_steps_are_rejected(self) -> None:
         invalid_plans = {
-            "missing steps heading": PLAN_TEXT.replace("## 実装手順", "## 手順"),
-            "no step": PLAN_HEADER + "\n## 実装手順\n\n本文だけ\n",
+            "missing steps heading": PLAN_TEXT.replace("## Steps", "## Procedure"),
+            "no step": PLAN_HEADER + "\n## Steps\n\n本文だけ\n",
             "gap in numbering": PLAN_TEXT.replace("### 2.", "### 4."),
             "duplicate number": PLAN_TEXT.replace("### 2.", "### 1."),
             "not starting at one": PLAN_TEXT.replace("### 1.", "### 0."),
             "missing completion kind": PLAN_TEXT.replace(
-                "**完了の示し方:** テストで示す\n", ""
+                "**Completion:** test\n", ""
             ),
             "two completion kinds": PLAN_TEXT.replace(
-                "**完了の示し方:** テストで示す\n",
-                "**完了の示し方:** テストで示す\n**完了の示し方:** 外で確かめる\n",
+                "**Completion:** test\n",
+                "**Completion:** test\n**Completion:** external\n",
             ),
-            "unknown completion kind": PLAN_TEXT.replace("テストで示す", "動かして示す"),
+            "unknown completion kind": PLAN_TEXT.replace("**Completion:** test", "**Completion:** demo"),
         }
 
         for case, malformed in invalid_plans.items():
@@ -354,8 +354,8 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
         with self.assertRaisesRegex(plan_artifact.InvalidHumanGateDeclaration, "配備の取消"):
             plan_artifact.read_plan_human_gates(unlisted)
 
-    def test_human_gate_section_is_compared_without_the_quoting_brackets(self) -> None:
-        bracketed = PLAN_WITH_HUMAN_GATE.replace('"sections": ["配備の入力"]', '"sections": ["「配備の入力」"]')
+    def test_human_gate_section_is_compared_without_the_backquotes(self) -> None:
+        bracketed = PLAN_WITH_HUMAN_GATE.replace('"sections": ["配備の入力"]', '"sections": ["`配備の入力`"]')
 
         with self.assertRaises(plan_artifact.InvalidHumanGateDeclaration):
             plan_artifact.read_plan_human_gates(bracketed)
@@ -583,9 +583,9 @@ class DraftValidationTest(unittest.TestCase):
     def test_unreadable_plan_is_not_saved_as_a_draft_and_the_part_is_named(self) -> None:
         with plan_root() as directory:
             root = Path(directory)
-            unreadable = PLAN_TEXT.replace("**完了の示し方:** テストで示す\n", "")
+            unreadable = PLAN_TEXT.replace("**Completion:** test\n", "")
 
-            with self.assertRaisesRegex(plan_artifact.InvalidPlanFormat, "完了の示し方"):
+            with self.assertRaisesRegex(plan_artifact.InvalidPlanFormat, "Completion"):
                 plan_artifact.save_draft(
                     root, plan_id="20260822022624", revision=1, slug="small-change", text=unreadable
                 )
@@ -617,7 +617,7 @@ class DraftValidationTest(unittest.TestCase):
 
     def test_draft_cli_reports_the_unreadable_part_and_fails(self) -> None:
         with plan_root() as directory:
-            unreadable = PLAN_TEXT.replace("## 変更するもの", "## 変更範囲")
+            unreadable = PLAN_TEXT.replace("## Scope", "## Changed files")
             stdout, stderr = io.StringIO(), io.StringIO()
 
             with mock.patch("sys.stdin", io.StringIO(unreadable)), contextlib.redirect_stdout(
@@ -628,7 +628,7 @@ class DraftValidationTest(unittest.TestCase):
                 )
 
             self.assertNotEqual(exit_code, 0)
-            self.assertIn("変更するもの", stderr.getvalue())
+            self.assertIn("Scope", stderr.getvalue())
             self.assertEqual(stdout.getvalue(), "")
 
     def test_publication_stops_when_the_specification_changed_after_the_draft(self) -> None:
