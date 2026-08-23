@@ -307,8 +307,8 @@ def _safe_agent_roots(main_checkout: Path) -> RuntimeResult:
 def _preflight(main_checkout: Path, common_directory: Path) -> RuntimeResult:
     probes = [
         main_checkout / ".agents/artifacts/executions/.preflight",
-        main_checkout / ".agents/tmp/cycles/.preflight",
-        common_directory / ".cycle-preflight",
+        main_checkout / ".agents/tmp/executions/.preflight",
+        common_directory / ".implement-preflight",
     ]
     for probe in probes:
         result = write_once(probe, b"preflight\n")
@@ -355,7 +355,7 @@ def bootstrap_attempt(
         / resolved_plan.plan_id
         / attempt_id
     )
-    tmp_path = main_checkout / ".agents/tmp/cycles" / attempt_id
+    tmp_path = main_checkout / ".agents/tmp/executions" / attempt_id
     if any(path.exists() or path.is_symlink() for path in (evidence_path, tmp_path)):
         return _failure("attempt_collision", "generated attempt id is already in use")
 
@@ -709,7 +709,7 @@ def load_current_attempt(
     if not execution_model.ATTEMPT_ID.fullmatch(attempt_id) or not plan_artifact.PLAN_ID.fullmatch(plan_id):
         return _failure("execution_ids_invalid", "plan id or execution id is not path-safe")
     evidence_path = main_checkout / ".agents/artifacts/executions" / plan_id / attempt_id
-    tmp_path = main_checkout / ".agents/tmp/cycles" / attempt_id
+    tmp_path = main_checkout / ".agents/tmp/executions" / attempt_id
     binding_path = evidence_path / "binding.json"
     if not binding_path.is_file():
         return _failure("binding_missing", f"no binding.json exists for execution {attempt_id}", str(binding_path))

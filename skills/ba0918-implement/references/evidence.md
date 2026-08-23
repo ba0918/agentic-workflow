@@ -5,24 +5,27 @@ denied or fails.
 
 ## Store ownership
 
-The main checkout owns all three roots. Do not create a second store inside the linked worktree.
+The main checkout owns both roots. Do not create a second store inside the linked worktree, and
+do not create anything under `.agents/runtime/`: there is no repository-wide marker.
 
 ```text
-.agents/artifacts/executions/<plan-id>/<attempt-id>/  durable binding, oracle, and events
-.agents/runtime/cycles/current.claim                  repository-wide normal-Cycle claim
-.agents/runtime/cycles/<attempt-id>/                  host-local control
-.agents/tmp/cycles/<attempt-id>/                      disposable attempt scratch
+.agents/artifacts/executions/<plan-id>/<execution-id>/  durable binding, oracle, and events
+.agents/tmp/executions/<execution-id>/                      disposable execution scratch
 ```
 
-`binding.json` is immutable. It binds the attempt, registered Plan, spec identities, repository,
-base HEAD, branch, write scope, and safe executor provenance before the worktree exists.
+`binding.json` is immutable. It binds the execution, registered plan, spec identities,
+repository, base HEAD, branch, worktree path, write scope, and safe executor provenance before
+the worktree exists. It is the only thing a fresh session needs, together with the event files,
+to reconstruct the execution.
 
-Events are one atomic file per sequence. Each carries the attempt, Plan and spec identities,
+Events are one atomic file per sequence. Each carries the execution, plan and spec identities,
 previous-event identity, and its own content identity. Event types are `worktree-bound`, `red`,
-`green`, `refactor`, `commit`, `human_gate`, `permission_required`, `stopped`, and
-`implementation_green`. Existing files are never overwritten.
+`green`, `refactor`, `commit`, `human_gate`, `resumed`, `permission_required`, `stopped`, and
+`implementation_green`. Existing files are never overwritten. `stopped` ends the chain except
+for one `resumed` event, which the human's choice to continue appends; after it the chain goes
+on as usual.
 
-The event count is an observation for later Plan-granularity analysis. It is never a hard limit,
+The event count is an observation for later plan-granularity analysis. It is never a hard limit,
 scope verdict, or stop oracle.
 
 ## Minimal evidence
@@ -61,7 +64,7 @@ directory is sufficient.
 Only a denied permission that cannot be granted, headless permission failure, continued read-only
 storage, quota exhaustion, capacity failure, or I/O failure is `persistence_unavailable`.
 
-Do not silently fall back to another store. Preserve the worktree, branch, commits, claim, and all
+Do not silently fall back to another store. Preserve the worktree, branch, commits, and all
 events already made durable. If the stop event itself cannot be written, return an explicitly
 unverified stop from runtime and Git observations. Code or tests passing without durable evidence
 can never produce `implementation_green`.
@@ -70,10 +73,10 @@ can never produce `implementation_green`.
 
 There is no `result.json`. The helper derives:
 
-- `not_started` before a durable attempt;
-- `stopped` after an attempt without a valid terminal success;
+- `not_started` before a durable execution;
+- `stopped` after an execution without a valid terminal success;
 - `implementation_green` only from the terminal event.
 
 Result output includes only fields that exist. A stop identifies the reason, step, and last
-durable sequence. A successful hand-off identifies the Plan, attempt, branch, worktree, commits,
-and evidence path while leaving the Plan open.
+durable sequence. A successful hand-off identifies the plan, execution, branch, worktree, commits,
+and evidence path while leaving the plan open.
