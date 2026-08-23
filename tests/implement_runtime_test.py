@@ -791,6 +791,53 @@ class ArtifactStepTest(unittest.TestCase):
             self.assertEqual(implement_runtime.derive_attempt_result(attempt)["state"], "stopped")
 
 
+class ExternalStepTest(unittest.TestCase):
+    def test_external_check_is_recorded_with_what_was_checked_and_a_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("external",))
+
+            result = implement_runtime.record_external(
+                attempt, step_id="step-1", checked="手順 1 の実機確認", summary="起動して応答した"
+            )
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value["event_type"], "external")
+            self.assertEqual(result.value["checked"], "手順 1 の実機確認")
+
+    def test_external_evidence_is_refused_on_a_test_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+
+            result = implement_runtime.record_external(attempt, step_id="step-1", checked="x", summary="y")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "completion_kind_mismatch")
+
+    def test_external_summary_must_be_bounded_and_free_of_secrets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("external",))
+            for case, summary in {"too long": "x" * 501, "secret": "token=abc123 で認証した"}.items():
+                with self.subTest(case=case):
+                    result = implement_runtime.record_external(attempt, step_id="step-1", checked="確認", summary=summary)
+
+                    self.assertFalse(result.ok)
+            events = sorted(p.name for p in attempt.evidence_path.glob("0*.json"))
+            self.assertEqual(events, ["000001-worktree-bound.json"])
+
+    def test_record_external_command_prints_the_event(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("external",))
+            stdout = io.StringIO()
+
+            with contextlib.redirect_stdout(stdout):
+                code = implement_runtime.main(
+                    ["record-external", "--repo", str(root), "--step", "step-1", "--checked", "確認", "--summary", "OK"]
+                )
+
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(stdout.getvalue())["event_type"], "external")
+
+
 class ResidualWorkTest(unittest.TestCase):
     def test_unfinished_execution_is_reported_with_its_facts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -1469,6 +1469,20 @@ def record_artifact(attempt: Attempt, *, step_id: str, paths: list[str], checks:
     return append_event(attempt, "artifact", {"step_id": step_id, "files": files, "checks": results})
 
 
+def record_external(attempt: Attempt, *, step_id: str, checked: str, summary: str) -> RuntimeResult:
+    """Record what an external step checked and how it went; the human's verdict comes separately."""
+    kind = _require_completion_kind(attempt, step_id, "external")
+    if not kind.ok:
+        return _stop(attempt, kind.error, step_id)
+    for label, text in (("checked", checked), ("summary", summary)):
+        if execution_model.SECRET_ARGUMENT.search(text):
+            return _failure("secret_value_forbidden", f"external {label} carries a secret-shaped value")
+    context = validate_context(attempt, step_id=step_id)
+    if not context.ok:
+        return _stop(attempt, context.error, step_id)
+    return append_event(attempt, "external", {"step_id": step_id, "checked": checked, "summary": summary})
+
+
 def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeResult:
     context = validate_context(attempt, step_id=step_id)
     if not context.ok:
@@ -1796,6 +1810,13 @@ def main(argv: list[str] | None = None) -> int:
     artifact.add_argument("--path", action="append", required=True)
     artifact.add_argument("--check", action="append", default=[], help="a format check command, quoted as one shell-style string")
 
+    external = commands.add_parser("record-external", help="record what an external step checked")
+    external.add_argument("--repo", required=True)
+    execution_ids(external)
+    external.add_argument("--step", required=True)
+    external.add_argument("--checked", required=True)
+    external.add_argument("--summary", required=True)
+
     record = commands.add_parser("record-commit", help="verify and record an existing commit")
     record.add_argument("--repo", required=True)
     execution_ids(record)
@@ -1931,6 +1952,12 @@ def main(argv: list[str] | None = None) -> int:
         recorded = record_artifact(
             attempt, step_id=args.step, paths=args.path, checks=[shlex.split(check) for check in args.check]
         )
+        if not recorded.ok:
+            return _print_failure(recorded, state="stopped")
+        print(json.dumps(recorded.value, ensure_ascii=False, sort_keys=True))
+        return 0
+    if args.command == "record-external":
+        recorded = record_external(attempt, step_id=args.step, checked=args.checked, summary=args.summary)
         if not recorded.ok:
             return _print_failure(recorded, state="stopped")
         print(json.dumps(recorded.value, ensure_ascii=False, sort_keys=True))
