@@ -398,6 +398,20 @@ def _draft_path(project_root: Path, plan_id: str, revision: int, slug: str) -> P
     return target
 
 
+def validate_plan(project_root: Path, text: str, *, plan_id: str, revision: int) -> None:
+    """Reject a plan whose machine-read parts are unreadable or whose specifications moved."""
+    header = read_plan_header(text)
+    if header.plan_id != plan_id:
+        raise InvalidPlanFormat(f"**Plan ID:** {header.plan_id} differs from the requested id {plan_id}")
+    if header.revision != revision:
+        raise InvalidPlanFormat(
+            f"**Plan revision:** {header.revision} differs from the requested revision {revision}"
+        )
+    read_plan_scope(text)
+    read_plan_human_gates(text)
+    verify_target_specifications(project_root, header)
+
+
 def save_draft(
     project_root: Path,
     *,
@@ -408,6 +422,7 @@ def save_draft(
     replace_identity: str | None = None,
 ) -> DraftReceipt:
     target = _draft_path(project_root, plan_id, revision, slug)
+    validate_plan(project_root, text, plan_id=plan_id, revision=revision)
     if target.exists():
         existing_identity = content_identity(target.read_text(encoding="utf-8"))
         if replace_identity is None:
@@ -570,6 +585,7 @@ def publish_plan(
     actual_identity = content_identity(text)
     if IDENTITY.fullmatch(approved_identity) is None or actual_identity != approved_identity:
         raise IdentityMismatch("approved content identity does not match the draft bytes")
+    validate_plan(project_root, text, plan_id=plan_id, revision=revision)
 
     target = _plan_path(project_root, relative_path, plan_id)
     if target.exists():
@@ -643,6 +659,14 @@ def main(argv: list[str] | None = None) -> int:
     publish.add_argument("--switch-confirmed", action="store_true")
     publish.add_argument("--worktree-dirty", action="store_true")
     args = parser.parse_args(argv)
+    try:
+        return _run(args)
+    except PlanArtifactError as error:
+        print(f"{type(error).__name__}: {error}", file=sys.stderr)
+        return 1
+
+
+def _run(args: argparse.Namespace) -> int:
     if args.command == "identity":
         print(content_identity(sys.stdin.read()))
         return 0

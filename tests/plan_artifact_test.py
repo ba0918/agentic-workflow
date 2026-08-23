@@ -31,9 +31,22 @@ def publish_text(root: Path, **kwargs):
     return plan_artifact.publish_plan(root, source=draft.path, **kwargs)
 
 
-SPEC_IDENTITY = "sha256:" + "a" * 64
+SPEC_PATH = "docs/spec/deployment.md"
+SPEC_TEXT = "# 配備の仕様\n\n## 配備の入力\n\n## 配備の確認\n"
+SPEC_IDENTITY = plan_artifact.content_identity(SPEC_TEXT)
 
-PLAN_TEXT = f"""# 小さな変更のplan
+
+@contextlib.contextmanager
+def plan_root():
+    """A temporary repository that already holds the specification the fixture plans cite."""
+    with tempfile.TemporaryDirectory() as directory:
+        spec = Path(directory) / SPEC_PATH
+        spec.parent.mkdir(parents=True)
+        spec.write_text(SPEC_TEXT, encoding="utf-8")
+        yield directory
+
+
+PLAN_HEADER = f"""# 小さな変更のplan
 
 **Plan ID:** `20260822022624`
 **Plan revision:** `1`
@@ -59,7 +72,7 @@ docs/
 ```
 """
 
-PLAN_WITH_STEPS = PLAN_TEXT + """
+PLAN_TEXT = PLAN_HEADER + """
 ## 実装手順
 
 ### 1. 配備の入力を整える
@@ -76,7 +89,7 @@ PLAN_WITH_STEPS = PLAN_TEXT + """
 """
 
 
-PLAN_WITH_HUMAN_GATE = PLAN_TEXT + r"""
+PLAN_WITH_HUMAN_GATE = PLAN_HEADER + r"""
 ## 実装手順
 
 ### 1. 配備前に対象を確認する
@@ -180,14 +193,14 @@ class PlanHeaderTest(unittest.TestCase):
     def test_target_specification_identity_must_match_the_file_in_the_repository(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            spec = root / "docs/spec/deployment.md"
+            spec = root / SPEC_PATH
             spec.parent.mkdir(parents=True)
-            spec.write_text("承認済みの仕様\n", encoding="utf-8")
-            matching = PLAN_TEXT.replace(SPEC_IDENTITY, plan_artifact.content_identity("承認済みの仕様\n"))
+            spec.write_text(SPEC_TEXT, encoding="utf-8")
 
-            plan_artifact.verify_target_specifications(root, plan_artifact.read_plan_header(matching))
+            plan_artifact.verify_target_specifications(root, plan_artifact.read_plan_header(PLAN_TEXT))
 
-            with self.assertRaisesRegex(plan_artifact.TargetSpecificationMismatch, "docs/spec/deployment.md"):
+            spec.write_text(SPEC_TEXT + "改訂\n", encoding="utf-8")
+            with self.assertRaisesRegex(plan_artifact.TargetSpecificationMismatch, SPEC_PATH):
                 plan_artifact.verify_target_specifications(root, plan_artifact.read_plan_header(PLAN_TEXT))
 
     def test_missing_target_specification_file_is_reported_by_path(self) -> None:
@@ -233,7 +246,7 @@ class PlanScopeAndStepsTest(unittest.TestCase):
                     plan_artifact.read_plan_scope(malformed)
 
     def test_steps_are_read_in_order_with_their_completion_kind(self) -> None:
-        steps = plan_artifact.read_plan_steps(PLAN_WITH_STEPS)
+        steps = plan_artifact.read_plan_steps(PLAN_TEXT)
 
         self.assertEqual([step.number for step in steps], [1, 2, 3])
         self.assertEqual(steps[0].title, "配備の入力を整える")
@@ -244,19 +257,19 @@ class PlanScopeAndStepsTest(unittest.TestCase):
 
     def test_unreadable_steps_are_rejected(self) -> None:
         invalid_plans = {
-            "missing steps heading": PLAN_WITH_STEPS.replace("## 実装手順", "## 手順"),
-            "no step": PLAN_TEXT + "\n## 実装手順\n\n本文だけ\n",
-            "gap in numbering": PLAN_WITH_STEPS.replace("### 2.", "### 4."),
-            "duplicate number": PLAN_WITH_STEPS.replace("### 2.", "### 1."),
-            "not starting at one": PLAN_WITH_STEPS.replace("### 1.", "### 0."),
-            "missing completion kind": PLAN_WITH_STEPS.replace(
+            "missing steps heading": PLAN_TEXT.replace("## 実装手順", "## 手順"),
+            "no step": PLAN_HEADER + "\n## 実装手順\n\n本文だけ\n",
+            "gap in numbering": PLAN_TEXT.replace("### 2.", "### 4."),
+            "duplicate number": PLAN_TEXT.replace("### 2.", "### 1."),
+            "not starting at one": PLAN_TEXT.replace("### 1.", "### 0."),
+            "missing completion kind": PLAN_TEXT.replace(
                 "**完了の示し方:** テストで示す\n", ""
             ),
-            "two completion kinds": PLAN_WITH_STEPS.replace(
+            "two completion kinds": PLAN_TEXT.replace(
                 "**完了の示し方:** テストで示す\n",
                 "**完了の示し方:** テストで示す\n**完了の示し方:** 外で確かめる\n",
             ),
-            "unknown completion kind": PLAN_WITH_STEPS.replace("テストで示す", "動かして示す"),
+            "unknown completion kind": PLAN_TEXT.replace("テストで示す", "動かして示す"),
         }
 
         for case, malformed in invalid_plans.items():
@@ -352,7 +365,7 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
         self.assertEqual(gates[0].target.content_identity, "sha256:" + "1" * 64)
 
     def test_current_registered_plan_is_returned_without_writing(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             identity = plan_artifact.content_identity(PLAN_TEXT)
             publish_text(
@@ -386,7 +399,7 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
             self.assertEqual(after, before)
 
     def test_explicit_registered_plan_may_be_held(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             first_identity = plan_artifact.content_identity(PLAN_TEXT)
             publish_text(
@@ -420,7 +433,7 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
             self.assertEqual(registered.state, "held")
 
     def test_missing_registration_is_distinct_from_an_empty_publication_index(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
 
             with self.assertRaises(plan_artifact.PlanRegistrationMissing):
@@ -429,7 +442,7 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
             self.assertFalse((root / ".agents").exists())
 
     def test_registered_plan_identity_mismatch_is_rejected_without_repair(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             identity = plan_artifact.content_identity(PLAN_TEXT)
             target = publish_text(
@@ -452,7 +465,7 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
             self.assertEqual(target.read_text(encoding="utf-8"), PLAN_TEXT + "changed\n")
 
     def test_unsafe_registered_path_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             plans = root / ".agents/artifacts/plans"
             plans.mkdir(parents=True)
@@ -481,7 +494,7 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
 
 class SaveDraftTest(unittest.TestCase):
     def test_draft_is_saved_under_the_temporary_plan_store_with_identical_bytes(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
 
             receipt = plan_artifact.save_draft(
@@ -497,7 +510,7 @@ class SaveDraftTest(unittest.TestCase):
             self.assertFalse((root / ".agents/artifacts").exists())
 
     def test_existing_draft_is_replaced_only_when_its_identity_is_named(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             first = plan_artifact.save_draft(
                 root, plan_id="20260822022624", revision=1, slug="small-change", text=PLAN_TEXT
@@ -532,7 +545,7 @@ class SaveDraftTest(unittest.TestCase):
             self.assertEqual(second.path.read_text(encoding="utf-8"), revised)
 
     def test_draft_slug_cannot_escape_the_temporary_plan_store(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             for slug in ("../escape", "nested/slug", "/absolute", "UPPER CASE"):
                 with self.subTest(slug):
@@ -543,7 +556,7 @@ class SaveDraftTest(unittest.TestCase):
             self.assertFalse((root / ".agents").exists())
 
     def test_draft_cli_reads_stdin_and_prints_path_and_identity(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             stdout = io.StringIO()
             with mock.patch("sys.stdin", io.StringIO(PLAN_TEXT)), contextlib.redirect_stdout(stdout):
@@ -558,9 +571,85 @@ class SaveDraftTest(unittest.TestCase):
             self.assertEqual(printed["content_identity"], plan_artifact.content_identity(PLAN_TEXT))
 
 
+class DraftValidationTest(unittest.TestCase):
+    def test_unreadable_plan_is_not_saved_as_a_draft_and_the_part_is_named(self) -> None:
+        with plan_root() as directory:
+            root = Path(directory)
+            unreadable = PLAN_TEXT.replace("**完了の示し方:** テストで示す\n", "")
+
+            with self.assertRaisesRegex(plan_artifact.InvalidPlanFormat, "完了の示し方"):
+                plan_artifact.save_draft(
+                    root, plan_id="20260822022624", revision=1, slug="small-change", text=unreadable
+                )
+
+            self.assertFalse((root / ".agents/tmp/plans").exists())
+
+    def test_plan_citing_a_changed_specification_is_not_saved_as_a_draft(self) -> None:
+        with plan_root() as directory:
+            root = Path(directory)
+            (root / SPEC_PATH).write_text(SPEC_TEXT + "改訂\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(plan_artifact.TargetSpecificationMismatch, SPEC_PATH):
+                plan_artifact.save_draft(
+                    root, plan_id="20260822022624", revision=1, slug="small-change", text=PLAN_TEXT
+                )
+
+            self.assertFalse((root / ".agents/tmp/plans").exists())
+
+    def test_draft_plan_id_and_revision_must_match_the_plan_header(self) -> None:
+        with plan_root() as directory:
+            root = Path(directory)
+            for case, plan_id, revision in (("id", "20260822022625", 1), ("revision", "20260822022624", 2)):
+                with self.subTest(case=case):
+                    with self.assertRaisesRegex(plan_artifact.InvalidPlanFormat, "Plan"):
+                        plan_artifact.save_draft(
+                            root, plan_id=plan_id, revision=revision, slug="small-change", text=PLAN_TEXT
+                        )
+            self.assertFalse((root / ".agents/tmp/plans").exists())
+
+    def test_draft_cli_reports_the_unreadable_part_and_fails(self) -> None:
+        with plan_root() as directory:
+            unreadable = PLAN_TEXT.replace("## 変更するもの", "## 変更範囲")
+            stdout, stderr = io.StringIO(), io.StringIO()
+
+            with mock.patch("sys.stdin", io.StringIO(unreadable)), contextlib.redirect_stdout(
+                stdout
+            ), contextlib.redirect_stderr(stderr):
+                exit_code = plan_artifact.main(
+                    ["draft", "--repo", directory, "--plan-id", "20260822022624", "--revision", "1", "--slug", "x"]
+                )
+
+            self.assertNotEqual(exit_code, 0)
+            self.assertIn("変更するもの", stderr.getvalue())
+            self.assertEqual(stdout.getvalue(), "")
+
+    def test_publication_stops_when_the_specification_changed_after_the_draft(self) -> None:
+        with plan_root() as directory:
+            root = Path(directory)
+            draft = plan_artifact.save_draft(
+                root, plan_id="20260822022624", revision=1, slug="small-change", text=PLAN_TEXT
+            )
+            (root / SPEC_PATH).write_text(SPEC_TEXT + "改訂\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(plan_artifact.TargetSpecificationMismatch, SPEC_PATH):
+                plan_artifact.publish_plan(
+                    root,
+                    plan_id="20260822022624",
+                    revision=1,
+                    relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
+                    source=draft.path,
+                    approved_identity=draft.content_identity,
+                    switch_confirmed=False,
+                    worktree_dirty=False,
+                )
+
+            self.assertTrue(draft.path.is_file())
+            self.assertFalse((root / ".agents/artifacts/plans").exists())
+
+
 class PublishPlanTest(unittest.TestCase):
     def test_publication_moves_the_approved_draft_and_leaves_no_temporary_file(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             draft = plan_artifact.save_draft(
                 root, plan_id="20260822022624", revision=1, slug="small-change", text=PLAN_TEXT
@@ -585,7 +674,7 @@ class PublishPlanTest(unittest.TestCase):
             self.assertEqual(index["plans"][0]["content_identity"], draft.content_identity)
 
     def test_an_edited_draft_is_rejected_and_kept_for_the_dialogue(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             draft = plan_artifact.save_draft(
                 root, plan_id="20260822022624", revision=1, slug="small-change", text=PLAN_TEXT
@@ -609,7 +698,7 @@ class PublishPlanTest(unittest.TestCase):
             self.assertFalse((root / ".agents/artifacts").exists())
 
     def test_a_source_outside_the_temporary_plan_store_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             elsewhere = root / "elsewhere.md"
             elsewhere.write_text(PLAN_TEXT, encoding="utf-8")
@@ -630,7 +719,7 @@ class PublishPlanTest(unittest.TestCase):
             self.assertFalse((root / ".agents/artifacts").exists())
 
     def test_a_failed_index_write_restores_the_draft(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             draft = plan_artifact.save_draft(
                 root, plan_id="20260822022624", revision=1, slug="small-change", text=PLAN_TEXT
@@ -659,7 +748,7 @@ class PublishPlanTest(unittest.TestCase):
             self.assertFalse((root / ".agents/artifacts/plans/20260822022624_small-change.md").exists())
 
     def test_confirmed_draft_is_written_and_registered_as_current(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             identity = plan_artifact.content_identity(PLAN_TEXT)
 
@@ -683,7 +772,7 @@ class PublishPlanTest(unittest.TestCase):
             self.assertEqual(index["plans"][0]["state"], "current")
 
     def test_identity_mismatch_writes_nothing(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
 
             with self.assertRaises(plan_artifact.IdentityMismatch):
@@ -701,7 +790,7 @@ class PublishPlanTest(unittest.TestCase):
             self.assertFalse((root / ".agents/artifacts").exists())
 
     def test_existing_current_plan_requires_confirmed_switch(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             first_identity = plan_artifact.content_identity(PLAN_TEXT)
             publish_text(
@@ -736,7 +825,7 @@ class PublishPlanTest(unittest.TestCase):
             self.assertEqual(len(index["plans"]), 1)
 
     def test_dirty_worktree_blocks_even_a_confirmed_switch(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             publish_text(
                 root,
@@ -767,7 +856,7 @@ class PublishPlanTest(unittest.TestCase):
             )
 
     def test_confirmed_switch_holds_the_previous_plan(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             publish_text(
                 root,
@@ -800,7 +889,7 @@ class PublishPlanTest(unittest.TestCase):
             self.assertEqual(states["20260822022625"], "current")
 
     def test_paths_outside_the_plan_store_and_symlinks_are_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             identity = plan_artifact.content_identity(PLAN_TEXT)
 
@@ -835,7 +924,7 @@ class PublishPlanTest(unittest.TestCase):
             self.assertEqual(outside.read_text(encoding="utf-8"), "untouched")
 
     def test_new_revision_preserves_the_previous_revision_file(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
+        with plan_root() as directory:
             root = Path(directory)
             publish_text(
                 root,
