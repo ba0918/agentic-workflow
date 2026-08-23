@@ -4,11 +4,11 @@ import unittest
 
 
 ROOT = Path(__file__).parents[1]
-MODEL_MODULE = ROOT / "skills/ba0918-cycle/scripts/execution_model.py"
+MODEL_MODULE = ROOT / "skills/ba0918-implement/scripts/execution_model.py"
 SPEC = importlib.util.spec_from_file_location("cycle_execution_model", MODEL_MODULE)
-cycle_model = importlib.util.module_from_spec(SPEC)
+implement_model = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
-SPEC.loader.exec_module(cycle_model)
+SPEC.loader.exec_module(implement_model)
 
 
 PLAN_IDENTITY = "sha256:" + "1" * 64
@@ -34,7 +34,8 @@ def binding() -> dict:
         ],
         "repository_identity": "sha256:" + "4" * 64,
         "base_head": BASE_HEAD,
-        "branch": "cycle/20260822t152244-a1b2c3d4",
+        "branch": "implement/20260822t152244-a1b2c3d4",
+        "worktree": "/tmp/fixture/linked-worktree",
         "write_scope": ["skills/ba0918-cycle", "tests/cycle_runtime_test.py"],
         "human_gates": [],
         "executor": {
@@ -50,7 +51,7 @@ def human_gate() -> dict:
     return {
         "gate_id": "approve-cycle-files",
         "step_id": "step-1",
-        "clauses": ["CY-096"],
+        "sections": ["作業場所"],
         "criterion": "対象fileが承認済みの内容である",
         "target": {"kind": "files", "paths": ["skills/ba0918-cycle/SKILL.md"]},
         "timing": "before_implementation_green",
@@ -78,7 +79,7 @@ def oracle() -> dict:
     return {
         "version": 1,
         "step_id": "step-1",
-        "clauses": ["CY-010"],
+        "sections": ["作業場所"],
         "test_targets": [
             {
                 "path": "tests/cycle_runtime_test.py",
@@ -105,7 +106,7 @@ def command_event(event_type: str, test_summary: dict) -> dict:
         "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
         "previous_identity": None,
         "step_id": "step-1",
-        "oracle_identity": cycle_model.content_identity(oracle()),
+        "oracle_identity": implement_model.content_identity(oracle()),
         "outcome": "passed",
         "exit_code": 0,
         "observation": "test command completed",
@@ -118,16 +119,16 @@ class CanonicalIdentityTest(unittest.TestCase):
         first = {"b": 2, "a": {"d": 4, "c": 3}}
         second = {"a": {"c": 3, "d": 4}, "b": 2}
 
-        self.assertEqual(cycle_model.content_identity(first), cycle_model.content_identity(second))
+        self.assertEqual(implement_model.content_identity(first), implement_model.content_identity(second))
         self.assertEqual(
-            cycle_model.canonical_json(first),
+            implement_model.canonical_json(first),
             b'{"a":{"c":3,"d":4},"b":2}\n',
         )
 
 
 class BindingValidationTest(unittest.TestCase):
     def test_complete_binding_is_accepted(self) -> None:
-        result = cycle_model.validate_binding(binding())
+        result = implement_model.validate_binding(binding())
 
         self.assertTrue(result.ok)
         self.assertIsNone(result.error)
@@ -136,7 +137,7 @@ class BindingValidationTest(unittest.TestCase):
         observed = binding()
         observed["base_head"] = "6" * 40
 
-        result = cycle_model.validate_snapshot(binding(), observed)
+        result = implement_model.validate_snapshot(binding(), observed)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "identity_drift")
@@ -149,11 +150,11 @@ class BindingValidationTest(unittest.TestCase):
         del missing_identity["test_targets"]
 
         self.assertEqual(
-            cycle_model.validate_oracle(missing_step).error.code,
+            implement_model.validate_oracle(missing_step).error.code,
             "oracle_field_missing",
         )
         self.assertEqual(
-            cycle_model.validate_oracle(missing_identity).error.code,
+            implement_model.validate_oracle(missing_identity).error.code,
             "oracle_field_missing",
         )
 
@@ -173,11 +174,11 @@ class BindingValidationTest(unittest.TestCase):
         }
 
         self.assertEqual(
-            cycle_model.validate_oracle(unsafe_oracle).error.code,
+            implement_model.validate_oracle(unsafe_oracle).error.code,
             "secret_value_forbidden",
         )
         self.assertEqual(
-            cycle_model.seal_event(unsafe_event).error.code,
+            implement_model.seal_event(unsafe_event).error.code,
             "raw_log_forbidden",
         )
 
@@ -187,8 +188,8 @@ class BindingValidationTest(unittest.TestCase):
         invalid_oracle = oracle()
         invalid_oracle["test_targets"] = None
 
-        binding_result = cycle_model.validate_binding(invalid_binding)
-        oracle_result = cycle_model.validate_oracle(invalid_oracle)
+        binding_result = implement_model.validate_binding(invalid_binding)
+        oracle_result = implement_model.validate_oracle(invalid_oracle)
 
         self.assertFalse(binding_result.ok)
         self.assertEqual(binding_result.error.code, "plan_binding_invalid")
@@ -199,7 +200,7 @@ class BindingValidationTest(unittest.TestCase):
         invalid_oracle = oracle()
         invalid_oracle["failure_signature"] = "FAILED (errors=1)"
 
-        result = cycle_model.validate_oracle(invalid_oracle)
+        result = implement_model.validate_oracle(invalid_oracle)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "oracle_failure_signature_invalid")
@@ -209,8 +210,8 @@ class BindingValidationTest(unittest.TestCase):
         del candidate["observed_failure_kind"]
         candidate["test_targets"] = ["tests/cycle_runtime_test.py"]
 
-        candidate_result = cycle_model.validate_oracle_candidate(candidate)
-        durable_result = cycle_model.validate_oracle(candidate)
+        candidate_result = implement_model.validate_oracle_candidate(candidate)
+        durable_result = implement_model.validate_oracle(candidate)
 
         self.assertTrue(candidate_result.ok, candidate_result.error)
         self.assertFalse(durable_result.ok)
@@ -222,7 +223,7 @@ class BindingValidationTest(unittest.TestCase):
         candidate["test_targets"] = ["tests/cycle_runtime_test.py"]
         candidate["expected_failure_kind"] = "import_failure"
 
-        result = cycle_model.validate_oracle_candidate(candidate)
+        result = implement_model.validate_oracle_candidate(candidate)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "oracle_field_invalid")
@@ -241,7 +242,7 @@ class BindingValidationTest(unittest.TestCase):
                 del candidate["observed_failure_kind"]
                 candidate["test_targets"] = targets
 
-                result = cycle_model.validate_oracle_candidate(candidate)
+                result = implement_model.validate_oracle_candidate(candidate)
 
                 self.assertFalse(result.ok)
                 self.assertEqual(result.error.code, "oracle_field_invalid")
@@ -253,8 +254,8 @@ class BindingValidationTest(unittest.TestCase):
         secret_argument = oracle()
         secret_argument["command"].append("--api-token=<credential>")
 
-        unknown_result = cycle_model.validate_oracle(unknown)
-        secret_result = cycle_model.validate_oracle(secret_argument)
+        unknown_result = implement_model.validate_oracle(unknown)
+        secret_result = implement_model.validate_oracle(secret_argument)
 
         self.assertFalse(unknown_result.ok)
         self.assertEqual(unknown_result.error.code, "oracle_fields_invalid")
@@ -274,7 +275,7 @@ class BindingValidationTest(unittest.TestCase):
             "details": {"api_key": "<credential>"},
         }
 
-        result = cycle_model.seal_event(candidate)
+        result = implement_model.seal_event(candidate)
 
         self.assertFalse(result.ok)
         self.assertIn(result.error.code, {"event_fields_invalid", "secret_value_forbidden"})
@@ -287,16 +288,16 @@ class BindingValidationTest(unittest.TestCase):
         invalid_environment = oracle()
         invalid_environment["environment_names"] = ["lower-case-name"]
 
-        binding_result = cycle_model.validate_binding(unsafe_binding)
+        binding_result = implement_model.validate_binding(unsafe_binding)
 
         self.assertFalse(binding_result.ok)
         self.assertIn(binding_result.error.code, {"executor_invalid", "secret_value_forbidden"})
         self.assertEqual(
-            cycle_model.validate_oracle(duplicate_environment).error.code,
+            implement_model.validate_oracle(duplicate_environment).error.code,
             "oracle_field_invalid",
         )
         self.assertEqual(
-            cycle_model.validate_oracle(invalid_environment).error.code,
+            implement_model.validate_oracle(invalid_environment).error.code,
             "oracle_field_invalid",
         )
 
@@ -305,8 +306,8 @@ class WriteScopeTest(unittest.TestCase):
     def test_descendant_and_exact_file_are_inside_scope(self) -> None:
         scopes = ["skills/ba0918-cycle", "tests/cycle_runtime_test.py"]
 
-        self.assertTrue(cycle_model.validate_write_path("skills/ba0918-cycle/SKILL.md", scopes).ok)
-        self.assertTrue(cycle_model.validate_write_path("tests/cycle_runtime_test.py", scopes).ok)
+        self.assertTrue(implement_model.validate_write_path("skills/ba0918-cycle/SKILL.md", scopes).ok)
+        self.assertTrue(implement_model.validate_write_path("tests/cycle_runtime_test.py", scopes).ok)
 
     def test_absolute_traversal_and_sibling_paths_are_rejected(self) -> None:
         scopes = ["skills/ba0918-cycle"]
@@ -317,20 +318,20 @@ class WriteScopeTest(unittest.TestCase):
             "skills/ba0918-cycle-old/file.py",
         ):
             with self.subTest(candidate=candidate):
-                result = cycle_model.validate_write_path(candidate, scopes)
+                result = implement_model.validate_write_path(candidate, scopes)
                 self.assertFalse(result.ok)
                 self.assertEqual(result.error.code, "write_scope_violation")
 
 
 class TestSummaryValidationTest(unittest.TestCase):
     def test_command_events_accept_complete_or_unavailable_test_summary(self) -> None:
-        complete = cycle_model.seal_event(
+        complete = implement_model.seal_event(
             command_event(
                 "green",
                 {"status": "complete", "passed": 7, "failed": 0, "skipped": 2},
             )
         )
-        unavailable = cycle_model.seal_event(
+        unavailable = implement_model.seal_event(
             command_event(
                 "green",
                 {
@@ -362,7 +363,7 @@ class TestSummaryValidationTest(unittest.TestCase):
 
         for case, summary in invalid_summaries.items():
             with self.subTest(case=case):
-                result = cycle_model.seal_event(command_event("green", summary))
+                result = implement_model.seal_event(command_event("green", summary))
                 self.assertFalse(result.ok)
                 self.assertEqual(result.error.code, "test_summary_invalid")
 
@@ -373,7 +374,7 @@ class TestSummaryValidationTest(unittest.TestCase):
         )
         del event["exit_code"]
 
-        result = cycle_model.seal_event(event)
+        result = implement_model.seal_event(event)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "event_field_missing")
@@ -382,7 +383,7 @@ class TestSummaryValidationTest(unittest.TestCase):
 
 class EventChainTest(unittest.TestCase):
     def test_events_form_an_immutable_hash_chain(self) -> None:
-        first = cycle_model.seal_event(
+        first = implement_model.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
@@ -395,7 +396,7 @@ class EventChainTest(unittest.TestCase):
             }
         )
         self.assertTrue(first.ok)
-        second = cycle_model.seal_event(
+        second = implement_model.seal_event(
             {
                 "version": 1,
                 "sequence": 2,
@@ -405,7 +406,7 @@ class EventChainTest(unittest.TestCase):
                 "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
                 "previous_identity": first.value["content_identity"],
                 "step_id": "step-1",
-                "oracle_identity": cycle_model.content_identity(oracle()),
+                "oracle_identity": implement_model.content_identity(oracle()),
                 "outcome": "expected_failure",
                 "exit_code": 1,
                 "observation": "1 failed",
@@ -424,12 +425,12 @@ class EventChainTest(unittest.TestCase):
             first.value["content_identity"],
         )
         self.assertEqual(
-            cycle_model.event_identity(second.value),
+            implement_model.event_identity(second.value),
             second.value["content_identity"],
         )
 
     def test_stale_sequence_and_previous_identity_are_rejected(self) -> None:
-        previous = cycle_model.seal_event(
+        previous = implement_model.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
@@ -452,13 +453,13 @@ class EventChainTest(unittest.TestCase):
             "reason": "drift",
         }
 
-        result = cycle_model.seal_event(stale, previous_event=previous)
+        result = implement_model.seal_event(stale, previous_event=previous)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "stale_event_chain")
 
     def test_stopped_event_is_terminal_for_the_attempt(self) -> None:
-        first = cycle_model.seal_event(
+        first = implement_model.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
@@ -470,7 +471,7 @@ class EventChainTest(unittest.TestCase):
                 "outcome": "bound",
             }
         ).value
-        stopped = cycle_model.seal_event(
+        stopped = implement_model.seal_event(
             {
                 "version": 1,
                 "sequence": 2,
@@ -484,7 +485,7 @@ class EventChainTest(unittest.TestCase):
             previous_event=first,
         ).value
 
-        result = cycle_model.seal_event(
+        result = implement_model.seal_event(
             {
                 "version": 1,
                 "sequence": 3,
@@ -494,7 +495,7 @@ class EventChainTest(unittest.TestCase):
                 "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
                 "previous_identity": stopped["content_identity"],
                 "step_id": "step-1",
-                "oracle_identity": cycle_model.content_identity(oracle()),
+                "oracle_identity": implement_model.content_identity(oracle()),
                 "outcome": "expected_failure",
                 "exit_code": 1,
                 "observation": "missing behavior",
@@ -509,6 +510,53 @@ class EventChainTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "terminal_event_chain")
 
+    def test_only_a_resumed_event_may_follow_a_stop(self) -> None:
+        first = implement_model.seal_event(
+            {
+                "version": 1,
+                "sequence": 1,
+                "event_type": "worktree-bound",
+                "attempt_id": binding()["attempt_id"],
+                "plan_identity": PLAN_IDENTITY,
+                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+                "previous_identity": None,
+                "outcome": "bound",
+            }
+        ).value
+        stopped = implement_model.seal_event(
+            {
+                "version": 1,
+                "sequence": 2,
+                "event_type": "stopped",
+                "attempt_id": binding()["attempt_id"],
+                "plan_identity": PLAN_IDENTITY,
+                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+                "previous_identity": first["content_identity"],
+                "reason": "unintended_red",
+            },
+            previous_event=first,
+        ).value
+
+        resumed = implement_model.seal_event(
+            {
+                "version": 1,
+                "sequence": 3,
+                "event_type": "resumed",
+                "attempt_id": binding()["attempt_id"],
+                "plan_identity": PLAN_IDENTITY,
+                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+                "previous_identity": stopped["content_identity"],
+                "head": BASE_HEAD,
+                "extra_commits": [],
+                "uncommitted_changes": False,
+                "next_step": "step-1",
+                "redo": True,
+            },
+            previous_event=stopped,
+        )
+
+        self.assertTrue(resumed.ok, resumed.error)
+
     def test_event_type_requires_its_own_fields(self) -> None:
         incomplete = {
             "version": 1,
@@ -521,7 +569,7 @@ class EventChainTest(unittest.TestCase):
             "step_id": "step-1",
         }
 
-        result = cycle_model.seal_event(incomplete)
+        result = implement_model.seal_event(incomplete)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "event_field_missing")
@@ -537,13 +585,13 @@ class EventChainTest(unittest.TestCase):
             "previous_identity": None,
             "reason": "permission_required",
         }
-        sealed = cycle_model.seal_event(candidate).value
+        sealed = implement_model.seal_event(candidate).value
 
-        self.assertTrue(cycle_model.compare_event_retry(sealed, sealed).ok)
+        self.assertTrue(implement_model.compare_event_retry(sealed, sealed).ok)
         changed = dict(sealed)
         changed["reason"] = "persistence_unavailable"
         self.assertEqual(
-            cycle_model.compare_event_retry(sealed, changed).error.code,
+            implement_model.compare_event_retry(sealed, changed).error.code,
             "event_identity_collision",
         )
 
@@ -553,27 +601,27 @@ class HumanGateStateTest(unittest.TestCase):
         value = binding()
         value["human_gates"] = [human_gate()]
 
-        result = cycle_model.validate_binding(value)
+        result = implement_model.validate_binding(value)
 
         self.assertTrue(result.ok, result.error)
 
     def test_human_gate_event_must_match_a_declared_gate(self) -> None:
         value = binding()
         value["human_gates"] = [human_gate()]
-        event = cycle_model.seal_event(human_gate_event()).value
+        event = implement_model.seal_event(human_gate_event()).value
 
-        declared = cycle_model.validate_human_gate_event(value, event)
+        declared = implement_model.validate_human_gate_event(value, event)
         ad_hoc = dict(event)
         ad_hoc["gate_id"] = "undeclared-gate"
 
         self.assertTrue(declared.ok, declared.error)
         self.assertEqual(
-            cycle_model.validate_human_gate_event(value, ad_hoc).error.code,
+            implement_model.validate_human_gate_event(value, ad_hoc).error.code,
             "human_gate_undeclared",
         )
 
     def test_plan_without_human_gates_crosses_the_boundary(self) -> None:
-        result = cycle_model.validate_human_gate_boundary(
+        result = implement_model.validate_human_gate_boundary(
             binding(),
             [],
             step_id="step-1",
@@ -588,16 +636,16 @@ class HumanGateStateTest(unittest.TestCase):
         value["human_gates"] = [human_gate()]
         targets = {"approve-cycle-files": "sha256:" + "8" * 64}
 
-        missing = cycle_model.validate_human_gate_boundary(
+        missing = implement_model.validate_human_gate_boundary(
             value,
             [],
             step_id="step-1",
             timing="before_implementation_green",
             target_identities=targets,
         )
-        rejected = cycle_model.validate_human_gate_boundary(
+        rejected = implement_model.validate_human_gate_boundary(
             value,
-            [cycle_model.seal_event(human_gate_event("rejected")).value],
+            [implement_model.seal_event(human_gate_event("rejected")).value],
             step_id="step-1",
             timing="before_implementation_green",
             target_identities=targets,
@@ -609,9 +657,9 @@ class HumanGateStateTest(unittest.TestCase):
     def test_changed_target_stales_a_previous_approval(self) -> None:
         value = binding()
         value["human_gates"] = [human_gate()]
-        approved = cycle_model.seal_event(human_gate_event()).value
+        approved = implement_model.seal_event(human_gate_event()).value
 
-        result = cycle_model.validate_human_gate_boundary(
+        result = implement_model.validate_human_gate_boundary(
             value,
             [approved],
             step_id="step-1",
@@ -624,9 +672,9 @@ class HumanGateStateTest(unittest.TestCase):
     def test_current_approval_crosses_the_declared_boundary(self) -> None:
         value = binding()
         value["human_gates"] = [human_gate()]
-        approved = cycle_model.seal_event(human_gate_event()).value
+        approved = implement_model.seal_event(human_gate_event()).value
 
-        result = cycle_model.validate_human_gate_boundary(
+        result = implement_model.validate_human_gate_boundary(
             value,
             [approved],
             step_id="step-1",
@@ -639,13 +687,13 @@ class HumanGateStateTest(unittest.TestCase):
 
 class ResultDerivationTest(unittest.TestCase):
     def test_no_events_is_not_started(self) -> None:
-        result = cycle_model.derive_result([])
+        result = implement_model.derive_result([])
 
         self.assertEqual(result["state"], "not_started")
         self.assertNotIn("attempt_id", result)
 
     def test_stopped_result_comes_from_the_last_durable_event(self) -> None:
-        stopped = cycle_model.seal_event(
+        stopped = implement_model.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
@@ -659,14 +707,14 @@ class ResultDerivationTest(unittest.TestCase):
             }
         ).value
 
-        result = cycle_model.derive_result([stopped])
+        result = implement_model.derive_result([stopped])
 
         self.assertEqual(result["state"], "stopped")
         self.assertEqual(result["reason"], "identity_drift")
         self.assertEqual(result["last_sequence"], 1)
 
     def test_implementation_green_requires_the_terminal_event(self) -> None:
-        terminal = cycle_model.seal_event(
+        terminal = implement_model.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
@@ -679,7 +727,7 @@ class ResultDerivationTest(unittest.TestCase):
             }
         ).value
 
-        result = cycle_model.derive_result([terminal])
+        result = implement_model.derive_result([terminal])
 
         self.assertEqual(result["state"], "implementation_green")
         self.assertEqual(result["commits"], ["7" * 40])
@@ -697,7 +745,7 @@ class ResultDerivationTest(unittest.TestCase):
                 "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
                 "previous_identity": previous["content_identity"] if previous else None,
                 "step_id": "step-1",
-                "oracle_identity": cycle_model.content_identity(oracle()),
+                "oracle_identity": implement_model.content_identity(oracle()),
                 "outcome": "no_change",
                 "exit_code": 0,
                 "observation": "no structural change needed",
@@ -706,10 +754,10 @@ class ResultDerivationTest(unittest.TestCase):
                     "reason": "fixture has no structured runner output",
                 },
             }
-            previous = cycle_model.seal_event(candidate, previous_event=previous).value
+            previous = implement_model.seal_event(candidate, previous_event=previous).value
             events.append(previous)
 
-        result = cycle_model.derive_result(events)
+        result = implement_model.derive_result(events)
 
         self.assertEqual(result["state"], "stopped")
         self.assertEqual(result["reason"], "terminal_event_missing")
