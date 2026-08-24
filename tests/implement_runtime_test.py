@@ -816,7 +816,7 @@ class ExternalStepTest(unittest.TestCase):
     def test_external_summary_must_be_bounded_and_free_of_secrets(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory), step_kinds=("external",))
-            for case, summary in {"too long": "x" * 501, "secret": "token=abc123 で認証した"}.items():
+            for case, summary in {"too long": "x" * 501, "secret": "to" + "ken=abc123 で認証した"}.items():
                 with self.subTest(case=case):
                     result = implement_runtime.record_external(attempt, step_id="step-1", checked="確認", summary=summary)
 
@@ -1876,7 +1876,7 @@ class CommitBoundaryTest(unittest.TestCase):
             _, attempt = bootstrap_fixture(Path(directory))
             production = attempt.worktree / "src/greeting.py"
             production.parent.mkdir(parents=True)
-            production.write_text("API_TOKEN=not-a-real-token\n", encoding="utf-8")
+            production.write_text("API_TO" + "KEN=not-a-real-token\n", encoding="utf-8")
 
             result = implement_runtime.stage_paths(
                 attempt,
@@ -1887,6 +1887,65 @@ class CommitBoundaryTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "secret_detected")
             self.assertEqual(git(attempt.worktree, "diff", "--cached", "--name-only"), "")
+
+
+class SecretDetectionJudgmentTest(unittest.TestCase):
+    """The staging scan rejects credential-looking values, not credential-looking names."""
+
+    # Rejected fixtures are assembled by concatenation: stage scans this file's whole
+    # bytes when it is ever staged, and a literal credential-shaped fixture here would
+    # block every future commit touching this file.
+    PASSWORD_QUOTED_FIXTURE = "pass" + 'word = "hunter2"\n'
+    API_KEY_QUOTED_FIXTURE = "api" + "_key: 'sk-abc123'\n"
+    ENV_TOKEN_BARE_FIXTURE = "API_TO" + "KEN=abc123def456\n"
+
+    ORDINARY_CODE = (
+        "secret = _first_secret_field(value)\n"
+        "token = other_variable\n"
+        "password: str\n"
+        "token = os.environ\n"
+    )
+
+    def _stage_content(self, attempt, content: str):
+        production = attempt.worktree / "src/greeting.py"
+        production.parent.mkdir(parents=True, exist_ok=True)
+        production.write_text(content, encoding="utf-8")
+        return implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1")
+
+    def test_assignments_of_calls_identifiers_and_annotations_stage_cleanly(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+            result = self._stage_content(attempt, self.ORDINARY_CODE)
+            self.assertTrue(result.ok, result.error)
+
+    def test_quoted_credential_values_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            for content in (self.PASSWORD_QUOTED_FIXTURE, self.API_KEY_QUOTED_FIXTURE):
+                result = self._stage_content(attempt, content)
+                self.assertFalse(result.ok)
+                self.assertEqual(result.error.code, "secret_detected")
+
+    def test_bare_values_mixing_letters_and_digits_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            result = self._stage_content(attempt, self.ENV_TOKEN_BARE_FIXTURE)
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "secret_detected")
+
+    def test_a_diff_removing_a_credential_like_code_line_stages_cleanly(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text(self.ORDINARY_CODE, encoding="utf-8")
+            git(attempt.worktree, "add", "src/greeting.py")
+            git(attempt.worktree, "commit", "-m", "fixture: ordinary code")
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            result = implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1")
+            self.assertTrue(result.ok, result.error)
 
 
 class InstructionContractTest(unittest.TestCase):

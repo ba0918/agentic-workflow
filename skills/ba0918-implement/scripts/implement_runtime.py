@@ -37,9 +37,35 @@ plan_artifact = _load_module(
 )
 
 
-CREDENTIAL_ASSIGNMENT = re.compile(
-    rb"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*[^<\s][^\s]*"
+_CREDENTIAL_QUOTED = re.compile(
+    rb"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*[\"'][^\"'\n]{4,}[\"']"
 )
+_CREDENTIAL_BARE = re.compile(
+    rb"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*(?P<value>[^\s\"',;\\\\]+)"
+)
+_CODE_REFERENCE = re.compile(rb"[A-Za-z_][A-Za-z_.]*")
+
+
+def _resembles_credential(data: bytes) -> bool:
+    """True when a credential-named value looks like a secret: quoted, or bare mixing digits.
+
+    A value that is code — a call, a subscript, an identifier or attribute path — is not a
+    secret. Judging by name alone made every commit that stages this repository's own
+    scanner or validator code impossible."""
+    if _CREDENTIAL_QUOTED.search(data):
+        return True
+    for match in _CREDENTIAL_BARE.finditer(data):
+        value = match.group("value")
+        # A value in angle brackets is a placeholder, not a secret; the pre-judgment
+        # scan excluded leading "<" the same way.
+        if value.startswith(b"<"):
+            continue
+        if b"(" in value or b"[" in value:
+            continue
+        if _CODE_REFERENCE.fullmatch(value):
+            continue
+        return True
+    return False
 
 
 class RuntimeFailure(NamedTuple):
@@ -1539,7 +1565,7 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
             content = candidate.read_bytes() if candidate.is_file() else b""
         except OSError as error:
             return _failure("stage_failed", "approved path could not be inspected", str(error))
-        if CREDENTIAL_ASSIGNMENT.search(content):
+        if _resembles_credential(content):
             return _failure("secret_detected", "candidate content resembles a credential assignment")
     kinds = _step_completion_kinds(attempt)
     if not kinds.ok:
@@ -1572,7 +1598,7 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
         if not validation.ok:
             return _failure(validation.error.code, validation.error.message, path)
     staged_diff = _git(attempt.worktree, "diff", "--cached", "--")
-    if CREDENTIAL_ASSIGNMENT.search(staged_diff.stdout.encode("utf-8")):
+    if _resembles_credential(staged_diff.stdout.encode("utf-8")):
         return _failure("secret_detected", "staged content resembles a credential assignment")
     return _ok(staged_paths)
 

@@ -8,14 +8,14 @@
     "ba0918-implement": {
       "scripts/": {
         "contract": "implement-runtime",
-        "digest": "sha256:a0d0158243e6ac39f385fb61a25f0ca858ffc03803d77c04986a1b50e6687b51",
+        "digest": "sha256:6c42d04ae39290c6370411a9509e1dcec359243dbd0560ea2dac7663017b60d7",
         "src": "tools/workflow-runtime/implement/"
       }
     }
   },
   "resolutions": {
     "implement-runtime": {
-      "digest": "sha256:a22f1a566304120fe48ddfd9197165b06e830cb01ac1a06b2074be92dd1d3121",
+      "digest": "sha256:70aca8dc969c0a01724ee329e943d23ee5d2b8eb17b033f078e5e36ce4ccb74d",
       "kind": "raw"
     }
   }
