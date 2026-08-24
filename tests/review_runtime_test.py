@@ -609,6 +609,17 @@ class ReverifyTest(ReverifyCase):
         self.assertEqual(result["reason"], "findings_stale")
         self.assertEqual(scenario.review_events()[-1]["event_type"], "findings_stale")
 
+    def test_a_revised_specification_marks_each_open_finding_stale_in_the_terminal_event(self):
+        scenario = Scenario(self.parent)
+        payload = self.fixed_set(scenario, [finding(scenario)])
+        scenario.spec_path.write_text("# Feature\n\n## Behaviour\n\nWave.\n", encoding="utf-8")
+        code, result = self.reverify(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "findings_stale")
+        event = scenario.review_events()[-1]
+        self.assertEqual(event["event_type"], "findings_stale")
+        self.assertEqual(event["verdicts"], [{"finding_id": payload["admitted"][0], "state": "stale"}])
+
     def test_a_trailer_naming_a_finding_outside_the_set_is_refused(self):
         scenario = Scenario(self.parent)
         self.fixed_set(scenario, [finding(scenario)])

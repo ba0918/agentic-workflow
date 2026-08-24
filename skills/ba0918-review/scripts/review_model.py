@@ -74,12 +74,11 @@ EVENT_TYPES = {
     "findings-added": {"findings", "commits"},
     "decision": {"finding_id", "result"},
     "deferred": {"findings"},
-    "findings_stale": {"observed_spec_identities"},
+    "findings_stale": {"observed_spec_identities", "verdicts"},
     "rereview-candidate": {"commits", "paths"},
     "warning": {"reason"},
-    "stopped": {"reason"},
 }
-TERMINAL_EVENT_TYPES = {"stopped", "findings_stale"}
+TERMINAL_EVENT_TYPES = {"findings_stale"}
 RAW_LOG_FIELDS = {"stdout", "stderr", "provider_log", "raw_log"}
 SECRET_VALUE_FIELDS = {"environment", "environment_values", "secret", "password", "credential"}
 SECRET_FIELD = re.compile(r"(?i)(?:api[_-]?key|secret|token|password|credential)")
@@ -377,7 +376,7 @@ def _validate_event_body(candidate: dict) -> ModelResult:
         commits = candidate["commits"]
         if not isinstance(commits, list) or any(not _matches(COMMIT_SHA, sha) for sha in commits):
             return _failure("event_field_invalid", "commits", "commit SHAs are invalid")
-    if event_type == "reverify":
+    if event_type in {"reverify", "findings_stale"}:
         verdicts = candidate["verdicts"]
         if not isinstance(verdicts, list) or any(
             not (isinstance(v, dict) and set(v) >= {"finding_id", "state"} and v["state"] in STATES)
@@ -394,7 +393,7 @@ def _validate_event_body(candidate: dict) -> ModelResult:
         not isinstance(candidate["paths"], list) or any(not _safe_relative_path(p) for p in candidate["paths"])
     ):
         return _failure("event_field_invalid", "paths", "paths must be repository-relative")
-    if event_type in {"warning", "stopped", "review-incomplete"} and not _bounded_text(candidate["reason"]):
+    if event_type in {"warning", "review-incomplete"} and not _bounded_text(candidate["reason"]):
         return _failure("event_field_invalid", "reason", "reason must be bounded text")
     return _ok()
 

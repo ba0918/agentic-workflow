@@ -263,6 +263,14 @@ class ReviewEventTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "raw_log_forbidden")
 
+    def test_a_stopped_event_type_is_refused_as_unknown(self):
+        candidate = common_event()
+        candidate["event_type"] = "stopped"
+        candidate["reason"] = "blocking condition"
+        result = self.model.seal_review_event(candidate, None)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "event_type_invalid")
+
     def test_an_event_that_does_not_extend_the_chain_is_rejected(self):
         bound = common_event()
         bound["implement_event_identity"] = IMPLEMENT_EVENT_IDENTITY

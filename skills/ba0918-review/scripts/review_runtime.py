@@ -698,12 +698,22 @@ def reverify(review: Review, *, max_failures: int | None) -> RuntimeResult:
         spec["path"]: _file_identity(review.main_checkout.joinpath(*PurePosixPath(spec["path"]).parts))
         for spec in review.binding["specs"]
     }
-    if observed != fixed["spec_identities"]:
-        staled = append_review_event(review, "findings_stale", {"observed_spec_identities": observed})
-        if not staled.ok:
-            return staled
-        return _failure("findings_stale", "a specification the set relies on was revised; the human decides")
     findings = _current_findings(events)
+    if observed != fixed["spec_identities"]:
+        stale_verdicts = []
+        for finding in findings.values():
+            if finding["state"] != "open":
+                continue
+            staled = review_model.transition(finding, "stale", cause="spec_revised")
+            if not staled.ok:
+                return _failure(staled.error.code, staled.error.message, staled.error.field)
+            stale_verdicts.append({"finding_id": finding["id"], "state": staled.value["state"]})
+        recorded = append_review_event(
+            review, "findings_stale", {"observed_spec_identities": observed, "verdicts": stale_verdicts}
+        )
+        if not recorded.ok:
+            return recorded
+        return _failure("findings_stale", "a specification the set relies on was revised; the human decides")
     commits = _fix_commits(review, _reverify_boundary(review, events))
     if not commits.ok:
         return commits
