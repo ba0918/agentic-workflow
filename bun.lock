@@ -4,12 +4,12 @@
   "workspaces": {
     "": {
       "devDependencies": {
-        "@ba0918-dev/agentic-skill-vendor": "^0.2.0",
+        "@ba0918-dev/agentic-skill-vendor": "^0.3.0",
       },
     },
   },
   "packages": {
-    "@ba0918-dev/agentic-skill-vendor": ["@ba0918-dev/agentic-skill-vendor@0.2.0", "", { "dependencies": { "ignore": "7.0.6", "js-yaml": "5.2.3" }, "bin": { "agentic-skill-vendor": "dist/cli.js" } }, "sha512-859/fjEdZuaD1X1Jtb+UpDqF5Pb5SpYF3qHBJepAgEMTQkfj5StmgSWxSBZIVAb9xB29GTWdnS8Rcgv7NCL2Tw=="],
+    "@ba0918-dev/agentic-skill-vendor": ["@ba0918-dev/agentic-skill-vendor@0.3.0", "", { "dependencies": { "ignore": "7.0.6", "js-yaml": "5.2.3" }, "bin": { "agentic-skill-vendor": "dist/cli.js" } }, "sha512-VMwsft4+a35Fl4X/K5kcGSChN66qTkrnsoidOyphvB1Le3qDvCEqAPC59WbzZ35xZFai/SuZLrkvIQ+uh+J6jw=="],
 
     "argparse": ["argparse@2.0.1", "", {}, "sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q=="],
 
