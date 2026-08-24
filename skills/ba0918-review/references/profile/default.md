@@ -34,9 +34,11 @@ Production code, tests, configuration, and documents outside `skills/`.
 
 ## Allowed oracle kinds
 
-`test` (a test module run with the project's runner) and `command` (a command that exits 0 when
-the finding is fixed). Both run inside the worktree; absolute paths, writes outside the
-worktree, and credential-shaped arguments are refused.
+`test` (a test module the runtime runs as `python3 -m unittest <module>`) and `command` (a
+command that exits 0 when the finding is fixed). On a project whose tests use another runner,
+write the runner invocation as a `command` oracle instead of a `test` one. Both run inside the
+worktree; absolute paths, writes outside the worktree, and credential-shaped arguments are
+refused.
 
 ## Items that run even at light level
 
