@@ -20,9 +20,11 @@ python3 <review-runtime> bind --repo <main-checkout> --plan-id <id> --attempt-id
 An unfinished review of the same execution is shown as `review_in_progress`, and only the
 human decides to continue it (`--continue`); two reviews of one execution never run at once.
 A review whose frozen set has no open finding left is answered as `review_complete` with the
-record's facts (review id, event count, last event, record path, findings per state) — read
-from the record alone, before the hand-off is verified, since the worktree may be gone by
-then. Completion is derived, never recorded; see [evidence.md](evidence.md).
+record's facts (review id, event count, last event, record path, findings per state); a review
+that ended on a revised specification (`findings_stale`) is answered as `review_finished` with
+the same facts. Both answers are read from the record alone, before the hand-off is verified,
+since the worktree may be gone by then. Completion is derived, never recorded; see
+[evidence.md](evidence.md).
 
 ## Decide the model
 
