@@ -60,7 +60,7 @@ COMMON_EVENT_FIELDS = {
 EVENT_TYPES = {
     "review-bound": {"implement_event_identity"},
     "model-selected": {"model", "model_source"},
-    "findings-fixed": {
+    "findings-frozen": {
         "findings",
         "findings_identity",
         "model",
@@ -349,7 +349,7 @@ def _validate_event_body(candidate: dict) -> ModelResult:
     event_type = candidate["event_type"]
     if event_type == "review-bound" and not _matches(IDENTITY, candidate["implement_event_identity"]):
         return _failure("event_field_invalid", "implement_event_identity", "implement event identity is invalid")
-    if event_type in {"model-selected", "findings-fixed"}:
+    if event_type in {"model-selected", "findings-frozen"}:
         if not _matches(MODEL_ID, candidate["model"]):
             return _failure("model_id_invalid", "model", "model must be a full model id, not an alias")
         if candidate["model_source"] not in MODEL_SOURCES:
@@ -359,7 +359,7 @@ def _validate_event_body(candidate: dict) -> ModelResult:
             return _failure("event_field_invalid", "second_reviewer", "second reviewer must be bounded text")
         if not _matches(MODEL_ID, candidate["second_model"]):
             return _failure("model_id_invalid", "second_model", "model must be a full model id, not an alias")
-    if event_type in {"findings-fixed", "findings-added", "deferred"}:
+    if event_type in {"findings-frozen", "findings-added", "deferred"}:
         findings = candidate["findings"]
         if not isinstance(findings, list):
             return _failure("event_field_invalid", "findings", "findings must be a list")
@@ -367,7 +367,7 @@ def _validate_event_body(candidate: dict) -> ModelResult:
             checked = validate_finding(finding)
             if not checked.ok:
                 return checked
-    if event_type == "findings-fixed":
+    if event_type == "findings-frozen":
         if candidate["findings_identity"] != findings_identity(candidate["findings"]):
             return _failure("event_field_invalid", "findings_identity", "findings identity does not match the findings")
         if candidate["level"] not in LEVELS:

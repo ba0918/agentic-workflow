@@ -230,13 +230,13 @@ class ReviewEventTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "event_field_missing")
 
-    def test_a_fixed_findings_event_records_model_level_and_profile(self):
+    def test_a_frozen_findings_event_records_model_level_and_profile(self):
         bound = common_event()
         bound["implement_event_identity"] = IMPLEMENT_EVENT_IDENTITY
         previous = self.model.seal_review_event(bound, None).value
         one = self.model.validate_finding(finding()).value
         candidate = common_event(2, previous["content_identity"])
-        candidate["event_type"] = "findings-fixed"
+        candidate["event_type"] = "findings-frozen"
         candidate.update(
             {
                 "findings": [one],

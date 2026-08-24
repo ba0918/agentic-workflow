@@ -393,7 +393,7 @@ class RegisterTest(RuntimeCase):
             scenario, "register", "--profile-dir", str(scenario.profiles), "--findings", str(findings_path), *extra
         )
 
-    def test_findings_whose_oracle_fails_now_are_fixed_as_the_set(self):
+    def test_findings_whose_oracle_fails_now_are_frozen_as_the_set(self):
         scenario = Scenario(self.parent)
         self.bind(scenario)
         path = self.write_findings(scenario, [finding(scenario)])
@@ -401,7 +401,7 @@ class RegisterTest(RuntimeCase):
         self.assertEqual(code, 0, payload)
         self.assertEqual(len(payload["admitted"]), 1)
         fixed = scenario.review_events()[-1]
-        self.assertEqual(fixed["event_type"], "findings-fixed")
+        self.assertEqual(fixed["event_type"], "findings-frozen")
         self.assertEqual(fixed["findings_identity"], payload["findings_identity"])
         self.assertEqual(fixed["model"], "claude-fable-5")
         self.assertEqual(fixed["model_source"], "explicit")
@@ -458,14 +458,14 @@ class RegisterTest(RuntimeCase):
         self.assertNotEqual(code, 0)
         self.assertEqual(payload["reason"], "severity_invalid")
 
-    def test_the_set_cannot_be_fixed_twice(self):
+    def test_the_set_cannot_be_frozen_twice(self):
         scenario = Scenario(self.parent)
         self.bind(scenario)
         path = self.write_findings(scenario, [finding(scenario)])
         self.register(scenario, path, "--level", "standard")
         code, payload = self.register(scenario, path, "--level", "standard")
         self.assertNotEqual(code, 0)
-        self.assertEqual(payload["reason"], "findings_already_fixed")
+        self.assertEqual(payload["reason"], "findings_already_frozen")
 
     def test_unsafe_oracle_commands_are_refused(self):
         scenario = Scenario(self.parent)
@@ -580,7 +580,7 @@ APP_FIXED_ORACLE = {
 
 
 class ReverifyCase(RuntimeCase):
-    def fixed_set(self, scenario: Scenario, findings: list) -> dict:
+    def frozen_set(self, scenario: Scenario, findings: list) -> dict:
         self.bind(scenario)
         path = self.write_findings(scenario, findings)
         code, payload = self.command(
@@ -602,15 +602,15 @@ class ReverifyCase(RuntimeCase):
     def reverify(self, scenario: Scenario, *extra: str) -> tuple[int, dict]:
         return self.command(scenario, "reverify", *extra)
 
-    def fixed_event_bytes(self, scenario: Scenario) -> bytes:
-        target = next(path for path in scenario.review_dir().glob("*findings-fixed*"))
+    def frozen_event_bytes(self, scenario: Scenario) -> bytes:
+        target = next(path for path in scenario.review_dir().glob("*findings-frozen*"))
         return target.read_bytes()
 
 
 class ReverifyTest(ReverifyCase):
     def test_a_passing_oracle_closes_and_a_failing_one_stays_open_with_a_count(self):
         scenario = Scenario(self.parent)
-        payload = self.fixed_set(
+        payload = self.frozen_set(
             scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE)), finding(scenario)]
         )
         closing_id, failing_id = payload["admitted"]
@@ -625,18 +625,36 @@ class ReverifyTest(ReverifyCase):
         self.assertEqual(event["event_type"], "reverify")
         self.assertEqual(event["commits"], [sha])
 
+    def test_a_set_frozen_under_the_old_event_name_still_reverifies(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE))])
+        # Records frozen before the rename carry the event as findings-fixed and must stay readable.
+        target = next(path for path in scenario.review_dir().glob("*findings-frozen*"))
+        event = json.loads(target.read_text(encoding="utf-8"))
+        event["event_type"] = "findings-fixed"
+        del event["content_identity"]
+        event["content_identity"] = identity_of(event)
+        Scenario.write_json(
+            target.with_name(target.name.replace("findings-frozen", "findings-fixed")), event
+        )
+        target.unlink()
+        self.fix_commit(scenario, [f"Finding: {payload['admitted'][0]}"])
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["closed"], payload["admitted"])
+
     def test_a_commit_without_a_finding_trailer_is_out_of_scope(self):
         scenario = Scenario(self.parent)
-        self.fixed_set(scenario, [finding(scenario)])
+        self.frozen_set(scenario, [finding(scenario)])
         self.fix_commit(scenario, [])
         code, result = self.reverify(scenario)
         self.assertNotEqual(code, 0)
         self.assertEqual(result["reason"], "commit_without_finding_trailer")
-        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-fixed")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-frozen")
 
     def test_a_revised_specification_stales_the_findings_instead_of_closing(self):
         scenario = Scenario(self.parent)
-        payload = self.fixed_set(scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE))])
+        payload = self.frozen_set(scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE))])
         scenario.spec_path.write_text("# Feature\n\n## Behaviour\n\nWave.\n", encoding="utf-8")
         self.fix_commit(scenario, [f"Finding: {payload['admitted'][0]}"])
         code, result = self.reverify(scenario)
@@ -646,7 +664,7 @@ class ReverifyTest(ReverifyCase):
 
     def test_a_revised_specification_marks_each_open_finding_stale_in_the_terminal_event(self):
         scenario = Scenario(self.parent)
-        payload = self.fixed_set(scenario, [finding(scenario)])
+        payload = self.frozen_set(scenario, [finding(scenario)])
         scenario.spec_path.write_text("# Feature\n\n## Behaviour\n\nWave.\n", encoding="utf-8")
         code, result = self.reverify(scenario)
         self.assertNotEqual(code, 0)
@@ -657,28 +675,28 @@ class ReverifyTest(ReverifyCase):
 
     def test_a_trailer_naming_a_finding_outside_the_set_is_refused(self):
         scenario = Scenario(self.parent)
-        self.fixed_set(scenario, [finding(scenario)])
+        self.frozen_set(scenario, [finding(scenario)])
         self.fix_commit(scenario, ["Finding: cmd-0000000000000000"])
         code, result = self.reverify(scenario)
         self.assertNotEqual(code, 0)
         self.assertEqual(result["reason"], "finding_not_in_set")
-        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-fixed")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-frozen")
 
     def test_a_fix_outside_the_reviewed_paths_becomes_a_rereview_candidate(self):
         scenario = Scenario(self.parent)
-        payload = self.fixed_set(scenario, [finding(scenario)])
-        before = self.fixed_event_bytes(scenario)
+        payload = self.frozen_set(scenario, [finding(scenario)])
+        before = self.frozen_event_bytes(scenario)
         self.fix_commit(scenario, [f"Finding: {payload['admitted'][0]}"], path="other.py", content="new = True\n")
         code, result = self.reverify(scenario)
         self.assertEqual(code, 0, result)
         self.assertEqual(result["rereview_candidates"]["paths"], ["other.py"])
         kinds = [event["event_type"] for event in scenario.review_events()]
         self.assertIn("rereview-candidate", kinds)
-        self.assertEqual(self.fixed_event_bytes(scenario), before)
+        self.assertEqual(self.frozen_event_bytes(scenario), before)
 
     def test_failures_reaching_the_limit_escalate_to_human_judgment(self):
         scenario = Scenario(self.parent)
-        payload = self.fixed_set(scenario, [finding(scenario)])
+        payload = self.frozen_set(scenario, [finding(scenario)])
         stubborn = payload["admitted"][0]
         self.fix_commit(scenario, [f"Finding: {stubborn}"], content="attempt = 1\n")
         code, result = self.reverify(scenario, "--max-failures", "2")
@@ -696,7 +714,7 @@ class ReverifyTest(ReverifyCase):
 
     def test_without_a_limit_the_count_grows_and_nothing_escalates(self):
         scenario = Scenario(self.parent)
-        payload = self.fixed_set(scenario, [finding(scenario)])
+        payload = self.frozen_set(scenario, [finding(scenario)])
         self.fix_commit(scenario, [f"Finding: {payload['admitted'][0]}"], content="attempt = 1\n")
         code, result = self.reverify(scenario)
         self.assertEqual(code, 0, result)
@@ -707,7 +725,7 @@ class ReverifyTest(ReverifyCase):
 class HumanDecisionTest(ReverifyCase):
     def test_a_human_judgment_finding_closes_only_by_decision(self):
         scenario = Scenario(self.parent)
-        payload = self.fixed_set(
+        payload = self.frozen_set(
             scenario,
             [finding(scenario, action="human_judgment", oracle=None, oracle_unavailable_reason="taste")],
         )
@@ -726,7 +744,7 @@ class HumanDecisionTest(ReverifyCase):
 
     def test_a_decision_on_a_machine_checked_finding_is_refused(self):
         scenario = Scenario(self.parent)
-        payload = self.fixed_set(scenario, [finding(scenario)])
+        payload = self.frozen_set(scenario, [finding(scenario)])
         code, result = self.command(
             scenario, "decide", "--finding", payload["admitted"][0], "--result", "accepted"
         )
@@ -742,17 +760,17 @@ class DeferTest(ReverifyCase):
 
     def test_deferred_findings_are_recorded_apart_and_the_set_is_unchanged(self):
         scenario = Scenario(self.parent)
-        self.fixed_set(scenario, [finding(scenario)])
-        before = self.fixed_event_bytes(scenario)
+        self.frozen_set(scenario, [finding(scenario)])
+        before = self.frozen_event_bytes(scenario)
         code, result = self.defer(scenario, [finding(scenario, oracle=dict(PASSING_ORACLE))])
         self.assertEqual(code, 0, result)
         self.assertEqual(len(result["deferred"]), 1)
         self.assertEqual(scenario.review_events()[-1]["event_type"], "deferred")
-        self.assertEqual(self.fixed_event_bytes(scenario), before)
+        self.assertEqual(self.frozen_event_bytes(scenario), before)
 
     def test_only_introduced_findings_that_fail_now_join_the_set(self):
         scenario = Scenario(self.parent)
-        self.fixed_set(scenario, [finding(scenario)])
+        self.frozen_set(scenario, [finding(scenario)])
         code, result = self.defer(
             scenario,
             [
@@ -777,7 +795,7 @@ class MergeTest(ReverifyCase):
 
     def test_finishing_review_findings_that_fail_now_join_the_set_and_close_by_reverify(self):
         scenario = Scenario(self.parent)
-        self.fixed_set(scenario, [finding(scenario)])
+        self.frozen_set(scenario, [finding(scenario)])
         code, result = self.merge(
             scenario,
             [
@@ -800,32 +818,32 @@ class MergeTest(ReverifyCase):
         self.bind(scenario)
         code, result = self.merge(scenario, [finding(scenario)])
         self.assertNotEqual(code, 0)
-        self.assertEqual(result["reason"], "findings_not_fixed")
+        self.assertEqual(result["reason"], "findings_not_frozen")
 
 
 class ReviewingContextGuardTest(ReverifyCase):
     def test_reverify_refuses_a_worktree_that_left_the_bound_branch(self):
         scenario = Scenario(self.parent)
-        payload = self.fixed_set(scenario, [finding(scenario)])
+        payload = self.frozen_set(scenario, [finding(scenario)])
         self.fix_commit(scenario, [f"Finding: {payload['admitted'][0]}"])
         git(scenario.worktree, "checkout", "-q", "-b", "somewhere-else")
         code, result = self.reverify(scenario)
         self.assertNotEqual(code, 0)
         self.assertEqual(result["reason"], "branch_mismatch")
-        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-fixed")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-frozen")
 
     def test_reverify_refuses_uncommitted_changes_so_verdicts_attach_to_commits(self):
         scenario = Scenario(self.parent)
-        self.fixed_set(scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE))])
+        self.frozen_set(scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE))])
         (scenario.worktree / "app.py").write_text("def greet():\n    return 'hola'\n", encoding="utf-8")
         code, result = self.reverify(scenario)
         self.assertNotEqual(code, 0)
         self.assertEqual(result["reason"], "worktree_dirty")
-        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-fixed")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-frozen")
 
     def test_decide_refuses_when_the_hand_off_no_longer_verifies(self):
         scenario = Scenario(self.parent)
-        payload = self.fixed_set(
+        payload = self.frozen_set(
             scenario,
             [finding(scenario, action="human_judgment", oracle=None, oracle_unavailable_reason="taste")],
         )

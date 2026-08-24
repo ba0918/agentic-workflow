@@ -9,7 +9,7 @@ one-event-one-file, append-only rules:
 
 - Review keeps its own sequence and never writes into the implementation's event chain; the
   first event (`review-bound`) references the identity of the implementation's last event.
-- The frozen findings set (the `findings-fixed` event) is never overwritten. Findings open and close by
+- The frozen findings set (the `findings-frozen` event) is never overwritten. Findings open and close by
   appended events only; after a refusal or a stop the set file stays.
 - A refusal that leaves the review resumable is returned as a command error and writes no
   event; the terminal row below is written only when the condition itself must be durable.
@@ -22,7 +22,7 @@ one-event-one-file, append-only rules:
 | `review-bound` | the review started against a verified hand-off |
 | `model-selected` | which model reviews, and which stage of the order decided it |
 | `second-opinion` | the second reviewer actually ran, once: who, and with which model |
-| `findings-fixed` | the frozen set: findings, their set identity, model, strength, profiles, reviewed paths |
+| `findings-frozen` | the frozen set: findings, their set identity, model, strength, profiles, reviewed paths |
 | `review-incomplete` | the review stopped resumable (for example an unfinished security check) |
 | `reverify` | one re-review round: the fix commits seen and each finding's verdict |
 | `findings-added` | findings admitted into the set after freezing: introduced risks or a finishing review's findings |

@@ -33,6 +33,9 @@ EXECUTIONS = PurePosixPath(".agents/artifacts/executions")
 REVIEW_SCRATCH = PurePosixPath(".agents/tmp/reviews")
 REVIEW_DIR = "review"
 IMPLEMENT_TERMINAL_EVENT = "implementation_green"
+FROZEN_EVENT = "findings-frozen"
+# Records frozen before the rename carry the event as "findings-fixed"; reading accepts both.
+FROZEN_EVENT_TYPES = {FROZEN_EVENT, "findings-fixed"}
 DEFAULT_PROFILE_DIR = SCRIPT_DIR.parent / "references" / "profile"
 DEFAULT_PROFILE = "default"
 PROFILE_COVERS = re.compile(r"^Covers:\s*(.+)$", re.MULTILINE)
@@ -439,8 +442,8 @@ def run_oracle(review: Review, oracle: dict) -> RuntimeResult:
 # ---------------------------------------------------------------- fixing the findings set
 
 
-def _fixed_findings_event(events: list[dict]) -> dict | None:
-    return next((event for event in events if event["event_type"] == "findings-fixed"), None)
+def _frozen_findings_event(events: list[dict]) -> dict | None:
+    return next((event for event in events if event["event_type"] in FROZEN_EVENT_TYPES), None)
 
 
 def _model_selection(events: list[dict]) -> dict | None:
@@ -510,8 +513,8 @@ def register_findings(
         return _failure("review_not_bound", "bind the review before registering findings")
     if _review_is_finished(events):
         return _failure("review_finished", "this execution's review already ended", review_facts(review))
-    if _fixed_findings_event(events) is not None:
-        return _failure("findings_already_fixed", "the findings set is fixed; re-review with reverify")
+    if _frozen_findings_event(events) is not None:
+        return _failure("findings_already_frozen", "the findings set is frozen; re-review with reverify")
     selection = _model_selection(events)
     if selection is None:
         return _failure("model_not_selected", "the reviewing model was not recorded")
@@ -534,9 +537,9 @@ def register_findings(
             "the mandatory security check is not finished; the review stays incomplete and resumable",
         )
     findings = admitted.value["admitted"]
-    fixed = append_review_event(
+    frozen = append_review_event(
         review,
-        "findings-fixed",
+        FROZEN_EVENT,
         {
             "findings": findings,
             "findings_identity": review_model.findings_identity(findings),
@@ -547,11 +550,11 @@ def register_findings(
             "reviewed_paths": inputs.value["paths"],
         },
     )
-    if not fixed.ok:
-        return fixed
+    if not frozen.ok:
+        return frozen
     return _ok(
         {
-            "findings_identity": fixed.value["findings_identity"],
+            "findings_identity": frozen.value["findings_identity"],
             "admitted": [finding["id"] for finding in findings],
             "not_admitted": admitted.value["not_admitted"],
             "groups": review_model.group_by_root_cause(findings),
@@ -589,8 +592,8 @@ def second_opinion(
     events = review_events(review)
     if not events:
         return _failure("review_not_bound", "bind the review before asking a second reviewer")
-    if _fixed_findings_event(events) is not None:
-        return _failure("findings_already_fixed", "a second reviewer runs only alongside the first review")
+    if _frozen_findings_event(events) is not None:
+        return _failure("findings_already_frozen", "a second reviewer runs only alongside the first review")
     if any(event["event_type"] == "second-opinion" for event in events):
         return _failure("second_opinion_already_ran", "the second reviewer already ran once; the permission does not carry over")
     package = _second_reviewer_package(review)
@@ -668,10 +671,10 @@ def _fix_commits(review: Review, boundary: str) -> RuntimeResult:
 
 
 def _current_findings(events: list[dict]) -> dict[str, dict]:
-    """The set as of the latest event: fixed findings plus introduced ones, states applied."""
+    """The set as of the latest event: frozen findings plus later-joined ones, states applied."""
     findings: dict[str, dict] = {}
     for event in events:
-        if event["event_type"] in {"findings-fixed", "findings-added"}:
+        if event["event_type"] in FROZEN_EVENT_TYPES | {"findings-added"}:
             for finding in event["findings"]:
                 findings[finding["id"]] = dict(finding)
         elif event["event_type"] == "reverify":
@@ -699,8 +702,8 @@ def _reviewing_context(review: Review) -> RuntimeResult:
         return _failure("review_not_bound", "bind the review first")
     if _review_is_finished(events):
         return _failure("review_finished", "this execution's review already ended", review_facts(review))
-    if _fixed_findings_event(events) is None:
-        return _failure("findings_not_fixed", "fix the findings set before re-reviewing")
+    if _frozen_findings_event(events) is None:
+        return _failure("findings_not_frozen", "freeze the findings set before re-reviewing")
     return _ok(events)
 
 
@@ -725,13 +728,13 @@ def reverify(review: Review, *, max_failures: int | None) -> RuntimeResult:
             "uncommitted changes in the worktree; commit them so every verdict attaches to a commit",
         )
     events = context.value
-    fixed = _fixed_findings_event(events)
+    frozen = _frozen_findings_event(events)
     observed = {
         spec["path"]: _file_identity(review.main_checkout.joinpath(*PurePosixPath(spec["path"]).parts))
         for spec in review.binding["specs"]
     }
     findings = _current_findings(events)
-    if observed != fixed["spec_identities"]:
+    if observed != frozen["spec_identities"]:
         stale_verdicts = []
         for finding in findings.values():
             if finding["state"] != "open":
@@ -759,7 +762,7 @@ def reverify(review: Review, *, max_failures: int | None) -> RuntimeResult:
         for finding_id in commit["finding_ids"]:
             if finding_id not in findings:
                 return _failure("finding_not_in_set", "the fixed set gains no findings during re-review", finding_id)
-    reviewed = set(fixed["reviewed_paths"])
+    reviewed = set(frozen["reviewed_paths"])
     outside = sorted({path for commit in commits.value for path in commit["paths"] if path not in reviewed})
     shas = [commit["sha"] for commit in commits.value]
     if outside:
@@ -809,7 +812,7 @@ def reverify(review: Review, *, max_failures: int | None) -> RuntimeResult:
 
 def _join_frozen_set(review: Review, events: list[dict], findings: list[dict]) -> RuntimeResult:
     """Late findings join the set under the same fails-now admission as the first review."""
-    level = _fixed_findings_event(events)["level"]
+    level = _frozen_findings_event(events)["level"]
     admitted = admit_findings(review, findings, level=level)
     if not admitted.ok:
         return admitted
@@ -912,7 +915,7 @@ def main(argv: list[str] | None = None) -> int:
     bind.add_argument("--continue", dest="continue_existing", action="store_true")
 
     inputs = commands.add_parser("inputs", help="list what the first review reads and which profile applies")
-    register = commands.add_parser("register", help="admit findings whose oracle fails now and fix the set")
+    register = commands.add_parser("register", help="admit findings whose oracle fails now and freeze the set")
     for sub in (inputs, register):
         sub.add_argument("--repo", required=True)
         sub.add_argument("--plan-id", required=True)
