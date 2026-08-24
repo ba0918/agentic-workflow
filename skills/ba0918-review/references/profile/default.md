@@ -38,8 +38,12 @@ declares no `Covers:` line: it is the fallback.
 `test` (a test module the runtime runs as `python3 -m unittest <module>`) and `command` (a
 command that exits 0 when the finding is fixed). On a project whose tests use another runner,
 write the runner invocation as a `command` oracle instead of a `test` one. Both run inside the
-worktree; absolute paths, writes outside the worktree, and credential-shaped arguments are
-refused.
+worktree; absolute paths, parent-directory references, and credential-shaped values are
+refused, in bare arguments and inside inline payloads (such as a `python3 -c` string) alike.
+This vetting is a surface scan, not a sandbox: it stops accidents, not deliberate
+obfuscation. Review examines the user's own implementation with a reviewer the human chose,
+every oracle command stays visible in the frozen record, and the human who freezes the set
+is the last guard.
 
 ## Items that run even at light level
 

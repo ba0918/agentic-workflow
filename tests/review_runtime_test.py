@@ -480,6 +480,28 @@ class RegisterTest(RuntimeCase):
         self.assertEqual(code, 0, payload)
         self.assertEqual(len(payload["admitted"]), 1)
 
+    def test_a_payload_reaching_outside_the_worktree_is_refused(self):
+        scenario = Scenario(self.parent)
+        self.bind(scenario)
+        unsafe = [
+            {
+                "kind": "command",
+                "command": "python3 -c 'import sys; sys.exit(1 if open(\"/etc/hostname\") else 0)'",
+                "cwd": ".",
+            },
+            {
+                "kind": "command",
+                "command": "python3 -c 'open(\"../outside.txt\", \"w\").write(\"x\")'",
+                "cwd": ".",
+            },
+        ]
+        for oracle in unsafe:
+            with self.subTest(command=oracle["command"]):
+                path = self.write_findings(scenario, [finding(scenario, oracle=oracle)])
+                code, payload = self.register(scenario, path, "--level", "standard")
+                self.assertNotEqual(code, 0)
+                self.assertEqual(payload["reason"], "oracle_command_unsafe")
+
     def test_unsafe_oracle_commands_are_refused(self):
         scenario = Scenario(self.parent)
         self.bind(scenario)

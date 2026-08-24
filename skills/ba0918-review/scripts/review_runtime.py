@@ -47,6 +47,11 @@ _CREDENTIAL_BARE = re.compile(
     rb"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*(?P<value>[^\s\"',;\\\\]+)"
 )
 _CODE_REFERENCE = re.compile(rb"[A-Za-z_][A-Za-z_.]*")
+# Inline payloads (python3 -c and alike) get the same surface rules as bare argv tokens:
+# a path is suspicious where it starts a quoted or delimited value, not anywhere a slash
+# appears (URLs and relative paths stay legal).
+_PAYLOAD_ABSOLUTE = re.compile(r"(?:^|[\s'\"(=,])(?:/[^\s'\",)]+|~/[^\s'\",)]*)")
+_PAYLOAD_PARENT = re.compile(r"(?:^|[\s'\"(=,])\.\.(?:/|$|[\s'\",)])")
 ORACLE_TIMEOUT_SECONDS = 600
 
 
@@ -446,6 +451,10 @@ def _oracle_unsafe_reason(command: list[str]) -> str | None:
             return f"an absolute path: {part}"
         if ".." in PurePosixPath(part).parts:
             return f"a path leaving the worktree: {part}"
+        if _PAYLOAD_ABSOLUTE.search(part):
+            return f"an absolute path inside the payload: {part[:80]}"
+        if _PAYLOAD_PARENT.search(part):
+            return f"a parent-directory reference inside the payload: {part[:80]}"
     return None
 
 
