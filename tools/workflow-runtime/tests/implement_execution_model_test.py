@@ -3,8 +3,8 @@ from pathlib import Path
 import unittest
 
 
-ROOT = Path(__file__).parents[1]
-MODEL_MODULE = ROOT / "skills/ba0918-implement/scripts/execution_model.py"
+ROOT = Path(__file__).parents[3]
+MODEL_MODULE = ROOT / "tools/workflow-runtime/implement/execution_model.py"
 SPEC = importlib.util.spec_from_file_location("cycle_execution_model", MODEL_MODULE)
 implement_model = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None

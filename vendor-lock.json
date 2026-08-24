@@ -31,7 +31,7 @@
       },
       "scripts/implement_runtime.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:2ea92c24cb993d912d97d385825aa5aea5679e0ec3f12d21efc35b495b2cac7f",
+        "digest": "sha256:c24f9ab3092546e09b2f96cad318ff42e31287b07b86fcab98bbd2846a825665",
         "src": "tools/workflow-runtime/implement/implement_runtime.py"
       }
     },
@@ -49,7 +49,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:3d8a72e1601157ceae7ae28b5908511ee969f55431cdb69a48a3f6325dd80a5e",
+      "digest": "sha256:0d5019a841005090695ecbfc971bbbbb4af20c0b0b520ab6abbe238fbe0dc2c0",
       "kind": "raw"
     },
     "plan-runtime": {

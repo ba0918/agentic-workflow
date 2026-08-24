@@ -31,9 +31,16 @@ def _load_module(name: str, path: Path):
 
 
 execution_model = _load_module("ba0918_implement_execution_model", SCRIPT_DIR / "execution_model.py")
+# The runtime lives in two homes: the canonical tree (tools/workflow-runtime/implement/,
+# where plan_artifact.py sits in the sibling plan/) and the vendored copy
+# (skills/ba0918-implement/scripts/, where it sits in the plan skill's scripts/).
+_PLAN_ARTIFACT_HOMES = (
+    SCRIPT_DIR.parent / "plan/plan_artifact.py",
+    SCRIPT_DIR.parents[1] / "ba0918-plan/scripts/plan_artifact.py",
+)
 plan_artifact = _load_module(
     "ba0918_plan_artifact_consumer",
-    SCRIPT_DIR.parents[1] / "ba0918-plan/scripts/plan_artifact.py",
+    next(path for path in _PLAN_ARTIFACT_HOMES if path.is_file()),
 )
 
 

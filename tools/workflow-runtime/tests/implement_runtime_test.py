@@ -12,15 +12,15 @@ import unittest
 from unittest import mock
 
 
-ROOT = Path(__file__).parents[1]
-RUNTIME_MODULE = ROOT / "skills/ba0918-implement/scripts/implement_runtime.py"
+ROOT = Path(__file__).parents[3]
+RUNTIME_MODULE = ROOT / "tools/workflow-runtime/implement/implement_runtime.py"
 SPEC = importlib.util.spec_from_file_location("implement_runtime", RUNTIME_MODULE)
 implement_runtime = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(implement_runtime)
 
 
-PLAN_ARTIFACT_MODULE = ROOT / "skills/ba0918-plan/scripts/plan_artifact.py"
+PLAN_ARTIFACT_MODULE = ROOT / "tools/workflow-runtime/plan/plan_artifact.py"
 PLAN_SPEC = importlib.util.spec_from_file_location("plan_artifact_for_runtime_test", PLAN_ARTIFACT_MODULE)
 plan_artifact = importlib.util.module_from_spec(PLAN_SPEC)
 assert PLAN_SPEC.loader is not None

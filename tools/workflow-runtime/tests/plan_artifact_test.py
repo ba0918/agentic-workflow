@@ -10,8 +10,8 @@ import unittest
 from unittest import mock
 
 
-ROOT = Path(__file__).parents[1]
-PLAN_MODULE = ROOT / "skills/ba0918-plan/scripts/plan_artifact.py"
+ROOT = Path(__file__).parents[3]
+PLAN_MODULE = ROOT / "tools/workflow-runtime/plan/plan_artifact.py"
 SPEC = importlib.util.spec_from_file_location("plan_artifact", PLAN_MODULE)
 plan_artifact = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None

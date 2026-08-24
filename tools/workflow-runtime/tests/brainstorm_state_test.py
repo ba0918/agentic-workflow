@@ -5,8 +5,8 @@ import tempfile
 import unittest
 
 
-ROOT = Path(__file__).parents[1]
-STATE_MODULE = ROOT / "skills/ba0918-brainstorm/scripts/state.py"
+ROOT = Path(__file__).parents[3]
+STATE_MODULE = ROOT / "tools/workflow-runtime/brainstorm/state.py"
 SPEC = importlib.util.spec_from_file_location("brainstorm_state", STATE_MODULE)
 state = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None

@@ -9,8 +9,8 @@ import unittest
 from unittest import mock
 
 
-ROOT = Path(__file__).parents[1]
-DRAFT_MODULE = ROOT / "skills/ba0918-brainstorm/scripts/draft.py"
+ROOT = Path(__file__).parents[3]
+DRAFT_MODULE = ROOT / "tools/workflow-runtime/brainstorm/draft.py"
 SPEC = importlib.util.spec_from_file_location("brainstorm_draft", DRAFT_MODULE)
 draft = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None

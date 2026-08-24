@@ -12,10 +12,10 @@ The languages, frameworks and services in use, and where the significant directo
 
 | Purpose | Command |
 |---|---|
-| Install | |
+| Install | `bun install` |
 | Build | |
-| Test | |
-| Lint | |
+| Test | `python3 -m unittest discover -s tools/workflow-runtime/tests -p '*_test.py'` |
+| Lint | `bunx agentic-skill-vendor verify`（正本と各 skill の複製の一致検査） |
 | Run locally | |
 
 ## Conventions specific to this project
