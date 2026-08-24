@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -1727,9 +1728,11 @@ FAILED (failures=1, errors=1, skipped=1)
                     },
                 }
             )
+            # accept_red reads execute_oracle from runtime.tdd, so the double must be
+            # installed where it is used, not on the facade's re-export.
             with mock.patch.object(
-                implement_runtime,
-                "_execute_oracle",
+                implement_runtime.tdd,
+                "execute_oracle",
                 side_effect=[denied, expected_red],
             ):
                 first = implement_runtime.accept_red(attempt, candidate)
@@ -1975,6 +1978,17 @@ class SecretDetectionJudgmentTest(unittest.TestCase):
             production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
             result = implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1")
             self.assertTrue(result.ok, result.error)
+
+
+class VendoredEntrySmokeTest(unittest.TestCase):
+    """The vendored copy has its own import graph; byte-identity alone does not prove it loads."""
+
+    def test_the_vendored_copy_resolves_its_modules_and_answers_help(self) -> None:
+        entry = ROOT / "skills/ba0918-implement/scripts/implement_runtime.py"
+        completed = subprocess.run(
+            [sys.executable, str(entry), "--help"], capture_output=True, text=True
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
 
 
 class InstructionContractTest(unittest.TestCase):

@@ -31,8 +31,78 @@
       },
       "scripts/implement_runtime.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:c24f9ab3092546e09b2f96cad318ff42e31287b07b86fcab98bbd2846a825665",
+        "digest": "sha256:ba64644bea44f3ded73d217d0def4fecee24bd1be871ad3a01f2801c5b7547f0",
         "src": "tools/workflow-runtime/implement/implement_runtime.py"
+      },
+      "scripts/runtime/__init__.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:601e6228e5d15463a7a5a25e94415d0977e89ffec68f41c52390879a4f37b951",
+        "src": "tools/workflow-runtime/implement/runtime/__init__.py"
+      },
+      "scripts/runtime/cli.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:0acfe6a73db9c8bd57497eec18844c2c49b3d468b38c4d317069f0a4b0c329b7",
+        "src": "tools/workflow-runtime/implement/runtime/cli.py"
+      },
+      "scripts/runtime/context.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:32c035c37001473b6e86c7e0419eff943d3d3a64ef461e6487f4a9219ee134de",
+        "src": "tools/workflow-runtime/implement/runtime/context.py"
+      },
+      "scripts/runtime/deliverables.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:9e7a589fcf77f15fa905166000f8b3eec5466f5228ff42cf77819a5fb048acef",
+        "src": "tools/workflow-runtime/implement/runtime/deliverables.py"
+      },
+      "scripts/runtime/deps.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:91923b93ae8a15850f04e982302deb3b49fa4bda2800ffed9b635c4929253374",
+        "src": "tools/workflow-runtime/implement/runtime/deps.py"
+      },
+      "scripts/runtime/gates.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:011f77602cb58d8af9e09054bc4345de102716095682354a44bbcc75b14c442b",
+        "src": "tools/workflow-runtime/implement/runtime/gates.py"
+      },
+      "scripts/runtime/gitio.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:bb7872022430f75d4a4552e2719ab9df78ae1a4494a10000bf12b6cab2a4a7ef",
+        "src": "tools/workflow-runtime/implement/runtime/gitio.py"
+      },
+      "scripts/runtime/planning.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:791c788d637ef1ccb581301be352f809d153aa572573b62aa0c5702b90126106",
+        "src": "tools/workflow-runtime/implement/runtime/planning.py"
+      },
+      "scripts/runtime/repository.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:9e10ff236db6e1aaee5fe07670b400c2ae8e3c7c244c64ebea246ed050b15d81",
+        "src": "tools/workflow-runtime/implement/runtime/repository.py"
+      },
+      "scripts/runtime/resume.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:75339eb5ee245e1e9ab42a1faa37af9972ab8b8ad15a3132e11919737f84ac18",
+        "src": "tools/workflow-runtime/implement/runtime/resume.py"
+      },
+      "scripts/runtime/staging.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:429f28ba76de638ceae72347ae6c6a7315aca5b60f97529a4c2633e6d9505836",
+        "src": "tools/workflow-runtime/implement/runtime/staging.py"
+      },
+      "scripts/runtime/storage.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:c8b56ee9cea77c44aa483f406b10e6fe5544b80036d8329712d4b268b8ab0c0a",
+        "src": "tools/workflow-runtime/implement/runtime/storage.py"
+      },
+      "scripts/runtime/tdd.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:e058f4f5e4024979f635f4c50d0b9cbb3a8421e5bc73c4f347c376aeb62db6ef",
+        "src": "tools/workflow-runtime/implement/runtime/tdd.py"
+      },
+      "scripts/runtime/types.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:4bbb3fc4a0e7253ba50beb22739ed0f5e01a37e5c56a97bebcab3f67edb65bac",
+        "src": "tools/workflow-runtime/implement/runtime/types.py"
       }
     },
     "ba0918-plan": {
@@ -49,7 +119,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:0d5019a841005090695ecbfc971bbbbb4af20c0b0b520ab6abbe238fbe0dc2c0",
+      "digest": "sha256:4bd2383c4700ad5f7325b5e80ba225cbf98fcfe7bc5fbbf7b6079ffd5578ebdd",
       "kind": "raw"
     },
     "plan-runtime": {

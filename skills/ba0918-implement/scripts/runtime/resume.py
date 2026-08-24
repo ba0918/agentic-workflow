@@ -1,0 +1,277 @@
+"""Unfinished executions: facts for the human, resume, and session reload."""
+from runtime.context import changed_paths, raw_events
+import re
+from pathlib import Path, PurePosixPath
+from typing import Any
+
+from runtime.deps import execution_model, plan_artifact
+from runtime.types import RuntimeResult, Attempt, ok, failure
+from runtime.gitio import run_git
+from runtime.storage import read_json, safe_agent_roots
+from runtime.planning import raw_identity
+from runtime.repository import discover_repository
+from runtime.context import append_event, load_events
+
+
+def _execution_directories(main_checkout: Path, plan_id: str) -> list[Path]:
+    store = main_checkout / ".agents/artifacts/executions" / plan_id
+    if not store.is_dir():
+        return []
+    return sorted(
+        path for path in store.iterdir()
+        if path.is_dir() and not path.is_symlink() and (path / "binding.json").is_file()
+    )
+
+def _last_event_type(evidence_path: Path) -> str | None:
+    files = sorted(evidence_path.glob("0*.json"))
+    if not files:
+        return None
+    loaded = read_json(files[-1])
+    if not loaded.ok or not isinstance(loaded.value, dict):
+        return None
+    return loaded.value.get("event_type")
+
+def _unfinished_executions(main_checkout: Path, plan_id: str) -> list[str]:
+    return [
+        path.name
+        for path in _execution_directories(main_checkout, plan_id)
+        if _last_event_type(path) != "implementation_green"
+    ]
+
+def _select_execution(main_checkout: Path) -> RuntimeResult:
+    """Without explicit ids, only the single unfinished execution of the current plan is implied."""
+    try:
+        registered = plan_artifact.read_registered_plan(main_checkout, None)
+    except plan_artifact.PlanArtifactError as error:
+        return failure("plan_registration_missing", "no current plan identifies an execution", str(error))
+    candidates = _unfinished_executions(main_checkout, registered.plan_id)
+    if not candidates:
+        candidates = [path.name for path in _execution_directories(main_checkout, registered.plan_id)]
+    if not candidates:
+        return failure("execution_missing", "the current plan has no execution")
+    if len(candidates) > 1:
+        return failure(
+            "execution_ambiguous",
+            "several unfinished executions exist; name one with --plan-id and --execution-id",
+            ", ".join(candidates),
+        )
+    return ok((registered.plan_id, candidates[0]))
+
+def _started_at(execution_id: str) -> str | None:
+    match = re.fullmatch(r"(\d{4})(\d{2})(\d{2})t(\d{2})(\d{2})(\d{2})-.*", execution_id)
+    if match is None:
+        return None
+    year, month, day, hour, minute, second = match.groups()
+    return f"{year}-{month}-{day}T{hour}:{minute}:{second}"
+
+
+def _binding_fingerprints_match(main_checkout: Path, binding: dict) -> str | None:
+    """Return None when the bound plan and specs still match the repository, else the reason."""
+    try:
+        registered = plan_artifact.read_registered_plan(main_checkout, binding["plan"]["path"])
+    except plan_artifact.PlanArtifactError as error:
+        return f"bound plan cannot be verified: {error}"
+    if registered.content_identity != binding["plan"]["content_identity"]:
+        return "bound plan differs from the registered plan"
+    for spec in binding["specs"]:
+        spec_path = main_checkout.joinpath(*PurePosixPath(spec["path"]).parts)
+        if not spec_path.is_file() or raw_identity(spec_path.read_text(encoding="utf-8")) != spec["content_identity"]:
+            return f"bound spec differs from the repository: {spec['path']}"
+    return None
+
+def _branch_facts(main_checkout: Path, branch: str, last_commit: str | None) -> dict[str, Any]:
+    exists = run_git(main_checkout, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode == 0
+    extra: list[dict[str, str]] = []
+    if exists:
+        revision_range = f"{last_commit}..refs/heads/{branch}" if last_commit else f"refs/heads/{branch}"
+        log = run_git(main_checkout, "log", "--format=%H%x09%s", revision_range)
+        if log.returncode == 0 and last_commit is not None:
+            for line in log.stdout.splitlines():
+                sha, _, subject = line.partition("\t")
+                extra.append({"sha": sha, "subject": subject})
+    return {"name": branch, "exists": exists, "extra_commits": extra}
+
+def _worktree_facts(main_checkout: Path, common_directory: Path, worktree: Path) -> dict[str, Any]:
+    facts: dict[str, Any] = {"path": str(worktree), "exists": worktree.is_dir(), "registered": False, "changed_files": []}
+    if not facts["exists"]:
+        return facts
+    observed = discover_repository(worktree)
+    facts["registered"] = observed.ok and observed.value.common_directory == common_directory
+    if facts["registered"]:
+        changed = changed_paths(worktree)
+        if changed.ok:
+            facts["changed_files"] = sorted(changed.value)
+    return facts
+
+def residual_executions(project_root: Path, *, plan_id: str) -> RuntimeResult:
+    """Describe unfinished executions of one plan without writing anything; the human decides."""
+    repository = discover_repository(project_root)
+    if not repository.ok:
+        return repository
+    main_checkout = repository.value.main_checkout
+    if not plan_artifact.PLAN_ID.fullmatch(plan_id):
+        return failure("execution_ids_invalid", "plan id is not path-safe")
+    facts: list[dict[str, Any]] = []
+    for evidence_path in _execution_directories(main_checkout, plan_id):
+        events = raw_events(evidence_path)
+        last = events[-1] if events else None
+        if last is not None and last.get("event_type") == "implementation_green":
+            continue
+        binding_result = read_json(evidence_path / "binding.json")
+        if not binding_result.ok or not execution_model.validate_binding(binding_result.value).ok:
+            facts.append(
+                {
+                    "execution_id": evidence_path.name,
+                    "started_at": _started_at(evidence_path.name),
+                    "resumable": {"ok": False, "reason": "binding.json is missing or invalid"},
+                }
+            )
+            continue
+        binding = binding_result.value
+        commits = [event for event in events if event.get("event_type") == "commit"]
+        last_commit = commits[-1].get("commit_sha") if commits else binding.get("base_head")
+        mismatch = _binding_fingerprints_match(main_checkout, binding)
+        facts.append(
+            {
+                "execution_id": evidence_path.name,
+                "started_at": _started_at(evidence_path.name),
+                "completed_steps": len({event.get("step_id") for event in commits}),
+                "last_event": {
+                    "event_type": last.get("event_type") if last else None,
+                    "reason": last.get("reason") if last else None,
+                },
+                "branch": _branch_facts(main_checkout, binding["branch"], last_commit),
+                "worktree": _worktree_facts(main_checkout, repository.value.common_directory, Path(binding["worktree"])),
+                "resumable": {"ok": mismatch is None, "reason": mismatch},
+            }
+        )
+    return ok(facts)
+
+def _next_step_after_evidence(events: list[dict], step_ids: list[str]) -> tuple[str | None, bool, list[str]]:
+    """Derive the step to continue from: after the last committed step, redoing an unfinished RED."""
+    committed = [event["step_id"] for event in events if event.get("event_type") == "commit"]
+    completed = [step for step in step_ids if step in committed]
+    remaining = [step for step in step_ids if step not in committed]
+    if not remaining:
+        return None, False, completed
+    next_step = remaining[0]
+    redo = any(
+        event.get("event_type") in {"red", "green", "refactor"} and event.get("step_id") == next_step
+        for event in events
+    )
+    return next_step, redo, completed
+
+def resume_execution(project_root: Path, *, plan_id: str, attempt_id: str) -> RuntimeResult:
+    """Continue an unfinished execution: record what is inherited, then name the next step."""
+    loaded = load_current_attempt(project_root, plan_id=plan_id, attempt_id=attempt_id)
+    if not loaded.ok:
+        return loaded
+    attempt = loaded.value
+    events_result = load_events(attempt)
+    if not events_result.ok:
+        return events_result
+    events = events_result.value
+    if events and events[-1]["event_type"] == "implementation_green":
+        return failure("execution_finished", "this execution already reached implementation_green")
+    binding = read_json(attempt.binding_path).value
+    try:
+        registered = plan_artifact.read_registered_plan(attempt.main_checkout, binding["plan"]["path"])
+        step_ids = [f"step-{step.number}" for step in plan_artifact.read_plan_steps(registered.text)]
+    except plan_artifact.PlanArtifactError as error:
+        return failure("plan_format_invalid", str(error))
+    commits = [event for event in events if event["event_type"] == "commit"]
+    last_commit = commits[-1]["commit_sha"] if commits else binding["base_head"]
+    branch = _branch_facts(attempt.main_checkout, attempt.branch, last_commit)
+    head = run_git(attempt.main_checkout, "rev-parse", f"refs/heads/{attempt.branch}").stdout.strip()
+    changed = changed_paths(attempt.worktree)
+    if not changed.ok:
+        return changed
+    next_step, redo, completed = _next_step_after_evidence(events, step_ids)
+    recorded = append_event(
+        attempt,
+        "resumed",
+        {
+            "head": head,
+            "extra_commits": [commit["sha"] for commit in branch["extra_commits"]],
+            "uncommitted_changes": bool(changed.value),
+            "next_step": next_step,
+            "redo": redo,
+        },
+    )
+    if not recorded.ok:
+        return recorded
+    return ok(
+        {
+            "execution_id": attempt.attempt_id,
+            "branch": attempt.branch,
+            "worktree": str(attempt.worktree),
+            "next_step": next_step,
+            "redo": redo,
+            "completed_steps": completed,
+            "all_steps_committed": next_step is None,
+        }
+    )
+
+def load_current_attempt(
+    project_root: Path,
+    *,
+    plan_id: str | None = None,
+    attempt_id: str | None = None,
+) -> RuntimeResult:
+    safe = safe_agent_roots(project_root)
+    if not safe.ok:
+        return safe
+    repository = discover_repository(project_root)
+    if not repository.ok:
+        return repository
+    main_checkout = repository.value.main_checkout
+    if (plan_id is None) != (attempt_id is None):
+        return failure("execution_ids_incomplete", "plan id and execution id must be given together")
+    if plan_id is None:
+        selected = _select_execution(main_checkout)
+        if not selected.ok:
+            return selected
+        plan_id, attempt_id = selected.value
+    if not execution_model.ATTEMPT_ID.fullmatch(attempt_id) or not plan_artifact.PLAN_ID.fullmatch(plan_id):
+        return failure("execution_ids_invalid", "plan id or execution id is not path-safe")
+    evidence_path = main_checkout / ".agents/artifacts/executions" / plan_id / attempt_id
+    tmp_path = main_checkout / ".agents/tmp/executions" / attempt_id
+    binding_path = evidence_path / "binding.json"
+    if not binding_path.is_file():
+        return failure("binding_missing", f"no binding.json exists for execution {attempt_id}", str(binding_path))
+    binding_result = read_json(binding_path)
+    if not binding_result.ok:
+        return failure("binding_invalid", "binding.json cannot be read", binding_result.error.message)
+    validation = execution_model.validate_binding(binding_result.value)
+    if not validation.ok:
+        return failure(validation.error.code, validation.error.message)
+    binding = binding_result.value
+    if binding["attempt_id"] != attempt_id or binding["plan"]["id"] != plan_id:
+        return failure("binding_identity_drift", "binding.json does not describe this execution")
+
+    mismatch = _binding_fingerprints_match(main_checkout, binding)
+    if mismatch is not None:
+        code = "spec_identity_drift" if "spec" in mismatch else "plan_identity_drift"
+        return failure(code, mismatch)
+
+    branch = binding["branch"]
+    if run_git(main_checkout, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode != 0:
+        return failure("branch_missing", f"execution branch does not exist: {branch}")
+    worktree = Path(binding["worktree"])
+    if not worktree.is_dir():
+        return failure("worktree_missing", f"execution worktree does not exist: {worktree}")
+    observed = discover_repository(worktree)
+    if not observed.ok or observed.value.common_directory != repository.value.common_directory:
+        return failure("worktree_identity_drift", "execution worktree is not a linked worktree of this repository")
+    return ok(
+        Attempt(
+            attempt_id=attempt_id,
+            plan_id=plan_id,
+            branch=branch,
+            worktree=worktree.resolve(),
+            binding_path=binding_path,
+            evidence_path=evidence_path,
+            tmp_path=tmp_path,
+            main_checkout=main_checkout,
+        )
+    )
