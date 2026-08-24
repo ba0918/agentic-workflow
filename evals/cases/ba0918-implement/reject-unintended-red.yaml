@@ -1,4 +1,4 @@
-skill: ba0918-cycle
+skill: ba0918-implement
 id: reject-unintended-red
 title: 既存fixture故障による意図しないREDで後続実装を止める
 source: plan:20260822143915
@@ -23,10 +23,11 @@ git:
   commit: true
   message: fixture baseline
 exercises:
-  - skills/ba0918-cycle/references/execution.md
-  - skills/ba0918-cycle/references/tdd.md
-  - skills/ba0918-cycle/references/evidence.md
-  - skills/ba0918-cycle/scripts/cycle_runtime.py
+  - skills/ba0918-implement/references/execution.md
+  - skills/ba0918-implement/references/tdd.md
+  - skills/ba0918-implement/references/evidence.md
+  - skills/ba0918-implement/scripts/implement_runtime.py
+  - skills/ba0918-implement/scripts/runtime/tdd.py
 prompt: |
   currentとして登録済みのGreeting実装planを実装してください。
 expected_output: |

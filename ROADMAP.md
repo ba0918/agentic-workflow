@@ -192,8 +192,9 @@ Phase 4 に入る前の試運転で、3 つの問題が同時に見つかりま�
   頼める。機械が止めるのは、手順書か仕様書の指紋が変わっていたときだけ
 - implement は何も削除しない。不要になったブランチや作業ディレクトリは人が消す
 
-残っていた細かい片付け（旧 cycle の印のディレクトリ `.agents/runtime/cycles/`、旧形式の
-回帰評価の場面 `evals/cases/ba0918-cycle/`）は、人の手作業として残っています。
+残っていた細かい片付けは終わっています。旧 cycle の印のディレクトリ `.agents/runtime/cycles/`
+は削除済み、回帰評価の場面は `evals/cases/ba0918-implement/` として implement 用に
+書き直しました（回帰の lock の追随は、次の skill-regression の実行で行われます）。
 
 ## 経緯の記録（Phase 1〜3 の実測と旧版比較）
 

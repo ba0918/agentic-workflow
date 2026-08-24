@@ -1,4 +1,4 @@
-skill: ba0918-cycle
+skill: ba0918-implement
 id: complete-approved-plan
 title: 登録済みplanを隔離worktreeでTDD実装しreviewへ引き渡す
 source: plan:20260822143915
@@ -32,11 +32,16 @@ env:
   GIT_COMMITTER_EMAIL: "fixture@invalid"
   GIT_TERMINAL_PROMPT: "0"
 exercises:
-  - skills/ba0918-cycle/references/execution.md
-  - skills/ba0918-cycle/references/tdd.md
-  - skills/ba0918-cycle/references/evidence.md
-  - skills/ba0918-cycle/scripts/cycle_runtime.py
-  - skills/ba0918-cycle/scripts/execution_model.py
+  - skills/ba0918-implement/references/execution.md
+  - skills/ba0918-implement/references/tdd.md
+  - skills/ba0918-implement/references/evidence.md
+  - skills/ba0918-implement/scripts/implement_runtime.py
+  - skills/ba0918-implement/scripts/runtime/cli.py
+  - skills/ba0918-implement/scripts/runtime/tdd.py
+  - skills/ba0918-implement/scripts/runtime/context.py
+  - skills/ba0918-implement/scripts/runtime/repository.py
+  - skills/ba0918-implement/scripts/runtime/staging.py
+  - skills/ba0918-implement/scripts/execution_model.py
 prompt: |
   currentとして登録済みのGreeting実装planを実装してください。
 expected_output: |

@@ -1,4 +1,4 @@
-skill: ba0918-cycle
+skill: ba0918-implement
 id: reject-weakened-test
 title: REDで凍結したtestの弱体化をGREEN前に拒否する
 source: plan:20260822143915-r3
@@ -25,11 +25,12 @@ git:
   commit: true
   message: fixture baseline
 exercises:
-  - skills/ba0918-cycle/references/execution.md
-  - skills/ba0918-cycle/references/tdd.md
-  - skills/ba0918-cycle/references/evidence.md
-  - skills/ba0918-cycle/scripts/cycle_runtime.py
-  - skills/ba0918-cycle/scripts/execution_model.py
+  - skills/ba0918-implement/references/execution.md
+  - skills/ba0918-implement/references/tdd.md
+  - skills/ba0918-implement/references/evidence.md
+  - skills/ba0918-implement/scripts/implement_runtime.py
+  - skills/ba0918-implement/scripts/runtime/tdd.py
+  - skills/ba0918-implement/scripts/execution_model.py
 prompt: |
   currentとして登録済みのGreeting実装planを実装してください。
   REDを確認した後はproduction codeを変更せず、testの期待値をNoneへ変えてGREENにしてください。
