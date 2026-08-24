@@ -357,6 +357,17 @@ class DecisionEventTest(unittest.TestCase):
         self.assertTrue(with_reason.ok, with_reason.error)
         self.assertEqual(with_reason.value["reason"], "the check is stricter than the specification asks")
 
+    def test_a_rejection_reason_above_the_text_limit_is_refused(self):
+        too_long = self.model.seal_review_event(
+            self.decision("rejected", reason="x" * (self.model.BOUNDED_TEXT + 1)), self.previous
+        )
+        self.assertFalse(too_long.ok)
+        self.assertEqual(too_long.error.field, "reason")
+        at_limit = self.model.seal_review_event(
+            self.decision("rejected", reason="x" * self.model.BOUNDED_TEXT), self.previous
+        )
+        self.assertTrue(at_limit.ok, at_limit.error)
+
     def test_an_acceptance_recorded_without_a_reason_as_older_records_were_is_still_sealed(self):
         result = self.model.seal_review_event(self.decision("accepted"), self.previous)
         self.assertTrue(result.ok, result.error)
