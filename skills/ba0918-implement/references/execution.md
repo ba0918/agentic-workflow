@@ -40,8 +40,8 @@ It reads only the evidence directories under `.agents/artifacts/executions/<plan
 the branch list, so a branch someone created by hand is not mistaken for an execution — and
 returns, per unfinished execution: when it started, how many steps were committed, the last
 event and its reason, whether the branch exists and which commits (SHA and subject) it holds
-beyond the last recorded commit, and whether the worktree exists, is registered, and which files
-it has changed without a commit. `resumable.ok` is false only when the bound plan or
+that no commit event explains — wherever they sit between the base and the head — and whether
+the worktree exists, is registered, and which files it has changed without a commit. `resumable.ok` is false only when the bound plan or
 specification identities no longer match the repository; that execution cannot be continued and
 only "start over" remains. An execution whose `binding.json` is missing or unreadable is listed
 with its id and `resumable.ok: false` alone.
@@ -99,12 +99,15 @@ python3 <implement-runtime> resume \
 ```
 
 The helper reloads the execution from its evidence, refuses when the plan or spec identities
-differ, and otherwise appends a `resumed` event recording the branch head, any commits beyond the
-evidence, and whether uncommitted changes exist — so nothing is inherited silently. It returns the
-step to continue from: the one after the last committed step. When that step already has RED,
-GREEN, or REFACTOR evidence but no commit, it is marked `redo`: start it again from RED, and the
-new RED replaces the earlier frozen oracle. Uncommitted changes are left untouched; the staging
-helper still admits only paths inside the approved scope.
+differ, and otherwise appends a `resumed` event recording the branch head, the commits the
+evidence does not explain, and whether uncommitted changes exist — so nothing is inherited
+silently. It returns the step to continue from: the first step without a commit event. When
+that step already has RED, GREEN, or REFACTOR evidence but no commit, it is marked `redo`:
+start it again from RED, and the new RED replaces the earlier frozen oracle. When the step's
+commit already exists on the branch — the commit succeeded and only its record failed — record
+it late instead of redoing the work (`record-commit --commit <sha>`, see [tdd.md](tdd.md)).
+Uncommitted changes are left untouched; the staging helper still admits only paths inside the
+approved scope.
 
 ## Enter from a fresh session
 

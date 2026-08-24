@@ -129,10 +129,26 @@ python3 <implement-runtime> record-commit \
   --repo <main-checkout> --step step-<n> --previous-head <sha>
 ```
 
-Stop on a hook or commit failure, hook-produced change, or post-commit dirty state. Do not
-auto-fix, restage, or retry. A sandbox permission denial is the sole exception: freeze edits,
-request only the required scope, and retry the exact same staged identity once permission is
-available.
+Stop on a hook or commit failure, or when a file the commit touched is dirty again right after
+the commit (a hook rewrote what was staged). Other uncommitted files — an earlier step's
+leftovers, the next step's deliverable — do not block the record; they are the next commit's
+business. Do not auto-fix, restage, or retry. A sandbox permission denial is the sole
+exception: freeze edits, request only the required scope, and retry the exact same staged
+identity once permission is available.
+
+When the commit succeeded but its record did not — the helper refused, the session died
+between the two — the branch holds a commit the evidence does not explain. Do not rewrite the
+branch. Record the commit late, under the same checks a fresh record passes (scope, frozen
+test targets as of that commit, an approved deliverable, declared gates):
+
+```text
+python3 <implement-runtime> record-commit \
+  --repo <main-checkout> --step step-<n> --commit <sha>
+```
+
+The event carries `recorded_late: true`. The terminal check asks only that every commit
+between the base and HEAD has exactly one commit event, whatever order the events were
+written in.
 
 ## Terminal hand-off
 
