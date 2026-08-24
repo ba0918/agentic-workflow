@@ -1,6 +1,9 @@
 ---
 name: ba0918-plan
 description: Use when an approved specification is ready to be converted into one human-readable implementation plan that the implement skill can execute as written. Rejects missing meaning and does not implement, track progress, or resume work.
+metadata:
+  contracts:
+    - plan-runtime
 ---
 
 # Plan

@@ -2,4 +2,14 @@ contracts:
   implement-runtime:
     source: local
     files:
-      tools/workflow-runtime/implement/: scripts/
+      tools/workflow-runtime/implement/implement_runtime.py: scripts/implement_runtime.py
+      tools/workflow-runtime/implement/execution_model.py: scripts/execution_model.py
+  plan-runtime:
+    source: local
+    files:
+      tools/workflow-runtime/plan/plan_artifact.py: scripts/plan_artifact.py
+  brainstorm-runtime:
+    source: local
+    files:
+      tools/workflow-runtime/brainstorm/draft.py: scripts/draft.py
+      tools/workflow-runtime/brainstorm/state.py: scripts/state.py
