@@ -335,7 +335,20 @@ skills/ba0918-implement/
 │   └── evidence.md           証拠の残し方、許可待ち、証拠が書けないとき
 └── scripts/
     ├── execution_model.py    証拠と出来事の形の検証（入出力を持たない純粋なロジック）
-    └── implement_runtime.py  作業場所の作成、テストの実行と凍結、証拠の記録、残っている作業の検出
+    ├── implement_runtime.py  入口。実装は runtime/ 側に置く薄い層
+    └── runtime/              責務ごとに 1 モジュール
+        ├── cli.py            コマンドラインの受け口と完了判定
+        ├── planning.py       登録済み手順書の読み取り（指紋、手順、完了の種類）
+        ├── repository.py     リポジトリの発見と、ブランチと作業場所の束ね
+        ├── context.py        証拠の連鎖（文脈の検証、出来事の追記、停止と許可の記録）
+        ├── tdd.py            テストファーストの一周（RED の受理、GREEN・REFACTOR の凍結）
+        ├── deliverables.py   「作った物で示す」「外で確かめる」手順と人の承認記録
+        ├── staging.py        コミット境界（変更してよい範囲、秘密情報の判定、ステージ）
+        ├── gates.py          手順書が宣言した人の確認待ち
+        ├── resume.py         未完の実行の提示と再開
+        ├── storage.py        .agents/ 配下への永続化（衝突を拒否する書き込み）
+        ├── gitio.py          git 呼び出しの一元化
+        └── deps.py, types.py 共有の型と、同梱モジュールの読み込み
 ```
 
 手順書そのものの読み取り（ID と版、参照する仕様書、変更してよい範囲、手順、完了の示し方、
