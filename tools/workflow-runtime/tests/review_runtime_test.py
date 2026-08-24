@@ -934,6 +934,85 @@ class MergeTest(ReverifyCase):
         self.assertEqual(result["reason"], "findings_not_frozen")
 
 
+class ReviewCompletionTest(ReverifyCase):
+    def complete_review(self, scenario: Scenario) -> str:
+        payload = self.frozen_set(scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE))])
+        closing_id = payload["admitted"][0]
+        self.fix_commit(scenario, [f"Finding: {closing_id}"])
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["open"], [])
+        return closing_id
+
+    def test_bind_answers_complete_when_every_finding_is_closed(self):
+        scenario = Scenario(self.parent)
+        self.complete_review(scenario)
+        before = scenario.review_events()
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_complete")
+        self.assertEqual(payload["review"]["review_id"], before[0]["review_id"])
+        self.assertEqual(payload["review"]["events"], len(before))
+        self.assertEqual(payload["review"]["last_event"], "reverify")
+        self.assertEqual(payload["review"]["path"], str(scenario.review_dir()))
+        self.assertEqual(scenario.review_events(), before)
+
+    def test_bind_keeps_a_review_with_an_open_finding_in_progress(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(
+            scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE)), finding(scenario)]
+        )
+        self.fix_commit(scenario, [f"Finding: {payload['admitted'][0]}", f"Finding: {payload['admitted'][1]}"])
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(len(result["open"]), 1)
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_in_progress")
+        code, payload = self.bind(scenario, "--continue")
+        self.assertEqual(code, 0, payload)
+
+    def test_a_review_closed_only_by_human_rejections_is_complete(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario)])
+        code, result = self.command(
+            scenario, "decide", "--finding", payload["admitted"][0], "--result", "rejected",
+            "--reason", "the greeting stays as it is",
+        )
+        self.assertEqual(code, 0, result)
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_complete")
+
+    def test_a_review_before_the_set_is_frozen_is_not_complete(self):
+        scenario = Scenario(self.parent)
+        self.bind(scenario)
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_in_progress")
+
+    def test_merging_findings_into_a_complete_review_makes_it_in_progress_again(self):
+        scenario = Scenario(self.parent)
+        self.complete_review(scenario)
+        path = self.parent / "finishing.json"
+        path.write_text(json.dumps({"findings": [finding(scenario, root_cause_key="finishing")]}), encoding="utf-8")
+        code, result = self.command(scenario, "merge", "--findings", str(path))
+        self.assertEqual(code, 0, result)
+        self.assertEqual(len(result["added"]), 1)
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_in_progress")
+
+    def test_completion_is_derived_from_the_record_alone_after_the_worktree_and_specs_are_gone(self):
+        scenario = Scenario(self.parent)
+        self.complete_review(scenario)
+        git(scenario.root, "worktree", "remove", "--force", str(scenario.worktree))
+        scenario.spec_path.write_text("# Feature\n\n## Behaviour\n\nWave.\n", encoding="utf-8")
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_complete")
+
+
 class ReviewingContextGuardTest(ReverifyCase):
     def test_reverify_refuses_a_worktree_that_left_the_bound_branch(self):
         scenario = Scenario(self.parent)

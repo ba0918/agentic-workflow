@@ -296,6 +296,20 @@ def _review_is_finished(events: list[dict]) -> bool:
     return bool(events) and events[-1]["event_type"] in review_model.TERMINAL_EVENT_TYPES
 
 
+def _state_counts(findings: dict[str, dict]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for finding in findings.values():
+        counts[finding["state"]] = counts.get(finding["state"], 0) + 1
+    return counts
+
+
+def _review_is_complete(events: list[dict]) -> bool:
+    """Completion is derived every time: a frozen set with no open finding. No event records it."""
+    if _frozen_findings_event(events) is None:
+        return False
+    return all(finding["state"] != "open" for finding in review_model.current_findings(events).values())
+
+
 def bind_review(
     review: Review, *, model: str, model_source: str, continue_existing: bool
 ) -> RuntimeResult:
@@ -303,14 +317,21 @@ def bind_review(
         return _failure("model_id_invalid", "model must be a full model id, not an alias", model)
     if model_source not in review_model.MODEL_SOURCES:
         return _failure("model_source_invalid", f"model source must be one of {review_model.MODEL_SOURCES}", model_source)
+    existing = review_events(review)
+    # A review that already ended or completed is answered from its record alone, before the
+    # hand-off is verified: the worktree may be gone and the specs revised by then, and the
+    # record is what the next session has.
+    if _review_is_finished(existing):
+        return _failure("review_finished", "this execution's review already ended", review_facts(review))
+    if _review_is_complete(existing):
+        facts = review_facts(review)
+        facts["findings"] = _state_counts(review_model.current_findings(existing))
+        return _failure("review_complete", "every finding of this execution's review is resolved", facts)
     verified = verify_hand_off(review)
     if not verified.ok:
         return verified
-    existing = review_events(review)
     if existing:
         facts = review_facts(review)
-        if _review_is_finished(existing):
-            return _failure("review_finished", "this execution's review already ended", facts)
         if not continue_existing:
             return _failure("review_in_progress", "an unfinished review exists; the human decides whether to continue", facts)
         return _ok(facts)
@@ -918,7 +939,8 @@ def _print_failure(result: RuntimeResult) -> int:
     error = result.error
     payload: dict[str, Any] = {"state": "stopped", "reason": error.code, "message": error.message}
     if error.detail is not None:
-        payload["review" if error.code in {"review_in_progress", "review_finished"} else "detail"] = error.detail
+        review_codes = {"review_in_progress", "review_finished", "review_complete"}
+        payload["review" if error.code in review_codes else "detail"] = error.detail
     _print(payload)
     return 2
 
