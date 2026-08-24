@@ -839,6 +839,18 @@ class StepEvidenceRedoTest(unittest.TestCase):
             result = implement_model.validate_step_evidence(self._events(*shape), "step-1", "test")
             self.assertTrue(result.ok, shape)
 
+    def test_repeated_refactor_passes_still_complete_the_step(self) -> None:
+        for shape in (
+            ("red", "green", "refactor", "refactor", "commit"),
+            ("red", "green", "refactor", "refactor", "refactor", "commit"),
+        ):
+            result = implement_model.validate_step_evidence(self._events(*shape), "step-1", "test")
+            self.assertTrue(result.ok, shape)
+
+    def test_a_rerun_green_before_refactor_still_completes_the_step(self) -> None:
+        events = self._events("red", "green", "green", "refactor", "commit")
+        self.assertTrue(implement_model.validate_step_evidence(events, "step-1", "test").ok)
+
     def test_a_commit_without_a_green_after_the_last_red_is_incomplete(self) -> None:
         events = self._events("red", "green", "red", "commit")
         self.assertFalse(implement_model.validate_step_evidence(events, "step-1", "test").ok)

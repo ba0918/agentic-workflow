@@ -714,11 +714,14 @@ def _tdd_step_complete(step_events: list[dict]) -> bool:
             # may follow any phase; it restarts the cycle it interrupts.
             state = "green"
         elif event_type == "green":
-            if state != "green":
+            # The frozen oracle may be rerun; a repeated pass changes nothing.
+            if state not in {"green", "refactor"}:
                 return False
             state = "refactor"
         elif event_type == "refactor":
-            if state != "refactor":
+            # Refactoring happens in as many passes as the inspection warrants,
+            # each recorded with its own oracle run.
+            if state not in {"refactor", "commit"}:
                 return False
             state = "commit"
         elif event_type == "commit":
