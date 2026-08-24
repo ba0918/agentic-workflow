@@ -775,6 +775,37 @@ def reverify(review: Review, *, max_failures: int | None) -> RuntimeResult:
     return _ok(result)
 
 
+def _join_frozen_set(review: Review, events: list[dict], findings: list[dict]) -> RuntimeResult:
+    """Late findings join the set under the same fails-now admission as the first review."""
+    level = _fixed_findings_event(events)["level"]
+    admitted = admit_findings(review, findings, level=level)
+    if not admitted.ok:
+        return admitted
+    head = _git(review.worktree, "rev-parse", "HEAD").stdout.strip()
+    added = append_review_event(
+        review, "findings-added", {"findings": admitted.value["admitted"], "commits": [head]}
+    )
+    if not added.ok:
+        return added
+    return _ok(
+        {
+            "added": [finding["id"] for finding in admitted.value["admitted"]],
+            "not_added": admitted.value["not_admitted"],
+        }
+    )
+
+
+def merge_findings(review: Review, *, findings_path: Path) -> RuntimeResult:
+    """A finishing review's findings merge into the frozen set and close by re-review."""
+    context = _reviewing_context(review)
+    if not context.ok:
+        return context
+    loaded = _read_findings_input(findings_path)
+    if not loaded.ok:
+        return loaded
+    return _join_frozen_set(review, context.value, loaded.value["findings"])
+
+
 def defer_findings(review: Review, *, findings_path: Path, introduced: bool) -> RuntimeResult:
     context = _reviewing_context(review)
     if not context.ok:
@@ -784,22 +815,7 @@ def defer_findings(review: Review, *, findings_path: Path, introduced: bool) -> 
     if not loaded.ok:
         return loaded
     if introduced:
-        level = _fixed_findings_event(events)["level"]
-        admitted = admit_findings(review, loaded.value["findings"], level=level)
-        if not admitted.ok:
-            return admitted
-        head = _git(review.worktree, "rev-parse", "HEAD").stdout.strip()
-        added = append_review_event(
-            review, "findings-added", {"findings": admitted.value["admitted"], "commits": [head]}
-        )
-        if not added.ok:
-            return added
-        return _ok(
-            {
-                "added": [finding["id"] for finding in admitted.value["admitted"]],
-                "not_added": admitted.value["not_admitted"],
-            }
-        )
+        return _join_frozen_set(review, events, loaded.value["findings"])
     deferred: list[dict] = []
     for raw in loaded.value["findings"]:
         checked = review_model.validate_finding(raw)
@@ -888,10 +904,12 @@ def main(argv: list[str] | None = None) -> int:
     defer_parser = commands.add_parser("defer", help="record side findings apart, or add introduced risks to the set")
     defer_parser.add_argument("--findings", required=True)
     defer_parser.add_argument("--introduced", action="store_true")
+    merge_parser = commands.add_parser("merge", help="merge a finishing review's findings into the frozen set")
+    merge_parser.add_argument("--findings", required=True)
     decide_parser = commands.add_parser("decide", help="record the human decision that closes a human-judgment finding")
     decide_parser.add_argument("--finding", required=True)
     decide_parser.add_argument("--result", required=True, choices=["accepted", "rejected"])
-    for sub in (reverify_parser, defer_parser, decide_parser):
+    for sub in (reverify_parser, defer_parser, merge_parser, decide_parser):
         sub.add_argument("--repo", required=True)
         sub.add_argument("--plan-id", required=True)
         sub.add_argument("--attempt-id", required=True)
@@ -940,6 +958,8 @@ def main(argv: list[str] | None = None) -> int:
         result = reverify(review, max_failures=args.max_failures)
     elif args.command == "defer":
         result = defer_findings(review, findings_path=Path(args.findings), introduced=args.introduced)
+    elif args.command == "merge":
+        result = merge_findings(review, findings_path=Path(args.findings))
     elif args.command == "decide":
         result = decide_finding(review, finding_id=args.finding, result=args.result)
     else:

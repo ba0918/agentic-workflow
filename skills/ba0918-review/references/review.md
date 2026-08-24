@@ -136,4 +136,6 @@ fix itself brought in — do findings join the set, under the same validation an
 fails-now check as the first review.
 
 A finishing review — one fresh full pass — runs only when the human asks for it on the spot,
-once; its findings merge into the frozen set and close through the same re-review loop.
+once; its findings merge into the frozen set through the review-runtime `merge` command
+(`merge --findings <file.json>`, the same fails-now admission as the first review) and close
+through the same re-review loop.

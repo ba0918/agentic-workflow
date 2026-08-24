@@ -734,6 +734,40 @@ class DeferTest(ReverifyCase):
         self.assertEqual(len(event["findings"]), 1)
 
 
+class MergeTest(ReverifyCase):
+    def merge(self, scenario: Scenario, findings: list) -> tuple[int, dict]:
+        path = self.parent / "finishing.json"
+        path.write_text(json.dumps({"findings": findings}), encoding="utf-8")
+        return self.command(scenario, "merge", "--findings", str(path))
+
+    def test_finishing_review_findings_that_fail_now_join_the_set_and_close_by_reverify(self):
+        scenario = Scenario(self.parent)
+        self.fixed_set(scenario, [finding(scenario)])
+        code, result = self.merge(
+            scenario,
+            [
+                finding(scenario, oracle=dict(APP_FIXED_ORACLE), root_cause_key="finishing"),
+                finding(scenario, oracle=dict(PASSING_ORACLE), root_cause_key="finishing"),
+            ],
+        )
+        self.assertEqual(code, 0, result)
+        self.assertEqual(len(result["added"]), 1)
+        self.assertEqual(result["not_added"][0]["reason"], "oracle_already_passing")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-added")
+        joined = result["added"][0]
+        self.fix_commit(scenario, [f"Finding: {joined}"])
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        self.assertIn(joined, result["closed"])
+
+    def test_merge_before_the_set_is_frozen_is_refused(self):
+        scenario = Scenario(self.parent)
+        self.bind(scenario)
+        code, result = self.merge(scenario, [finding(scenario)])
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "findings_not_fixed")
+
+
 class ReviewingContextGuardTest(ReverifyCase):
     def test_reverify_refuses_a_worktree_that_left_the_bound_branch(self):
         scenario = Scenario(self.parent)

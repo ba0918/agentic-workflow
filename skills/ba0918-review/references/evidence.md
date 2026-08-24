@@ -24,7 +24,7 @@ one-event-one-file, append-only rules:
 | `findings-fixed` | the frozen set: findings, their set identity, model, strength, profiles, reviewed paths |
 | `review-incomplete` | the review stopped resumable (for example an unfinished security check) |
 | `reverify` | one re-review round: the fix commits seen and each finding's verdict |
-| `findings-added` | risks the fix introduced, admitted into the set |
+| `findings-added` | findings admitted into the set after freezing: introduced risks or a finishing review's findings |
 | `decision` | a human decision closing a human-judgment finding |
 | `deferred` | problems recorded apart from the set as later candidates |
 | `findings_stale` | a specification the set relies on was revised; every open finding is marked stale; terminal, the human decides |
