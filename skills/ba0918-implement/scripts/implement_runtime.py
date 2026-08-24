@@ -42,7 +42,7 @@ from runtime.tdd import (
 )
 from runtime.gates import check_human_gates, record_human_gate
 from runtime.deliverables import record_approval, record_artifact, record_external
-from runtime.staging import record_commit, stage_paths
+from runtime.staging import record_commit, record_commit_late, stage_paths
 from runtime.cli import generate_attempt_id, main, mark_implementation_green
 
 if __name__ == "__main__":

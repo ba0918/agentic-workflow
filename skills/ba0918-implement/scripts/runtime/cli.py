@@ -22,7 +22,7 @@ from runtime.resume import residual_executions, resume_execution, load_current_a
 from runtime.tdd import accept_red, run_frozen_oracle
 from runtime.gates import record_human_gate
 from runtime.deliverables import record_artifact, record_external, record_approval
-from runtime.staging import stage_paths, record_commit
+from runtime.staging import stage_paths, record_commit, record_commit_late
 
 
 def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
@@ -78,12 +78,12 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
             final_step,
         )
     head = run_git(attempt.worktree, "rev-parse", "HEAD")
-    if head.returncode != 0 or head.stdout.strip() != commits[-1]:
+    if head.returncode != 0 or head.stdout.strip() not in commits:
         return stop_attempt(
             attempt,
             RuntimeFailure(
                 "commit_identity_drift",
-                "worktree HEAD differs from the last durable commit event",
+                "worktree HEAD is not a durably recorded commit",
             ),
             final_step,
         )
@@ -94,7 +94,9 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
         f"{binding_result.value['base_head']}..{head.stdout.strip()}",
     )
     observed_commits = [line for line in history.stdout.splitlines() if line]
-    if history.returncode != 0 or observed_commits != commits:
+    # Every commit in the history must be explained by exactly one commit event, whatever
+    # order the events were written in: a commit recorded late is still a recorded commit.
+    if history.returncode != 0 or sorted(observed_commits) != sorted(commits):
         return stop_attempt(
             attempt,
             RuntimeFailure(
@@ -103,6 +105,7 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
             ),
             final_step,
         )
+    commits = observed_commits
     history_paths = run_git(
         attempt.worktree,
         "diff",
@@ -245,7 +248,9 @@ def main(argv: list[str] | None = None) -> int:
     record.add_argument("--repo", required=True)
     execution_ids(record)
     record.add_argument("--step", required=True)
-    record.add_argument("--previous-head", required=True)
+    record_target = record.add_mutually_exclusive_group(required=True)
+    record_target.add_argument("--previous-head", help="record the one commit made since this HEAD")
+    record_target.add_argument("--commit", help="record late a commit the branch holds but the evidence never saw")
 
     human_gate = commands.add_parser("human-gate", help="record a declared human gate decision")
     human_gate.add_argument("--repo", required=True)
@@ -403,7 +408,10 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "stage":
         operation = stage_paths(attempt, args.path, step_id=args.step)
     elif args.command == "record-commit":
-        operation = record_commit(attempt, args.step, args.previous_head)
+        if args.commit is not None:
+            operation = record_commit_late(attempt, args.step, args.commit)
+        else:
+            operation = record_commit(attempt, args.step, args.previous_head)
     elif args.command == "human-gate":
         operation = record_human_gate(
             attempt,

@@ -79,17 +79,22 @@ def _binding_fingerprints_match(main_checkout: Path, binding: dict) -> str | Non
             return f"bound spec differs from the repository: {spec['path']}"
     return None
 
-def _branch_facts(main_checkout: Path, branch: str, last_commit: str | None) -> dict[str, Any]:
+def _branch_facts(main_checkout: Path, branch: str, base_head: str, recorded: set[str]) -> dict[str, Any]:
+    """Extra commits are the history commits no commit event explains, wherever they sit."""
     exists = run_git(main_checkout, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode == 0
     extra: list[dict[str, str]] = []
     if exists:
-        revision_range = f"{last_commit}..refs/heads/{branch}" if last_commit else f"refs/heads/{branch}"
-        log = run_git(main_checkout, "log", "--format=%H%x09%s", revision_range)
-        if log.returncode == 0 and last_commit is not None:
+        log = run_git(main_checkout, "log", "--reverse", "--format=%H%x09%s", f"{base_head}..refs/heads/{branch}")
+        if log.returncode == 0:
             for line in log.stdout.splitlines():
                 sha, _, subject = line.partition("\t")
-                extra.append({"sha": sha, "subject": subject})
+                if sha not in recorded:
+                    extra.append({"sha": sha, "subject": subject})
     return {"name": branch, "exists": exists, "extra_commits": extra}
+
+
+def _recorded_commits(events: list[dict]) -> set[str]:
+    return {event.get("commit_sha") for event in events if event.get("event_type") == "commit"}
 
 def _worktree_facts(main_checkout: Path, common_directory: Path, worktree: Path) -> dict[str, Any]:
     facts: dict[str, Any] = {"path": str(worktree), "exists": worktree.is_dir(), "registered": False, "changed_files": []}
@@ -129,7 +134,6 @@ def residual_executions(project_root: Path, *, plan_id: str) -> RuntimeResult:
             continue
         binding = binding_result.value
         commits = [event for event in events if event.get("event_type") == "commit"]
-        last_commit = commits[-1].get("commit_sha") if commits else binding.get("base_head")
         mismatch = _binding_fingerprints_match(main_checkout, binding)
         facts.append(
             {
@@ -140,7 +144,7 @@ def residual_executions(project_root: Path, *, plan_id: str) -> RuntimeResult:
                     "event_type": last.get("event_type") if last else None,
                     "reason": last.get("reason") if last else None,
                 },
-                "branch": _branch_facts(main_checkout, binding["branch"], last_commit),
+                "branch": _branch_facts(main_checkout, binding["branch"], binding["base_head"], _recorded_commits(events)),
                 "worktree": _worktree_facts(main_checkout, repository.value.common_directory, Path(binding["worktree"])),
                 "resumable": {"ok": mismatch is None, "reason": mismatch},
             }
@@ -179,9 +183,7 @@ def resume_execution(project_root: Path, *, plan_id: str, attempt_id: str) -> Ru
         step_ids = [f"step-{step.number}" for step in plan_artifact.read_plan_steps(registered.text)]
     except plan_artifact.PlanArtifactError as error:
         return failure("plan_format_invalid", str(error))
-    commits = [event for event in events if event["event_type"] == "commit"]
-    last_commit = commits[-1]["commit_sha"] if commits else binding["base_head"]
-    branch = _branch_facts(attempt.main_checkout, attempt.branch, last_commit)
+    branch = _branch_facts(attempt.main_checkout, attempt.branch, binding["base_head"], _recorded_commits(events))
     head = run_git(attempt.main_checkout, "rev-parse", f"refs/heads/{attempt.branch}").stdout.strip()
     changed = changed_paths(attempt.worktree)
     if not changed.ok:

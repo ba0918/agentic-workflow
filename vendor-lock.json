@@ -29,17 +29,17 @@
     "ba0918-implement": {
       "scripts/execution_model.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:d6605813e2be1a21b064f67c129e60c1971fa48aa53e358369345854761d650f",
+        "digest": "sha256:933d515d152f03337e6439a7e9e749435750b3f63a5e856d0520cb8b87e38d36",
         "src": "tools/workflow-runtime/implement/execution_model.py"
       },
       "scripts/implement_runtime.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:ba64644bea44f3ded73d217d0def4fecee24bd1be871ad3a01f2801c5b7547f0",
+        "digest": "sha256:8d83285cb6939c9286a0e60636aaf69c1fab41e424e8b47ad0eaa40e5618b552",
         "src": "tools/workflow-runtime/implement/implement_runtime.py"
       },
       "scripts/runtime/": {
         "contract": "implement-runtime",
-        "digest": "sha256:0fb7ef31dcd43c6453bbe438b3fdaaa3c4528f1713b14c90f801509cb1140af6",
+        "digest": "sha256:34d1df17c63ee806270f66f33d945e6937dc4390b3d049238770044e985f40e3",
         "src": "tools/workflow-runtime/implement/runtime/"
       }
     },
@@ -69,7 +69,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:501ea8594ef04630f4052ff44f4521dd88a45e1d3b895ce5ba8b4f09a80fa5ef",
+      "digest": "sha256:d3da3f859019a14954a93c451b2a3628abf401555b03a186ee9d8c2185a1f00b",
       "kind": "raw"
     },
     "plan-runtime": {

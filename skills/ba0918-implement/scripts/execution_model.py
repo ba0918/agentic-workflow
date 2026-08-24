@@ -47,6 +47,7 @@ APPROVAL_RESULTS = ["approved", "rejected"]
 BOUNDED_TEXT = 500
 EVENT_OPTIONAL_FIELDS = {
     "worktree-bound": {"repository_identity", "base_head", "branch", "worktree_identity"},
+    "commit": {"recorded_late"},
     "stopped": {"step_id"},
 }
 RAW_LOG_FIELDS = {"stdout", "stderr", "provider_log", "raw_log"}
@@ -562,6 +563,8 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
             return summary
     if event_type == "commit" and not _matches(COMMIT_SHA, candidate["commit_sha"]):
         return _failure("event_field_invalid", "commit_sha", "commit SHA is invalid")
+    if event_type == "commit" and candidate.get("recorded_late", True) is not True:
+        return _failure("event_field_invalid", "recorded_late", "recorded_late can only be true")
     if event_type == "human_gate" and (
         not _matches(GATE_ID, candidate["gate_id"])
         or not _matches(STEP_ID, candidate["step_id"])
