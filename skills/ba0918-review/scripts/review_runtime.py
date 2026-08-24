@@ -844,9 +844,24 @@ def reverify(review: Review, *, max_failures: int | None) -> RuntimeResult:
 
 
 def _join_frozen_set(review: Review, events: list[dict], findings: list[dict]) -> RuntimeResult:
-    """Late findings join the set under the same fails-now admission as the first review."""
+    """Late findings join the set under the same fails-now admission as the first review.
+
+    A finding whose id is already in the set is not admitted again, whatever its state: the
+    set holds each finding once, and a resubmission must not reopen what a verdict or a human
+    decision closed."""
     level = _frozen_findings_event(events)["level"]
-    admitted = admit_findings(review, findings, level=level)
+    current = review_model.current_findings(events)
+    fresh: list[dict] = []
+    already_in_set: list[dict] = []
+    for raw in findings:
+        checked = review_model.validate_finding(raw)
+        if not checked.ok:
+            return _failure(checked.error.code, checked.error.message, checked.error.field)
+        if checked.value["id"] in current:
+            already_in_set.append({"id": checked.value["id"], "reason": "already_in_set"})
+        else:
+            fresh.append(raw)
+    admitted = admit_findings(review, fresh, level=level)
     if not admitted.ok:
         return admitted
     head = _git(review.worktree, "rev-parse", "HEAD").stdout.strip()
@@ -858,7 +873,7 @@ def _join_frozen_set(review: Review, events: list[dict], findings: list[dict]) -
     return _ok(
         {
             "added": [finding["id"] for finding in admitted.value["admitted"]],
-            "not_added": admitted.value["not_admitted"],
+            "not_added": admitted.value["not_admitted"] + already_in_set,
         }
     )
 

@@ -343,7 +343,9 @@ def current_findings(events: list[dict]) -> dict[str, dict]:
         event_type = event["event_type"]
         if event_type in FROZEN_EVENT_TYPES | {"findings-added"}:
             for finding in event["findings"]:
-                findings[finding["id"]] = dict(finding)
+                # An id that is already in the set keeps its state: a later submission of the
+                # same finding must not undo a verdict or a human decision.
+                findings.setdefault(finding["id"], dict(finding))
         elif event_type in {"reverify", "findings_stale"}:
             for verdict in event["verdicts"]:
                 finding = findings.get(verdict["finding_id"])
