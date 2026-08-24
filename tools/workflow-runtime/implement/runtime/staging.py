@@ -7,7 +7,8 @@ from runtime.types import RuntimeResult, Attempt, ok, failure
 from runtime.gitio import run_git
 from runtime.planning import step_completion_kinds
 from runtime.context import load_events, validate_context, append_event
-from runtime.tdd import validate_step_test_targets
+from runtime.storage import read_json
+from runtime.tdd import validate_step_test_targets, validate_step_test_targets_at
 from runtime.gates import check_human_gates
 
 
@@ -94,6 +95,45 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
         return failure("secret_detected", "staged content resembles a credential assignment")
     return ok(staged_paths)
 
+def _committed_paths(attempt: Attempt, previous: str, commit_sha: str) -> RuntimeResult:
+    changed = run_git(attempt.worktree, "diff", "--name-only", previous, commit_sha)
+    if changed.returncode != 0:
+        return failure("commit_invalid", "committed paths could not be observed")
+    return ok([line for line in changed.stdout.splitlines() if line])
+
+
+def _dirty_paths(attempt: Attempt) -> RuntimeResult:
+    status = run_git(attempt.worktree, "status", "--porcelain=v1", "--untracked-files=all")
+    if status.returncode != 0:
+        return failure("git_status_failed", "post-commit status could not be observed")
+    return ok([line[3:] for line in status.stdout.splitlines() if line])
+
+
+def _verify_commit_for_step(attempt: Attempt, step_id: str, committed: list[str], commit_sha: str) -> RuntimeResult:
+    """The checks a commit must pass to become evidence of a step, however it is recorded."""
+    context = validate_context(attempt, step_id=step_id)
+    if not context.ok:
+        return context
+    kinds = step_completion_kinds(attempt)
+    if not kinds.ok:
+        return kinds
+    if kinds.value.get(step_id) == "test":
+        targets = validate_step_test_targets_at(attempt, step_id, commit_sha)
+        if not targets.ok:
+            return targets
+    else:
+        events = load_events(attempt)
+        if not events.ok:
+            return events
+        if not execution_model.deliverable_is_approved(events.value, step_id):
+            return failure("approval_missing", f"the latest deliverable of {step_id} has no approved verdict")
+    for path in committed:
+        validation = execution_model.validate_write_path(path, context.value["write_scope"])
+        if not validation.ok:
+            return failure(validation.error.code, validation.error.message, path)
+    return ok(context.value)
+
+
 def record_commit(attempt: Attempt, step_id: str, previous_head: str) -> RuntimeResult:
     current = run_git(attempt.worktree, "rev-parse", "HEAD")
     current_head = current.stdout.strip()
@@ -122,34 +162,20 @@ def record_commit(attempt: Attempt, step_id: str, previous_head: str) -> Runtime
             "commit_range_invalid",
             "recorded operation must produce exactly one non-merge commit from previous HEAD",
         )
-    status = run_git(attempt.worktree, "status", "--porcelain=v1", "--untracked-files=all")
-    if status.returncode != 0:
-        return failure("git_status_failed", "post-commit status could not be observed")
-    if status.stdout.strip():
-        return failure("post_commit_dirty", "worktree changed during or after commit")
-    context = validate_context(attempt, step_id=step_id)
-    if not context.ok:
-        return context
-    kinds = step_completion_kinds(attempt)
-    if not kinds.ok:
-        return kinds
-    if kinds.value.get(step_id) == "test":
-        targets = validate_step_test_targets(attempt, step_id)
-        if not targets.ok:
-            return targets
-    changed = run_git(
-        attempt.worktree,
-        "diff",
-        "--name-only",
-        previous_head,
-        current_head,
-    )
-    if changed.returncode != 0:
-        return failure("commit_invalid", "committed paths could not be observed")
-    for path in changed.stdout.splitlines():
-        validation = execution_model.validate_write_path(path, context.value["write_scope"])
-        if not validation.ok:
-            return failure(validation.error.code, validation.error.message, path)
+    committed = _committed_paths(attempt, previous_head, current_head)
+    if not committed.ok:
+        return committed
+    dirty = _dirty_paths(attempt)
+    if not dirty.ok:
+        return dirty
+    # Only the commit's own files must be clean afterwards: that is how a hook rewriting what
+    # was staged shows up. Other uncommitted files may predate the commit (a resumed
+    # execution keeps them) and are the next commit's business, not this one's.
+    if set(dirty.value) & set(committed.value):
+        return failure("post_commit_dirty", "a committed file changed during or after the commit")
+    verified = _verify_commit_for_step(attempt, step_id, committed.value, current_head)
+    if not verified.ok:
+        return verified
     return append_event(
         attempt,
         "commit",
@@ -157,5 +183,48 @@ def record_commit(attempt: Attempt, step_id: str, previous_head: str) -> Runtime
             "step_id": step_id,
             "commit_sha": current_head,
             "outcome": "committed",
+        },
+    )
+
+
+def record_commit_late(attempt: Attempt, step_id: str, commit_sha: str) -> RuntimeResult:
+    """Record a commit the branch already holds but the evidence never saw.
+
+    A record-commit that was refused after the commit succeeded, or a session that died between
+    the two, leaves a commit the history explains and the record does not; the human may continue
+    such an execution, so the commit must be recordable under the same checks as a fresh one."""
+    if not execution_model.COMMIT_SHA.fullmatch(commit_sha):
+        return failure("commit_sha_invalid", "commit SHA is invalid")
+    binding = read_json(attempt.binding_path)
+    if not binding.ok:
+        return binding
+    history = run_git(attempt.worktree, "rev-list", "--parents", f"{binding.value['base_head']}..HEAD")
+    rows = {line.split()[0]: line.split()[1:] for line in history.stdout.splitlines() if line}
+    if history.returncode != 0 or commit_sha not in rows:
+        return failure("commit_not_in_history", "the commit is not between the base and the branch head", commit_sha)
+    if len(rows[commit_sha]) != 1:
+        return failure("commit_range_invalid", "a merge commit cannot be recorded as a step's commit", commit_sha)
+    events = load_events(attempt)
+    if not events.ok:
+        return events
+    if any(event.get("event_type") == "commit" and event.get("commit_sha") == commit_sha for event in events.value):
+        return failure("commit_already_recorded", "the commit already has a commit event", commit_sha)
+    committed = _committed_paths(attempt, rows[commit_sha][0], commit_sha)
+    if not committed.ok:
+        return committed
+    verified = _verify_commit_for_step(attempt, step_id, committed.value, commit_sha)
+    if not verified.ok:
+        return verified
+    gates = check_human_gates(attempt, step_id=step_id, timing="before_commit")
+    if not gates.ok:
+        return gates
+    return append_event(
+        attempt,
+        "commit",
+        {
+            "step_id": step_id,
+            "commit_sha": commit_sha,
+            "outcome": "committed",
+            "recorded_late": True,
         },
     )

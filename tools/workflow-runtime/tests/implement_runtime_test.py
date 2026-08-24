@@ -1055,6 +1055,18 @@ class ResidualWorkTest(unittest.TestCase):
             self.assertEqual(facts["worktree"]["changed_files"], ["notes.txt"])
             self.assertTrue(facts["resumable"]["ok"])
 
+    def test_every_history_commit_the_record_does_not_explain_is_shown(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            (attempt.worktree / "README.md").write_text("edited by hand\n", encoding="utf-8")
+            git(attempt.worktree, "commit", "-am", "manual: edit readme")
+            manual_sha = git(attempt.worktree, "rev-parse", "HEAD")
+            complete_step_one(attempt)
+
+            facts = implement_runtime.residual_executions(root, plan_id=attempt.plan_id).value[0]
+
+            self.assertEqual([commit["sha"] for commit in facts["branch"]["extra_commits"]], [manual_sha])
+
     def test_specification_drift_makes_the_execution_not_resumable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory))
@@ -1874,6 +1886,116 @@ class CommitBoundaryTest(unittest.TestCase):
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "post_commit_dirty")
+
+    def test_uncommitted_changes_outside_the_commit_do_not_block_recording(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.prepare_green_change(attempt)
+            guide = attempt.worktree / "docs/guide.md"
+            guide.parent.mkdir(parents=True, exist_ok=True)
+            guide.write_text("# Guide\n", encoding="utf-8")
+            self.assertTrue(
+                implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok
+            )
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+            git(attempt.worktree, "commit", "-m", "feat: add greeting")
+
+            recorded = implement_runtime.record_commit(attempt, "step-1", previous_head)
+
+            self.assertTrue(recorded.ok, recorded.error)
+            self.assertEqual(recorded.value["commit_sha"], git(attempt.worktree, "rev-parse", "HEAD"))
+            self.assertEqual(git(attempt.worktree, "status", "--porcelain"), "?? docs/guide.md")
+
+    def commit_without_recording(self, attempt) -> str:
+        self.prepare_green_change(attempt)
+        self.assertTrue(implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok)
+        git(attempt.worktree, "commit", "-m", "feat: add greeting")
+        return git(attempt.worktree, "rev-parse", "HEAD")
+
+    def test_a_commit_the_record_missed_can_be_recorded_late(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            sha = self.commit_without_recording(attempt)
+
+            recorded = implement_runtime.record_commit_late(attempt, "step-1", sha)
+
+            self.assertTrue(recorded.ok, recorded.error)
+            self.assertEqual(recorded.value["event_type"], "commit")
+            self.assertEqual(recorded.value["commit_sha"], sha)
+            self.assertIs(recorded.value["recorded_late"], True)
+            terminal = implement_runtime.mark_implementation_green(attempt)
+            self.assertTrue(terminal.ok, terminal.error)
+            self.assertEqual(terminal.value["commits"], [sha])
+
+    def test_late_recording_refuses_a_commit_outside_the_branch_history(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.commit_without_recording(attempt)
+            base = git(attempt.worktree, "rev-parse", "HEAD~1")
+
+            result = implement_runtime.record_commit_late(attempt, "step-1", base)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "commit_not_in_history")
+
+    def test_late_recording_refuses_a_commit_already_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            sha = complete_step_one(attempt)
+
+            result = implement_runtime.record_commit_late(attempt, "step-1", sha)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "commit_already_recorded")
+
+    def test_late_recording_verifies_the_commit_paths_against_the_write_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.prepare_green_change(attempt)
+            (attempt.worktree / "outside.txt").write_text("outside\n", encoding="utf-8")
+            git(attempt.worktree, "add", "outside.txt")
+            git(attempt.worktree, "commit", "-m", "chore: outside change")
+            sha = git(attempt.worktree, "rev-parse", "HEAD")
+
+            result = implement_runtime.record_commit_late(attempt, "step-1", sha)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "write_scope_violation")
+
+    def test_implementation_green_accepts_a_commit_recorded_after_a_later_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test"))
+            first = self.commit_without_recording(attempt)
+            guide_oracle = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "exists=Path('docs/guide.md').is_file(); "
+                        "print('green' if exists else 'guide missing'); "
+                        "sys.exit(0 if exists else 1)"
+                    ),
+                ]
+            )
+            guide_oracle["step_id"] = "step-2"
+            guide_oracle["failure_signature"] = "guide missing"
+            self.assertTrue(implement_runtime.accept_red(attempt, guide_oracle).ok)
+            guide = attempt.worktree / "docs/guide.md"
+            guide.parent.mkdir(parents=True, exist_ok=True)
+            guide.write_text("# Guide\n", encoding="utf-8")
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-2", "green").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-2", "refactor").ok)
+            self.assertTrue(implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-2").ok)
+            git(attempt.worktree, "commit", "-m", "docs: add guide")
+            second = git(attempt.worktree, "rev-parse", "HEAD")
+            self.assertTrue(implement_runtime.record_commit(attempt, "step-2", first).ok)
+            self.assertTrue(implement_runtime.record_commit_late(attempt, "step-1", first).ok)
+
+            terminal = implement_runtime.mark_implementation_green(attempt)
+
+            self.assertTrue(terminal.ok, terminal.error)
+            self.assertEqual(terminal.value["commits"], [first, second])
 
     def test_scope_violation_is_not_staged(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

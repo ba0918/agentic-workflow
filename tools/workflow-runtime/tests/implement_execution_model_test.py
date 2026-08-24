@@ -615,6 +615,13 @@ class EventChainTest(unittest.TestCase):
         self.assertFalse(implement_model.seal_event({**event, "result": "maybe"}).ok)
         self.assertFalse(implement_model.seal_event({**event, "target_identity": "nope"}).ok)
 
+    def test_commit_event_may_say_it_was_recorded_late(self) -> None:
+        event = self._common("commit", step_id="step-1", commit_sha="7" * 40, outcome="committed")
+
+        self.assertTrue(implement_model.seal_event(event).ok)
+        self.assertTrue(implement_model.seal_event({**event, "recorded_late": True}).ok)
+        self.assertFalse(implement_model.seal_event({**event, "recorded_late": "yes"}).ok)
+
     def test_event_type_requires_its_own_fields(self) -> None:
         incomplete = {
             "version": 1,
