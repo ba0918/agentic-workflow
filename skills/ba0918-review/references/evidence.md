@@ -16,6 +16,11 @@ one-event-one-file, append-only rules:
 - One execution has at most one running review. An existing unfinished review directory is
   shown to the human, who decides whether to continue it. There is no repository-wide
   in-use marker.
+- No event records completion. A review is complete when every finding of the frozen set is
+  `closed`, `stale`, or `deferred`; `bind` derives that from the events each time and answers
+  `review_complete`. Findings merged after that make the review in progress again.
+- Older records may hold the frozen set under the name `findings-fixed` and decisions
+  without a reason; both are read as they are.
 
 | Event | Meaning |
 |---|---|
@@ -26,7 +31,7 @@ one-event-one-file, append-only rules:
 | `review-incomplete` | the review stopped resumable (for example an unfinished security check) |
 | `reverify` | one re-review round: the fix commits seen and each finding's verdict |
 | `findings-added` | findings admitted into the set after freezing: introduced risks or a finishing review's findings |
-| `decision` | a human decision closing a human-judgment finding |
+| `decision` | a human decision closing one open finding: the finding id, the result (`accepted` or `rejected`), and — required for a rejection — the reason |
 | `deferred` | problems recorded apart from the set as later candidates |
 | `findings_stale` | a specification the set relies on was revised; every open finding is marked stale; terminal, the human decides |
 | `rereview-candidate` | fixes touched files outside the first review's scope |

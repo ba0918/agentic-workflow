@@ -21,9 +21,11 @@ so the same problem keeps the same id while line numbers move. Severity (`securi
 `critical`, `warn`, `info`) and action (`auto_fix`, `fix_and_verify`, `human_judgment`,
 `record_only`) are independent: neither is derived from the other, and an `info` finding is
 only ever recorded. A finding without a workable oracle must say why none can be written and
-becomes a human judgment, closed only by a recorded decision. Findings sharing a root cause
-are presented together as one fix unit; grouping changes the presentation only — every
-finding keeps its own id and oracle.
+becomes a human judgment, closed only by a recorded decision. Once the set is frozen, the
+human may also close any open finding — a machine-checked one included — by a recorded
+rejection that carries a reason; the machine never overrides that decision. Findings sharing
+a root cause are presented together as one fix unit; grouping changes the presentation only
+— every finding keeps its own id and oracle.
 
 ## Load routing
 
@@ -52,8 +54,16 @@ finding keeps its own id and oracle.
 
 ## Completion
 
-Review is complete for a round when every finding in the frozen set is `closed`, `stale`, or
-`deferred`, or when it stops on a condition the human must resolve (a revised specification,
-an unfinishable security check, a finding that will not close). When something review needs
-is missing — the human, the evidence, the worktree, or an environment that can run the
-oracles — it never claims success: it stops incomplete and resumable instead.
+Review is complete when every finding in the frozen set — findings merged later included —
+is `closed`, `stale`, or `deferred`. No event records completion: it is derived from the
+findings' states every time it is asked for, and `bind` answers `review_complete`, with the
+record's facts, when asked to start a review on an execution whose review is already
+complete. Findings merged from a finishing review make the review in progress again until
+they close in turn. A machine-checked finding closes when its oracle passes; any open finding
+closes when the human records a rejection with a reason, and stays closed whatever its oracle
+later says.
+
+Review also ends on a condition the human must resolve (a revised specification, an
+unfinishable security check, a finding that will not close). When something review needs is
+missing — the human, the evidence, the worktree, or an environment that can run the oracles —
+it never claims success: it stops incomplete and resumable instead.
