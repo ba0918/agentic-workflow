@@ -182,8 +182,12 @@ def load_review(repo: Path, *, plan_id: str, attempt_id: str) -> RuntimeResult:
     )
 
 
-def verify_hand_off(review: Review) -> RuntimeResult:
-    """The checks review.md requires before any finding is written."""
+def verify_hand_off(review: Review, *, check_specs: bool = True) -> RuntimeResult:
+    """The checks review.md requires before any finding is written.
+
+    Re-review passes check_specs=False: a spec revision there must reach the durable
+    findings_stale event instead of dying as a plain command error.
+    """
     last = review.implement_events[-1]
     if last.get("event_type") != IMPLEMENT_TERMINAL_EVENT:
         return _failure(
@@ -195,10 +199,11 @@ def verify_hand_off(review: Review) -> RuntimeResult:
     plan_path = review.main_checkout.joinpath(*PurePosixPath(plan["path"]).parts)
     if not plan_path.is_file() or _file_identity(plan_path) != plan["content_identity"]:
         return _failure("plan_drift", "the plan differs from the one the implementation was bound to", plan["path"])
-    for spec in review.binding["specs"]:
-        spec_path = review.main_checkout.joinpath(*PurePosixPath(spec["path"]).parts)
-        if not spec_path.is_file() or _file_identity(spec_path) != spec["content_identity"]:
-            return _failure("spec_drift", "a specification differs from the approved version", spec["path"])
+    if check_specs:
+        for spec in review.binding["specs"]:
+            spec_path = review.main_checkout.joinpath(*PurePosixPath(spec["path"]).parts)
+            if not spec_path.is_file() or _file_identity(spec_path) != spec["content_identity"]:
+                return _failure("spec_drift", "a specification differs from the approved version", spec["path"])
     if not review.worktree.is_dir():
         return _failure("worktree_missing", "the implement worktree does not exist", str(review.worktree))
     branch = _git(review.worktree, "rev-parse", "--abbrev-ref", "HEAD")
@@ -654,6 +659,9 @@ def _current_findings(events: list[dict]) -> dict[str, dict]:
 
 
 def _reviewing_context(review: Review) -> RuntimeResult:
+    verified = verify_hand_off(review, check_specs=False)
+    if not verified.ok:
+        return verified
     events = review_events(review)
     if not events:
         return _failure("review_not_bound", "bind the review first")
@@ -676,6 +684,14 @@ def reverify(review: Review, *, max_failures: int | None) -> RuntimeResult:
     context = _reviewing_context(review)
     if not context.ok:
         return context
+    status = _git(review.worktree, "status", "--porcelain")
+    if status.returncode != 0:
+        return _failure("repository_unavailable", "the worktree state could not be read", status.stderr.strip())
+    if status.stdout.strip():
+        return _failure(
+            "worktree_dirty",
+            "uncommitted changes in the worktree; commit them so every verdict attaches to a commit",
+        )
     events = context.value
     fixed = _fixed_findings_event(events)
     observed = {

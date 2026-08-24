@@ -723,5 +723,37 @@ class DeferTest(ReverifyCase):
         self.assertEqual(len(event["findings"]), 1)
 
 
+class ReviewingContextGuardTest(ReverifyCase):
+    def test_reverify_refuses_a_worktree_that_left_the_bound_branch(self):
+        scenario = Scenario(self.parent)
+        payload = self.fixed_set(scenario, [finding(scenario)])
+        self.fix_commit(scenario, [f"Finding: {payload['admitted'][0]}"])
+        git(scenario.worktree, "checkout", "-q", "-b", "somewhere-else")
+        code, result = self.reverify(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "branch_mismatch")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-fixed")
+
+    def test_reverify_refuses_uncommitted_changes_so_verdicts_attach_to_commits(self):
+        scenario = Scenario(self.parent)
+        self.fixed_set(scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE))])
+        (scenario.worktree / "app.py").write_text("def greet():\n    return 'hola'\n", encoding="utf-8")
+        code, result = self.reverify(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "worktree_dirty")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-fixed")
+
+    def test_decide_refuses_when_the_hand_off_no_longer_verifies(self):
+        scenario = Scenario(self.parent)
+        payload = self.fixed_set(
+            scenario,
+            [finding(scenario, action="human_judgment", oracle=None, oracle_unavailable_reason="taste")],
+        )
+        git(scenario.worktree, "checkout", "-q", "-b", "somewhere-else")
+        code, result = self.command(scenario, "decide", "--finding", payload["admitted"][0], "--result", "accepted")
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "branch_mismatch")
+
+
 if __name__ == "__main__":
     unittest.main()
