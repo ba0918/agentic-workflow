@@ -1384,7 +1384,9 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
         for event in events_result.value
         if event["event_type"] == "red" and event.get("step_id") == step_id
     ]
-    if len(red_events) != 1 or red_events[0]["oracle_identity"] != execution_model.content_identity(
+    # Superseded REDs stay in the append-only evidence after a redo; only the newest
+    # one is the freeze that GREEN and REFACTOR answer to.
+    if not red_events or red_events[-1]["oracle_identity"] != execution_model.content_identity(
         oracle
     ):
         return _stop(

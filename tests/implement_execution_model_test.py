@@ -822,5 +822,27 @@ class ResultDerivationTest(unittest.TestCase):
         self.assertEqual(result["event_count"], 100)
 
 
+class StepEvidenceRedoTest(unittest.TestCase):
+    @staticmethod
+    def _events(*event_types: str) -> list[dict]:
+        return [{"event_type": kind, "step_id": "step-1"} for kind in event_types]
+
+    def test_a_step_redone_from_red_counts_as_complete(self) -> None:
+        events = self._events("red", "stopped", "red", "green", "refactor", "commit")
+        self.assertTrue(implement_model.validate_step_evidence(events, "step-1", "test").ok)
+
+    def test_a_redo_may_interrupt_any_unfinished_phase(self) -> None:
+        for shape in (
+            ("red", "green", "red", "green", "refactor", "commit"),
+            ("red", "green", "refactor", "red", "green", "refactor", "commit"),
+        ):
+            result = implement_model.validate_step_evidence(self._events(*shape), "step-1", "test")
+            self.assertTrue(result.ok, shape)
+
+    def test_a_commit_without_a_green_after_the_last_red_is_incomplete(self) -> None:
+        events = self._events("red", "green", "red", "commit")
+        self.assertFalse(implement_model.validate_step_evidence(events, "step-1", "test").ok)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1179,6 +1179,35 @@ class ResumeTest(unittest.TestCase):
             self.assertTrue(resumed["uncommitted_changes"])
             self.assertTrue((attempt.worktree / "notes.txt").is_file())
 
+    def test_a_redone_step_runs_through_green_refactor_commit_and_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+
+            resumed = implement_runtime.resume_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+            self.assertTrue(resumed.ok, resumed.error)
+            self.assertTrue(resumed.value["redo"])
+            fresh = red_oracle(GREETING_ORACLE_COMMAND)
+            fresh["failure_signature"] = "greeting"
+            self.assertTrue(implement_runtime.accept_red(attempt, fresh).ok)
+
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            green = implement_runtime.run_frozen_oracle(attempt, "step-1", "green")
+            self.assertTrue(green.ok, green.error)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-1", "refactor").ok)
+            self.assertTrue(implement_runtime.stage_paths(attempt, ["src/greeting.py"], step_id="step-1").ok)
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+            git(attempt.worktree, "commit", "-m", "feat: add greeting")
+            self.assertTrue(implement_runtime.record_commit(attempt, "step-1", previous_head).ok)
+
+            terminal = implement_runtime.mark_implementation_green(attempt)
+            self.assertTrue(terminal.ok, terminal.error)
+            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["state"], "implementation_green")
+
     def test_resume_command_prints_the_next_step(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory))

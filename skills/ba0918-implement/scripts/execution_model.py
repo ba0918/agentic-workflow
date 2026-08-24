@@ -710,8 +710,8 @@ def _tdd_step_complete(step_events: list[dict]) -> bool:
     for event in step_events:
         event_type = event["event_type"]
         if event_type == "red":
-            if state not in {"red", "complete"}:
-                return False
+            # A resumed execution redoes an unfinished step from RED, so a fresh RED
+            # may follow any phase; it restarts the cycle it interrupts.
             state = "green"
         elif event_type == "green":
             if state != "green":
