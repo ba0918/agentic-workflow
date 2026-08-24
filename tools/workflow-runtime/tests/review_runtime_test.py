@@ -794,7 +794,7 @@ class HumanDecisionTest(ReverifyCase):
         event = scenario.review_events()[-1]
         self.assertEqual((event["event_type"], event["result"]), ("decision", "accepted"))
 
-    def test_a_decision_on_a_machine_checked_finding_is_refused(self):
+    def test_an_acceptance_of_a_machine_checked_finding_is_refused(self):
         scenario = Scenario(self.parent)
         payload = self.frozen_set(scenario, [finding(scenario)])
         code, result = self.command(
@@ -802,6 +802,67 @@ class HumanDecisionTest(ReverifyCase):
         )
         self.assertNotEqual(code, 0)
         self.assertEqual(result["reason"], "transition_invalid")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-frozen")
+
+    def reject(self, scenario: Scenario, finding_id: str, *extra: str) -> tuple[int, dict]:
+        return self.command(scenario, "decide", "--finding", finding_id, "--result", "rejected", *extra)
+
+    def test_a_machine_checked_finding_closes_on_a_rejection_with_a_reason(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario)])
+        rejected = payload["admitted"][0]
+        code, result = self.reject(scenario, rejected, "--reason", "the check asks more than the specification")
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["result"], "rejected")
+        event = scenario.review_events()[-1]
+        self.assertEqual(event["event_type"], "decision")
+        self.assertEqual(event["finding_id"], rejected)
+        self.assertEqual(event["reason"], "the check asks more than the specification")
+        self.assertEqual(result["open"], [])
+
+    def test_a_rejection_without_a_reason_writes_nothing(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario)])
+        before = len(scenario.review_events())
+        code, result = self.reject(scenario, payload["admitted"][0])
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "decision_reason_missing")
+        self.assertEqual(len(scenario.review_events()), before)
+
+    def test_a_decision_before_the_set_is_frozen_is_refused(self):
+        scenario = Scenario(self.parent)
+        self.bind(scenario)
+        code, result = self.reject(scenario, "f-0123456789abcdef", "--reason", "not a real problem")
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "findings_not_frozen")
+        self.assertEqual(len(scenario.review_events()), 2)
+
+    def test_a_decision_on_an_unknown_or_already_closed_finding_is_refused(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario)])
+        rejected = payload["admitted"][0]
+        code, result = self.reject(scenario, "f-0123456789abcdef", "--reason", "not a real problem")
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "finding_not_in_set")
+        self.reject(scenario, rejected, "--reason", "not a real problem")
+        before = len(scenario.review_events())
+        code, result = self.reject(scenario, rejected, "--reason", "still not a real problem")
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "transition_invalid")
+        self.assertEqual(len(scenario.review_events()), before)
+
+    def test_a_rejected_finding_is_not_reverified_and_stays_closed_when_its_oracle_passes(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE))])
+        rejected = payload["admitted"][0]
+        code, result = self.reject(scenario, rejected, "--reason", "the greeting stays as it is")
+        self.assertEqual(code, 0, result)
+        self.fix_commit(scenario, [f"Finding: {rejected}"])
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["verdicts"], [])
+        self.assertEqual(result["closed"], [rejected])
+        self.assertEqual(result["open"], [])
 
 
 class DeferTest(ReverifyCase):
