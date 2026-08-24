@@ -34,8 +34,7 @@ REVIEW_SCRATCH = PurePosixPath(".agents/tmp/reviews")
 REVIEW_DIR = "review"
 IMPLEMENT_TERMINAL_EVENT = "implementation_green"
 FROZEN_EVENT = "findings-frozen"
-# Records frozen before the rename carry the event as "findings-fixed"; reading accepts both.
-FROZEN_EVENT_TYPES = {FROZEN_EVENT, "findings-fixed"}
+FROZEN_EVENT_TYPES = review_model.FROZEN_EVENT_TYPES
 DEFAULT_PROFILE_DIR = SCRIPT_DIR.parent / "references" / "profile"
 DEFAULT_PROFILE = "default"
 PROFILE_COVERS = re.compile(r"^Covers:\s*(.+)$", re.MULTILINE)
@@ -297,6 +296,20 @@ def _review_is_finished(events: list[dict]) -> bool:
     return bool(events) and events[-1]["event_type"] in review_model.TERMINAL_EVENT_TYPES
 
 
+def _state_counts(findings: dict[str, dict]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for finding in findings.values():
+        counts[finding["state"]] = counts.get(finding["state"], 0) + 1
+    return counts
+
+
+def _review_is_complete(events: list[dict]) -> bool:
+    """Completion is derived every time: a frozen set with no open finding. No event records it."""
+    if _frozen_findings_event(events) is None:
+        return False
+    return all(finding["state"] != "open" for finding in review_model.current_findings(events).values())
+
+
 def bind_review(
     review: Review, *, model: str, model_source: str, continue_existing: bool
 ) -> RuntimeResult:
@@ -304,14 +317,21 @@ def bind_review(
         return _failure("model_id_invalid", "model must be a full model id, not an alias", model)
     if model_source not in review_model.MODEL_SOURCES:
         return _failure("model_source_invalid", f"model source must be one of {review_model.MODEL_SOURCES}", model_source)
+    existing = review_events(review)
+    # A review that already ended or completed is answered from its record alone, before the
+    # hand-off is verified: the worktree may be gone and the specs revised by then, and the
+    # record is what the next session has.
+    if _review_is_finished(existing):
+        return _failure("review_finished", "this execution's review already ended", review_facts(review))
+    if _review_is_complete(existing):
+        facts = review_facts(review)
+        facts["findings"] = _state_counts(review_model.current_findings(existing))
+        return _failure("review_complete", "every finding of this execution's review is resolved", facts)
     verified = verify_hand_off(review)
     if not verified.ok:
         return verified
-    existing = review_events(review)
     if existing:
         facts = review_facts(review)
-        if _review_is_finished(existing):
-            return _failure("review_finished", "this execution's review already ended", facts)
         if not continue_existing:
             return _failure("review_in_progress", "an unfinished review exists; the human decides whether to continue", facts)
         return _ok(facts)
@@ -706,29 +726,6 @@ def _fix_commits(review: Review, boundary: str) -> RuntimeResult:
     return _ok(commits)
 
 
-def _current_findings(events: list[dict]) -> dict[str, dict]:
-    """The set as of the latest event: frozen findings plus later-joined ones, states applied."""
-    findings: dict[str, dict] = {}
-    for event in events:
-        if event["event_type"] in FROZEN_EVENT_TYPES | {"findings-added"}:
-            for finding in event["findings"]:
-                findings[finding["id"]] = dict(finding)
-        elif event["event_type"] == "reverify":
-            for verdict in event["verdicts"]:
-                finding = findings.get(verdict["finding_id"])
-                if finding is None:
-                    continue
-                finding["state"] = verdict["state"]
-                finding["oracle_failures"] = verdict.get("oracle_failures", finding.get("oracle_failures", 0))
-                if verdict.get("escalated"):
-                    finding["action"] = "human_judgment"
-        elif event["event_type"] == "decision":
-            finding = findings.get(event["finding_id"])
-            if finding is not None:
-                finding["state"] = "closed"
-    return findings
-
-
 def _reviewing_context(review: Review) -> RuntimeResult:
     verified = verify_hand_off(review, check_specs=False)
     if not verified.ok:
@@ -769,7 +766,7 @@ def reverify(review: Review, *, max_failures: int | None) -> RuntimeResult:
         spec["path"]: _file_identity(review.main_checkout.joinpath(*PurePosixPath(spec["path"]).parts))
         for spec in review.binding["specs"]
     }
-    findings = _current_findings(events)
+    findings = review_model.current_findings(events)
     if observed != frozen["spec_identities"]:
         stale_verdicts = []
         for finding in findings.values():
@@ -834,7 +831,7 @@ def reverify(review: Review, *, max_failures: int | None) -> RuntimeResult:
     recorded = append_review_event(review, "reverify", {"commits": shas, "verdicts": verdicts})
     if not recorded.ok:
         return recorded
-    after = _current_findings(review_events(review))
+    after = review_model.current_findings(review_events(review))
     result: dict[str, Any] = {
         "verdicts": verdicts,
         "open": sorted(f["id"] for f in after.values() if f["state"] == "open"),
@@ -902,23 +899,32 @@ def defer_findings(review: Review, *, findings_path: Path, introduced: bool) -> 
     return _ok({"deferred": [finding["id"] for finding in deferred]})
 
 
-def decide_finding(review: Review, *, finding_id: str, result: str) -> RuntimeResult:
+def decide_finding(review: Review, *, finding_id: str, result: str, reason: str | None) -> RuntimeResult:
     context = _reviewing_context(review)
     if not context.ok:
         return context
-    findings = _current_findings(context.value)
+    findings = review_model.current_findings(context.value)
     finding = findings.get(finding_id)
     if finding is None:
         return _failure("finding_not_in_set", "no such finding in the fixed set", finding_id)
-    closed = review_model.transition(finding, "closed", cause="human_decision")
+    cause = "human_decision" if result == "accepted" else "human_rejection"
+    closed = review_model.transition(finding, "closed", cause=cause)
     if not closed.ok:
         return _failure(closed.error.code, closed.error.message, closed.error.field)
-    recorded = append_review_event(review, "decision", {"finding_id": finding_id, "result": result})
+    details: dict[str, Any] = {"finding_id": finding_id, "result": result}
+    if reason is not None:
+        details["reason"] = reason
+    recorded = append_review_event(review, "decision", details)
     if not recorded.ok:
         return recorded
-    after = _current_findings(review_events(review))
+    after = review_model.current_findings(review_events(review))
     return _ok(
-        {"finding_id": finding_id, "result": result, "remaining_human_decisions": _open_human_decisions(after)}
+        {
+            "finding_id": finding_id,
+            "result": result,
+            "open": sorted(f["id"] for f in after.values() if f["state"] == "open"),
+            "remaining_human_decisions": _open_human_decisions(after),
+        }
     )
 
 
@@ -933,7 +939,8 @@ def _print_failure(result: RuntimeResult) -> int:
     error = result.error
     payload: dict[str, Any] = {"state": "stopped", "reason": error.code, "message": error.message}
     if error.detail is not None:
-        payload["review" if error.code in {"review_in_progress", "review_finished"} else "detail"] = error.detail
+        review_codes = {"review_in_progress", "review_finished", "review_complete"}
+        payload["review" if error.code in review_codes else "detail"] = error.detail
     _print(payload)
     return 2
 
@@ -977,9 +984,12 @@ def main(argv: list[str] | None = None) -> int:
     defer_parser.add_argument("--introduced", action="store_true")
     merge_parser = commands.add_parser("merge", help="merge a finishing review's findings into the frozen set")
     merge_parser.add_argument("--findings", required=True)
-    decide_parser = commands.add_parser("decide", help="record the human decision that closes a human-judgment finding")
+    decide_parser = commands.add_parser(
+        "decide", help="record the human decision that closes an open finding (a rejection needs --reason)"
+    )
     decide_parser.add_argument("--finding", required=True)
     decide_parser.add_argument("--result", required=True, choices=["accepted", "rejected"])
+    decide_parser.add_argument("--reason")
     for sub in (reverify_parser, defer_parser, merge_parser, decide_parser):
         sub.add_argument("--repo", required=True)
         sub.add_argument("--plan-id", required=True)
@@ -1032,7 +1042,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "merge":
         result = merge_findings(review, findings_path=Path(args.findings))
     elif args.command == "decide":
-        result = decide_finding(review, finding_id=args.finding, result=args.result)
+        result = decide_finding(review, finding_id=args.finding, result=args.result, reason=args.reason)
     else:
         return 2
     if not result.ok:

@@ -53,12 +53,12 @@
     "ba0918-review": {
       "scripts/review_model.py": {
         "contract": "review-runtime",
-        "digest": "sha256:26f7f1b445947ea3770d7453c47d84b9deff58f6b1cd741dcc527c8685fea264",
+        "digest": "sha256:62439c3902e962a14a5ffd78a6136501b37b00448d61b2acb677998e77af4d96",
         "src": "tools/workflow-runtime/review/review_model.py"
       },
       "scripts/review_runtime.py": {
         "contract": "review-runtime",
-        "digest": "sha256:2e6d553da73ecb4c2a55bff5a503031d788307663fa4e7821be3c35abf7b621f",
+        "digest": "sha256:545829805ba1289af770a3df082027065b385a5b4ef2dd05031ded8727130754",
         "src": "tools/workflow-runtime/review/review_runtime.py"
       }
     }
@@ -77,7 +77,7 @@
       "kind": "raw"
     },
     "review-runtime": {
-      "digest": "sha256:6114a7b64be9cc87b8e4ef4b26eae76ce2af8a9c1872eb3b7ca85a41365733dc",
+      "digest": "sha256:6be09c97cd49048ec2f5dfaf56c1a8f65f664d93a8c668b7faf0264db8682d8c",
       "kind": "raw"
     }
   }
