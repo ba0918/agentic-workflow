@@ -34,8 +34,8 @@ REVIEW_SCRATCH = PurePosixPath(".agents/tmp/reviews")
 REVIEW_DIR = "review"
 IMPLEMENT_TERMINAL_EVENT = "implementation_green"
 DEFAULT_PROFILE_DIR = SCRIPT_DIR.parent / "references" / "profile"
-SKILL_PROFILE = "skill"
 DEFAULT_PROFILE = "default"
+PROFILE_COVERS = re.compile(r"^Covers:\s*(.+)$", re.MULTILINE)
 LIGHT_SEVERITIES = {"security", "critical"}
 CREDENTIAL_ASSIGNMENT = re.compile(
     rb"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*[^<\s][^\s]*"
@@ -315,8 +315,32 @@ def _diff_line_count(review: Review) -> int:
     return total
 
 
-def _profile_for(path: str) -> str:
-    return SKILL_PROFILE if PurePosixPath(path).parts[:1] == ("skills",) else DEFAULT_PROFILE
+def _profile_rules(profile_dir: Path) -> list[tuple[str, list[str]]]:
+    """Each profile declares the path prefixes it covers; default declares none and stays the fallback."""
+    rules: list[tuple[str, list[str]]] = []
+    for candidate in sorted(profile_dir.glob("*.md")):
+        if candidate.stem == DEFAULT_PROFILE:
+            continue
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        prefixes = [
+            token.strip("`")
+            for match in PROFILE_COVERS.finditer(text)
+            for token in match.group(1).replace(",", " ").split()
+            if token.strip("`")
+        ]
+        if prefixes:
+            rules.append((candidate.stem, prefixes))
+    return rules
+
+
+def _profile_for(path: str, rules: list[tuple[str, list[str]]]) -> str:
+    for name, prefixes in rules:
+        if any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in prefixes):
+            return name
+    return DEFAULT_PROFILE
 
 
 def _profile_identities(profile_dir: Path, names: list[str]) -> RuntimeResult:
@@ -354,9 +378,10 @@ def review_inputs(
                 "the diff exceeds the threshold; split the plan instead of the review",
                 {"lines": lines, "max_diff_lines": max_diff_lines},
             )
+    rules = _profile_rules(profile_dir)
     profiles: dict[str, list[str]] = {}
     for path in paths.value:
-        profiles.setdefault(profile or _profile_for(path), []).append(path)
+        profiles.setdefault(profile or _profile_for(path, rules), []).append(path)
     identities = _profile_identities(profile_dir, list(profiles))
     if not identities.ok:
         return identities

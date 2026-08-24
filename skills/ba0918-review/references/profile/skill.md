@@ -6,6 +6,8 @@ files, each group gets its own profile and the findings stay in one set.
 
 ## Covered files
 
+Covers: `skills/`
+
 `SKILL.md`, files under a skill's `references/`, and the helper scripts under its `scripts/`.
 
 ## Viewpoints

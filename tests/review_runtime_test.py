@@ -113,7 +113,7 @@ class Scenario:
         self.profiles = parent / "profiles"
         self.profiles.mkdir()
         (self.profiles / "default.md").write_text("# default profile\n", encoding="utf-8")
-        (self.profiles / "skill.md").write_text("# skill profile\n", encoding="utf-8")
+        (self.profiles / "skill.md").write_text("# skill profile\n\nCovers: `skills/`\n", encoding="utf-8")
         self.events = []
         self.append_event("worktree-bound", {"outcome": "bound"})
         self.append_event("commit", {"step_id": "step-1", "commit_sha": self.step_commit, "outcome": "committed"})
@@ -353,6 +353,20 @@ class InputsTest(RuntimeCase):
         code, payload = self.inputs(scenario, "--level", "standard", "--profile", "skill")
         self.assertEqual(code, 0, payload)
         self.assertEqual(payload["profiles"], {"skill": ["app.py", "skills/demo/SKILL.md"]})
+
+    def test_a_new_profile_is_selected_for_its_declared_paths_without_a_script_change(self):
+        scenario = Scenario(self.parent)
+        guide = scenario.worktree / "docs/guide.md"
+        guide.parent.mkdir(parents=True, exist_ok=True)
+        guide.write_text("# Guide\n", encoding="utf-8")
+        git(scenario.worktree, "add", "docs/guide.md")
+        git(scenario.worktree, "commit", "-q", "-m", "docs change")
+        (scenario.profiles / "docs.md").write_text("# docs profile\n\nCovers: `docs/`\n", encoding="utf-8")
+        self.bind(scenario)
+        code, payload = self.inputs(scenario, "--level", "standard")
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(payload["profiles"], {"default": ["app.py"], "docs": ["docs/guide.md"]})
+        self.assertIn("docs", payload["profile_identities"])
 
     def test_a_diff_above_the_threshold_stops_and_no_threshold_does_not(self):
         scenario = Scenario(self.parent)

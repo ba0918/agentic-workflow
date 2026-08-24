@@ -47,7 +47,9 @@ python3 <review-runtime> inputs --level <light|standard> [--profile <name>] [--m
 
 `inputs` lists the diff of the implementation branch and assigns each file group its profile;
 `--profile` overrides. Adding or changing a profile never changes the skill body or its
-scripts; profiles are prose without side effects and need no dedicated tests.
+scripts; profiles are prose without side effects and need no dedicated tests. A profile file
+declares the paths it covers with a `Covers:` line of repository-relative path prefixes (for
+example `Covers: skills/`); a changed file no profile covers gets `default`.
 
 The human chooses the strength, and the command line always states it; `standard` is the
 choice to reach for unless the human says otherwise. `light` collects only `security` and

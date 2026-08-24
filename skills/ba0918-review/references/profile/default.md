@@ -1,11 +1,12 @@
 # Default profile
 
-The review profile for general code. The runtime selects it for every changed file that is not
-a skill document; `--profile` overrides the selection.
+The review profile for general code. The runtime selects it for every changed file that no
+other profile covers; `--profile` overrides the selection.
 
 ## Covered files
 
-Production code, tests, configuration, and documents outside `skills/`.
+Production code, tests, configuration, and documents no other profile covers. This profile
+declares no `Covers:` line: it is the fallback.
 
 ## Viewpoints
 
