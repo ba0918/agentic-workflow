@@ -419,6 +419,18 @@ class DerivedFindingStatesTest(unittest.TestCase):
         self.assertEqual(derived[self.machine["id"]]["state"], "stale")
         self.assertEqual(derived[self.judged["id"]]["state"], "open")
 
+    def test_a_finding_added_again_after_a_decision_keeps_its_decided_state(self):
+        resubmitted = dict(self.machine)
+        resubmitted["oracle_failures"] = 3
+        events = [
+            {"event_type": "findings-frozen", "findings": [self.machine]},
+            {"event_type": "decision", "finding_id": self.machine["id"], "result": "rejected", "reason": "stays"},
+            {"event_type": "findings-added", "findings": [resubmitted], "commits": []},
+        ]
+        derived = self.model.current_findings(events)[self.machine["id"]]
+        self.assertEqual(derived["state"], "closed")
+        self.assertEqual(derived["oracle_failures"], 0)
+
     def test_deferred_findings_stay_outside_the_derived_set(self):
         aside = dict(self.machine)
         aside["state"] = "deferred"

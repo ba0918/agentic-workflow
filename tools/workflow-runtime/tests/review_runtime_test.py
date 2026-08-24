@@ -926,6 +926,21 @@ class MergeTest(ReverifyCase):
         self.assertEqual(code, 0, result)
         self.assertIn(joined, result["closed"])
 
+    def test_a_finding_already_in_the_set_is_not_admitted_again_and_a_rejection_stands(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario)])
+        rejected = payload["admitted"][0]
+        code, result = self.command(
+            scenario, "decide", "--finding", rejected, "--result", "rejected", "--reason", "the greeting stays as it is"
+        )
+        self.assertEqual(code, 0, result)
+        code, result = self.merge(scenario, [finding(scenario)])
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["added"], [])
+        self.assertEqual(result["not_added"], [{"id": rejected, "reason": "already_in_set"}])
+        code, payload = self.bind(scenario)
+        self.assertEqual(payload["reason"], "review_complete")
+
     def test_merge_before_the_set_is_frozen_is_refused(self):
         scenario = Scenario(self.parent)
         self.bind(scenario)
