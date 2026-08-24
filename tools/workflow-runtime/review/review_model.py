@@ -44,6 +44,7 @@ FINDING_OPTIONAL_FIELDS = {"id", "oracle_failures"}
 TRANSITIONS = {
     ("open", "closed", "oracle_passed"),
     ("open", "closed", "human_decision"),
+    ("open", "closed", "human_rejection"),
     ("open", "stale", "spec_revised"),
     ("open", "deferred", "deferred"),
 }
@@ -79,7 +80,10 @@ EVENT_TYPES = {
     "rereview-candidate": {"commits", "paths"},
     "warning": {"reason"},
 }
+EVENT_OPTIONAL_FIELDS = {"decision": {"reason"}}
 TERMINAL_EVENT_TYPES = {"findings_stale"}
+# Records frozen before the rename carry the event as "findings-fixed"; reading accepts both.
+FROZEN_EVENT_TYPES = {"findings-frozen", "findings-fixed"}
 RAW_LOG_FIELDS = {"stdout", "stderr", "provider_log", "raw_log"}
 SECRET_VALUE_FIELDS = {"environment", "environment_values", "secret", "password", "credential"}
 SECRET_FIELD = re.compile(r"(?i)(?:api[_-]?key|secret|token|password|credential)")
@@ -323,10 +327,37 @@ def transition(finding: dict, to_state: str, *, cause: str) -> ModelResult:
     if cause == "oracle_passed" and finding["action"] == "human_judgment":
         return _failure("transition_invalid", "state", "a human judgment finding does not close on an oracle result")
     if cause == "human_decision" and finding["action"] != "human_judgment":
-        return _failure("transition_invalid", "state", "only a human judgment finding closes on a decision")
+        return _failure("transition_invalid", "state", "only a human judgment finding closes on an acceptance")
     moved = dict(finding)
     moved["state"] = to_state
     return _ok(moved)
+
+
+def current_findings(events: list[dict]) -> dict[str, dict]:
+    """The set as of the latest event: frozen findings plus later-joined ones, states applied.
+
+    Deferred findings never join the set, and a decision closes its finding whatever the
+    result: a rejection is the human's word that the finding will not be fixed."""
+    findings: dict[str, dict] = {}
+    for event in events:
+        event_type = event["event_type"]
+        if event_type in FROZEN_EVENT_TYPES | {"findings-added"}:
+            for finding in event["findings"]:
+                findings[finding["id"]] = dict(finding)
+        elif event_type in {"reverify", "findings_stale"}:
+            for verdict in event["verdicts"]:
+                finding = findings.get(verdict["finding_id"])
+                if finding is None:
+                    continue
+                finding["state"] = verdict["state"]
+                finding["oracle_failures"] = verdict.get("oracle_failures", finding.get("oracle_failures", 0))
+                if verdict.get("escalated"):
+                    finding["action"] = "human_judgment"
+        elif event_type == "decision":
+            finding = findings.get(event["finding_id"])
+            if finding is not None:
+                finding["state"] = "closed"
+    return findings
 
 
 def group_by_root_cause(findings: list[dict]) -> dict[str, list[str]]:
@@ -389,10 +420,13 @@ def _validate_event_body(candidate: dict) -> ModelResult:
             for v in verdicts
         ):
             return _failure("event_field_invalid", "verdicts", "verdicts need finding_id and state")
-    if event_type == "decision" and (
-        not isinstance(candidate["finding_id"], str) or candidate["result"] not in ("accepted", "rejected")
-    ):
-        return _failure("event_field_invalid", "decision", "decision needs finding_id and accepted/rejected")
+    if event_type == "decision":
+        if not isinstance(candidate["finding_id"], str) or candidate["result"] not in ("accepted", "rejected"):
+            return _failure("event_field_invalid", "decision", "decision needs finding_id and accepted/rejected")
+        if "reason" in candidate and not _bounded_text(candidate["reason"]):
+            return _failure("event_field_invalid", "reason", "a decision reason must be bounded text")
+        if candidate["result"] == "rejected" and "reason" not in candidate:
+            return _failure("decision_reason_missing", "reason", "a rejection must say why the finding is not fixed")
     if event_type == "findings_stale" and not _validate_spec_identities(candidate["observed_spec_identities"]):
         return _failure("event_field_invalid", "observed_spec_identities", "observed spec identities are invalid")
     if event_type == "rereview-candidate" and (
@@ -420,7 +454,8 @@ def seal_review_event(candidate: object, previous_event: dict | None = None) -> 
     missing = EVENT_TYPES[event_type] - set(candidate)
     if missing:
         return _failure("event_field_missing", sorted(missing)[0], "event-specific field is missing")
-    if set(candidate) != COMMON_EVENT_FIELDS | EVENT_TYPES[event_type]:
+    allowed = COMMON_EVENT_FIELDS | EVENT_TYPES[event_type] | EVENT_OPTIONAL_FIELDS.get(event_type, set())
+    if set(candidate) - allowed:
         return _failure("event_fields_invalid", None, "event fields are unknown or unexpected")
     if candidate["version"] != 1:
         return _failure("event_version_invalid", "version", "unsupported event version")

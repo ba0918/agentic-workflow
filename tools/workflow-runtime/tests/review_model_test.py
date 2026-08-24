@@ -193,6 +193,36 @@ class FindingTransitionTest(unittest.TestCase):
         self.assertTrue(self.model.transition(value, "stale", cause="spec_revised").ok)
         self.assertTrue(self.model.transition(value, "deferred", cause="deferred").ok)
 
+    def test_a_machine_checked_finding_closes_on_a_human_rejection_and_never_reopens(self):
+        value = self.model.validate_finding(finding()).value
+        rejected = self.model.transition(value, "closed", cause="human_rejection")
+        self.assertTrue(rejected.ok, rejected.error)
+        self.assertEqual(rejected.value["state"], "closed")
+        reopened = self.model.transition(rejected.value, "open", cause="oracle_failed")
+        self.assertFalse(reopened.ok)
+        self.assertEqual(reopened.error.code, "transition_invalid")
+
+    def test_a_human_may_reject_but_not_accept_a_machine_checked_finding(self):
+        value = self.model.validate_finding(finding()).value
+        accepted = self.model.transition(value, "closed", cause="human_decision")
+        self.assertFalse(accepted.ok)
+        self.assertEqual(accepted.error.code, "transition_invalid")
+        rejected = self.model.transition(value, "closed", cause="human_rejection")
+        self.assertTrue(rejected.ok, rejected.error)
+
+    def test_a_human_judgment_finding_still_closes_on_acceptance_or_rejection(self):
+        value = self.model.validate_finding(
+            finding(
+                action="human_judgment",
+                oracle=None,
+                oracle_unavailable_reason="cannot be checked by a command",
+            )
+        ).value
+        accepted = self.model.transition(value, "closed", cause="human_decision")
+        self.assertTrue(accepted.ok, accepted.error)
+        rejected = self.model.transition(value, "closed", cause="human_rejection")
+        self.assertTrue(rejected.ok, rejected.error)
+
 
 class RootCauseGroupingTest(unittest.TestCase):
     def setUp(self):
@@ -297,6 +327,106 @@ class ReviewEventTest(unittest.TestCase):
         result = self.model.seal_review_event(candidate, previous)
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "stale_event_chain")
+
+
+class DecisionEventTest(unittest.TestCase):
+    def setUp(self):
+        self.model = load_model()
+        bound = common_event()
+        bound["implement_event_identity"] = IMPLEMENT_EVENT_IDENTITY
+        self.previous = self.model.seal_review_event(bound, None).value
+
+    def decision(self, result: str, **extra) -> dict:
+        candidate = common_event(2, self.previous["content_identity"])
+        candidate["event_type"] = "decision"
+        candidate["finding_id"] = "f-0123456789abcdef"
+        candidate["result"] = result
+        candidate.update(extra)
+        return candidate
+
+    def test_a_rejection_is_sealed_only_with_a_reason(self):
+        without = self.model.seal_review_event(self.decision("rejected"), self.previous)
+        self.assertFalse(without.ok)
+        self.assertEqual(without.error.code, "decision_reason_missing")
+        empty = self.model.seal_review_event(self.decision("rejected", reason=""), self.previous)
+        self.assertFalse(empty.ok)
+        with_reason = self.model.seal_review_event(
+            self.decision("rejected", reason="the check is stricter than the specification asks"),
+            self.previous,
+        )
+        self.assertTrue(with_reason.ok, with_reason.error)
+        self.assertEqual(with_reason.value["reason"], "the check is stricter than the specification asks")
+
+    def test_an_acceptance_recorded_without_a_reason_as_older_records_were_is_still_sealed(self):
+        result = self.model.seal_review_event(self.decision("accepted"), self.previous)
+        self.assertTrue(result.ok, result.error)
+        self.assertNotIn("reason", result.value)
+
+
+class DerivedFindingStatesTest(unittest.TestCase):
+    def setUp(self):
+        self.model = load_model()
+        self.machine = self.model.validate_finding(finding()).value
+        self.judged = self.model.validate_finding(
+            finding(
+                action="human_judgment",
+                oracle=None,
+                oracle_unavailable_reason="naming quality cannot be checked by a command",
+            )
+        ).value
+
+    def test_states_are_derived_from_a_record_whose_decisions_carry_no_reason(self):
+        # Records written before the reason field existed name the frozen set "findings-fixed"
+        # and record decisions without a reason; deriving states from them must keep working.
+        events = [
+            {"event_type": "review-bound"},
+            {"event_type": "findings-fixed", "findings": [self.machine, self.judged]},
+            {
+                "event_type": "reverify",
+                "verdicts": [
+                    {"finding_id": self.machine["id"], "state": "closed", "oracle_failures": 0},
+                    {"finding_id": self.judged["id"], "state": "open", "oracle_failures": 0},
+                ],
+            },
+            {"event_type": "decision", "finding_id": self.judged["id"], "result": "accepted"},
+        ]
+        states = {id_: f["state"] for id_, f in self.model.current_findings(events).items()}
+        self.assertEqual(states, {self.machine["id"]: "closed", self.judged["id"]: "closed"})
+
+    def test_a_rejection_with_a_reason_closes_a_machine_checked_finding_in_the_derived_states(self):
+        events = [
+            {"event_type": "findings-frozen", "findings": [self.machine]},
+            {
+                "event_type": "decision",
+                "finding_id": self.machine["id"],
+                "result": "rejected",
+                "reason": "the check is stricter than the specification asks",
+            },
+        ]
+        derived = self.model.current_findings(events)
+        self.assertEqual(derived[self.machine["id"]]["state"], "closed")
+
+    def test_a_stale_event_marks_its_findings_stale_in_the_derived_states(self):
+        events = [
+            {"event_type": "findings-frozen", "findings": [self.machine, self.judged]},
+            {
+                "event_type": "findings_stale",
+                "observed_spec_identities": {},
+                "verdicts": [{"finding_id": self.machine["id"], "state": "stale"}],
+            },
+        ]
+        derived = self.model.current_findings(events)
+        self.assertEqual(derived[self.machine["id"]]["state"], "stale")
+        self.assertEqual(derived[self.judged["id"]]["state"], "open")
+
+    def test_deferred_findings_stay_outside_the_derived_set(self):
+        aside = dict(self.machine)
+        aside["state"] = "deferred"
+        events = [
+            {"event_type": "findings-frozen", "findings": [self.judged]},
+            {"event_type": "deferred", "findings": [aside]},
+        ]
+        self.assertEqual(set(self.model.current_findings(events)), {self.judged["id"]})
 
 
 if __name__ == "__main__":
