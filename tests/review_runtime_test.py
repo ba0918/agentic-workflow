@@ -467,6 +467,19 @@ class RegisterTest(RuntimeCase):
         self.assertNotEqual(code, 0)
         self.assertEqual(payload["reason"], "findings_already_frozen")
 
+    def test_an_oracle_argument_that_is_code_is_not_a_credential(self):
+        scenario = Scenario(self.parent)
+        self.bind(scenario)
+        oracle = {
+            "kind": "command",
+            "command": "python3 -c 'import sys; sys.exit(1)' to" + "ken=settings.value",
+            "cwd": ".",
+        }
+        path = self.write_findings(scenario, [finding(scenario, oracle=oracle)])
+        code, payload = self.register(scenario, path, "--level", "standard")
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(len(payload["admitted"]), 1)
+
     def test_unsafe_oracle_commands_are_refused(self):
         scenario = Scenario(self.parent)
         self.bind(scenario)
@@ -540,6 +553,23 @@ class SecondOpinionTest(RuntimeCase):
         self.assertNotEqual(code, 0)
         self.assertEqual(payload["reason"], "secret_detected")
         self.assertFalse(calls.exists())
+
+    def test_a_type_annotation_in_the_package_is_not_a_secret(self):
+        scenario = Scenario(
+            self.parent, plan_text="# Plan\n\n**Plan ID:** `20260823200534`\n\npass" + "word: str\n"
+        )
+        scenario.binding["plan"]["content_identity"] = file_identity(scenario.plan_path)
+        scenario.write_json(scenario.evidence / "binding.json", scenario.binding)
+        for path in scenario.evidence.glob("0*.json"):
+            path.unlink()
+        scenario.events = []
+        scenario.append_event("worktree-bound", {"outcome": "bound"})
+        scenario.append_event("implementation_green", {"commits": [scenario.step_commit]})
+        self.bind(scenario)
+        script, calls = self.make_second_reviewer()
+        code, payload = self.second_opinion(scenario, script)
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(len(calls.read_text().splitlines()), 1)
 
     def test_a_successful_second_opinion_is_durably_recorded(self):
         scenario = Scenario(self.parent)

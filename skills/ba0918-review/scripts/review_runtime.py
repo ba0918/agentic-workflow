@@ -41,9 +41,36 @@ DEFAULT_PROFILE = "default"
 PROFILE_COVERS = re.compile(r"^Covers:\s*(.+)$", re.MULTILINE)
 LIGHT_SEVERITIES = {"security", "critical"}
 CREDENTIAL_ASSIGNMENT = re.compile(
-    rb"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*[^<\s][^\s]*"
+    rb"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*[\"'][^\"'\n]{4,}[\"']"
 )
+_CREDENTIAL_BARE = re.compile(
+    rb"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*(?P<value>[^\s\"',;\\\\]+)"
+)
+_CODE_REFERENCE = re.compile(rb"[A-Za-z_][A-Za-z_.]*")
 ORACLE_TIMEOUT_SECONDS = 600
+
+
+def _resembles_credential(data: bytes) -> bool:
+    """True when a credential-named value looks like a secret: quoted, or bare and not code.
+
+    A value that is code — a call, a subscript, an identifier or attribute path — or a type
+    annotation is not a secret. Judging by name alone flagged this skill's own scanner code,
+    so the second-opinion package of this very skill could never be sent. Mirrors the
+    implement skill's staging judgment; skills are distributed separately, so the logic is
+    duplicated on purpose."""
+    if CREDENTIAL_ASSIGNMENT.search(data):
+        return True
+    for match in _CREDENTIAL_BARE.finditer(data):
+        value = match.group("value")
+        # A value in angle brackets is a placeholder, not a secret.
+        if value.startswith(b"<"):
+            continue
+        if b"(" in value or b"[" in value:
+            continue
+        if _CODE_REFERENCE.fullmatch(value):
+            continue
+        return True
+    return False
 
 
 class RuntimeFailure(NamedTuple):
@@ -413,7 +440,7 @@ def _oracle_command(oracle: dict) -> list[str]:
 
 def _oracle_unsafe_reason(command: list[str]) -> str | None:
     for part in command:
-        if CREDENTIAL_ASSIGNMENT.search(part.encode("utf-8")):
+        if _resembles_credential(part.encode("utf-8")):
             return "a credential-shaped argument"
         if part.startswith("/") or part.startswith("~"):
             return f"an absolute path: {part}"
@@ -576,7 +603,7 @@ def _second_reviewer_package(review: Review) -> RuntimeResult:
         "Review the change below against the plan. Report problems only; do not fix.\n\n"
         "## Plan\n\n" + plan_path.read_text(encoding="utf-8") + "\n\n## Diff\n\n```diff\n" + diff.stdout + "\n```\n"
     )
-    if CREDENTIAL_ASSIGNMENT.search(package.encode("utf-8")):
+    if _resembles_credential(package.encode("utf-8")):
         return _failure("secret_detected", "the package resembles a credential assignment; nothing was sent")
     return _ok(package)
 
