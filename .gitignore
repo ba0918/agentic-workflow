@@ -16,3 +16,6 @@ __pycache__/
 
 # agentic-skill-vendor working files (cache for remote sources; never committed)
 /.agentic-skill-vendor/
+
+# Session handoff written by the ba0918-handoff skill (working state, never committed)
+/.agents/HANDOFF.md
