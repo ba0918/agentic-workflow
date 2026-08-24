@@ -17,8 +17,14 @@ python3 <review-runtime> bind --repo <main-checkout> --plan-id <id> --attempt-id
   --model <full-model-id> --model-source <explicit|project|user|session> [--continue]
 ```
 
-An unfinished review of the same execution is shown, and only the human decides to continue
-it (`--continue`); two reviews of one execution never run at once.
+An unfinished review of the same execution is shown as `review_in_progress`, and only the
+human decides to continue it (`--continue`); two reviews of one execution never run at once.
+A review whose frozen set has no open finding left is answered as `review_complete` with the
+record's facts (review id, event count, last event, record path, findings per state); a review
+that ended on a revised specification (`findings_stale`) is answered as `review_finished` with
+the same facts. Both answers are read from the record alone, before the hand-off is verified,
+since the worktree may be gone by then. Completion is derived, never recorded; see
+[evidence.md](evidence.md).
 
 ## Decide the model
 
@@ -130,11 +136,19 @@ scope are recorded as a re-review candidate; a full re-review runs only when the
 Human judgments are presented once per round, together:
 
 ```text
-python3 <review-runtime> decide --finding <id> --result <accepted|rejected>
+python3 <review-runtime> decide --finding <id> --result <accepted|rejected> [--reason <text>]
 python3 <review-runtime> defer --findings <file.json> [--introduced]
 ```
 
-`decide` closes one human-judgment finding with the recorded decision. `defer` records
+`decide` closes one open finding of the frozen set with the recorded decision. A
+human-judgment finding closes on `accepted` or `rejected`. A machine-checked finding closes
+only on `rejected` — the human's word that it will not be fixed; `accepted` is refused there,
+because only its oracle can say it is fixed. Every rejection needs `--reason`, and the
+reason is stored with the decision so a later session can read why from the record. `decide`
+refuses before the set is frozen — it is not a way to drop inconvenient findings — and refuses
+an id outside the set or a finding already `closed`, `stale`, or `deferred`; a refusal writes
+nothing. A rejected finding is skipped by every later `reverify` round and stays `closed` even
+when its oracle would pass: the machine never overrides the human's decision. `defer` records
 problems noticed during re-review apart from the set; only with `--introduced` — a risk the
 fix itself brought in — do findings join the set, under the same validation and
 fails-now check as the first review.

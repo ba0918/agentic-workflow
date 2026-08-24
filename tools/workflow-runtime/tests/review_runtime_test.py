@@ -794,7 +794,7 @@ class HumanDecisionTest(ReverifyCase):
         event = scenario.review_events()[-1]
         self.assertEqual((event["event_type"], event["result"]), ("decision", "accepted"))
 
-    def test_a_decision_on_a_machine_checked_finding_is_refused(self):
+    def test_an_acceptance_of_a_machine_checked_finding_is_refused(self):
         scenario = Scenario(self.parent)
         payload = self.frozen_set(scenario, [finding(scenario)])
         code, result = self.command(
@@ -802,6 +802,67 @@ class HumanDecisionTest(ReverifyCase):
         )
         self.assertNotEqual(code, 0)
         self.assertEqual(result["reason"], "transition_invalid")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-frozen")
+
+    def reject(self, scenario: Scenario, finding_id: str, *extra: str) -> tuple[int, dict]:
+        return self.command(scenario, "decide", "--finding", finding_id, "--result", "rejected", *extra)
+
+    def test_a_machine_checked_finding_closes_on_a_rejection_with_a_reason(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario)])
+        rejected = payload["admitted"][0]
+        code, result = self.reject(scenario, rejected, "--reason", "the check asks more than the specification")
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["result"], "rejected")
+        event = scenario.review_events()[-1]
+        self.assertEqual(event["event_type"], "decision")
+        self.assertEqual(event["finding_id"], rejected)
+        self.assertEqual(event["reason"], "the check asks more than the specification")
+        self.assertEqual(result["open"], [])
+
+    def test_a_rejection_without_a_reason_writes_nothing(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario)])
+        before = len(scenario.review_events())
+        code, result = self.reject(scenario, payload["admitted"][0])
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "decision_reason_missing")
+        self.assertEqual(len(scenario.review_events()), before)
+
+    def test_a_decision_before_the_set_is_frozen_is_refused(self):
+        scenario = Scenario(self.parent)
+        self.bind(scenario)
+        code, result = self.reject(scenario, "f-0123456789abcdef", "--reason", "not a real problem")
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "findings_not_frozen")
+        self.assertEqual(len(scenario.review_events()), 2)
+
+    def test_a_decision_on_an_unknown_or_already_closed_finding_is_refused(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario)])
+        rejected = payload["admitted"][0]
+        code, result = self.reject(scenario, "f-0123456789abcdef", "--reason", "not a real problem")
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "finding_not_in_set")
+        self.reject(scenario, rejected, "--reason", "not a real problem")
+        before = len(scenario.review_events())
+        code, result = self.reject(scenario, rejected, "--reason", "still not a real problem")
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "transition_invalid")
+        self.assertEqual(len(scenario.review_events()), before)
+
+    def test_a_rejected_finding_is_not_reverified_and_stays_closed_when_its_oracle_passes(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE))])
+        rejected = payload["admitted"][0]
+        code, result = self.reject(scenario, rejected, "--reason", "the greeting stays as it is")
+        self.assertEqual(code, 0, result)
+        self.fix_commit(scenario, [f"Finding: {rejected}"])
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["verdicts"], [])
+        self.assertEqual(result["closed"], [rejected])
+        self.assertEqual(result["open"], [])
 
 
 class DeferTest(ReverifyCase):
@@ -865,12 +926,126 @@ class MergeTest(ReverifyCase):
         self.assertEqual(code, 0, result)
         self.assertIn(joined, result["closed"])
 
+    def test_a_finding_already_in_the_set_is_not_admitted_again_and_a_rejection_stands(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario)])
+        rejected = payload["admitted"][0]
+        code, result = self.command(
+            scenario, "decide", "--finding", rejected, "--result", "rejected", "--reason", "the greeting stays as it is"
+        )
+        self.assertEqual(code, 0, result)
+        code, result = self.merge(scenario, [finding(scenario)])
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["added"], [])
+        self.assertEqual(result["not_added"], [{"id": rejected, "reason": "already_in_set"}])
+        code, payload = self.bind(scenario)
+        self.assertEqual(payload["reason"], "review_complete")
+
     def test_merge_before_the_set_is_frozen_is_refused(self):
         scenario = Scenario(self.parent)
         self.bind(scenario)
         code, result = self.merge(scenario, [finding(scenario)])
         self.assertNotEqual(code, 0)
         self.assertEqual(result["reason"], "findings_not_frozen")
+
+
+class ReviewCompletionTest(ReverifyCase):
+    def complete_review(self, scenario: Scenario) -> str:
+        payload = self.frozen_set(scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE))])
+        closing_id = payload["admitted"][0]
+        self.fix_commit(scenario, [f"Finding: {closing_id}"])
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["open"], [])
+        return closing_id
+
+    def test_bind_answers_complete_when_every_finding_is_closed(self):
+        scenario = Scenario(self.parent)
+        self.complete_review(scenario)
+        before = scenario.review_events()
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_complete")
+        self.assertEqual(payload["review"]["review_id"], before[0]["review_id"])
+        self.assertEqual(payload["review"]["events"], len(before))
+        self.assertEqual(payload["review"]["last_event"], "reverify")
+        self.assertEqual(payload["review"]["path"], str(scenario.review_dir()))
+        self.assertEqual(scenario.review_events(), before)
+
+    def test_bind_keeps_a_review_with_an_open_finding_in_progress(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(
+            scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE)), finding(scenario)]
+        )
+        self.fix_commit(scenario, [f"Finding: {payload['admitted'][0]}", f"Finding: {payload['admitted'][1]}"])
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(len(result["open"]), 1)
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_in_progress")
+        code, payload = self.bind(scenario, "--continue")
+        self.assertEqual(code, 0, payload)
+
+    def test_a_review_closed_only_by_human_rejections_is_complete(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario)])
+        code, result = self.command(
+            scenario, "decide", "--finding", payload["admitted"][0], "--result", "rejected",
+            "--reason", "the greeting stays as it is",
+        )
+        self.assertEqual(code, 0, result)
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_complete")
+
+    def test_a_review_before_the_set_is_frozen_is_not_complete(self):
+        scenario = Scenario(self.parent)
+        self.bind(scenario)
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_in_progress")
+
+    def test_merging_findings_into_a_complete_review_makes_it_in_progress_again(self):
+        scenario = Scenario(self.parent)
+        self.complete_review(scenario)
+        path = self.parent / "finishing.json"
+        path.write_text(json.dumps({"findings": [finding(scenario, root_cause_key="finishing")]}), encoding="utf-8")
+        code, result = self.command(scenario, "merge", "--findings", str(path))
+        self.assertEqual(code, 0, result)
+        self.assertEqual(len(result["added"]), 1)
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_in_progress")
+
+    def test_a_set_frozen_without_findings_is_complete_at_once(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario, oracle=dict(PASSING_ORACLE))])
+        self.assertEqual(payload["admitted"], [])
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_complete")
+        self.assertEqual(payload["review"]["findings"], {})
+
+    def test_a_review_that_ended_on_a_revised_specification_is_answered_from_the_record_alone(self):
+        scenario = Scenario(self.parent)
+        self.frozen_set(scenario, [finding(scenario)])
+        scenario.spec_path.write_text("# Feature\n\n## Behaviour\n\nWave.\n", encoding="utf-8")
+        code, result = self.reverify(scenario)
+        self.assertEqual(result["reason"], "findings_stale")
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_finished")
+        self.assertEqual(payload["review"]["last_event"], "findings_stale")
+
+    def test_completion_is_derived_from_the_record_alone_after_the_worktree_and_specs_are_gone(self):
+        scenario = Scenario(self.parent)
+        self.complete_review(scenario)
+        git(scenario.root, "worktree", "remove", "--force", str(scenario.worktree))
+        scenario.spec_path.write_text("# Feature\n\n## Behaviour\n\nWave.\n", encoding="utf-8")
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_complete")
 
 
 class ReviewingContextGuardTest(ReverifyCase):
