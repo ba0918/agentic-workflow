@@ -1284,7 +1284,7 @@ class EventPersistenceTest(unittest.TestCase):
             self.assertTrue(approved.ok, approved.error)
             self.assertTrue(terminal.ok, terminal.error)
 
-    def test_terminal_rechecks_the_frozen_test_target_bytes(self) -> None:
+    def test_a_test_file_rewritten_after_the_commit_still_blocks_the_hand_off(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
             candidate = red_oracle(
@@ -1319,7 +1319,9 @@ class EventPersistenceTest(unittest.TestCase):
             result = implement_runtime.mark_implementation_green(attempt)
 
             self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "test_identity_drift")
+            # The terminal freeze check now judges targets as of the step's commit; an
+            # uncommitted rewrite is refused as a dirty worktree instead.
+            self.assertEqual(result.error.code, "post_verification_dirty")
     def test_event_retry_is_idempotent_only_for_the_same_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
