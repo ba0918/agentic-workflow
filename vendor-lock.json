@@ -1,0 +1,22 @@
+{
+  "dependencies": {
+    "ba0918-implement": [
+      "implement-runtime"
+    ]
+  },
+  "placements": {
+    "ba0918-implement": {
+      "scripts/": {
+        "contract": "implement-runtime",
+        "digest": "sha256:a0d0158243e6ac39f385fb61a25f0ca858ffc03803d77c04986a1b50e6687b51",
+        "src": "tools/workflow-runtime/implement/"
+      }
+    }
+  },
+  "resolutions": {
+    "implement-runtime": {
+      "digest": "sha256:a22f1a566304120fe48ddfd9197165b06e830cb01ac1a06b2074be92dd1d3121",
+      "kind": "raw"
+    }
+  }
+}

@@ -13,3 +13,6 @@
 # ignore hides these on the author's machine; a fresh checkout has no such ignore.
 __pycache__/
 .pytest_cache/
+
+# agentic-skill-vendor working files (cache for remote sources; never committed)
+/.agentic-skill-vendor/

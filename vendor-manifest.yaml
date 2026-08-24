@@ -1,0 +1,5 @@
+contracts:
+  implement-runtime:
+    source: local
+    files:
+      tools/workflow-runtime/implement/: scripts/

@@ -1,6 +1,9 @@
 ---
 name: ba0918-implement
 description: Use when an approved, registered implementation plan must be executed step by step in a dedicated branch and linked worktree, leaving durable evidence for review. Detects unfinished executions of the same plan and lets the human continue or start over. Stops on drift, unreadable plan format, or unintended RED, and hands implementation_green evidence to review without completing or merging the plan.
+metadata:
+  contracts:
+    - implement-runtime
 ---
 
 # Implement
