@@ -537,5 +537,191 @@ class SecondOpinionTest(RuntimeCase):
         self.assertEqual(scenario.review_events()[-1]["event_type"], "warning")
 
 
+APP_FIXED_ORACLE = {
+    "kind": "command",
+    "command": 'python3 -c \'import sys; sys.exit(0 if "hola" in open("app.py").read() else 1)\'',
+    "cwd": ".",
+}
+
+
+class ReverifyCase(RuntimeCase):
+    def fixed_set(self, scenario: Scenario, findings: list) -> dict:
+        self.bind(scenario)
+        path = self.write_findings(scenario, findings)
+        code, payload = self.command(
+            scenario, "register", "--profile-dir", str(scenario.profiles),
+            "--findings", str(path), "--level", "standard",
+        )
+        self.assertEqual(code, 0, payload)
+        return payload
+
+    def fix_commit(self, scenario: Scenario, trailers: list, *, path="app.py",
+                   content="def greet():\n    return 'hola'\n") -> str:
+        target = scenario.worktree / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        git(scenario.worktree, "add", path)
+        git(scenario.worktree, "commit", "-q", "-m", "fix: adjust\n\n" + "\n".join(trailers))
+        return git(scenario.worktree, "rev-parse", "HEAD")
+
+    def reverify(self, scenario: Scenario, *extra: str) -> tuple[int, dict]:
+        return self.command(scenario, "reverify", *extra)
+
+    def fixed_event_bytes(self, scenario: Scenario) -> bytes:
+        target = next(path for path in scenario.review_dir().glob("*findings-fixed*"))
+        return target.read_bytes()
+
+
+class ReverifyTest(ReverifyCase):
+    def test_a_passing_oracle_closes_and_a_failing_one_stays_open_with_a_count(self):
+        scenario = Scenario(self.parent)
+        payload = self.fixed_set(
+            scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE)), finding(scenario)]
+        )
+        closing_id, failing_id = payload["admitted"]
+        sha = self.fix_commit(scenario, [f"Finding: {closing_id}", f"Finding: {failing_id}"])
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        verdicts = {v["finding_id"]: v for v in result["verdicts"]}
+        self.assertEqual(verdicts[closing_id]["state"], "closed")
+        self.assertEqual(verdicts[failing_id]["state"], "open")
+        self.assertEqual(verdicts[failing_id]["oracle_failures"], 1)
+        event = scenario.review_events()[-1]
+        self.assertEqual(event["event_type"], "reverify")
+        self.assertEqual(event["commits"], [sha])
+
+    def test_a_commit_without_a_finding_trailer_is_out_of_scope(self):
+        scenario = Scenario(self.parent)
+        self.fixed_set(scenario, [finding(scenario)])
+        self.fix_commit(scenario, [])
+        code, result = self.reverify(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "commit_without_finding_trailer")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-fixed")
+
+    def test_a_revised_specification_stales_the_findings_instead_of_closing(self):
+        scenario = Scenario(self.parent)
+        payload = self.fixed_set(scenario, [finding(scenario, oracle=dict(APP_FIXED_ORACLE))])
+        scenario.spec_path.write_text("# Feature\n\n## Behaviour\n\nWave.\n", encoding="utf-8")
+        self.fix_commit(scenario, [f"Finding: {payload['admitted'][0]}"])
+        code, result = self.reverify(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "findings_stale")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings_stale")
+
+    def test_a_trailer_naming_a_finding_outside_the_set_is_refused(self):
+        scenario = Scenario(self.parent)
+        self.fixed_set(scenario, [finding(scenario)])
+        self.fix_commit(scenario, ["Finding: cmd-0000000000000000"])
+        code, result = self.reverify(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "finding_not_in_set")
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "findings-fixed")
+
+    def test_a_fix_outside_the_reviewed_paths_becomes_a_rereview_candidate(self):
+        scenario = Scenario(self.parent)
+        payload = self.fixed_set(scenario, [finding(scenario)])
+        before = self.fixed_event_bytes(scenario)
+        self.fix_commit(scenario, [f"Finding: {payload['admitted'][0]}"], path="other.py", content="new = True\n")
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["rereview_candidates"]["paths"], ["other.py"])
+        kinds = [event["event_type"] for event in scenario.review_events()]
+        self.assertIn("rereview-candidate", kinds)
+        self.assertEqual(self.fixed_event_bytes(scenario), before)
+
+    def test_failures_reaching_the_limit_escalate_to_human_judgment(self):
+        scenario = Scenario(self.parent)
+        payload = self.fixed_set(scenario, [finding(scenario)])
+        stubborn = payload["admitted"][0]
+        self.fix_commit(scenario, [f"Finding: {stubborn}"], content="attempt = 1\n")
+        code, result = self.reverify(scenario, "--max-failures", "2")
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["human_decisions"], [])
+        self.fix_commit(scenario, [f"Finding: {stubborn}"], content="attempt = 2\n")
+        code, result = self.reverify(scenario, "--max-failures", "2")
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["human_decisions"], [stubborn])
+        verdicts = {v["finding_id"]: v for v in result["verdicts"]}
+        self.assertEqual(verdicts[stubborn]["oracle_failures"], 2)
+        code, result = self.command(scenario, "decide", "--finding", stubborn, "--result", "accepted")
+        self.assertEqual(code, 0, result)
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "decision")
+
+    def test_without_a_limit_the_count_grows_and_nothing_escalates(self):
+        scenario = Scenario(self.parent)
+        payload = self.fixed_set(scenario, [finding(scenario)])
+        self.fix_commit(scenario, [f"Finding: {payload['admitted'][0]}"], content="attempt = 1\n")
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["human_decisions"], [])
+        self.assertEqual(result["verdicts"][0]["oracle_failures"], 1)
+
+
+class HumanDecisionTest(ReverifyCase):
+    def test_a_human_judgment_finding_closes_only_by_decision(self):
+        scenario = Scenario(self.parent)
+        payload = self.fixed_set(
+            scenario,
+            [finding(scenario, action="human_judgment", oracle=None, oracle_unavailable_reason="taste")],
+        )
+        judged = payload["admitted"][0]
+        self.fix_commit(scenario, [f"Finding: {judged}"])
+        code, result = self.reverify(scenario)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["human_decisions"], [judged])
+        verdicts = {v["finding_id"]: v for v in result["verdicts"]}
+        self.assertEqual(verdicts[judged]["state"], "open")
+        code, result = self.command(scenario, "decide", "--finding", judged, "--result", "accepted")
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["remaining_human_decisions"], [])
+        event = scenario.review_events()[-1]
+        self.assertEqual((event["event_type"], event["result"]), ("decision", "accepted"))
+
+    def test_a_decision_on_a_machine_checked_finding_is_refused(self):
+        scenario = Scenario(self.parent)
+        payload = self.fixed_set(scenario, [finding(scenario)])
+        code, result = self.command(
+            scenario, "decide", "--finding", payload["admitted"][0], "--result", "accepted"
+        )
+        self.assertNotEqual(code, 0)
+        self.assertEqual(result["reason"], "transition_invalid")
+
+
+class DeferTest(ReverifyCase):
+    def defer(self, scenario: Scenario, findings: list, *extra: str) -> tuple[int, dict]:
+        path = self.parent / "deferred.json"
+        path.write_text(json.dumps({"findings": findings}), encoding="utf-8")
+        return self.command(scenario, "defer", "--findings", str(path), *extra)
+
+    def test_deferred_findings_are_recorded_apart_and_the_set_is_unchanged(self):
+        scenario = Scenario(self.parent)
+        self.fixed_set(scenario, [finding(scenario)])
+        before = self.fixed_event_bytes(scenario)
+        code, result = self.defer(scenario, [finding(scenario, oracle=dict(PASSING_ORACLE))])
+        self.assertEqual(code, 0, result)
+        self.assertEqual(len(result["deferred"]), 1)
+        self.assertEqual(scenario.review_events()[-1]["event_type"], "deferred")
+        self.assertEqual(self.fixed_event_bytes(scenario), before)
+
+    def test_only_introduced_findings_that_fail_now_join_the_set(self):
+        scenario = Scenario(self.parent)
+        self.fixed_set(scenario, [finding(scenario)])
+        code, result = self.defer(
+            scenario,
+            [
+                finding(scenario, oracle=dict(APP_FIXED_ORACLE), root_cause_key="regression"),
+                finding(scenario, oracle=dict(PASSING_ORACLE), root_cause_key="regression"),
+            ],
+            "--introduced",
+        )
+        self.assertEqual(code, 0, result)
+        self.assertEqual(len(result["added"]), 1)
+        self.assertEqual(result["not_added"][0]["reason"], "oracle_already_passing")
+        event = scenario.review_events()[-1]
+        self.assertEqual(event["event_type"], "findings-added")
+        self.assertEqual(len(event["findings"]), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

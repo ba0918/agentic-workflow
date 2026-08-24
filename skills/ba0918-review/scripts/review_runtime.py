@@ -599,6 +599,216 @@ def second_opinion(
     )
 
 
+# ---------------------------------------------------------------- re-review of the diff
+
+
+def _reverify_boundary(review: Review, events: list[dict]) -> str:
+    """The last commit any earlier round has seen; fixes after it are the new input."""
+    for event in reversed(events):
+        if event["event_type"] in {"reverify", "findings-added"} and event["commits"]:
+            return event["commits"][-1]
+    return review.implement_events[-1]["commits"][-1]
+
+
+def _fix_commits(review: Review, boundary: str) -> RuntimeResult:
+    listed = _git(review.worktree, "rev-list", "--reverse", f"{boundary}..HEAD")
+    if listed.returncode != 0:
+        return _failure("fix_commits_unavailable", "fix commits could not be listed", listed.stderr.strip())
+    commits = []
+    for sha in (line for line in listed.stdout.splitlines() if line):
+        trailers = _git(review.worktree, "show", "-s", "--format=%(trailers:key=Finding,valueonly)", sha)
+        paths = _git(review.worktree, "show", "--name-only", "--format=", sha)
+        if trailers.returncode != 0 or paths.returncode != 0:
+            return _failure("fix_commits_unavailable", "a fix commit could not be read", sha)
+        commits.append(
+            {
+                "sha": sha,
+                "finding_ids": [line.strip() for line in trailers.stdout.splitlines() if line.strip()],
+                "paths": [line for line in paths.stdout.splitlines() if line],
+            }
+        )
+    return _ok(commits)
+
+
+def _current_findings(events: list[dict]) -> dict[str, dict]:
+    """The set as of the latest event: fixed findings plus introduced ones, states applied."""
+    findings: dict[str, dict] = {}
+    for event in events:
+        if event["event_type"] in {"findings-fixed", "findings-added"}:
+            for finding in event["findings"]:
+                findings[finding["id"]] = dict(finding)
+        elif event["event_type"] == "reverify":
+            for verdict in event["verdicts"]:
+                finding = findings.get(verdict["finding_id"])
+                if finding is None:
+                    continue
+                finding["state"] = verdict["state"]
+                finding["oracle_failures"] = verdict.get("oracle_failures", finding.get("oracle_failures", 0))
+                if verdict.get("escalated"):
+                    finding["action"] = "human_judgment"
+        elif event["event_type"] == "decision":
+            finding = findings.get(event["finding_id"])
+            if finding is not None:
+                finding["state"] = "closed"
+    return findings
+
+
+def _reviewing_context(review: Review) -> RuntimeResult:
+    events = review_events(review)
+    if not events:
+        return _failure("review_not_bound", "bind the review first")
+    if _review_is_finished(events):
+        return _failure("review_finished", "this execution's review already ended", review_facts(review))
+    if _fixed_findings_event(events) is None:
+        return _failure("findings_not_fixed", "fix the findings set before re-reviewing")
+    return _ok(events)
+
+
+def _open_human_decisions(findings: dict[str, dict]) -> list[str]:
+    return [
+        finding["id"]
+        for finding in findings.values()
+        if finding["state"] == "open" and finding["action"] == "human_judgment"
+    ]
+
+
+def reverify(review: Review, *, max_failures: int | None) -> RuntimeResult:
+    context = _reviewing_context(review)
+    if not context.ok:
+        return context
+    events = context.value
+    fixed = _fixed_findings_event(events)
+    observed = {
+        spec["path"]: _file_identity(review.main_checkout.joinpath(*PurePosixPath(spec["path"]).parts))
+        for spec in review.binding["specs"]
+    }
+    if observed != fixed["spec_identities"]:
+        staled = append_review_event(review, "findings_stale", {"observed_spec_identities": observed})
+        if not staled.ok:
+            return staled
+        return _failure("findings_stale", "a specification the set relies on was revised; the human decides")
+    findings = _current_findings(events)
+    commits = _fix_commits(review, _reverify_boundary(review, events))
+    if not commits.ok:
+        return commits
+    for commit in commits.value:
+        if not commit["finding_ids"]:
+            return _failure(
+                "commit_without_finding_trailer",
+                "a fix commit names no finding; the related diff is not guessed",
+                commit["sha"],
+            )
+        for finding_id in commit["finding_ids"]:
+            if finding_id not in findings:
+                return _failure("finding_not_in_set", "the fixed set gains no findings during re-review", finding_id)
+    reviewed = set(fixed["reviewed_paths"])
+    outside = sorted({path for commit in commits.value for path in commit["paths"] if path not in reviewed})
+    shas = [commit["sha"] for commit in commits.value]
+    if outside:
+        candidate = append_review_event(review, "rereview-candidate", {"commits": shas, "paths": outside})
+        if not candidate.ok:
+            return candidate
+    verdicts: list[dict[str, Any]] = []
+    for finding in findings.values():
+        if finding["state"] != "open":
+            continue
+        if finding["action"] == "human_judgment":
+            verdicts.append(
+                {"finding_id": finding["id"], "state": "open", "oracle_failures": finding.get("oracle_failures", 0)}
+            )
+            continue
+        outcome = run_oracle(review, finding["oracle"])
+        if not outcome.ok:
+            return outcome
+        if outcome.value["passed"]:
+            closed = review_model.transition(finding, "closed", cause="oracle_passed")
+            if not closed.ok:
+                return _failure(closed.error.code, closed.error.message, closed.error.field)
+            verdicts.append(
+                {"finding_id": finding["id"], "state": "closed", "oracle_failures": finding.get("oracle_failures", 0)}
+            )
+            continue
+        failures = finding.get("oracle_failures", 0) + 1
+        verdict = {"finding_id": finding["id"], "state": "open", "oracle_failures": failures}
+        if max_failures is not None and failures >= max_failures:
+            # Not "no convergence" but "not fixed": the finding is promoted to a human decision.
+            verdict["escalated"] = True
+        verdicts.append(verdict)
+    recorded = append_review_event(review, "reverify", {"commits": shas, "verdicts": verdicts})
+    if not recorded.ok:
+        return recorded
+    after = _current_findings(review_events(review))
+    result: dict[str, Any] = {
+        "verdicts": verdicts,
+        "open": sorted(f["id"] for f in after.values() if f["state"] == "open"),
+        "closed": sorted(f["id"] for f in after.values() if f["state"] == "closed"),
+        "human_decisions": _open_human_decisions(after),
+    }
+    if outside:
+        result["rereview_candidates"] = {"commits": shas, "paths": outside}
+    return _ok(result)
+
+
+def defer_findings(review: Review, *, findings_path: Path, introduced: bool) -> RuntimeResult:
+    context = _reviewing_context(review)
+    if not context.ok:
+        return context
+    events = context.value
+    loaded = _read_findings_input(findings_path)
+    if not loaded.ok:
+        return loaded
+    if introduced:
+        level = _fixed_findings_event(events)["level"]
+        admitted = admit_findings(review, loaded.value["findings"], level=level)
+        if not admitted.ok:
+            return admitted
+        head = _git(review.worktree, "rev-parse", "HEAD").stdout.strip()
+        added = append_review_event(
+            review, "findings-added", {"findings": admitted.value["admitted"], "commits": [head]}
+        )
+        if not added.ok:
+            return added
+        return _ok(
+            {
+                "added": [finding["id"] for finding in admitted.value["admitted"]],
+                "not_added": admitted.value["not_admitted"],
+            }
+        )
+    deferred: list[dict] = []
+    for raw in loaded.value["findings"]:
+        checked = review_model.validate_finding(raw)
+        if not checked.ok:
+            return _failure(checked.error.code, checked.error.message, checked.error.field)
+        moved = review_model.transition(checked.value, "deferred", cause="deferred")
+        if not moved.ok:
+            return _failure(moved.error.code, moved.error.message, moved.error.field)
+        deferred.append(moved.value)
+    recorded = append_review_event(review, "deferred", {"findings": deferred})
+    if not recorded.ok:
+        return recorded
+    return _ok({"deferred": [finding["id"] for finding in deferred]})
+
+
+def decide_finding(review: Review, *, finding_id: str, result: str) -> RuntimeResult:
+    context = _reviewing_context(review)
+    if not context.ok:
+        return context
+    findings = _current_findings(context.value)
+    finding = findings.get(finding_id)
+    if finding is None:
+        return _failure("finding_not_in_set", "no such finding in the fixed set", finding_id)
+    closed = review_model.transition(finding, "closed", cause="human_decision")
+    if not closed.ok:
+        return _failure(closed.error.code, closed.error.message, closed.error.field)
+    recorded = append_review_event(review, "decision", {"finding_id": finding_id, "result": result})
+    if not recorded.ok:
+        return recorded
+    after = _current_findings(review_events(review))
+    return _ok(
+        {"finding_id": finding_id, "result": result, "remaining_human_decisions": _open_human_decisions(after)}
+    )
+
+
 # ---------------------------------------------------------------- command line
 
 
@@ -647,6 +857,19 @@ def main(argv: list[str] | None = None) -> int:
     second.add_argument("--second-model", required=True)
     second.add_argument("--command", dest="runner", required=True)
 
+    reverify_parser = commands.add_parser("reverify", help="run the oracles of open findings against the fix commits")
+    reverify_parser.add_argument("--max-failures", type=int)
+    defer_parser = commands.add_parser("defer", help="record side findings apart, or add introduced risks to the set")
+    defer_parser.add_argument("--findings", required=True)
+    defer_parser.add_argument("--introduced", action="store_true")
+    decide_parser = commands.add_parser("decide", help="record the human decision that closes a human-judgment finding")
+    decide_parser.add_argument("--finding", required=True)
+    decide_parser.add_argument("--result", required=True, choices=["accepted", "rejected"])
+    for sub in (reverify_parser, defer_parser, decide_parser):
+        sub.add_argument("--repo", required=True)
+        sub.add_argument("--plan-id", required=True)
+        sub.add_argument("--attempt-id", required=True)
+
     args = parser.parse_args(argv)
     loaded = load_review(Path(args.repo), plan_id=args.plan_id, attempt_id=args.attempt_id)
     if not loaded.ok:
@@ -687,6 +910,12 @@ def main(argv: list[str] | None = None) -> int:
             second_model=args.second_model,
             command=args.runner,
         )
+    elif args.command == "reverify":
+        result = reverify(review, max_failures=args.max_failures)
+    elif args.command == "defer":
+        result = defer_findings(review, findings_path=Path(args.findings), introduced=args.introduced)
+    elif args.command == "decide":
+        result = decide_finding(review, finding_id=args.finding, result=args.result)
     else:
         return 2
     if not result.ok:
