@@ -263,6 +263,22 @@ class ReviewEventTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "raw_log_forbidden")
 
+    def test_a_second_opinion_event_records_reviewer_and_full_model_id(self):
+        bound = common_event()
+        bound["implement_event_identity"] = IMPLEMENT_EVENT_IDENTITY
+        previous = self.model.seal_review_event(bound, None).value
+        candidate = common_event(2, previous["content_identity"])
+        candidate["event_type"] = "second-opinion"
+        candidate["second_reviewer"] = "codex"
+        candidate["second_model"] = "gpt-5.4"
+        result = self.model.seal_review_event(candidate, previous)
+        self.assertTrue(result.ok, result.error)
+        alias = dict(candidate)
+        alias["second_model"] = "gpt"
+        refused = self.model.seal_review_event(alias, previous)
+        self.assertFalse(refused.ok)
+        self.assertEqual(refused.error.code, "model_id_invalid")
+
     def test_a_stopped_event_type_is_refused_as_unknown(self):
         candidate = common_event()
         candidate["event_type"] = "stopped"

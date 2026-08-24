@@ -70,6 +70,7 @@ EVENT_TYPES = {
         "reviewed_paths",
     },
     "review-incomplete": {"reason"},
+    "second-opinion": {"second_reviewer", "second_model"},
     "reverify": {"commits", "verdicts"},
     "findings-added": {"findings", "commits"},
     "decision": {"finding_id", "result"},
@@ -353,6 +354,11 @@ def _validate_event_body(candidate: dict) -> ModelResult:
             return _failure("model_id_invalid", "model", "model must be a full model id, not an alias")
         if candidate["model_source"] not in MODEL_SOURCES:
             return _failure("model_source_invalid", "model_source", f"model source must be one of {MODEL_SOURCES}")
+    if event_type == "second-opinion":
+        if not _bounded_text(candidate["second_reviewer"]):
+            return _failure("event_field_invalid", "second_reviewer", "second reviewer must be bounded text")
+        if not _matches(MODEL_ID, candidate["second_model"]):
+            return _failure("model_id_invalid", "second_model", "model must be a full model id, not an alias")
     if event_type in {"findings-fixed", "findings-added", "deferred"}:
         findings = candidate["findings"]
         if not isinstance(findings, list):

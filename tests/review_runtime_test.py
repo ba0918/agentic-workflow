@@ -541,6 +541,27 @@ class SecondOpinionTest(RuntimeCase):
         self.assertEqual(payload["reason"], "secret_detected")
         self.assertFalse(calls.exists())
 
+    def test_a_successful_second_opinion_is_durably_recorded(self):
+        scenario = Scenario(self.parent)
+        self.bind(scenario)
+        script, _ = self.make_second_reviewer()
+        code, payload = self.second_opinion(scenario, script)
+        self.assertEqual(code, 0, payload)
+        event = scenario.review_events()[-1]
+        self.assertEqual(event["event_type"], "second-opinion")
+        self.assertEqual(event["second_reviewer"], "codex")
+        self.assertEqual(event["second_model"], "gpt-5.4")
+
+    def test_a_second_opinion_that_already_ran_is_not_sent_again(self):
+        scenario = Scenario(self.parent)
+        self.bind(scenario)
+        script, calls = self.make_second_reviewer()
+        self.second_opinion(scenario, script)
+        code, payload = self.second_opinion(scenario, script)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "second_opinion_already_ran")
+        self.assertEqual(len(calls.read_text().splitlines()), 1)
+
     def test_an_unavailable_second_reviewer_records_a_warning_and_does_not_stop(self):
         scenario = Scenario(self.parent)
         self.bind(scenario)

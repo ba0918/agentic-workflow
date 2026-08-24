@@ -21,6 +21,7 @@ one-event-one-file, append-only rules:
 |---|---|
 | `review-bound` | the review started against a verified hand-off |
 | `model-selected` | which model reviews, and which stage of the order decided it |
+| `second-opinion` | the second reviewer actually ran, once: who, and with which model |
 | `findings-fixed` | the frozen set: findings, their set identity, model, strength, profiles, reviewed paths |
 | `review-incomplete` | the review stopped resumable (for example an unfinished security check) |
 | `reverify` | one re-review round: the fix commits seen and each finding's verdict |

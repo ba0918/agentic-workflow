@@ -591,6 +591,8 @@ def second_opinion(
         return _failure("review_not_bound", "bind the review before asking a second reviewer")
     if _fixed_findings_event(events) is not None:
         return _failure("findings_already_fixed", "a second reviewer runs only alongside the first review")
+    if any(event["event_type"] == "second-opinion" for event in events):
+        return _failure("second_opinion_already_ran", "the second reviewer already ran once; the permission does not carry over")
     package = _second_reviewer_package(review)
     if not package.ok:
         return package
@@ -619,6 +621,11 @@ def second_opinion(
             return warned
         return _ok({"warning": "second_reviewer_unavailable", "package": str(package_path)})
     output_path.write_text(output, encoding="utf-8")
+    recorded = append_review_event(
+        review, "second-opinion", {"second_reviewer": second_reviewer, "second_model": second_model}
+    )
+    if not recorded.ok:
+        return recorded
     return _ok(
         {
             "second_reviewer": second_reviewer,

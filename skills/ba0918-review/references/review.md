@@ -101,8 +101,10 @@ python3 <review-runtime> second-opinion --second-reviewer <name> \
 
 The package holds the plan text and the diff — never whole source files, never this review's
 own findings. It is scanned for secrets before anything is sent; an unavailable runner
-records a warning and the single-reviewer result stands. Read the output and pass its
-problems to `register` as findings of the same set.
+records a warning and the single-reviewer result stands. A run that succeeds is recorded as
+a durable `second-opinion` event, and a further run is refused — "once" is kept by the
+record, not by memory. Read the output and pass its problems to `register` as findings of
+the same set.
 
 ## Re-review after fixes
 
