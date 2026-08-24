@@ -8,6 +8,9 @@
     ],
     "ba0918-plan": [
       "plan-runtime"
+    ],
+    "ba0918-review": [
+      "review-runtime"
     ]
   },
   "placements": {
@@ -46,6 +49,18 @@
         "digest": "sha256:67ae79800cc93488d5b58d650e7b86ef9f867ee9bc633dd372897f87236308b2",
         "src": "tools/workflow-runtime/plan/plan_artifact.py"
       }
+    },
+    "ba0918-review": {
+      "scripts/review_model.py": {
+        "contract": "review-runtime",
+        "digest": "sha256:26f7f1b445947ea3770d7453c47d84b9deff58f6b1cd741dcc527c8685fea264",
+        "src": "tools/workflow-runtime/review/review_model.py"
+      },
+      "scripts/review_runtime.py": {
+        "contract": "review-runtime",
+        "digest": "sha256:2e6d553da73ecb4c2a55bff5a503031d788307663fa4e7821be3c35abf7b621f",
+        "src": "tools/workflow-runtime/review/review_runtime.py"
+      }
     }
   },
   "resolutions": {
@@ -59,6 +74,10 @@
     },
     "plan-runtime": {
       "digest": "sha256:ea792fc54264563d19cb65b5019290633faacc6df09c32619c1773443cd5d85a",
+      "kind": "raw"
+    },
+    "review-runtime": {
+      "digest": "sha256:6114a7b64be9cc87b8e4ef4b26eae76ce2af8a9c1872eb3b7ca85a41365733dc",
       "kind": "raw"
     }
   }

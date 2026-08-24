@@ -1,6 +1,9 @@
 ---
 name: ba0918-review
 description: Use when an implementation execution has handed over implementation_green evidence and needs an independent review. Runs one full review that freezes a findings set, then re-reviews only unresolved findings against trailer-marked fix commits. Records which model reviewed. Does not fix code, drive the fix loop, judge final acceptance, or merge.
+metadata:
+  contracts:
+    - review-runtime
 ---
 
 # Review

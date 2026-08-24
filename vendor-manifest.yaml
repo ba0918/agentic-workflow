@@ -16,3 +16,8 @@ contracts:
     files:
       tools/workflow-runtime/brainstorm/draft.py: scripts/draft.py
       tools/workflow-runtime/brainstorm/state.py: scripts/state.py
+  review-runtime:
+    source: local
+    files:
+      tools/workflow-runtime/review/review_model.py: scripts/review_model.py
+      tools/workflow-runtime/review/review_runtime.py: scripts/review_runtime.py

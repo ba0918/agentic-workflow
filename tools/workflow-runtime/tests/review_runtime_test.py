@@ -9,9 +9,8 @@ import tempfile
 import unittest
 
 
-# Repository root: unlike the sibling tests, the scripts under test live in skills/.
 ROOT = Path(__file__).parents[3]
-RUNTIME_MODULE = ROOT / "skills/ba0918-review/scripts/review_runtime.py"
+RUNTIME_MODULE = ROOT / "tools/workflow-runtime/review/review_runtime.py"
 
 
 def load_runtime():

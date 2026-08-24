@@ -3,9 +3,8 @@ from pathlib import Path
 import unittest
 
 
-# Repository root: unlike the sibling tests, the scripts under test live in skills/.
 ROOT = Path(__file__).parents[3]
-MODEL_MODULE = ROOT / "skills/ba0918-review/scripts/review_model.py"
+MODEL_MODULE = ROOT / "tools/workflow-runtime/review/review_model.py"
 
 
 def load_model():
