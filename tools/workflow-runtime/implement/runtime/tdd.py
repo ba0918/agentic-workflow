@@ -1,5 +1,6 @@
 """The test-first cycle: oracle execution, RED acceptance, frozen GREEN/REFACTOR."""
 import hashlib
+from runtime.gitio import run_git
 from runtime.context import raw_events
 import re
 import subprocess
@@ -167,6 +168,25 @@ def validate_step_test_targets(attempt: Attempt, step_id: str) -> RuntimeResult:
     if not validation.ok:
         return failure(validation.error.code, validation.error.message)
     return _validate_frozen_test_targets(attempt, oracle_result.value)
+
+def validate_step_test_targets_at(attempt: Attempt, step_id: str, commit_sha: str) -> RuntimeResult:
+    """The freeze holds for the step's own lifetime: verify its targets as of its commit,
+    so a later step may legitimately evolve the same test file afterwards."""
+    oracle_result = read_json(attempt.evidence_path / "oracles" / f"{step_id}.json")
+    if not oracle_result.ok:
+        return failure("oracle_missing", "frozen oracle is unavailable")
+    validation = execution_model.validate_oracle(oracle_result.value)
+    if not validation.ok:
+        return failure(validation.error.code, validation.error.message)
+    for expected in oracle_result.value["test_targets"]:
+        shown = run_git(attempt.worktree, "show", f"{commit_sha}:{expected['path']}")
+        if shown.returncode != 0:
+            return failure("test_target_unavailable", "frozen test target is absent from the step's commit", expected["path"])
+        identity = "sha256:" + hashlib.sha256(shown.stdout.encode("utf-8")).hexdigest()
+        if identity != expected["content_identity"]:
+            return failure("test_identity_drift", "frozen test target bytes changed before the step's commit", expected["path"])
+    return ok(oracle_result.value["test_targets"])
+
 
 def _redo_after_resume(attempt: Attempt, step_id: str) -> bool:
     """True when the latest resumed event marks this step as a redo and no RED followed it."""

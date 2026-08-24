@@ -1980,6 +1980,62 @@ class SecretDetectionJudgmentTest(unittest.TestCase):
             self.assertTrue(result.ok, result.error)
 
 
+class MultiStepFreezeTest(unittest.TestCase):
+    def test_a_later_step_may_evolve_an_earlier_steps_test_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, _, _ = create_repository(Path(directory), step_kinds=("test", "test"))
+            resolved = implement_runtime.resolve_plan(root).value
+            attempt = implement_runtime.bootstrap_attempt(
+                root,
+                resolved,
+                worktree_path=Path(directory) / "linked-worktree",
+                attempt_id_factory=lambda: "20260824t210000-c3d4e5f6",
+                executor={
+                    "executor": "codex",
+                    "backend": "unavailable",
+                    "session_id": "unavailable",
+                    "reason": "not exposed safely",
+                },
+            ).value
+            complete_step_one(attempt)
+
+            # Step 2 legitimately grows the same test file step 1 froze.
+            target = attempt.worktree / "tests/greeting_test.py"
+            target.write_text(target.read_text(encoding="utf-8") + "# second behavior\n", encoding="utf-8")
+            oracle = red_oracle(
+                [
+                    "python3",
+                    "-c",
+                    (
+                        "from pathlib import Path; import sys; "
+                        "grown='farewell' in Path('src/greeting.py').read_text(); "
+                        "print('green' if grown else 'greeting missing'); "
+                        "sys.exit(0 if grown else 1)"
+                    ),
+                ]
+            )
+            oracle["step_id"] = "step-2"
+            self.assertTrue(implement_runtime.accept_red(attempt, oracle).ok)
+            production = attempt.worktree / "src/greeting.py"
+            production.write_text(
+                production.read_text(encoding="utf-8") + "def farewell():\n    return 'bye'\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-2", "green").ok)
+            self.assertTrue(implement_runtime.run_frozen_oracle(attempt, "step-2", "refactor").ok)
+            self.assertTrue(
+                implement_runtime.stage_paths(
+                    attempt, ["src/greeting.py", "tests/greeting_test.py"], step_id="step-2"
+                ).ok
+            )
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+            git(attempt.worktree, "commit", "-m", "feat: add farewell")
+            self.assertTrue(implement_runtime.record_commit(attempt, "step-2", previous_head).ok)
+
+            terminal = implement_runtime.mark_implementation_green(attempt)
+            self.assertTrue(terminal.ok, terminal.error)
+
+
 class VendoredEntrySmokeTest(unittest.TestCase):
     """The vendored copy has its own import graph; byte-identity alone does not prove it loads."""
 

@@ -2,7 +2,7 @@
 import shlex
 from datetime import datetime, timezone
 from typing import Callable
-from runtime.tdd import validate_step_test_targets
+from runtime.tdd import validate_step_test_targets_at
 from runtime.context import changed_paths
 from runtime.gates import check_human_gates
 import argparse
@@ -53,7 +53,12 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
         if not evidence.ok:
             return failure(evidence.error.code, evidence.error.message)
         if step.completion_kind == "test":
-            targets = validate_step_test_targets(attempt, step_id)
+            step_commits = [
+                event["commit_sha"]
+                for event in loaded.value
+                if event["event_type"] == "commit" and event.get("step_id") == step_id
+            ]
+            targets = validate_step_test_targets_at(attempt, step_id, step_commits[-1])
             if not targets.ok:
                 return targets
     final_step = step_ids[-1]

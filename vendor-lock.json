@@ -41,7 +41,7 @@
       },
       "scripts/runtime/cli.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:0acfe6a73db9c8bd57497eec18844c2c49b3d468b38c4d317069f0a4b0c329b7",
+        "digest": "sha256:009436166f57ee90949d4b8772b28dc696f9f524b96517a3ab4ad07eca255a8b",
         "src": "tools/workflow-runtime/implement/runtime/cli.py"
       },
       "scripts/runtime/context.py": {
@@ -96,7 +96,7 @@
       },
       "scripts/runtime/tdd.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:e058f4f5e4024979f635f4c50d0b9cbb3a8421e5bc73c4f347c376aeb62db6ef",
+        "digest": "sha256:51cc19a630aea11b5c908153f8d6240249f2e92acf013b1e80b22cd97e57fc16",
         "src": "tools/workflow-runtime/implement/runtime/tdd.py"
       },
       "scripts/runtime/types.py": {
@@ -119,7 +119,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:50ff2b682e30dbce42687b2c70dcacaf4bb7a8640660dd866460ebc0ebd44300",
+      "digest": "sha256:501ea8594ef04630f4052ff44f4521dd88a45e1d3b895ce5ba8b4f09a80fa5ef",
       "kind": "raw"
     },
     "plan-runtime": {
