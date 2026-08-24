@@ -1018,6 +1018,26 @@ class ReviewCompletionTest(ReverifyCase):
         self.assertNotEqual(code, 0)
         self.assertEqual(payload["reason"], "review_in_progress")
 
+    def test_a_set_frozen_without_findings_is_complete_at_once(self):
+        scenario = Scenario(self.parent)
+        payload = self.frozen_set(scenario, [finding(scenario, oracle=dict(PASSING_ORACLE))])
+        self.assertEqual(payload["admitted"], [])
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_complete")
+        self.assertEqual(payload["review"]["findings"], {})
+
+    def test_a_review_that_ended_on_a_revised_specification_is_answered_from_the_record_alone(self):
+        scenario = Scenario(self.parent)
+        self.frozen_set(scenario, [finding(scenario)])
+        scenario.spec_path.write_text("# Feature\n\n## Behaviour\n\nWave.\n", encoding="utf-8")
+        code, result = self.reverify(scenario)
+        self.assertEqual(result["reason"], "findings_stale")
+        code, payload = self.bind(scenario)
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_finished")
+        self.assertEqual(payload["review"]["last_event"], "findings_stale")
+
     def test_completion_is_derived_from_the_record_alone_after_the_worktree_and_specs_are_gone(self):
         scenario = Scenario(self.parent)
         self.complete_review(scenario)
