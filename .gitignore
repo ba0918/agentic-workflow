@@ -1,5 +1,11 @@
-# Agent Artifact Store
-/.agents/artifacts/
+# Agent Artifact Store — 機械が書く記録だけを除外する。
+# 人が承認した文書（手順書、壁打ちの記録）は git で管理し、完了したら作業ツリーから
+# 削除する。履歴は git で読む（docs/spec/workflow.md の「記録の置き場所」）。
+/.agents/artifacts/*
+!/.agents/artifacts/plans/
+!/.agents/artifacts/ideas/
+/.agents/artifacts/ideas/progress/
+/.agents/artifacts/plans/progress/
 /.agents/runtime/
 
 # Agent runtime and scratch (machine-local per the artifact-store contract)
