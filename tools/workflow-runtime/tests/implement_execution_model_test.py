@@ -863,5 +863,164 @@ class StepEvidenceRedoTest(unittest.TestCase):
         self.assertFalse(implement_model.validate_step_evidence(events, "step-1", "test").ok)
 
 
+NEW_PLAN_IDENTITY = "sha256:" + "5" * 64
+NEW_SPEC_IDENTITY = "sha256:" + "6" * 64
+
+
+def chain_event(sequence: int, event_type: str, previous: dict | None, **fields: object) -> dict:
+    return {
+        "version": 1,
+        "sequence": sequence,
+        "event_type": event_type,
+        "attempt_id": binding()["attempt_id"],
+        "plan_identity": PLAN_IDENTITY,
+        "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+        "previous_identity": None if previous is None else previous["content_identity"],
+        **fields,
+    }
+
+
+def rebound_event(sequence: int, previous: dict, **overrides: object) -> dict:
+    event = chain_event(
+        sequence,
+        "rebound",
+        previous,
+        plan={
+            "id": "20260822143915",
+            "path": ".agents/artifacts/plans/20260822143915_cycle-r2.md",
+            "revision": 2,
+            "content_identity": NEW_PLAN_IDENTITY,
+        },
+        specs=[{"path": "docs/spec/cycle.md", "content_identity": NEW_SPEC_IDENTITY}],
+        write_scope=["skills/ba0918-cycle", "tests/cycle_runtime_test.py", "docs/extra.md"],
+        human_gates=[],
+        step_map=[
+            {"step_id": "step-1", "previous_step_id": "step-1", "disposition": "carry"},
+            {"step_id": "step-2", "previous_step_id": None, "disposition": "new"},
+            {"step_id": "step-3", "previous_step_id": "step-2", "disposition": "carry"},
+        ],
+        superseded_steps=["step-3"],
+        head=BASE_HEAD,
+        extra_commits=[],
+        uncommitted_changes=False,
+    )
+    event["plan_identity"] = NEW_PLAN_IDENTITY
+    event["spec_identities"] = {"docs/spec/cycle.md": NEW_SPEC_IDENTITY}
+    event.update(overrides)
+    return event
+
+
+class ReboundChainTest(unittest.TestCase):
+    def _bound(self) -> dict:
+        return implement_model.seal_event(chain_event(1, "worktree-bound", None, outcome="bound")).value
+
+    def test_a_rebound_changes_the_identities_and_later_events_must_follow_it(self) -> None:
+        bound = self._bound()
+        rebound = implement_model.seal_event(rebound_event(2, bound), previous_event=bound)
+        self.assertIsNone(rebound.error)
+
+        follower = chain_event(3, "stopped", rebound.value, reason="drift")
+        follower["plan_identity"] = NEW_PLAN_IDENTITY
+        follower["spec_identities"] = {"docs/spec/cycle.md": NEW_SPEC_IDENTITY}
+        self.assertTrue(implement_model.seal_event(follower, previous_event=rebound.value).ok)
+
+        stale = chain_event(3, "stopped", rebound.value, reason="drift")
+        result = implement_model.seal_event(stale, previous_event=rebound.value)
+        self.assertEqual(result.error.code, "stale_event_chain")
+
+    def test_only_a_rebound_may_change_the_identities(self) -> None:
+        bound = self._bound()
+        drifted = chain_event(2, "stopped", bound, reason="drift")
+        drifted["plan_identity"] = NEW_PLAN_IDENTITY
+        result = implement_model.seal_event(drifted, previous_event=bound)
+        self.assertEqual(result.error.code, "stale_event_chain")
+
+    def test_rebound_identities_must_match_the_plan_and_specs_it_carries(self) -> None:
+        bound = self._bound()
+        wrong_plan = rebound_event(2, bound, plan_identity=PLAN_IDENTITY)
+        self.assertFalse(implement_model.seal_event(wrong_plan, previous_event=bound).ok)
+        wrong_spec = rebound_event(2, bound, spec_identities={"docs/spec/cycle.md": SPEC_IDENTITY})
+        self.assertFalse(implement_model.seal_event(wrong_spec, previous_event=bound).ok)
+
+    def test_a_rebound_may_follow_a_stop_but_not_implementation_green(self) -> None:
+        bound = self._bound()
+        stopped = implement_model.seal_event(chain_event(2, "stopped", bound, reason="drift"), previous_event=bound).value
+        self.assertTrue(implement_model.seal_event(rebound_event(3, stopped), previous_event=stopped).ok)
+        green = implement_model.seal_event(
+            chain_event(2, "implementation_green", bound, commits=[BASE_HEAD]), previous_event=bound
+        ).value
+        result = implement_model.seal_event(rebound_event(3, green), previous_event=green)
+        self.assertEqual(result.error.code, "terminal_event_chain")
+
+    def test_a_history_approval_records_the_approved_lists(self) -> None:
+        bound = self._bound()
+        approval = chain_event(
+            2,
+            "history_approved",
+            bound,
+            unexplained_commits=[BASE_HEAD],
+            out_of_scope_paths=["docs/notes.md"],
+            uncommitted_out_of_scope=["scratch.txt"],
+            reason="前セッションのバグ修正",
+        )
+        self.assertIsNone(implement_model.seal_event(approval, previous_event=bound).error)
+        unsafe = dict(approval, out_of_scope_paths=["../outside.md"])
+        self.assertFalse(implement_model.seal_event(unsafe, previous_event=bound).ok)
+
+
+class EffectiveBindingTest(unittest.TestCase):
+    def test_without_a_rebound_the_effective_binding_is_the_binding(self) -> None:
+        events = [{"event_type": "worktree-bound"}, {"event_type": "stopped"}]
+        self.assertEqual(implement_model.effective_binding(binding(), events), binding())
+
+    def test_the_last_rebound_overlays_plan_specs_scope_and_gates(self) -> None:
+        bound = implement_model.seal_event(chain_event(1, "worktree-bound", None, outcome="bound")).value
+        rebound = implement_model.seal_event(rebound_event(2, bound), previous_event=bound).value
+        effective = implement_model.effective_binding(binding(), [bound, rebound])
+        self.assertEqual(effective["plan"], rebound["plan"])
+        self.assertEqual(effective["specs"], rebound["specs"])
+        self.assertEqual(effective["write_scope"], rebound["write_scope"])
+        self.assertEqual(effective["human_gates"], rebound["human_gates"])
+        self.assertEqual(effective["base_head"], binding()["base_head"])
+
+
+class EffectiveEventsTest(unittest.TestCase):
+    @staticmethod
+    def _tdd(step_id: str, *event_types: str) -> list[dict]:
+        return [{"event_type": kind, "step_id": step_id} for kind in event_types]
+
+    def _rebound(self) -> dict:
+        return {
+            "event_type": "rebound",
+            "step_map": [
+                {"step_id": "step-1", "previous_step_id": "step-1", "disposition": "carry"},
+                {"step_id": "step-2", "previous_step_id": None, "disposition": "new"},
+                {"step_id": "step-3", "previous_step_id": "step-2", "disposition": "carry"},
+            ],
+            "superseded_steps": ["step-3"],
+        }
+
+    def test_without_a_rebound_the_events_are_unchanged(self) -> None:
+        events = self._tdd("step-1", "red", "green", "refactor", "commit")
+        self.assertEqual(implement_model.effective_events(events), events)
+
+    def test_carried_steps_are_renumbered_and_superseded_evidence_is_dropped(self) -> None:
+        before = (
+            self._tdd("step-1", "red", "green", "refactor", "commit")
+            + self._tdd("step-2", "red", "green", "refactor", "commit")
+            + self._tdd("step-3", "red", "green", "refactor", "commit")
+        )
+        events = before + [self._rebound()] + self._tdd("step-2", "red")
+        effective = implement_model.effective_events(events)
+
+        self.assertTrue(implement_model.validate_step_evidence(effective, "step-1", "test").ok)
+        self.assertTrue(implement_model.validate_step_evidence(effective, "step-3", "test").ok)
+        self.assertFalse(implement_model.validate_step_evidence(effective, "step-2", "test").ok)
+        self.assertEqual([event["step_id"] for event in effective if event.get("step_id") == "step-3"], ["step-3"] * 4)
+        self.assertEqual(sum(1 for event in effective if event["event_type"] == "commit"), 2)
+        self.assertEqual(effective[-1], {"event_type": "red", "step_id": "step-2"})
+        self.assertEqual(len(before), 12)
+
+
 if __name__ == "__main__":
     unittest.main()
