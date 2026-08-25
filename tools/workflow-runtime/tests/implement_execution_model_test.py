@@ -706,8 +706,18 @@ class CheckStepEvidenceTest(unittest.TestCase):
     def _events(*event_types: str) -> list[dict]:
         return [{"event_type": kind, "step_id": "step-1"} for kind in event_types]
 
+    @staticmethod
+    def _check(*paths: str) -> dict:
+        return {
+            "event_type": "check",
+            "step_id": "step-1",
+            "files": [{"path": path, "content_identity": "sha256:" + "7" * 64} for path in paths],
+        }
+
     def test_a_check_step_is_complete_once_its_check_is_committed(self) -> None:
-        result = implement_model.validate_step_evidence(self._events("check", "commit"), "step-1", "check")
+        events = [self._check("vendor-lock.json"), {"event_type": "commit", "step_id": "step-1"}]
+
+        result = implement_model.validate_step_evidence(events, "step-1", "check")
 
         self.assertTrue(result.ok, result.error)
 
@@ -719,10 +729,15 @@ class CheckStepEvidenceTest(unittest.TestCase):
 
         self.assertTrue(result.ok, result.error)
 
-    def test_a_check_step_without_a_commit_is_incomplete(self) -> None:
-        result = implement_model.validate_step_evidence(self._events("check"), "step-1", "check")
+    def test_a_check_that_changed_files_is_incomplete_until_they_are_committed(self) -> None:
+        result = implement_model.validate_step_evidence([self._check("vendor-lock.json")], "step-1", "check")
 
         self.assertFalse(result.ok)
+
+    def test_a_check_that_changed_nothing_completes_without_a_commit(self) -> None:
+        result = implement_model.validate_step_evidence([self._check()], "step-1", "check")
+
+        self.assertTrue(result.ok, result.error)
 
     def test_test_evidence_on_a_check_step_is_rejected(self) -> None:
         result = implement_model.validate_step_evidence(

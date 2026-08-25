@@ -885,11 +885,15 @@ def _validate_check_step_evidence(step_events: list[dict], step_id: str) -> Mode
     positions = [index for index, event in enumerate(step_events) if event["event_type"] == "check"]
     if not positions:
         return _failure("step_evidence_missing", step_id, f"check evidence is missing: {step_id}")
+    # A check confirms; it does not produce. A step that changed nothing has nothing to commit,
+    # and only the change a check covered has to reach the history.
+    if not step_events[positions[-1]].get("files"):
+        return _ok(step_id)
     committed = any(
         event["event_type"] == "commit" and index > positions[-1] for index, event in enumerate(step_events)
     )
     if not committed:
-        return _failure("step_evidence_missing", step_id, f"the checks passed but nothing was committed: {step_id}")
+        return _failure("step_evidence_missing", step_id, f"the checked change was not committed: {step_id}")
     return _ok(step_id)
 
 
