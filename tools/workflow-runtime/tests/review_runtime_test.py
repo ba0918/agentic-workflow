@@ -51,6 +51,7 @@ class Scenario:
         *,
         last_event: str = "implementation_green",
         skill_change: bool = False,
+        rebound: bool = False,
         plan_text: str = "# Plan\n\n**Plan ID:** `20260823200534`\n",
     ):
         self.root = parent / "repository"
@@ -117,10 +118,41 @@ class Scenario:
         self.events = []
         self.append_event("worktree-bound", {"outcome": "bound"})
         self.append_event("commit", {"step_id": "step-1", "commit_sha": self.step_commit, "outcome": "committed"})
+        if rebound:
+            self.rebind()
         if last_event == "implementation_green":
             self.append_event("implementation_green", {"commits": [self.step_commit]})
         elif last_event == "stopped":
             self.append_event("stopped", {"reason": "unexpected_red"})
+
+    def rebind(self) -> dict:
+        """Revise the plan and the specification the way implement's rebound records them."""
+        self.spec_path.write_text("# Feature\n\n## Behaviour\n\nGreet by name.\n", encoding="utf-8")
+        revised_plan = self.root / f".agents/artifacts/plans/{PLAN_ID}_feature-r2.md"
+        revised_plan.write_text("# Plan\n\n**Plan ID:** `20260823200534`\n\n## 2\n", encoding="utf-8")
+        self.plan_path = revised_plan
+        revision = {
+            "id": PLAN_ID,
+            "path": f".agents/artifacts/plans/{PLAN_ID}_feature-r2.md",
+            "revision": 2,
+            "content_identity": file_identity(revised_plan),
+        }
+        specs = [{"path": "docs/spec/feature.md", "content_identity": file_identity(self.spec_path)}]
+        self.binding = dict(self.binding, plan=revision, specs=specs)
+        return self.append_event(
+            "rebound",
+            {
+                "plan": revision,
+                "specs": specs,
+                "write_scope": self.binding["write_scope"],
+                "human_gates": [],
+                "step_map": [{"step_id": "step-1", "previous_step_id": "step-1", "disposition": "carry"}],
+                "superseded_steps": [],
+                "head": self.step_commit,
+                "extra_commits": [],
+                "uncommitted_changes": False,
+            },
+        )
 
     def append_event(self, event_type: str, details: dict) -> dict:
         sequence = len(self.events) + 1
@@ -225,6 +257,22 @@ class BindTest(RuntimeCase):
         self.assertEqual(events[1]["model"], "claude-fable-5")
         self.assertEqual(events[1]["model_source"], "explicit")
         self.assertEqual(payload["review_id"], events[0]["review_id"])
+
+    def test_a_rebound_execution_is_verified_against_the_revision_it_is_bound_to_now(self):
+        scenario = Scenario(self.parent, rebound=True)
+
+        code, payload = self.bind(scenario)
+
+        self.assertEqual(code, 0, payload)
+
+    def test_a_rebound_execution_records_the_revised_plan_and_specification(self):
+        scenario = Scenario(self.parent, rebound=True)
+
+        self.bind(scenario)
+
+        bound = scenario.review_events()[0]
+        self.assertEqual(bound["plan_identity"], file_identity(scenario.plan_path))
+        self.assertEqual(bound["spec_identities"], {"docs/spec/feature.md": file_identity(scenario.spec_path)})
 
     def test_an_execution_that_stopped_is_refused_before_anything_is_written(self):
         scenario = Scenario(self.parent, last_event="stopped")
