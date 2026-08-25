@@ -25,20 +25,62 @@ from runtime.deliverables import record_artifact, record_external, record_approv
 from runtime.staging import stage_paths, record_commit, record_commit_late
 
 
-def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
+def _history_facts(attempt: Attempt, binding: dict, events: list[dict], final_step: str) -> RuntimeResult:
+    """What the human must see before the terminal: commits and changes the evidence does not explain."""
+    commits = [event["commit_sha"] for event in events if event["event_type"] == "commit"]
+    changed = changed_paths(attempt.worktree)
+    if not changed.ok:
+        return stop_attempt(attempt, changed.error, final_step)
+    in_scope_dirty = [path for path in changed.value if path not in binding["out_of_scope_changes"]]
+    if in_scope_dirty:
+        return stop_attempt(
+            attempt,
+            RuntimeFailure("post_verification_dirty", "final verification left in-scope files uncommitted"),
+            final_step,
+        )
+    head = run_git(attempt.worktree, "rev-parse", "HEAD")
+    history = run_git(attempt.worktree, "rev-list", "--reverse", f"{binding['base_head']}..{head.stdout.strip()}")
+    observed_commits = [line for line in history.stdout.splitlines() if line]
+    if head.returncode != 0 or history.returncode != 0:
+        return stop_attempt(attempt, RuntimeFailure("commit_history_mismatch", "branch history cannot be observed"), final_step)
+    # A recorded commit the history no longer holds means the branch was rewritten: that is a
+    # contradiction between record and history, not an unplanned fact, so it still stops.
+    if any(commit not in observed_commits for commit in commits):
+        return stop_attempt(
+            attempt,
+            RuntimeFailure("commit_identity_drift", "a recorded commit is missing from the branch history"),
+            final_step,
+        )
+    history_paths = run_git(attempt.worktree, "diff", "--name-only", binding["base_head"], head.stdout.strip())
+    if history_paths.returncode != 0:
+        return stop_attempt(attempt, RuntimeFailure("commit_history_mismatch", "base-to-HEAD paths cannot be observed"), final_step)
+    out_of_scope_paths = sorted(
+        path
+        for path in history_paths.stdout.splitlines()
+        if path and not execution_model.validate_write_path(path, binding["write_scope"]).ok
+    )
+    return ok(
+        {
+            "commits": observed_commits,
+            "listing": {
+                "unexplained_commits": [commit for commit in observed_commits if commit not in commits],
+                "out_of_scope_paths": out_of_scope_paths,
+                "uncommitted_out_of_scope": list(binding["out_of_scope_changes"]),
+            },
+        }
+    )
+
+def _terminal_context(attempt: Attempt) -> RuntimeResult:
     loaded = load_events(attempt)
     if not loaded.ok:
         return loaded
-    commits = [event["commit_sha"] for event in loaded.value if event["event_type"] == "commit"]
-    if not commits:
+    events = execution_model.effective_events(loaded.value)
+    if not any(event["event_type"] == "commit" for event in events):
         return failure("commit_missing", "implementation green requires at least one commit")
-    binding_result = read_json(attempt.binding_path)
-    if not binding_result.ok:
-        return binding_result
     try:
         registered = plan_artifact.read_registered_plan(
             attempt.main_checkout,
-            binding_result.value["plan"]["path"],
+            execution_model.effective_binding(read_json(attempt.binding_path).value, loaded.value)["plan"]["path"],
         )
     except (KeyError, TypeError, plan_artifact.PlanArtifactError) as error:
         return failure("plan_identity_drift", "bound plan cannot be verified", str(error))
@@ -46,92 +88,75 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
         steps = plan_artifact.read_plan_steps(registered.text)
     except plan_artifact.InvalidPlanFormat as error:
         return failure("plan_format_invalid", str(error))
-    step_ids = tuple(f"step-{step.number}" for step in steps)
+    final_step = f"step-{steps[-1].number}"
+    context = validate_context(attempt, step_id=final_step)
+    if not context.ok:
+        return stop_attempt(attempt, context.error, final_step)
+    return ok((loaded.value, events, steps, context.value))
+
+def approve_history(attempt: Attempt, reason: str | None = None) -> RuntimeResult:
+    """Record the human's approval of the commits and changes the evidence does not explain."""
+    prepared = _terminal_context(attempt)
+    if not prepared.ok:
+        return prepared
+    _, events, steps, binding = prepared.value
+    facts = _history_facts(attempt, binding, events, f"step-{steps[-1].number}")
+    if not facts.ok:
+        return facts
+    listing = facts.value["listing"]
+    if not any(listing.values()):
+        return failure("history_approval_unnecessary", "every commit and change is explained by the evidence")
+    details = dict(listing)
+    if reason is not None:
+        details["reason"] = reason
+    return append_event(attempt, "history_approved", details)
+
+def _history_is_approved(events: list[dict], listing: dict) -> bool:
+    approvals = [event for event in events if event["event_type"] == "history_approved"]
+    if not approvals:
+        return False
+    latest = approvals[-1]
+    return all(latest[field] == value for field, value in listing.items())
+
+def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
+    prepared = _terminal_context(attempt)
+    if not prepared.ok:
+        return prepared
+    raw_events, events, steps, binding = prepared.value
     for step in steps:
         step_id = f"step-{step.number}"
-        evidence = execution_model.validate_step_evidence(loaded.value, step_id, step.completion_kind)
+        evidence = execution_model.validate_step_evidence(events, step_id, step.completion_kind)
         if not evidence.ok:
             return failure(evidence.error.code, evidence.error.message)
         if step.completion_kind == "test":
             step_commits = [
                 event["commit_sha"]
-                for event in loaded.value
+                for event in events
                 if event["event_type"] == "commit" and event.get("step_id") == step_id
             ]
             targets = validate_step_test_targets_at(attempt, step_id, step_commits[-1])
             if not targets.ok:
                 return targets
-    final_step = step_ids[-1]
-    context = validate_context(attempt, step_id=final_step)
-    if not context.ok:
-        return stop_attempt(attempt, context.error, final_step)
-    changed = changed_paths(attempt.worktree)
-    if not changed.ok:
-        return stop_attempt(attempt, changed.error, final_step)
-    if changed.value:
-        return stop_attempt(
-            attempt,
-            RuntimeFailure(
-                "post_verification_dirty",
-                "final verification left the bound worktree dirty",
-            ),
-            final_step,
+    final_step = f"step-{steps[-1].number}"
+    facts = _history_facts(attempt, binding, events, final_step)
+    if not facts.ok:
+        return facts
+    listing = facts.value["listing"]
+    if any(listing.values()) and not _history_is_approved(raw_events, listing):
+        return failure(
+            "history_approval_required",
+            "commits or changes the evidence does not explain need the human's approval",
+            json.dumps(listing, ensure_ascii=False, sort_keys=True),
         )
-    head = run_git(attempt.worktree, "rev-parse", "HEAD")
-    if head.returncode != 0 or head.stdout.strip() not in commits:
-        return stop_attempt(
-            attempt,
-            RuntimeFailure(
-                "commit_identity_drift",
-                "worktree HEAD is not a durably recorded commit",
-            ),
-            final_step,
-        )
-    history = run_git(
-        attempt.worktree,
-        "rev-list",
-        "--reverse",
-        f"{binding_result.value['base_head']}..{head.stdout.strip()}",
-    )
-    observed_commits = [line for line in history.stdout.splitlines() if line]
-    # Every commit in the history must be explained by exactly one commit event, whatever
-    # order the events were written in: a commit recorded late is still a recorded commit.
-    if history.returncode != 0 or sorted(observed_commits) != sorted(commits):
-        return stop_attempt(
-            attempt,
-            RuntimeFailure(
-                "commit_history_mismatch",
-                "base-to-HEAD commits differ from durable commit events",
-            ),
-            final_step,
-        )
-    commits = observed_commits
-    history_paths = run_git(
-        attempt.worktree,
-        "diff",
-        "--name-only",
-        binding_result.value["base_head"],
-        head.stdout.strip(),
-    )
-    if history_paths.returncode != 0:
-        return stop_attempt(
-            attempt,
-            RuntimeFailure("commit_history_mismatch", "base-to-HEAD paths cannot be observed"),
-            final_step,
-        )
-    for path in history_paths.stdout.splitlines():
-        scope = execution_model.validate_write_path(path, binding_result.value["write_scope"])
-        if not scope.ok:
-            return stop_attempt(attempt, RuntimeFailure(scope.error.code, scope.error.message), final_step)
-    for step_id in step_ids:
+    for step in steps:
         gates = check_human_gates(
             attempt,
-            step_id=step_id,
+            step_id=f"step-{step.number}",
             timing="before_implementation_green",
         )
         if not gates.ok:
             return gates
-    return append_event(attempt, "implementation_green", {"commits": commits})
+    return append_event(attempt, "implementation_green", {"commits": facts.value["commits"]})
 
 def generate_attempt_id(
     *,
@@ -271,6 +296,13 @@ def main(argv: list[str] | None = None) -> int:
         choices=tuple(execution_model.HUMAN_GATE_TIMINGS),
         required=True,
     )
+
+    approve_history_command = commands.add_parser(
+        "approve-history", help="approve the commits and changes the evidence does not explain"
+    )
+    approve_history_command.add_argument("--repo", required=True)
+    execution_ids(approve_history_command)
+    approve_history_command.add_argument("--reason")
 
     stop = commands.add_parser("stop", help="record a blocking stop")
     stop.add_argument("--repo", required=True)
@@ -449,6 +481,8 @@ def main(argv: list[str] | None = None) -> int:
             "stopped",
             {"reason": args.reason, "step_id": args.step},
         )
+    elif args.command == "approve-history":
+        operation = approve_history(attempt, reason=args.reason)
     elif args.command == "implementation-green":
         operation = mark_implementation_green(attempt)
     else:

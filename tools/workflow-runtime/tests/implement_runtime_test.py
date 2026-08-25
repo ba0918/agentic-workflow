@@ -1460,7 +1460,7 @@ class EventPersistenceTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "step_evidence_missing")
 
-    def test_implementation_green_rejects_post_verification_dirtiness(self) -> None:
+    def test_implementation_green_rejects_in_scope_post_verification_dirtiness(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
             candidate = red_oracle(
@@ -1871,7 +1871,7 @@ class CommitBoundaryTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertIn(result.error.code, {"commit_range_invalid", "write_scope_violation"})
 
-    def test_terminal_rejects_a_hidden_commit_accepted_as_the_previous_head(self) -> None:
+    def test_terminal_lists_a_hidden_commit_accepted_as_the_previous_head_for_approval(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
             self.prepare_green_change(attempt)
@@ -1890,7 +1890,10 @@ class CommitBoundaryTest(unittest.TestCase):
             result = implement_runtime.mark_implementation_green(attempt)
 
             self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "commit_history_mismatch")
+            self.assertEqual(result.error.code, "history_approval_required")
+            approved = implement_runtime.cli.approve_history(attempt)
+            self.assertEqual(approved.value["unexplained_commits"], [hidden_head])
+            self.assertTrue(implement_runtime.mark_implementation_green(attempt).ok)
 
     def test_post_commit_dirty_state_is_rejected_without_an_event(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -2694,6 +2697,97 @@ class RebindTest(unittest.TestCase):
                 self.assertEqual(implement_runtime.main(common + ["--confirm"]), 0)
             self.assertEqual(json.loads(recorded.getvalue())["next_step"], "step-1")
             self.assertEqual(len(list(attempt.evidence_path.glob("0*.json"))), 2)
+
+
+def commit_outside_the_evidence(attempt, name: str = "notes.md") -> str:
+    (attempt.worktree / name).write_text("outside the evidence\n", encoding="utf-8")
+    git(attempt.worktree, "add", name)
+    git(attempt.worktree, "commit", "-m", f"chore: unrecorded {name}")
+    return git(attempt.worktree, "rev-parse", "HEAD")
+
+
+class HistoryApprovalTest(unittest.TestCase):
+    def test_terminal_lists_an_unexplained_commit_and_waits_for_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            complete_step_one(attempt)
+            commit_outside_the_evidence(attempt)
+
+            result = implement_runtime.mark_implementation_green(attempt)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "history_approval_required")
+            events = implement_runtime._load_events(attempt).value
+            self.assertEqual(events[-1]["event_type"], "commit")
+
+    def test_history_approval_lets_the_terminal_finish_with_every_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            recorded = complete_step_one(attempt)
+            unrecorded = commit_outside_the_evidence(attempt)
+
+            approved = implement_runtime.cli.approve_history(attempt, reason="前セッションのメモ")
+            self.assertTrue(approved.ok, approved.error)
+            self.assertEqual(approved.value["event_type"], "history_approved")
+            self.assertEqual(approved.value["unexplained_commits"], [unrecorded])
+            self.assertEqual(approved.value["out_of_scope_paths"], ["notes.md"])
+            self.assertEqual(approved.value["reason"], "前セッションのメモ")
+
+            terminal = implement_runtime.mark_implementation_green(attempt)
+            self.assertTrue(terminal.ok, terminal.error)
+            self.assertEqual(terminal.value["commits"], [recorded, unrecorded])
+
+    def test_a_history_approval_is_not_reused_after_the_history_changed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            complete_step_one(attempt)
+            commit_outside_the_evidence(attempt)
+            self.assertTrue(implement_runtime.cli.approve_history(attempt).ok)
+            commit_outside_the_evidence(attempt, "more.md")
+
+            result = implement_runtime.mark_implementation_green(attempt)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "history_approval_required")
+
+    def test_out_of_scope_uncommitted_changes_are_listed_not_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            complete_step_one(attempt)
+            (attempt.worktree / "outside.txt").write_text("outside\n", encoding="utf-8")
+
+            result = implement_runtime.mark_implementation_green(attempt)
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "history_approval_required")
+
+            approved = implement_runtime.cli.approve_history(attempt)
+            self.assertTrue(approved.ok, approved.error)
+            self.assertEqual(approved.value["uncommitted_out_of_scope"], ["outside.txt"])
+            self.assertTrue(implement_runtime.mark_implementation_green(attempt).ok)
+
+    def test_nothing_to_approve_is_refused_and_a_clean_history_needs_no_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            complete_step_one(attempt)
+
+            refused = implement_runtime.cli.approve_history(attempt)
+            self.assertFalse(refused.ok)
+            self.assertEqual(refused.error.code, "history_approval_unnecessary")
+            self.assertTrue(implement_runtime.mark_implementation_green(attempt).ok)
+
+    def test_approve_history_command_records_the_event(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            complete_step_one(attempt)
+            commit_outside_the_evidence(attempt)
+
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                exit_code = implement_runtime.main(
+                    ["approve-history", "--repo", str(root), "--reason", "意図した直し"]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(json.loads(output.getvalue())["event_type"], "history_approved")
 
 
 if __name__ == "__main__":
