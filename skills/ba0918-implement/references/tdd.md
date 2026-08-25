@@ -146,9 +146,10 @@ python3 <implement-runtime> record-commit \
   --repo <main-checkout> --step step-<n> --commit <sha>
 ```
 
-The event carries `recorded_late: true`. The terminal check asks only that every commit
-between the base and HEAD has exactly one commit event, whatever order the events were
-written in.
+The event carries `recorded_late: true`. The terminal check matches every commit between the
+base and HEAD against the commit events, whatever order the events were written in; a commit no
+event explains is not a failure but a fact the human approves at the terminal (see
+[execution.md](execution.md)).
 
 ## Terminal hand-off
 
