@@ -18,7 +18,7 @@ from runtime.storage import read_json
 from runtime.planning import resolve_plan
 from runtime.repository import bootstrap_attempt
 from runtime.context import load_events, validate_context, append_event, derive_attempt_result, stop_attempt
-from runtime.resume import residual_executions, resume_execution, load_current_attempt
+from runtime.resume import rebind_execution, rebind_preview, residual_executions, resume_execution, load_current_attempt
 from runtime.tdd import accept_red, run_frozen_oracle
 from runtime.gates import record_human_gate
 from runtime.deliverables import record_artifact, record_external, record_approval
@@ -290,6 +290,13 @@ def main(argv: list[str] | None = None) -> int:
     resume.add_argument("--plan-id", required=True)
     resume.add_argument("--execution-id", required=True)
 
+    rebind = commands.add_parser("rebind", help="map a revised plan onto an execution; record it only with --confirm")
+    rebind.add_argument("--repo", required=True)
+    rebind.add_argument("--plan-id", required=True)
+    rebind.add_argument("--execution-id", required=True)
+    rebind.add_argument("--plan-path")
+    rebind.add_argument("--confirm", action="store_true")
+
     residual = commands.add_parser("residual", help="describe unfinished executions of a plan (read-only)")
     residual.add_argument("--repo", required=True)
     residual.add_argument("--plan-id", required=True)
@@ -362,6 +369,13 @@ def main(argv: list[str] | None = None) -> int:
         if not resumed.ok:
             return _print_failure(resumed, state="stopped")
         print(json.dumps(resumed.value, ensure_ascii=False, sort_keys=True))
+        return 0
+    if args.command == "rebind":
+        operation = rebind_execution if args.confirm else rebind_preview
+        rebound = operation(repo, plan_id=args.plan_id, attempt_id=args.execution_id, plan_path=args.plan_path)
+        if not rebound.ok:
+            return _print_failure(rebound, state="stopped")
+        print(json.dumps(rebound.value, ensure_ascii=False, sort_keys=True))
         return 0
     if args.command == "residual":
         found = residual_executions(repo, plan_id=args.plan_id)

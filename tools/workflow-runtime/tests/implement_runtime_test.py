@@ -2558,5 +2558,143 @@ class RevisedPlanTest(unittest.TestCase):
             self.assertTrue(implement_runtime.check_human_gates(attempt, step_id="step-1", timing="before_edit").ok)
 
 
+def revise_three_step_plan(root: Path, plan_id: str):
+    """Revision 2 of a three-step fixture: step 2 reworded, a step inserted, old step 3 kept, one appended."""
+    current = plan_artifact.read_registered_plan(root, None)
+    revised = current.text.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
+    revised = revised.replace(
+        "### 2. 手順 2\n\n**Completion:** test\n",
+        "### 2. 手順 2（書き直した）\n\n**Completion:** test\n\n### 3. 挿入した手順\n\n**Completion:** test\n",
+    )
+    revised = revised.replace("### 3. 手順 3\n", "### 4. 手順 3\n")
+    revised += "\n### 5. 新しい手順\n\n**Completion:** test\n"
+    publish_text(
+        root,
+        plan_id=plan_id,
+        revision=2,
+        relative_path=f".agents/artifacts/plans/{plan_id}_fixture-r2.md",
+        text=revised,
+        approved_identity=plan_artifact.content_identity(revised),
+        switch_confirmed=False,
+        worktree_dirty=False,
+    )
+    return plan_artifact.read_registered_plan(root, None)
+
+
+class RebindTest(unittest.TestCase):
+    def test_rebind_preview_matches_steps_by_their_text_not_their_number(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            complete_step_one(attempt)
+            revise_three_step_plan(root, attempt.plan_id)
+            preview = getattr(implement_runtime.resume, "rebind_preview", None)
+            self.assertIsNotNone(preview)
+
+            result = preview(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id)
+
+            self.assertTrue(result.ok, result.error)
+            table = result.value
+            self.assertEqual(
+                [(row["step_id"], row["disposition"], row["previous_step_id"]) for row in table["step_map"]],
+                [
+                    ("step-1", "carry", "step-1"),
+                    ("step-2", "new", None),
+                    ("step-3", "new", None),
+                    ("step-4", "continue", "step-3"),
+                    ("step-5", "new", None),
+                ],
+            )
+            self.assertEqual(table["superseded_steps"], ["step-2"])
+            self.assertEqual(table["next_step"], "step-2")
+            self.assertEqual(table["plan"]["revision"], 2)
+
+    def test_rebind_preview_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            revise_three_step_plan(root, attempt.plan_id)
+            before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
+
+            self.assertTrue(implement_runtime.resume.rebind_preview(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id).ok)
+
+            self.assertEqual(sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before)
+
+    def test_rebind_records_the_rebound_event_and_continues_from_the_first_uncarried_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            complete_step_one(attempt)
+            (attempt.worktree / "notes.md").write_text("outside the evidence\n", encoding="utf-8")
+            git(attempt.worktree, "add", "notes.md")
+            git(attempt.worktree, "commit", "-m", "chore: unrecorded note")
+            unrecorded = git(attempt.worktree, "rev-parse", "HEAD")
+            revised = revise_three_step_plan(root, attempt.plan_id)
+
+            result = implement_runtime.resume.rebind_execution(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value["next_step"], "step-2")
+            self.assertFalse(result.value["redo"])
+            events = implement_runtime._load_events(attempt).value
+            self.assertEqual(events[-1]["event_type"], "rebound")
+            self.assertEqual(events[-1]["plan"]["content_identity"], revised.content_identity)
+            self.assertEqual(events[-1]["extra_commits"], [unrecorded])
+            effective = implement_runtime.execution_model.effective_events(events)
+            self.assertTrue(implement_runtime.execution_model.validate_step_evidence(effective, "step-1", "test").ok)
+            context = implement_runtime.validate_context(attempt, step_id="step-4")
+            self.assertTrue(context.ok, context.error)
+            self.assertEqual(context.value["plan"]["revision"], 2)
+            facts = implement_runtime.residual_executions(root, plan_id=attempt.plan_id).value[0]
+            self.assertTrue(facts["resumable"]["ok"], facts["resumable"])
+            self.assertEqual([commit["sha"] for commit in facts["branch"]["extra_commits"]], [unrecorded])
+
+    def test_rebind_refuses_another_plan_and_a_missing_previous_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            other_text = plan_artifact.read_registered_plan(root, None).text.replace("20260822150000", "20260822150001")
+            publish_text(
+                root,
+                plan_id="20260822150001",
+                revision=1,
+                relative_path=".agents/artifacts/plans/20260822150001_other.md",
+                text=other_text,
+                approved_identity=plan_artifact.content_identity(other_text),
+                switch_confirmed=True,
+                worktree_dirty=False,
+            )
+            before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
+
+            other = implement_runtime.resume.rebind_execution(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id)
+            self.assertFalse(other.ok)
+            self.assertEqual(other.error.code, "rebind_target_invalid")
+
+            unregistered = implement_runtime.resume.rebind_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/nowhere.md"
+            )
+            self.assertFalse(unregistered.ok)
+            self.assertEqual(unregistered.error.code, "rebind_target_invalid")
+
+            (root / f".agents/artifacts/plans/{attempt.plan_id}_fixture.md").unlink()
+            missing = implement_runtime.resume.rebind_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/20260822150001_other.md"
+            )
+            self.assertFalse(missing.ok)
+            self.assertEqual(sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before)
+
+    def test_rebind_command_prints_the_table_and_records_only_with_confirm(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            revise_three_step_plan(root, attempt.plan_id)
+            common = ["rebind", "--repo", str(root), "--plan-id", attempt.plan_id, "--execution-id", attempt.attempt_id]
+
+            with contextlib.redirect_stdout(io.StringIO()) as preview:
+                self.assertEqual(implement_runtime.main(common), 0)
+            self.assertIn("step_map", json.loads(preview.getvalue()))
+            self.assertEqual(len(list(attempt.evidence_path.glob("0*.json"))), 1)
+
+            with contextlib.redirect_stdout(io.StringIO()) as recorded:
+                self.assertEqual(implement_runtime.main(common + ["--confirm"]), 0)
+            self.assertEqual(json.loads(recorded.getvalue())["next_step"], "step-1")
+            self.assertEqual(len(list(attempt.evidence_path.glob("0*.json"))), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

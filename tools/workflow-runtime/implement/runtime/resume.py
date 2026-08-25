@@ -8,7 +8,7 @@ from runtime.deps import execution_model, plan_artifact
 from runtime.types import RuntimeResult, Attempt, ok, failure
 from runtime.gitio import run_git
 from runtime.storage import read_json, safe_agent_roots
-from runtime.planning import raw_identity
+from runtime.planning import parse_plan, raw_identity
 from runtime.repository import discover_repository
 from runtime.context import append_event, load_effective_binding, load_events
 
@@ -233,6 +233,136 @@ def resume_execution(project_root: Path, *, plan_id: str, attempt_id: str) -> Ru
             "all_steps_committed": next_step is None,
         }
     )
+
+def _step_text_identity(step: Any) -> str:
+    """Identity of a step's wording — heading and body, never its number."""
+    lines = [line.rstrip() for line in f"{step.title}\n{step.text}".strip().splitlines()]
+    return raw_identity("\n".join(lines))
+
+
+def _plan_step_map(previous_steps: tuple, revised_steps: tuple, completed: set[str]) -> tuple[list[dict], list[str]]:
+    """Match revised steps to previous ones by wording; unmatched previous steps are superseded."""
+    unmatched = {f"step-{step.number}": _step_text_identity(step) for step in previous_steps}
+    step_map: list[dict[str, Any]] = []
+    for step in revised_steps:
+        identity = _step_text_identity(step)
+        previous_id = next((step_id for step_id, other in unmatched.items() if other == identity), None)
+        if previous_id is None:
+            step_map.append({"step_id": f"step-{step.number}", "previous_step_id": None, "disposition": "new"})
+            continue
+        del unmatched[previous_id]
+        step_map.append(
+            {
+                "step_id": f"step-{step.number}",
+                "previous_step_id": previous_id,
+                "disposition": "carry" if previous_id in completed else "continue",
+            }
+        )
+    return step_map, list(unmatched)
+
+
+def _rebind_plan(project_root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None) -> RuntimeResult:
+    """Everything a rebound needs, computed without writing: the human reads it before recording."""
+    loaded = load_current_attempt(project_root, plan_id=plan_id, attempt_id=attempt_id)
+    if not loaded.ok:
+        return loaded
+    attempt = loaded.value
+    events_result = load_events(attempt)
+    if not events_result.ok:
+        return events_result
+    events = events_result.value
+    if events and events[-1]["event_type"] == "implementation_green":
+        return failure("execution_finished", "this execution already reached implementation_green")
+    binding = execution_model.effective_binding(read_json(attempt.binding_path).value, events)
+    try:
+        target = plan_artifact.read_registered_plan(attempt.main_checkout, plan_path)
+    except plan_artifact.PlanArtifactError as error:
+        return failure("rebind_target_invalid", "the revised plan is not registered", str(error))
+    if target.plan_id != attempt.plan_id:
+        return failure("rebind_target_invalid", "the registered plan is a different plan", target.plan_id)
+    previous_path = attempt.main_checkout.joinpath(*PurePosixPath(binding["plan"]["path"]).parts)
+    if previous_path.is_symlink() or not previous_path.is_file():
+        return failure("rebind_source_unavailable", "the bound plan revision is no longer readable", binding["plan"]["path"])
+    previous_text = previous_path.read_text(encoding="utf-8")
+    if raw_identity(previous_text) != binding["plan"]["content_identity"]:
+        return failure("rebind_source_unavailable", "the bound plan revision no longer has its bound content", binding["plan"]["path"])
+    previous_plan = parse_plan(previous_text)
+    if not previous_plan.ok:
+        return previous_plan
+    revised_plan = parse_plan(target.text)
+    if not revised_plan.ok:
+        return revised_plan
+    _, revision, specs, write_scope, revised_steps, human_gates = revised_plan.value
+    for spec_path, identity in specs:
+        spec_file = attempt.main_checkout.joinpath(*PurePosixPath(spec_path).parts)
+        if not spec_file.is_file() or raw_identity(spec_file.read_text(encoding="utf-8")) != identity:
+            return failure("spec_identity_drift", "revised plan cites a specification that differs from the repository", spec_path)
+    effective = execution_model.effective_events(events)
+    completed = {event["step_id"] for event in effective if event.get("event_type") == "commit"}
+    step_map, superseded = _plan_step_map(previous_plan.value[4], revised_steps, completed)
+    rebound = {
+        "plan": {
+            "id": target.plan_id,
+            "path": target.path,
+            "revision": revision,
+            "content_identity": target.content_identity,
+        },
+        "specs": [{"path": spec_path, "content_identity": identity} for spec_path, identity in specs],
+        "write_scope": list(write_scope),
+        "human_gates": list(human_gates),
+        "step_map": step_map,
+        "superseded_steps": superseded,
+    }
+    projected = execution_model.effective_events(events + [dict(rebound, event_type="rebound")])
+    step_ids = [f"step-{step.number}" for step in revised_steps]
+    next_step, redo, carried = _next_step_after_evidence(projected, step_ids)
+    return ok((attempt, events, binding, rebound, {"next_step": next_step, "redo": redo, "completed_steps": carried}))
+
+
+def rebind_preview(project_root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None = None) -> RuntimeResult:
+    """Show how the revised plan maps onto the execution; writes nothing."""
+    planned = _rebind_plan(project_root, plan_id=plan_id, attempt_id=attempt_id, plan_path=plan_path)
+    if not planned.ok:
+        return planned
+    attempt, events, binding, rebound, continuation = planned.value
+    branch = _branch_facts(attempt.main_checkout, attempt.branch, binding["base_head"], _recorded_commits(execution_model.effective_events(events)))
+    return ok({**rebound, **continuation, "previous_plan": binding["plan"], "extra_commits": branch["extra_commits"]})
+
+
+def rebind_execution(project_root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None = None) -> RuntimeResult:
+    """Record the rebound the human confirmed and name the step to continue from."""
+    planned = _rebind_plan(project_root, plan_id=plan_id, attempt_id=attempt_id, plan_path=plan_path)
+    if not planned.ok:
+        return planned
+    attempt, events, binding, rebound, continuation = planned.value
+    branch = _branch_facts(attempt.main_checkout, attempt.branch, binding["base_head"], _recorded_commits(execution_model.effective_events(events)))
+    head = run_git(attempt.main_checkout, "rev-parse", f"refs/heads/{attempt.branch}").stdout.strip()
+    changed = changed_paths(attempt.worktree)
+    if not changed.ok:
+        return changed
+    recorded = append_event(
+        attempt,
+        "rebound",
+        {
+            **rebound,
+            "head": head,
+            "extra_commits": [commit["sha"] for commit in branch["extra_commits"]],
+            "uncommitted_changes": bool(changed.value),
+        },
+    )
+    if not recorded.ok:
+        return recorded
+    return ok(
+        {
+            "execution_id": attempt.attempt_id,
+            "branch": attempt.branch,
+            "worktree": str(attempt.worktree),
+            "plan": rebound["plan"],
+            **continuation,
+            "all_steps_committed": continuation["next_step"] is None,
+        }
+    )
+
 
 def load_current_attempt(
     project_root: Path,
