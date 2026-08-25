@@ -41,7 +41,7 @@ from runtime.tdd import (
     test_summary as _test_summary,
 )
 from runtime.gates import check_human_gates, record_human_gate
-from runtime.deliverables import record_approval, record_artifact, record_external
+from runtime.deliverables import record_approval, record_artifact, record_check, record_external
 from runtime.staging import record_commit, record_commit_late, stage_paths
 from runtime.cli import generate_attempt_id, main, mark_implementation_green
 

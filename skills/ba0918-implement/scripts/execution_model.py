@@ -38,17 +38,32 @@ EVENT_TYPES = {
     "permission_required": {"step_id", "operation_identity", "outcome"},
     "stopped": {"reason"},
     "resumed": {"head", "extra_commits", "uncommitted_changes", "next_step", "redo"},
+    "check": {"step_id", "checks", "files"},
     "artifact": {"step_id", "files", "checks"},
     "external": {"step_id", "checked", "summary"},
     "approval": {"step_id", "target_identity", "result"},
     "implementation_green": {"commits"},
+    "rebound": {
+        "plan",
+        "specs",
+        "write_scope",
+        "human_gates",
+        "step_map",
+        "superseded_steps",
+        "head",
+        "extra_commits",
+        "uncommitted_changes",
+    },
+    "history_approved": {"unexplained_commits", "out_of_scope_paths", "uncommitted_out_of_scope"},
 }
+STEP_DISPOSITIONS = {"carry", "continue", "new"}
 APPROVAL_RESULTS = ["approved", "rejected"]
 BOUNDED_TEXT = 500
 EVENT_OPTIONAL_FIELDS = {
     "worktree-bound": {"repository_identity", "base_head", "branch", "worktree_identity"},
     "commit": {"recorded_late"},
     "stopped": {"step_id"},
+    "history_approved": {"reason"},
 }
 RAW_LOG_FIELDS = {"stdout", "stderr", "provider_log", "raw_log"}
 SECRET_VALUE_FIELDS = {"environment", "environment_values", "secret", "password", "credential"}
@@ -223,6 +238,106 @@ def _validate_test_summary(value: object) -> ModelResult:
     return _failure("test_summary_invalid", "test_summary.status", "test summary status is invalid")
 
 
+def _validate_plan_binding(plan: object) -> ModelResult:
+    if not isinstance(plan, dict) or set(plan) != {
+        "id",
+        "path",
+        "revision",
+        "content_identity",
+    }:
+        return _failure("plan_binding_invalid", "plan", "plan binding fields are invalid")
+    if not _matches(PLAN_ID, plan["id"]):
+        return _failure("plan_binding_invalid", "plan.id", "plan id is invalid")
+    if not _safe_relative_path(plan["path"]):
+        return _failure("plan_binding_invalid", "plan.path", "plan path is unsafe")
+    if not isinstance(plan["revision"], int) or plan["revision"] < 1:
+        return _failure("plan_binding_invalid", "plan.revision", "plan revision is invalid")
+    if not _matches(IDENTITY, plan["content_identity"]):
+        return _failure("plan_binding_invalid", "plan.content_identity", "plan identity is invalid")
+    return _ok(plan)
+
+
+def _validate_spec_bindings(specs: object) -> ModelResult:
+    if not isinstance(specs, list) or not specs:
+        return _failure("spec_binding_invalid", "specs", "at least one spec is required")
+    spec_paths: set[str] = set()
+    for spec in specs:
+        if not isinstance(spec, dict) or set(spec) != {"path", "content_identity"}:
+            return _failure("spec_binding_invalid", "specs", "spec binding fields are invalid")
+        if not _safe_relative_path(spec["path"]) or spec["path"] in spec_paths:
+            return _failure("spec_binding_invalid", "specs.path", "spec path is unsafe or duplicated")
+        spec_paths.add(spec["path"])
+        if not _matches(IDENTITY, spec["content_identity"]):
+            return _failure("spec_binding_invalid", "specs.content_identity", "spec identity is invalid")
+    return _ok(specs)
+
+
+def _validate_write_scope(scopes: object) -> ModelResult:
+    if not isinstance(scopes, list) or not scopes or any(not _safe_relative_path(item) for item in scopes):
+        return _failure("write_scope_invalid", "write_scope", "write scope is invalid")
+    return _ok(scopes)
+
+
+def _validate_step_map(candidate: dict) -> ModelResult:
+    step_map = candidate["step_map"]
+    if not isinstance(step_map, list) or not step_map:
+        return _failure("event_field_invalid", "step_map", "step map must list the revised steps")
+    seen: set[str] = set()
+    for entry in step_map:
+        if (
+            not isinstance(entry, dict)
+            or set(entry) != {"step_id", "previous_step_id", "disposition"}
+            or not _matches(STEP_ID, entry["step_id"])
+            or entry["step_id"] in seen
+            or entry["disposition"] not in STEP_DISPOSITIONS
+            or (entry["previous_step_id"] is None) != (entry["disposition"] == "new")
+            or (entry["previous_step_id"] is not None and not _matches(STEP_ID, entry["previous_step_id"]))
+        ):
+            return _failure("event_field_invalid", "step_map", "step map entry is invalid")
+        seen.add(entry["step_id"])
+    superseded = candidate["superseded_steps"]
+    if not isinstance(superseded, list) or any(not _matches(STEP_ID, step) for step in superseded):
+        return _failure("event_field_invalid", "superseded_steps", "superseded steps are invalid")
+    return _ok(step_map)
+
+
+def _validate_rebound_event(candidate: dict) -> ModelResult:
+    for check in (
+        _validate_plan_binding(candidate["plan"]),
+        _validate_spec_bindings(candidate["specs"]),
+        _validate_write_scope(candidate["write_scope"]),
+        _validate_human_gates(candidate["human_gates"]),
+        _validate_step_map(candidate),
+    ):
+        if not check.ok:
+            return check
+    if candidate["plan_identity"] != candidate["plan"]["content_identity"]:
+        return _failure("event_identity_invalid", "plan_identity", "rebound must carry the identity of its plan")
+    if candidate["spec_identities"] != {spec["path"]: spec["content_identity"] for spec in candidate["specs"]}:
+        return _failure("event_identity_invalid", "spec_identities", "rebound must carry the identities of its specs")
+    if (
+        not _matches(COMMIT_SHA, candidate["head"])
+        or not isinstance(candidate["extra_commits"], list)
+        or any(not _matches(COMMIT_SHA, commit) for commit in candidate["extra_commits"])
+        or not isinstance(candidate["uncommitted_changes"], bool)
+    ):
+        return _failure("event_field_invalid", "rebound", "rebound branch facts are invalid")
+    return _ok(candidate)
+
+
+def _validate_history_approved_event(candidate: dict) -> ModelResult:
+    commits = candidate["unexplained_commits"]
+    if not isinstance(commits, list) or any(not _matches(COMMIT_SHA, commit) for commit in commits):
+        return _failure("event_field_invalid", "unexplained_commits", "approved commits are invalid")
+    for field in ("out_of_scope_paths", "uncommitted_out_of_scope"):
+        paths = candidate[field]
+        if not isinstance(paths, list) or any(not _safe_relative_path(path) for path in paths):
+            return _failure("event_field_invalid", field, "approved paths are invalid")
+    if "reason" in candidate and not _bounded_text(candidate["reason"]):
+        return _failure("event_field_invalid", "reason", "approval reason must be bounded text")
+    return _ok(candidate)
+
+
 def validate_binding(value: object) -> ModelResult:
     secret = _first_secret_field(value)
     if secret is not None:
@@ -247,35 +362,12 @@ def validate_binding(value: object) -> ModelResult:
     if not _matches(ATTEMPT_ID, value["attempt_id"]):
         return _failure("attempt_id_invalid", "attempt_id", "attempt id is not path-safe")
 
-    plan = value["plan"]
-    if not isinstance(plan, dict) or set(plan) != {
-        "id",
-        "path",
-        "revision",
-        "content_identity",
-    }:
-        return _failure("plan_binding_invalid", "plan", "plan binding fields are invalid")
-    if not _matches(PLAN_ID, plan["id"]):
-        return _failure("plan_binding_invalid", "plan.id", "plan id is invalid")
-    if not _safe_relative_path(plan["path"]):
-        return _failure("plan_binding_invalid", "plan.path", "plan path is unsafe")
-    if not isinstance(plan["revision"], int) or plan["revision"] < 1:
-        return _failure("plan_binding_invalid", "plan.revision", "plan revision is invalid")
-    if not _matches(IDENTITY, plan["content_identity"]):
-        return _failure("plan_binding_invalid", "plan.content_identity", "plan identity is invalid")
-
-    specs = value["specs"]
-    if not isinstance(specs, list) or not specs:
-        return _failure("spec_binding_invalid", "specs", "at least one spec is required")
-    spec_paths: set[str] = set()
-    for spec in specs:
-        if not isinstance(spec, dict) or set(spec) != {"path", "content_identity"}:
-            return _failure("spec_binding_invalid", "specs", "spec binding fields are invalid")
-        if not _safe_relative_path(spec["path"]) or spec["path"] in spec_paths:
-            return _failure("spec_binding_invalid", "specs.path", "spec path is unsafe or duplicated")
-        spec_paths.add(spec["path"])
-        if not _matches(IDENTITY, spec["content_identity"]):
-            return _failure("spec_binding_invalid", "specs.content_identity", "spec identity is invalid")
+    plan = _validate_plan_binding(value["plan"])
+    if not plan.ok:
+        return plan
+    specs = _validate_spec_bindings(value["specs"])
+    if not specs.ok:
+        return specs
 
     if not _matches(IDENTITY, value["repository_identity"]):
         return _failure("repository_identity_invalid", "repository_identity", "repository identity is invalid")
@@ -285,9 +377,9 @@ def validate_binding(value: object) -> ModelResult:
         return _failure("branch_invalid", "branch", "branch name is invalid")
     if not isinstance(value["worktree"], str) or not value["worktree"].strip():
         return _failure("worktree_invalid", "worktree", "worktree path is invalid")
-    scopes = value["write_scope"]
-    if not isinstance(scopes, list) or not scopes or any(not _safe_relative_path(item) for item in scopes):
-        return _failure("write_scope_invalid", "write_scope", "write scope is invalid")
+    scopes = _validate_write_scope(value["write_scope"])
+    if not scopes.ok:
+        return scopes
     human_gates = _validate_human_gates(value["human_gates"])
     if not human_gates.ok:
         return human_gates
@@ -455,34 +547,66 @@ def _bounded_text(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip()) and len(value) <= BOUNDED_TEXT
 
 
+def _validate_check_commands(checks: object, label: str) -> ModelResult:
+    if not isinstance(checks, list):
+        return _failure("event_field_invalid", label, f"{label} must be a list")
+    for check in checks:
+        if not isinstance(check, dict) or set(check) != {"command", "exit_code"}:
+            return _failure("event_field_invalid", label, f"{label} fields are invalid")
+        command = check["command"]
+        if not isinstance(command, list) or not command or any(not isinstance(part, str) for part in command):
+            return _failure("event_field_invalid", f"{label}.command", f"{label} command is invalid")
+        if any(SECRET_ARGUMENT.search(part) for part in command):
+            return _failure("secret_value_forbidden", f"{label}.command", f"secret-shaped argument in {label} command")
+        if not isinstance(check["exit_code"], int) or isinstance(check["exit_code"], bool):
+            return _failure("event_field_invalid", f"{label}.exit_code", f"{label} exit code is invalid")
+    return _ok(checks)
+
+
+def _validate_recorded_files(files: object, label: str) -> ModelResult:
+    if not isinstance(files, list):
+        return _failure("event_field_invalid", label, f"{label} must be a list")
+    seen: set[str] = set()
+    for entry in files:
+        if not isinstance(entry, dict) or set(entry) != {"path", "content_identity"}:
+            return _failure("event_field_invalid", label, f"{label} fields are invalid")
+        if not _safe_relative_path(entry["path"]) or entry["path"] in seen:
+            return _failure("event_field_invalid", f"{label}.path", f"{label} path is unsafe or duplicated")
+        if not _matches(IDENTITY, entry["content_identity"]):
+            return _failure("event_field_invalid", f"{label}.content_identity", f"{label} identity is invalid")
+        seen.add(entry["path"])
+    return _ok(files)
+
+
+def _validate_check_event(candidate: dict) -> ModelResult:
+    """A check step's evidence: every declared command succeeded, and what changed under them."""
+    if not _matches(STEP_ID, candidate["step_id"]):
+        return _failure("event_field_invalid", "step_id", "check step is invalid")
+    checks = candidate["checks"]
+    if not isinstance(checks, list) or not checks:
+        return _failure("event_field_invalid", "checks", "a check needs at least one command")
+    commands = _validate_check_commands(checks, "checks")
+    if not commands.ok:
+        return commands
+    if any(check["exit_code"] != 0 for check in checks):
+        return _failure("event_field_invalid", "checks.exit_code", "a command that did not succeed is not evidence")
+    return _validate_recorded_files(candidate["files"], "files")
+
+
 def _validate_artifact_event(candidate: dict) -> ModelResult:
     if not _matches(STEP_ID, candidate["step_id"]):
         return _failure("event_field_invalid", "step_id", "artifact step is invalid")
     files = candidate["files"]
     if not isinstance(files, list) or not files:
         return _failure("event_field_invalid", "files", "artifact needs at least one file")
-    seen: set[str] = set()
-    for entry in files:
-        if not isinstance(entry, dict) or set(entry) != {"path", "content_identity"}:
-            return _failure("event_field_invalid", "files", "artifact file fields are invalid")
-        if not _safe_relative_path(entry["path"]) or entry["path"] in seen:
-            return _failure("event_field_invalid", "files.path", "artifact file path is unsafe or duplicated")
-        if not _matches(IDENTITY, entry["content_identity"]):
-            return _failure("event_field_invalid", "files.content_identity", "artifact file identity is invalid")
-        seen.add(entry["path"])
-    checks = candidate["checks"]
-    if not isinstance(checks, list):
-        return _failure("event_field_invalid", "checks", "artifact checks must be a list")
-    for check in checks:
-        if not isinstance(check, dict) or set(check) != {"command", "exit_code"}:
-            return _failure("event_field_invalid", "checks", "artifact check fields are invalid")
-        command = check["command"]
-        if not isinstance(command, list) or not command or any(not isinstance(part, str) for part in command):
-            return _failure("event_field_invalid", "checks.command", "artifact check command is invalid")
-        if any(SECRET_ARGUMENT.search(part) for part in command):
-            return _failure("secret_value_forbidden", "checks.command", "secret-shaped argument in check command")
-        if not isinstance(check["exit_code"], int) or isinstance(check["exit_code"], bool):
-            return _failure("event_field_invalid", "checks.exit_code", "artifact check exit code is invalid")
+    recorded = _validate_recorded_files(files, "files")
+    if not recorded.ok:
+        return recorded
+    # An artifact records what its format checks reported, a failed one included: the human's
+    # verdict is refused until it passes, which a check step decides without a human at all.
+    commands = _validate_check_commands(candidate["checks"], "checks")
+    if not commands.ok:
+        return commands
     return _ok(candidate)
 
 
@@ -536,7 +660,7 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
             return _failure("stale_event_chain", "sequence", "first event must start the chain")
     else:
         if previous_event["event_type"] == "implementation_green" or (
-            previous_event["event_type"] == "stopped" and event_type != "resumed"
+            previous_event["event_type"] == "stopped" and event_type not in {"resumed", "rebound"}
         ):
             return _failure(
                 "terminal_event_chain",
@@ -544,12 +668,17 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
                 "terminal event cannot be extended",
             )
         expected_previous = event_identity(previous_event)
+        # A rebound is the one event allowed to move the chain onto revised plan and spec
+        # identities; every other event must carry the identities of the event before it.
+        identities_follow = event_type == "rebound" or (
+            candidate["plan_identity"] == previous_event["plan_identity"]
+            and candidate["spec_identities"] == previous_event["spec_identities"]
+        )
         if (
             candidate["sequence"] != previous_event["sequence"] + 1
             or candidate["previous_identity"] != expected_previous
             or candidate["attempt_id"] != previous_event["attempt_id"]
-            or candidate["plan_identity"] != previous_event["plan_identity"]
-            or candidate["spec_identities"] != previous_event["spec_identities"]
+            or not identities_follow
         ):
             return _failure("stale_event_chain", "previous_identity", "event does not extend the current chain")
 
@@ -578,6 +707,10 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         or candidate["outcome"] != "permission_required"
     ):
         return _failure("event_field_invalid", "permission_required", "permission event is invalid")
+    if event_type == "check":
+        checked = _validate_check_event(candidate)
+        if not checked.ok:
+            return checked
     if event_type == "artifact":
         artifact = _validate_artifact_event(candidate)
         if not artifact.ok:
@@ -600,6 +733,14 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         or any(not _matches(COMMIT_SHA, commit) for commit in candidate["commits"])
     ):
         return _failure("event_field_invalid", "commits", "terminal commits are invalid")
+    if event_type == "rebound":
+        rebound = _validate_rebound_event(candidate)
+        if not rebound.ok:
+            return rebound
+    if event_type == "history_approved":
+        approved = _validate_history_approved_event(candidate)
+        if not approved.ok:
+            return approved
 
     sealed = dict(candidate)
     sealed["content_identity"] = event_identity(sealed)
@@ -732,9 +873,28 @@ def _tdd_step_complete(step_events: list[dict]) -> bool:
                 state = "complete"
             elif state != "complete":
                 return False
-        elif event_type in {"artifact", "external", "approval"}:
+        elif event_type in {"check", "artifact", "external", "approval"}:
             return False
     return state == "complete"
+
+
+def _validate_check_step_evidence(step_events: list[dict], step_id: str) -> ModelResult:
+    """A check step completes on its own evidence: the checks passed, then the change was committed."""
+    if any(event["event_type"] in {"red", "green", "refactor", "artifact", "external", "approval"} for event in step_events):
+        return _failure("step_evidence_missing", step_id, f"evidence of another completion kind on a check step: {step_id}")
+    positions = [index for index, event in enumerate(step_events) if event["event_type"] == "check"]
+    if not positions:
+        return _failure("step_evidence_missing", step_id, f"check evidence is missing: {step_id}")
+    # A check confirms; it does not produce. A step that changed nothing has nothing to commit,
+    # and only the change a check covered has to reach the history.
+    if not step_events[positions[-1]].get("files"):
+        return _ok(step_id)
+    committed = any(
+        event["event_type"] == "commit" and index > positions[-1] for index, event in enumerate(step_events)
+    )
+    if not committed:
+        return _failure("step_evidence_missing", step_id, f"the checked change was not committed: {step_id}")
+    return _ok(step_id)
 
 
 def validate_step_evidence(events: list[dict], step_id: str, completion_kind: str) -> ModelResult:
@@ -744,6 +904,8 @@ def validate_step_evidence(events: list[dict], step_id: str, completion_kind: st
         if not _tdd_step_complete(step_events):
             return _failure("step_evidence_missing", step_id, f"incomplete TDD evidence: {step_id}")
         return _ok(step_id)
+    if completion_kind == "check":
+        return _validate_check_step_evidence(step_events, step_id)
     if completion_kind not in {"artifact", "external"}:
         return _failure("completion_kind_invalid", step_id, f"unknown completion kind: {completion_kind}")
     if any(event["event_type"] in {"red", "green", "refactor"} for event in step_events):
@@ -758,6 +920,48 @@ def validate_step_evidence(events: list[dict], step_id: str, completion_kind: st
     if completion_kind == "artifact" and not committed:
         return _failure("step_evidence_missing", step_id, f"artifact is approved but not committed: {step_id}")
     return _ok(step_id)
+
+
+def _last_rebound(events: list[dict]) -> tuple[int, dict | None]:
+    for index in range(len(events) - 1, -1, -1):
+        if events[index].get("event_type") == "rebound":
+            return index, events[index]
+    return -1, None
+
+
+def effective_binding(binding: dict, events: list[dict]) -> dict:
+    """The binding as the last rebound left it: plan, specs, scope and gates follow the revision."""
+    _, rebound = _last_rebound(events)
+    if rebound is None:
+        return dict(binding)
+    effective = dict(binding)
+    for field in ("plan", "specs", "write_scope", "human_gates"):
+        effective[field] = rebound[field]
+    return effective
+
+
+def effective_events(events: list[dict]) -> list[dict]:
+    """Events as the last rebound reads them: carried steps renumbered, superseded evidence dropped."""
+    index, rebound = _last_rebound(events)
+    if rebound is None:
+        return list(events)
+    renumbered = {
+        entry["previous_step_id"]: entry["step_id"]
+        for entry in rebound["step_map"]
+        if entry["previous_step_id"] is not None
+    }
+    superseded = set(rebound["superseded_steps"])
+    effective: list[dict] = []
+    for event in events[:index]:
+        step_id = event.get("step_id")
+        if step_id is None:
+            effective.append(event)
+        elif step_id in superseded or step_id not in renumbered:
+            continue
+        else:
+            effective.append(dict(event, step_id=renumbered[step_id]))
+    effective.extend(events[index:])
+    return effective
 
 
 def derive_result(events: list[dict]) -> dict:
