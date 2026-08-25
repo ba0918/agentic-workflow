@@ -20,8 +20,10 @@ A finding's id is derived from its oracle — the mechanical way to tell whether
 so the same problem keeps the same id while line numbers move. Severity (`security`,
 `critical`, `warn`, `info`) and action (`auto_fix`, `fix_and_verify`, `human_judgment`,
 `record_only`) are independent: neither is derived from the other, and an `info` finding is
-only ever recorded. A finding without a workable oracle must say why none can be written and
-becomes a human judgment, closed only by a recorded decision. Once the set is frozen, the
+only ever recorded — an observation carries no oracle and no reason for lacking one, and it
+closes as the set freezes, because nothing about it is going to be fixed. Everywhere else, a
+finding without a workable oracle must say why none can be written and becomes a human
+judgment, closed only by a recorded decision. Once the set is frozen, the
 human may also close any open finding — a machine-checked one included — by a recorded
 rejection that carries a reason; the machine never overrides that decision. Findings sharing
 a root cause are presented together as one fix unit; grouping changes the presentation only
