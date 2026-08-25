@@ -10,7 +10,7 @@ from runtime.gitio import run_git
 from runtime.storage import read_json, safe_agent_roots
 from runtime.planning import raw_identity
 from runtime.repository import discover_repository
-from runtime.context import append_event, load_events
+from runtime.context import append_event, load_effective_binding, load_events
 
 
 def _execution_directories(main_checkout: Path, plan_id: str) -> list[Path]:
@@ -79,6 +79,20 @@ def _binding_fingerprints_match(main_checkout: Path, binding: dict) -> str | Non
             return f"bound spec differs from the repository: {spec['path']}"
     return None
 
+def _rebind_target(main_checkout: Path, binding: dict) -> dict[str, Any]:
+    """Whether a drifted execution can be rebound: the current plan must be a revision of its plan."""
+    try:
+        current = plan_artifact.read_registered_plan(main_checkout, None)
+    except plan_artifact.PlanArtifactError as error:
+        return {"ok": False, "reason": f"no current plan to rebind to: {error}"}
+    if current.plan_id != binding["plan"]["id"]:
+        return {"ok": False, "reason": "the current plan is a different plan"}
+    previous = main_checkout.joinpath(*PurePosixPath(binding["plan"]["path"]).parts)
+    if previous.is_symlink() or not previous.is_file():
+        return {"ok": False, "reason": f"the bound plan revision is no longer readable: {binding['plan']['path']}"}
+    return {"ok": True, "reason": None}
+
+
 def _branch_facts(main_checkout: Path, branch: str, base_head: str, recorded: set[str]) -> dict[str, Any]:
     """Extra commits are the history commits no commit event explains, wherever they sit."""
     exists = run_git(main_checkout, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode == 0
@@ -132,8 +146,8 @@ def residual_executions(project_root: Path, *, plan_id: str) -> RuntimeResult:
                 }
             )
             continue
-        binding = binding_result.value
-        commits = [event for event in events if event.get("event_type") == "commit"]
+        binding = execution_model.effective_binding(binding_result.value, events)
+        commits = [event for event in execution_model.effective_events(events) if event.get("event_type") == "commit"]
         mismatch = _binding_fingerprints_match(main_checkout, binding)
         facts.append(
             {
@@ -147,6 +161,7 @@ def residual_executions(project_root: Path, *, plan_id: str) -> RuntimeResult:
                 "branch": _branch_facts(main_checkout, binding["branch"], binding["base_head"], _recorded_commits(events)),
                 "worktree": _worktree_facts(main_checkout, repository.value.common_directory, Path(binding["worktree"])),
                 "resumable": {"ok": mismatch is None, "reason": mismatch},
+                "rebindable": _rebind_target(main_checkout, binding),
             }
         )
     return ok(facts)
@@ -177,7 +192,12 @@ def resume_execution(project_root: Path, *, plan_id: str, attempt_id: str) -> Ru
     events = events_result.value
     if events and events[-1]["event_type"] == "implementation_green":
         return failure("execution_finished", "this execution already reached implementation_green")
-    binding = read_json(attempt.binding_path).value
+    binding = execution_model.effective_binding(read_json(attempt.binding_path).value, events)
+    mismatch = _binding_fingerprints_match(attempt.main_checkout, binding)
+    if mismatch is not None:
+        code = "spec_identity_drift" if "spec" in mismatch else "plan_identity_drift"
+        return failure(code, mismatch)
+    events = execution_model.effective_events(events)
     try:
         registered = plan_artifact.read_registered_plan(attempt.main_checkout, binding["plan"]["path"])
         step_ids = [f"step-{step.number}" for step in plan_artifact.read_plan_steps(registered.text)]
@@ -251,11 +271,8 @@ def load_current_attempt(
     if binding["attempt_id"] != attempt_id or binding["plan"]["id"] != plan_id:
         return failure("binding_identity_drift", "binding.json does not describe this execution")
 
-    mismatch = _binding_fingerprints_match(main_checkout, binding)
-    if mismatch is not None:
-        code = "spec_identity_drift" if "spec" in mismatch else "plan_identity_drift"
-        return failure(code, mismatch)
-
+    # Reading an execution never depends on the plan or specs still matching: a revised plan
+    # stops the execution from moving on (context), not from being seen or stopped.
     branch = binding["branch"]
     if run_git(main_checkout, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode != 0:
         return failure("branch_missing", f"execution branch does not exist: {branch}")

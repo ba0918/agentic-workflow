@@ -224,6 +224,25 @@ def publish_text(root: Path, **kwargs):
     return plan_artifact.publish_plan(root, source=draft.path, **kwargs)
 
 
+def revise_fixture_plan(root: Path, plan_id: str, *, extra_step_kind: str = "test", relative_path: str | None = None):
+    """Publish revision 2 of the fixture plan: step 1 kept verbatim, one step appended."""
+    current = plan_artifact.read_registered_plan(root, None)
+    assert current.plan_id == plan_id
+    revised = current.text.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
+    revised += f"\n### {len(plan_artifact.read_plan_steps(current.text)) + 1}. 追加の手順\n\n**Completion:** {extra_step_kind}\n"
+    publish_text(
+        root,
+        plan_id=plan_id,
+        revision=2,
+        relative_path=relative_path or f".agents/artifacts/plans/{plan_id}_fixture-r2.md",
+        text=revised,
+        approved_identity=plan_artifact.content_identity(revised),
+        switch_confirmed=False,
+        worktree_dirty=False,
+    )
+    return plan_artifact.read_registered_plan(root, None)
+
+
 class PlanResolutionTest(unittest.TestCase):
     def test_legacy_plan_format_is_rejected_as_unreadable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -690,21 +709,23 @@ class FreshSessionTest(unittest.TestCase):
                         sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before
                     )
 
-    def test_plan_identity_drift_stops_reconstruction(self) -> None:
+    def test_plan_identity_drift_is_reported_by_context_not_by_load(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory))
             binding = json.loads(attempt.binding_path.read_text(encoding="utf-8"))
             binding["plan"]["content_identity"] = "sha256:" + "0" * 64
             attempt.binding_path.write_text(json.dumps(binding), encoding="utf-8")
 
-            result = implement_runtime.load_current_attempt(
+            loaded = implement_runtime.load_current_attempt(
                 root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
             )
 
-            self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "plan_identity_drift")
+            self.assertTrue(loaded.ok, loaded.error)
+            context = implement_runtime.validate_context(loaded.value, step_id="step-1")
+            self.assertFalse(context.ok)
+            self.assertEqual(context.error.code, "plan_identity_drift")
 
-    def test_context_rejects_spec_drift_and_scope_drift(self) -> None:
+    def test_context_rejects_spec_drift_but_reports_out_of_scope_changes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory))
             spec = attempt.worktree / "docs/spec/feature.md"
@@ -719,8 +740,8 @@ class FreshSessionTest(unittest.TestCase):
 
             scope_result = implement_runtime.validate_context(attempt, step_id="step-1")
 
-            self.assertFalse(scope_result.ok)
-            self.assertEqual(scope_result.error.code, "write_scope_violation")
+            self.assertTrue(scope_result.ok, scope_result.error)
+            self.assertEqual(scope_result.value["out_of_scope_changes"], ["outside.txt"])
 
     def test_unregistered_worktree_path_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -2426,6 +2447,116 @@ class CommandLineTest(unittest.TestCase):
             self.assertEqual(result_code, 0)
             self.assertEqual(result["state"], "implementation_green")
             self.assertFalse((Path(bootstrap["evidence_path"]) / "result.json").exists())
+
+class RevisedPlanTest(unittest.TestCase):
+    def test_a_revised_plan_still_lets_the_execution_be_loaded_and_stopped(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            revise_fixture_plan(root, attempt.plan_id)
+
+            loaded = implement_runtime.load_current_attempt(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+            self.assertIsNone(loaded.error)
+
+            context = implement_runtime.validate_context(loaded.value, step_id="step-1")
+            self.assertEqual(context.error.code, "plan_identity_drift")
+
+            stopped = implement_runtime.append_event(
+                loaded.value, "stopped", {"reason": "plan_revised", "step_id": "step-1"}
+            )
+            self.assertTrue(stopped.ok, stopped.error)
+            self.assertEqual(stopped.value["event_type"], "stopped")
+
+    def test_residual_reports_whether_a_drifted_execution_can_be_rebound(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            revise_fixture_plan(root, attempt.plan_id)
+
+            facts = implement_runtime.residual_executions(root, plan_id=attempt.plan_id).value[0]
+            self.assertFalse(facts["resumable"]["ok"])
+            self.assertTrue(facts["rebindable"]["ok"], facts["rebindable"])
+
+            (root / f".agents/artifacts/plans/{attempt.plan_id}_fixture.md").unlink()
+            facts = implement_runtime.residual_executions(root, plan_id=attempt.plan_id).value[0]
+            self.assertFalse(facts["rebindable"]["ok"])
+            self.assertIn("no longer readable", facts["rebindable"]["reason"])
+
+    def test_context_after_a_rebound_checks_the_revised_plan_and_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            revised = revise_fixture_plan(root, attempt.plan_id)
+            binding = json.loads(attempt.binding_path.read_text(encoding="utf-8"))
+            rebound = implement_runtime.append_event(
+                attempt,
+                "rebound",
+                {
+                    "plan": {
+                        "id": attempt.plan_id,
+                        "path": revised.path,
+                        "revision": 2,
+                        "content_identity": revised.content_identity,
+                    },
+                    "specs": binding["specs"],
+                    "write_scope": ["src"],
+                    "human_gates": [],
+                    "step_map": [
+                        {"step_id": "step-1", "previous_step_id": "step-1", "disposition": "continue"},
+                        {"step_id": "step-2", "previous_step_id": None, "disposition": "new"},
+                    ],
+                    "superseded_steps": [],
+                    "head": git(attempt.worktree, "rev-parse", "HEAD"),
+                    "extra_commits": [],
+                    "uncommitted_changes": False,
+                },
+            )
+            self.assertTrue(rebound.ok, rebound.error)
+
+            context = implement_runtime.validate_context(attempt, step_id="step-2")
+            self.assertTrue(context.ok, context.error)
+            self.assertEqual(context.value["plan"]["revision"], 2)
+            (attempt.worktree / "tests/greeting_test.py").write_text("# changed\n", encoding="utf-8")
+            staged = implement_runtime.stage_paths(attempt, ["tests/greeting_test.py"], step_id="step-1")
+            self.assertFalse(staged.ok)
+            self.assertEqual(staged.error.code, "write_scope_violation")
+
+    def test_a_rebound_uses_the_revised_human_gate_declarations(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), human_gate=True, human_gate_timing="before_edit")
+            revised = revise_fixture_plan(root, attempt.plan_id)
+            binding = json.loads(attempt.binding_path.read_text(encoding="utf-8"))
+            rebound = implement_runtime.append_event(
+                attempt,
+                "rebound",
+                {
+                    "plan": {
+                        "id": attempt.plan_id,
+                        "path": revised.path,
+                        "revision": 2,
+                        "content_identity": revised.content_identity,
+                    },
+                    "specs": binding["specs"],
+                    "write_scope": binding["write_scope"],
+                    "human_gates": [],
+                    "step_map": [
+                        {"step_id": "step-1", "previous_step_id": "step-1", "disposition": "continue"},
+                        {"step_id": "step-2", "previous_step_id": None, "disposition": "new"},
+                    ],
+                    "superseded_steps": [],
+                    "head": git(attempt.worktree, "rev-parse", "HEAD"),
+                    "extra_commits": [],
+                    "uncommitted_changes": False,
+                },
+            )
+            self.assertTrue(rebound.ok, rebound.error)
+
+            result = implement_runtime.record_human_gate(
+                attempt, step_id="step-1", gate_id="approve-greeting", result="approved"
+            )
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "human_gate_undeclared")
+            self.assertTrue(implement_runtime.check_human_gates(attempt, step_id="step-1", timing="before_edit").ok)
+
 
 if __name__ == "__main__":
     unittest.main()
