@@ -27,7 +27,8 @@ def changed_paths(worktree: Path) -> RuntimeResult:
             paths.append(path)
     return ok(tuple(paths))
 
-def validate_context(attempt: Attempt, *, step_id: str) -> RuntimeResult:
+def load_effective_binding(attempt: Attempt) -> RuntimeResult:
+    """The binding as the last rebound left it; the chain must be valid to trust a rebound."""
     binding_result = read_json(attempt.binding_path)
     if not binding_result.ok:
         return binding_result
@@ -37,6 +38,16 @@ def validate_context(attempt: Attempt, *, step_id: str) -> RuntimeResult:
         return failure(validation.error.code, validation.error.message)
     if binding["attempt_id"] != attempt.attempt_id or binding["branch"] != attempt.branch:
         return failure("binding_identity_drift", "attempt and binding disagree")
+    events = load_events(attempt)
+    if not events.ok:
+        return events
+    return ok(execution_model.effective_binding(binding, events.value))
+
+def validate_context(attempt: Attempt, *, step_id: str) -> RuntimeResult:
+    effective = load_effective_binding(attempt)
+    if not effective.ok:
+        return effective
+    binding = effective.value
 
     try:
         registered = plan_artifact.read_registered_plan(
@@ -87,11 +98,14 @@ def validate_context(attempt: Attempt, *, step_id: str) -> RuntimeResult:
     changed = changed_paths(attempt.worktree)
     if not changed.ok:
         return changed
-    for path in changed.value:
-        scope = execution_model.validate_write_path(path, binding["write_scope"])
-        if not scope.ok:
-            return failure(scope.error.code, scope.error.message, path)
-    return ok(binding)
+    # Changes outside the write scope are a fact for the human, never a stop: the staging
+    # boundary keeps them out of commits and the terminal check lists them for approval.
+    out_of_scope = [
+        path
+        for path in changed.value
+        if not execution_model.validate_write_path(path, binding["write_scope"]).ok
+    ]
+    return ok(dict(binding, out_of_scope_changes=sorted(out_of_scope)))
 
 def load_events(attempt: Attempt) -> RuntimeResult:
     events: list[dict] = []
@@ -127,14 +141,17 @@ def append_event(
     previous = next((event for event in events if event["sequence"] == next_sequence - 1), None)
     if next_sequence == 1:
         previous = None
+    # A rebound carries the identities it moves the chain onto; every other event carries the
+    # identities the chain currently stands on.
+    identities = details if event_type == "rebound" else execution_model.effective_binding(binding, events)
     candidate = {
         "version": 1,
         "sequence": next_sequence,
         "event_type": event_type,
         "attempt_id": attempt.attempt_id,
-        "plan_identity": binding["plan"]["content_identity"],
+        "plan_identity": identities["plan"]["content_identity"],
         "spec_identities": {
-            item["path"]: item["content_identity"] for item in binding["specs"]
+            item["path"]: item["content_identity"] for item in identities["specs"]
         },
         "previous_identity": previous["content_identity"] if previous is not None else None,
         **details,

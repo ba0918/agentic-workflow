@@ -39,12 +39,22 @@ def git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+PASSING_CHECK = "python3 -c pass"
+FAILING_CHECK = "python3 -c \"import sys; sys.exit(3)\""
+
+
+def declared_checks(commands: tuple[str, ...]) -> str:
+    """The **Checks:** declaration a check step needs, written as the plan specification writes it."""
+    return "\n**Checks:**\n\n" + "".join(f"- `{command}`\n" for command in commands)
+
+
 def create_repository(
     parent: Path,
     *,
     human_gate: bool = False,
     human_gate_timing: str = "before_implementation_green",
     step_kinds: tuple[str, ...] = ("test",),
+    check_commands: tuple[str, ...] = (PASSING_CHECK,),
 ) -> tuple[Path, str, str]:
     root = parent / "repository"
     root.mkdir()
@@ -115,6 +125,7 @@ docs/
 {gate_declaration}
 """ + "".join(
         f"\n### {number}. 手順 {number}\n\n**Completion:** {kind}\n"
+        + (declared_checks(check_commands) if kind == "check" else "")
         for number, kind in enumerate(step_kinds[1:], start=2)
     )
     publish_text(
@@ -125,7 +136,6 @@ docs/
         text=plan_text,
         approved_identity=plan_artifact.content_identity(plan_text),
         switch_confirmed=False,
-        worktree_dirty=False,
     )
     return root, plan_id, spec_identity
 
@@ -136,12 +146,14 @@ def bootstrap_fixture(
     human_gate: bool = False,
     human_gate_timing: str = "before_implementation_green",
     step_kinds: tuple[str, ...] = ("test",),
+    check_commands: tuple[str, ...] = (PASSING_CHECK,),
 ):
     root, _, _ = create_repository(
         parent,
         human_gate=human_gate,
         human_gate_timing=human_gate_timing,
         step_kinds=step_kinds,
+        check_commands=check_commands,
     )
     resolved = implement_runtime.resolve_plan(root).value
     result = implement_runtime.bootstrap_attempt(
@@ -222,6 +234,24 @@ def publish_text(root: Path, **kwargs):
     slug = f"draft-{next(_DRAFT_SEQUENCE)}"
     draft = plan_artifact.save_draft(root, plan_id=plan_id, revision=revision, slug=slug, text=text)
     return plan_artifact.publish_plan(root, source=draft.path, **kwargs)
+
+
+def revise_fixture_plan(root: Path, plan_id: str, *, extra_step_kind: str = "test", relative_path: str | None = None):
+    """Publish revision 2 of the fixture plan: step 1 kept verbatim, one step appended."""
+    current = plan_artifact.read_registered_plan(root, None)
+    assert current.plan_id == plan_id
+    revised = current.text.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
+    revised += f"\n### {len(plan_artifact.read_plan_steps(current.text)) + 1}. 追加の手順\n\n**Completion:** {extra_step_kind}\n"
+    publish_text(
+        root,
+        plan_id=plan_id,
+        revision=2,
+        relative_path=relative_path or f".agents/artifacts/plans/{plan_id}_fixture-r2.md",
+        text=revised,
+        approved_identity=plan_artifact.content_identity(revised),
+        switch_confirmed=False,
+    )
+    return plan_artifact.read_registered_plan(root, None)
 
 
 class PlanResolutionTest(unittest.TestCase):
@@ -690,21 +720,23 @@ class FreshSessionTest(unittest.TestCase):
                         sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before
                     )
 
-    def test_plan_identity_drift_stops_reconstruction(self) -> None:
+    def test_plan_identity_drift_is_reported_by_context_not_by_load(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory))
             binding = json.loads(attempt.binding_path.read_text(encoding="utf-8"))
             binding["plan"]["content_identity"] = "sha256:" + "0" * 64
             attempt.binding_path.write_text(json.dumps(binding), encoding="utf-8")
 
-            result = implement_runtime.load_current_attempt(
+            loaded = implement_runtime.load_current_attempt(
                 root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
             )
 
-            self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "plan_identity_drift")
+            self.assertTrue(loaded.ok, loaded.error)
+            context = implement_runtime.validate_context(loaded.value, step_id="step-1")
+            self.assertFalse(context.ok)
+            self.assertEqual(context.error.code, "plan_identity_drift")
 
-    def test_context_rejects_spec_drift_and_scope_drift(self) -> None:
+    def test_context_rejects_spec_drift_but_reports_out_of_scope_changes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory))
             spec = attempt.worktree / "docs/spec/feature.md"
@@ -719,8 +751,8 @@ class FreshSessionTest(unittest.TestCase):
 
             scope_result = implement_runtime.validate_context(attempt, step_id="step-1")
 
-            self.assertFalse(scope_result.ok)
-            self.assertEqual(scope_result.error.code, "write_scope_violation")
+            self.assertTrue(scope_result.ok, scope_result.error)
+            self.assertEqual(scope_result.value["out_of_scope_changes"], ["outside.txt"])
 
     def test_unregistered_worktree_path_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1439,7 +1471,7 @@ class EventPersistenceTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "step_evidence_missing")
 
-    def test_implementation_green_rejects_post_verification_dirtiness(self) -> None:
+    def test_implementation_green_rejects_in_scope_post_verification_dirtiness(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
             candidate = red_oracle(
@@ -1703,7 +1735,7 @@ FAILED (failures=1, errors=1, skipped=1)
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "oracle_identity_drift")
 
-    def test_changed_frozen_test_target_is_rejected_before_green(self) -> None:
+    def test_a_changed_frozen_test_target_keeps_green_from_passing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
             candidate = red_oracle(
@@ -1760,6 +1792,132 @@ FAILED (failures=1, errors=1, skipped=1)
                 "permission_required",
                 "red",
             ])
+
+
+class FreezeRedoTest(unittest.TestCase):
+    """The freeze forbids weakening a test into GREEN, not changing one's mind about the test."""
+
+    @staticmethod
+    def _drifted(attempt) -> None:
+        (attempt.worktree / "tests/greeting_test.py").write_text(
+            "# the behavior needs a different test\n", encoding="utf-8"
+        )
+
+    def test_a_changed_frozen_test_target_does_not_stop_the_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+            self._drifted(attempt)
+
+            result = implement_runtime.run_frozen_oracle(attempt, "step-1", "green")
+
+            self.assertEqual(result.error.code, "test_identity_drift")
+            recorded = [event["event_type"] for event in implement_runtime._load_events(attempt).value]
+            self.assertNotIn("stopped", recorded)
+
+    def test_a_new_red_in_the_same_step_becomes_the_freeze_green_answers_to(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+            self._drifted(attempt)
+            self.assertFalse(implement_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+
+            again = implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND))
+
+            self.assertTrue(again.ok, again.error)
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True, exist_ok=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            green = implement_runtime.run_frozen_oracle(attempt, "step-1", "green")
+            self.assertTrue(green.ok, green.error)
+
+    def test_the_red_the_new_freeze_replaced_stays_in_the_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+            self._drifted(attempt)
+
+            again = implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND))
+
+            self.assertTrue(again.ok, again.error)
+            recorded = [event["event_type"] for event in implement_runtime._load_events(attempt).value]
+            self.assertEqual(recorded, ["worktree-bound", "red", "red"])
+
+    def test_a_redone_red_that_fails_for_another_reason_still_stops(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+            self._drifted(attempt)
+
+            result = implement_runtime.accept_red(
+                attempt, red_oracle(["python3", "-c", "print('greeting missing')"])
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "unintended_red")
+            recorded = [event["event_type"] for event in implement_runtime._load_events(attempt).value]
+            self.assertIn("stopped", recorded)
+
+
+class CheckStepCommitBoundaryTest(unittest.TestCase):
+    """A check step is decided by its commands, so the commit boundary asks for no verdict."""
+
+    @staticmethod
+    def _prepare(directory: str, *, recorded: bool = True):
+        root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "check"))
+        complete_step_one(attempt)
+        target = attempt.worktree / "docs/guide.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("配布の複製についての手引き\n", encoding="utf-8")
+        if recorded:
+            assert implement_runtime.record_check(attempt, step_id="step-2").ok
+        return attempt
+
+    def test_a_check_step_stages_without_a_human_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            attempt = self._prepare(directory)
+
+            result = implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-2")
+
+            self.assertTrue(result.ok, result.error)
+
+    def test_a_check_step_that_recorded_no_check_cannot_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            attempt = self._prepare(directory, recorded=False)
+
+            result = implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-2")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "check_missing")
+
+    def test_a_check_step_records_its_commit_without_a_human_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            attempt = self._prepare(directory)
+            self.assertTrue(implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-2").ok)
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+            git(attempt.worktree, "commit", "-m", "docs: add the guide")
+
+            result = implement_runtime.record_commit(attempt, "step-2", previous_head)
+
+            self.assertTrue(result.ok, result.error)
+
+    def test_an_artifact_step_still_needs_an_approved_verdict_to_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "artifact"))
+            complete_step_one(attempt)
+            target = attempt.worktree / "docs/guide.md"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("手引き\n", encoding="utf-8")
+            self.assertTrue(
+                implement_runtime.record_artifact(
+                    attempt, step_id="step-2", paths=["docs/guide.md"], checks=[]
+                ).ok
+            )
+
+            result = implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-2")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "approval_missing")
 
 
 class CommitBoundaryTest(unittest.TestCase):
@@ -1850,7 +2008,7 @@ class CommitBoundaryTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertIn(result.error.code, {"commit_range_invalid", "write_scope_violation"})
 
-    def test_terminal_rejects_a_hidden_commit_accepted_as_the_previous_head(self) -> None:
+    def test_terminal_lists_a_hidden_commit_accepted_as_the_previous_head_for_approval(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
             self.prepare_green_change(attempt)
@@ -1869,7 +2027,10 @@ class CommitBoundaryTest(unittest.TestCase):
             result = implement_runtime.mark_implementation_green(attempt)
 
             self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "commit_history_mismatch")
+            self.assertEqual(result.error.code, "history_approval_required")
+            approved = implement_runtime.cli.approve_history(attempt)
+            self.assertEqual(approved.value["unexplained_commits"], [hidden_head])
+            self.assertTrue(implement_runtime.mark_implementation_green(attempt).ok)
 
     def test_post_commit_dirty_state_is_rejected_without_an_event(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -2426,6 +2587,426 @@ class CommandLineTest(unittest.TestCase):
             self.assertEqual(result_code, 0)
             self.assertEqual(result["state"], "implementation_green")
             self.assertFalse((Path(bootstrap["evidence_path"]) / "result.json").exists())
+
+class RevisedPlanTest(unittest.TestCase):
+    def test_a_revised_plan_still_lets_the_execution_be_loaded_and_stopped(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            revise_fixture_plan(root, attempt.plan_id)
+
+            loaded = implement_runtime.load_current_attempt(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+            self.assertIsNone(loaded.error)
+
+            context = implement_runtime.validate_context(loaded.value, step_id="step-1")
+            self.assertEqual(context.error.code, "plan_identity_drift")
+
+            stopped = implement_runtime.append_event(
+                loaded.value, "stopped", {"reason": "plan_revised", "step_id": "step-1"}
+            )
+            self.assertTrue(stopped.ok, stopped.error)
+            self.assertEqual(stopped.value["event_type"], "stopped")
+
+    def test_residual_reports_whether_a_drifted_execution_can_be_rebound(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            revise_fixture_plan(root, attempt.plan_id)
+
+            facts = implement_runtime.residual_executions(root, plan_id=attempt.plan_id).value[0]
+            self.assertFalse(facts["resumable"]["ok"])
+            self.assertTrue(facts["rebindable"]["ok"], facts["rebindable"])
+
+            (root / f".agents/artifacts/plans/{attempt.plan_id}_fixture.md").unlink()
+            facts = implement_runtime.residual_executions(root, plan_id=attempt.plan_id).value[0]
+            self.assertFalse(facts["rebindable"]["ok"])
+            self.assertIn("no longer readable", facts["rebindable"]["reason"])
+
+    def test_context_after_a_rebound_checks_the_revised_plan_and_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            revised = revise_fixture_plan(root, attempt.plan_id)
+            binding = json.loads(attempt.binding_path.read_text(encoding="utf-8"))
+            rebound = implement_runtime.append_event(
+                attempt,
+                "rebound",
+                {
+                    "plan": {
+                        "id": attempt.plan_id,
+                        "path": revised.path,
+                        "revision": 2,
+                        "content_identity": revised.content_identity,
+                    },
+                    "specs": binding["specs"],
+                    "write_scope": ["src"],
+                    "human_gates": [],
+                    "step_map": [
+                        {"step_id": "step-1", "previous_step_id": "step-1", "disposition": "continue"},
+                        {"step_id": "step-2", "previous_step_id": None, "disposition": "new"},
+                    ],
+                    "superseded_steps": [],
+                    "head": git(attempt.worktree, "rev-parse", "HEAD"),
+                    "extra_commits": [],
+                    "uncommitted_changes": False,
+                },
+            )
+            self.assertTrue(rebound.ok, rebound.error)
+
+            context = implement_runtime.validate_context(attempt, step_id="step-2")
+            self.assertTrue(context.ok, context.error)
+            self.assertEqual(context.value["plan"]["revision"], 2)
+            (attempt.worktree / "tests/greeting_test.py").write_text("# changed\n", encoding="utf-8")
+            staged = implement_runtime.stage_paths(attempt, ["tests/greeting_test.py"], step_id="step-1")
+            self.assertFalse(staged.ok)
+            self.assertEqual(staged.error.code, "write_scope_violation")
+
+    def test_a_rebound_uses_the_revised_human_gate_declarations(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), human_gate=True, human_gate_timing="before_edit")
+            revised = revise_fixture_plan(root, attempt.plan_id)
+            binding = json.loads(attempt.binding_path.read_text(encoding="utf-8"))
+            rebound = implement_runtime.append_event(
+                attempt,
+                "rebound",
+                {
+                    "plan": {
+                        "id": attempt.plan_id,
+                        "path": revised.path,
+                        "revision": 2,
+                        "content_identity": revised.content_identity,
+                    },
+                    "specs": binding["specs"],
+                    "write_scope": binding["write_scope"],
+                    "human_gates": [],
+                    "step_map": [
+                        {"step_id": "step-1", "previous_step_id": "step-1", "disposition": "continue"},
+                        {"step_id": "step-2", "previous_step_id": None, "disposition": "new"},
+                    ],
+                    "superseded_steps": [],
+                    "head": git(attempt.worktree, "rev-parse", "HEAD"),
+                    "extra_commits": [],
+                    "uncommitted_changes": False,
+                },
+            )
+            self.assertTrue(rebound.ok, rebound.error)
+
+            result = implement_runtime.record_human_gate(
+                attempt, step_id="step-1", gate_id="approve-greeting", result="approved"
+            )
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "human_gate_undeclared")
+            self.assertTrue(implement_runtime.check_human_gates(attempt, step_id="step-1", timing="before_edit").ok)
+
+
+class CheckStepTest(unittest.TestCase):
+    @staticmethod
+    def _change_a_file_in_scope(attempt) -> str:
+        target = attempt.worktree / "docs/guide.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("配布の複製についての手引き\n", encoding="utf-8")
+        return "docs/guide.md"
+
+    def test_a_check_step_runs_the_commands_the_plan_declared(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "check"))
+            complete_step_one(attempt)
+            changed = self._change_a_file_in_scope(attempt)
+
+            result = implement_runtime.record_check(attempt, step_id="step-2")
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(
+                [check["command"] for check in result.value["checks"]],
+                [["python3", "-c", "pass"]],
+            )
+            self.assertEqual([entry["path"] for entry in result.value["files"]], [changed])
+
+    def test_a_check_step_records_nothing_when_a_declared_command_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(
+                Path(directory), step_kinds=("test", "check"), check_commands=(FAILING_CHECK,)
+            )
+            complete_step_one(attempt)
+            before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
+
+            result = implement_runtime.record_check(attempt, step_id="step-2")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "check_failed")
+            self.assertEqual(sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before)
+
+    def test_a_check_step_refuses_a_human_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "check"))
+            complete_step_one(attempt)
+            self._change_a_file_in_scope(attempt)
+            self.assertTrue(implement_runtime.record_check(attempt, step_id="step-2").ok)
+
+            result = implement_runtime.record_approval(attempt, step_id="step-2", result="approved")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "completion_kind_mismatch")
+
+    def test_a_step_only_the_revised_plan_has_can_record_its_check(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test",))
+            complete_step_one(attempt)
+            append_check_step(root, attempt.plan_id)
+            self.assertTrue(
+                implement_runtime.resume.rebind_execution(
+                    root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+                ).ok
+            )
+            self._change_a_file_in_scope(attempt)
+
+            result = implement_runtime.record_check(attempt, step_id="step-2")
+
+            self.assertTrue(result.ok, result.error)
+
+
+def append_check_step(root: Path, plan_id: str):
+    """Revision 2 of a one-step fixture: a check step the first revision does not have."""
+    current = plan_artifact.read_registered_plan(root, None)
+    revised = current.text.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
+    revised += "\n### 2. 複製を作り直す\n\n**Completion:** check\n" + declared_checks((PASSING_CHECK,))
+    publish_text(
+        root,
+        plan_id=plan_id,
+        revision=2,
+        relative_path=f".agents/artifacts/plans/{plan_id}_fixture-r2.md",
+        text=revised,
+        approved_identity=plan_artifact.content_identity(revised),
+        switch_confirmed=False,
+    )
+    return plan_artifact.read_registered_plan(root, None)
+
+
+def revise_three_step_plan(root: Path, plan_id: str):
+    """Revision 2 of a three-step fixture: step 2 reworded, a step inserted, old step 3 kept, one appended."""
+    current = plan_artifact.read_registered_plan(root, None)
+    revised = current.text.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
+    revised = revised.replace(
+        "### 2. 手順 2\n\n**Completion:** test\n",
+        "### 2. 手順 2（書き直した）\n\n**Completion:** test\n\n### 3. 挿入した手順\n\n**Completion:** test\n",
+    )
+    revised = revised.replace("### 3. 手順 3\n", "### 4. 手順 3\n")
+    revised += "\n### 5. 新しい手順\n\n**Completion:** test\n"
+    publish_text(
+        root,
+        plan_id=plan_id,
+        revision=2,
+        relative_path=f".agents/artifacts/plans/{plan_id}_fixture-r2.md",
+        text=revised,
+        approved_identity=plan_artifact.content_identity(revised),
+        switch_confirmed=False,
+    )
+    return plan_artifact.read_registered_plan(root, None)
+
+
+class RebindTest(unittest.TestCase):
+    def test_rebind_preview_matches_steps_by_their_text_not_their_number(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            complete_step_one(attempt)
+            revise_three_step_plan(root, attempt.plan_id)
+            preview = getattr(implement_runtime.resume, "rebind_preview", None)
+            self.assertIsNotNone(preview)
+
+            result = preview(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id)
+
+            self.assertTrue(result.ok, result.error)
+            table = result.value
+            self.assertEqual(
+                [(row["step_id"], row["disposition"], row["previous_step_id"]) for row in table["step_map"]],
+                [
+                    ("step-1", "carry", "step-1"),
+                    ("step-2", "new", None),
+                    ("step-3", "new", None),
+                    ("step-4", "continue", "step-3"),
+                    ("step-5", "new", None),
+                ],
+            )
+            self.assertEqual(table["superseded_steps"], ["step-2"])
+            self.assertEqual(table["next_step"], "step-2")
+            self.assertEqual(table["plan"]["revision"], 2)
+
+    def test_rebind_preview_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            revise_three_step_plan(root, attempt.plan_id)
+            before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
+
+            self.assertTrue(implement_runtime.resume.rebind_preview(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id).ok)
+
+            self.assertEqual(sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before)
+
+    def test_rebind_records_the_rebound_event_and_continues_from_the_first_uncarried_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            complete_step_one(attempt)
+            (attempt.worktree / "notes.md").write_text("outside the evidence\n", encoding="utf-8")
+            git(attempt.worktree, "add", "notes.md")
+            git(attempt.worktree, "commit", "-m", "chore: unrecorded note")
+            unrecorded = git(attempt.worktree, "rev-parse", "HEAD")
+            revised = revise_three_step_plan(root, attempt.plan_id)
+
+            result = implement_runtime.resume.rebind_execution(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value["next_step"], "step-2")
+            self.assertFalse(result.value["redo"])
+            events = implement_runtime._load_events(attempt).value
+            self.assertEqual(events[-1]["event_type"], "rebound")
+            self.assertEqual(events[-1]["plan"]["content_identity"], revised.content_identity)
+            self.assertEqual(events[-1]["extra_commits"], [unrecorded])
+            effective = implement_runtime.execution_model.effective_events(events)
+            self.assertTrue(implement_runtime.execution_model.validate_step_evidence(effective, "step-1", "test").ok)
+            context = implement_runtime.validate_context(attempt, step_id="step-4")
+            self.assertTrue(context.ok, context.error)
+            self.assertEqual(context.value["plan"]["revision"], 2)
+            facts = implement_runtime.residual_executions(root, plan_id=attempt.plan_id).value[0]
+            self.assertTrue(facts["resumable"]["ok"], facts["resumable"])
+            self.assertEqual([commit["sha"] for commit in facts["branch"]["extra_commits"]], [unrecorded])
+
+    def test_rebind_refuses_another_plan_and_a_missing_previous_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            other_text = plan_artifact.read_registered_plan(root, None).text.replace("20260822150000", "20260822150001")
+            publish_text(
+                root,
+                plan_id="20260822150001",
+                revision=1,
+                relative_path=".agents/artifacts/plans/20260822150001_other.md",
+                text=other_text,
+                approved_identity=plan_artifact.content_identity(other_text),
+                switch_confirmed=True,
+            )
+            before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
+
+            other = implement_runtime.resume.rebind_execution(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id)
+            self.assertFalse(other.ok)
+            self.assertEqual(other.error.code, "rebind_target_invalid")
+
+            unregistered = implement_runtime.resume.rebind_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/nowhere.md"
+            )
+            self.assertFalse(unregistered.ok)
+            self.assertEqual(unregistered.error.code, "rebind_target_invalid")
+
+            (root / f".agents/artifacts/plans/{attempt.plan_id}_fixture.md").unlink()
+            missing = implement_runtime.resume.rebind_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/20260822150001_other.md"
+            )
+            self.assertFalse(missing.ok)
+            self.assertEqual(sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before)
+
+    def test_rebind_command_prints_the_table_and_records_only_with_confirm(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            revise_three_step_plan(root, attempt.plan_id)
+            common = ["rebind", "--repo", str(root), "--plan-id", attempt.plan_id, "--execution-id", attempt.attempt_id]
+
+            with contextlib.redirect_stdout(io.StringIO()) as preview:
+                self.assertEqual(implement_runtime.main(common), 0)
+            self.assertIn("step_map", json.loads(preview.getvalue()))
+            self.assertEqual(len(list(attempt.evidence_path.glob("0*.json"))), 1)
+
+            with contextlib.redirect_stdout(io.StringIO()) as recorded:
+                self.assertEqual(implement_runtime.main(common + ["--confirm"]), 0)
+            self.assertEqual(json.loads(recorded.getvalue())["next_step"], "step-1")
+            self.assertEqual(len(list(attempt.evidence_path.glob("0*.json"))), 2)
+
+
+def commit_outside_the_evidence(attempt, name: str = "notes.md") -> str:
+    (attempt.worktree / name).write_text("outside the evidence\n", encoding="utf-8")
+    git(attempt.worktree, "add", name)
+    git(attempt.worktree, "commit", "-m", f"chore: unrecorded {name}")
+    return git(attempt.worktree, "rev-parse", "HEAD")
+
+
+class HistoryApprovalTest(unittest.TestCase):
+    def test_terminal_lists_an_unexplained_commit_and_waits_for_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            complete_step_one(attempt)
+            commit_outside_the_evidence(attempt)
+
+            result = implement_runtime.mark_implementation_green(attempt)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "history_approval_required")
+            events = implement_runtime._load_events(attempt).value
+            self.assertEqual(events[-1]["event_type"], "commit")
+
+    def test_history_approval_lets_the_terminal_finish_with_every_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            recorded = complete_step_one(attempt)
+            unrecorded = commit_outside_the_evidence(attempt)
+
+            approved = implement_runtime.cli.approve_history(attempt, reason="前セッションのメモ")
+            self.assertTrue(approved.ok, approved.error)
+            self.assertEqual(approved.value["event_type"], "history_approved")
+            self.assertEqual(approved.value["unexplained_commits"], [unrecorded])
+            self.assertEqual(approved.value["out_of_scope_paths"], ["notes.md"])
+            self.assertEqual(approved.value["reason"], "前セッションのメモ")
+
+            terminal = implement_runtime.mark_implementation_green(attempt)
+            self.assertTrue(terminal.ok, terminal.error)
+            self.assertEqual(terminal.value["commits"], [recorded, unrecorded])
+
+    def test_a_history_approval_is_not_reused_after_the_history_changed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            complete_step_one(attempt)
+            commit_outside_the_evidence(attempt)
+            self.assertTrue(implement_runtime.cli.approve_history(attempt).ok)
+            commit_outside_the_evidence(attempt, "more.md")
+
+            result = implement_runtime.mark_implementation_green(attempt)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "history_approval_required")
+
+    def test_out_of_scope_uncommitted_changes_are_listed_not_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            complete_step_one(attempt)
+            (attempt.worktree / "outside.txt").write_text("outside\n", encoding="utf-8")
+
+            result = implement_runtime.mark_implementation_green(attempt)
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "history_approval_required")
+
+            approved = implement_runtime.cli.approve_history(attempt)
+            self.assertTrue(approved.ok, approved.error)
+            self.assertEqual(approved.value["uncommitted_out_of_scope"], ["outside.txt"])
+            self.assertTrue(implement_runtime.mark_implementation_green(attempt).ok)
+
+    def test_nothing_to_approve_is_refused_and_a_clean_history_needs_no_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            complete_step_one(attempt)
+
+            refused = implement_runtime.cli.approve_history(attempt)
+            self.assertFalse(refused.ok)
+            self.assertEqual(refused.error.code, "history_approval_unnecessary")
+            self.assertTrue(implement_runtime.mark_implementation_green(attempt).ok)
+
+    def test_approve_history_command_records_the_event(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            complete_step_one(attempt)
+            commit_outside_the_evidence(attempt)
+
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                exit_code = implement_runtime.main(
+                    ["approve-history", "--repo", str(root), "--reason", "意図した直し"]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(json.loads(output.getvalue())["event_type"], "history_approved")
+
 
 if __name__ == "__main__":
     unittest.main()

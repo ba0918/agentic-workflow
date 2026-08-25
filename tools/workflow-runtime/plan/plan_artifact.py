@@ -24,7 +24,8 @@ DRAFT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 INDEX_NAME = "open-plans.json"
 HUMAN_GATE_TIMINGS = {"before_edit", "before_commit", "before_implementation_green"}
 HUMAN_GATE_RESULTS = ("approved", "rejected")
-COMPLETION_KINDS = ("test", "artifact", "external")
+COMPLETION_KINDS = ("test", "check", "artifact", "external")
+CHECK_COMMAND = re.compile(r"^[-*]\s+`([^`]+)`$")
 TREE_ENTRY = re.compile(r"[^\s/#][^\s]*")
 
 
@@ -38,10 +39,6 @@ class IdentityMismatch(PlanArtifactError):
 
 class CurrentPlanConflict(PlanArtifactError):
     """Publishing would silently replace the current plan."""
-
-
-class DirtyWorktree(PlanArtifactError):
-    """A dirty worktree prevents a safe current-plan switch."""
 
 
 class UnsafePlanPath(PlanArtifactError):
@@ -107,6 +104,7 @@ class PlanStep(NamedTuple):
     title: str
     completion_kind: str
     text: str
+    checks: tuple[str, ...]
 
 
 class HumanGateTarget(NamedTuple):
@@ -212,6 +210,27 @@ def read_plan_scope(text: str) -> tuple[str, ...]:
     return tuple(paths)
 
 
+def _step_check_commands(step_text: str, number: int) -> tuple[str, ...]:
+    """The commands a step declares under **Checks:**, in the order they are written."""
+    markers = list(re.finditer(r"^\*\*Checks:\*\*[ \t]*$", step_text, re.MULTILINE))
+    if not markers:
+        return ()
+    if len(markers) > 1:
+        raise InvalidPlanFormat(f"step {number} declares its checks more than once")
+    commands: list[str] = []
+    for line in step_text[markers[0].end() :].splitlines():
+        stripped = line.strip()
+        if not stripped:
+            if commands:
+                break
+            continue
+        match = CHECK_COMMAND.fullmatch(stripped)
+        if match is None:
+            break
+        commands.append(match.group(1).strip())
+    return tuple(commands)
+
+
 def read_plan_steps(text: str) -> tuple[PlanStep, ...]:
     body = _section_body(text, "Steps")
     matches = list(re.finditer(r"^### ([0-9]+)\. ?([^\n]*)$", body, re.MULTILINE))
@@ -231,7 +250,12 @@ def read_plan_steps(text: str) -> tuple[PlanStep, ...]:
             raise InvalidPlanFormat(
                 f"step {number} completion kind must be one of {', '.join(COMPLETION_KINDS)}: {kinds[0]}"
             )
-        steps.append(PlanStep(number, match.group(2).strip(), kinds[0], step_text))
+        checks = _step_check_commands(step_text, number)
+        if kinds[0] == "check" and not checks:
+            raise InvalidPlanFormat(f"step {number} is shown by check and declares no check command")
+        if kinds[0] != "check" and checks:
+            raise InvalidPlanFormat(f"step {number} declares check commands but is not shown by check")
+        steps.append(PlanStep(number, match.group(2).strip(), kinds[0], step_text, checks))
     return tuple(steps)
 
 
@@ -577,7 +601,6 @@ def publish_plan(
     source: Path,
     approved_identity: str,
     switch_confirmed: bool,
-    worktree_dirty: bool,
 ) -> Path:
     _validate_plan_identity(plan_id, revision)
     draft = _approved_draft(project_root, source)
@@ -604,8 +627,6 @@ def publish_plan(
     if existing is None and current is not None and current != plan_id:
         if not switch_confirmed:
             raise CurrentPlanConflict("switching the current plan requires human confirmation")
-        if worktree_dirty:
-            raise DirtyWorktree("a dirty worktree must be isolated before switching plans")
         for item in index["plans"]:
             if item["id"] == current:
                 item["state"] = "held"
@@ -657,7 +678,6 @@ def main(argv: list[str] | None = None) -> int:
     publish.add_argument("--source", required=True)
     publish.add_argument("--approved-identity", required=True)
     publish.add_argument("--switch-confirmed", action="store_true")
-    publish.add_argument("--worktree-dirty", action="store_true")
     args = parser.parse_args(argv)
     try:
         return _run(args)
@@ -699,7 +719,6 @@ def _run(args: argparse.Namespace) -> int:
         source=Path(args.source),
         approved_identity=args.approved_identity,
         switch_confirmed=args.switch_confirmed,
-        worktree_dirty=args.worktree_dirty,
     )
     print(published)
     return 0

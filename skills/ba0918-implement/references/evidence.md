@@ -16,22 +16,40 @@ do not create anything under `.agents/runtime/`: there is no repository-wide mar
 `binding.json` is immutable. It binds the execution, registered plan, spec identities,
 repository, base HEAD, branch, worktree path, write scope, and safe executor provenance before
 the worktree exists. It is the only thing a fresh session needs, together with the event files,
-to reconstruct the execution.
+to reconstruct the execution. When the human rebinds the execution to a revised plan, the
+`binding.json` bytes stay as they are: the *effective binding* is `binding.json` with the plan,
+specs, write scope, and human gates of the last `rebound` event laid over it, and every check
+uses the effective binding.
 
 Events are one atomic file per sequence. Each carries the execution, plan and spec identities,
 previous-event identity, and its own content identity. Event types are `worktree-bound`, `red`,
-`green`, `refactor`, `artifact`, `external`, `approval`, `commit`, `human_gate`, `resumed`,
-`permission_required`, `stopped`, and `implementation_green`. Existing files are never
-overwritten.
+`green`, `refactor`, `check`, `artifact`, `external`, `approval`, `commit`, `human_gate`, `resumed`,
+`rebound`, `history_approved`, `permission_required`, `stopped`, and `implementation_green`.
+Existing files are never overwritten.
 
-`artifact` holds the files a step produced (path and content identity) and the format checks it
-ran (command and exit code); `external` holds what was checked and a short result. `approval` is
+A `rebound` event is the one event allowed to change the plan and spec identities the chain
+carries: it holds the revised plan (id, path, revision, identity), the spec identities, write
+scope and human gates of that revision, the step map (for each revised step, the previous step it
+matches and `carry` / `continue` / `new`), the superseded previous steps, the branch head, the
+extra commits, and whether uncommitted changes existed. Every later event carries the revised
+identities. Reading the chain through the last rebound renumbers the evidence of carried steps
+and drops the evidence of superseded ones; the files themselves are untouched.
+
+A `history_approved` event holds the listing the human approved at the terminal — commits no
+event explains, history paths outside the write scope, uncommitted changes outside it — and an
+optional bounded reason. It is valid only while that listing is unchanged.
+
+`check` holds the commands the plan named with their exit codes — all of them successful, or the
+event is not written — and every in-scope file that changed, with its content identity. It carries
+no verdict: a check step has none. `artifact` holds the files a step produced (path and content
+identity) and the format checks it ran (command and exit code); `external` holds what was checked
+and a short result. `approval` is
 the human's verdict on the newest of those, bound to that event's identity. It is not a
 `human_gate`: a `human_gate` records a decision the plan declared under `**Human gates:**`, while
 an `approval` is required for every `artifact` and `external` step whether or not the plan
-declares anything. `stopped` ends the chain except
-for one `resumed` event, which the human's choice to continue appends; after it the chain goes
-on as usual.
+declares anything. `stopped` ends the chain except for one `resumed` event (the human chose to
+continue) or one `rebound` event (the human chose to rebind); after it the chain goes on as
+usual. Only `implementation_green` is final.
 
 The event count is an observation for later plan-granularity analysis. It is never a hard limit,
 scope verdict, or stop oracle.

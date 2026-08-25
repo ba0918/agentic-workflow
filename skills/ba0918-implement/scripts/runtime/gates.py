@@ -3,8 +3,7 @@ from runtime.tdd import test_target_snapshot
 
 from runtime.deps import execution_model
 from runtime.types import RuntimeFailure, RuntimeResult, Attempt, ok, failure
-from runtime.storage import read_json
-from runtime.context import append_event, load_events, stop_attempt
+from runtime.context import append_event, load_effective_binding, load_events, stop_attempt
 
 
 def _human_gate_target_identities(
@@ -32,12 +31,9 @@ def _human_gate_target_identities(
     return ok(identities)
 
 def check_human_gates(attempt: Attempt, *, step_id: str, timing: str) -> RuntimeResult:
-    binding_result = read_json(attempt.binding_path)
+    binding_result = load_effective_binding(attempt)
     if not binding_result.ok:
         return binding_result
-    binding_validation = execution_model.validate_binding(binding_result.value)
-    if not binding_validation.ok:
-        return failure(binding_validation.error.code, binding_validation.error.message)
     if timing not in execution_model.HUMAN_GATE_TIMINGS:
         return failure("human_gate_timing_invalid", "human gate timing is invalid")
     events = load_events(attempt)
@@ -69,13 +65,10 @@ def record_human_gate(
     gate_id: str,
     result: str,
 ) -> RuntimeResult:
-    binding_result = read_json(attempt.binding_path)
+    binding_result = load_effective_binding(attempt)
     if not binding_result.ok:
         return binding_result
     binding = binding_result.value
-    validation = execution_model.validate_binding(binding)
-    if not validation.ok:
-        return failure(validation.error.code, validation.error.message)
     declaration = next(
         (
             gate

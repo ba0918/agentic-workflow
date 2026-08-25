@@ -29,24 +29,24 @@
     "ba0918-implement": {
       "scripts/execution_model.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:933d515d152f03337e6439a7e9e749435750b3f63a5e856d0520cb8b87e38d36",
+        "digest": "sha256:9e85b6a0e3e01a20ef5c2ee3405734496bc57c64519fa179bab81981a1f613d0",
         "src": "tools/workflow-runtime/implement/execution_model.py"
       },
       "scripts/implement_runtime.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:8d83285cb6939c9286a0e60636aaf69c1fab41e424e8b47ad0eaa40e5618b552",
+        "digest": "sha256:932ba0c1537f254d7ccead162bbda1cf09b36056e9c8a1163f7cbddaf77d3894",
         "src": "tools/workflow-runtime/implement/implement_runtime.py"
       },
       "scripts/runtime/": {
         "contract": "implement-runtime",
-        "digest": "sha256:34d1df17c63ee806270f66f33d945e6937dc4390b3d049238770044e985f40e3",
+        "digest": "sha256:28eed375d05d846c88e6b03f502d0f91c817a88ee7a9584e06037e4f8ba2d0ac",
         "src": "tools/workflow-runtime/implement/runtime/"
       }
     },
     "ba0918-plan": {
       "scripts/plan_artifact.py": {
         "contract": "plan-runtime",
-        "digest": "sha256:67ae79800cc93488d5b58d650e7b86ef9f867ee9bc633dd372897f87236308b2",
+        "digest": "sha256:08f78d703e974388fa73858d183dd8d5475986775ad234ddfcd1a93eee825ca2",
         "src": "tools/workflow-runtime/plan/plan_artifact.py"
       }
     },
@@ -69,11 +69,11 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:d3da3f859019a14954a93c451b2a3628abf401555b03a186ee9d8c2185a1f00b",
+      "digest": "sha256:3d2a48ff367f0d3cf42666ddf9a2e1228025caa54d10a9c6db7fc1b7f02db1a0",
       "kind": "raw"
     },
     "plan-runtime": {
-      "digest": "sha256:ea792fc54264563d19cb65b5019290633faacc6df09c32619c1773443cd5d85a",
+      "digest": "sha256:084b4f77782284d93b836490dbfcc85a13fe3d1d8a371996adc96f11ad736975",
       "kind": "raw"
     },
     "review-runtime": {

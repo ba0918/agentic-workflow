@@ -32,10 +32,10 @@ held. If another current plan exists, show both plans' purposes and explain that
 remain unfinished as held. Require explicit human confirmation; never infer abandonment or
 completion, including in headless execution.
 
-A confirmed switch is still forbidden while the worktree has changes that have not been made
-recoverable for the current plan. Stop and explain that a later execution or recovery workflow
-must isolate them through an approved commit, checkpoint, or worktree operation. This skill does
-not perform that operation.
+A switch rewrites only the locator; it never touches the worktree. Uncommitted changes in the
+worktree are therefore neither a reason to switch nor a reason to refuse one. How they are treated
+belongs to the implement and recovery workflows, which stop on uncommitted changes inside a plan's
+write scope and show the human the rest.
 
 If the locator is malformed, points at different bytes, or contains inconsistent current entries,
 fail closed. Do not repair meaning by choosing a plan automatically.
