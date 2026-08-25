@@ -329,12 +329,32 @@ def rebind_preview(project_root: Path, *, plan_id: str, attempt_id: str, plan_pa
     return ok({**rebound, **continuation, "previous_plan": binding["plan"], "extra_commits": branch["extra_commits"]})
 
 
-def rebind_execution(project_root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None = None) -> RuntimeResult:
-    """Record the rebound the human confirmed and name the step to continue from."""
+def rebind_execution(
+    project_root: Path,
+    *,
+    plan_id: str,
+    attempt_id: str,
+    plan_path: str | None = None,
+    expected_plan_identity: str | None = None,
+) -> RuntimeResult:
+    """Record the rebound the human confirmed and name the step to continue from.
+
+    The human confirms a table, not a plan id. Between reading it and confirming, another
+    revision may be published, so the identity they were shown must be named here: recording a
+    rebound onto a revision nobody read would make the record and the decision two different
+    things."""
+    if expected_plan_identity is None:
+        return failure("rebind_preview_missing", "name the plan identity the human was shown")
     planned = _rebind_plan(project_root, plan_id=plan_id, attempt_id=attempt_id, plan_path=plan_path)
     if not planned.ok:
         return planned
     attempt, events, binding, rebound, continuation = planned.value
+    if rebound["plan"]["content_identity"] != expected_plan_identity:
+        return failure(
+            "rebind_target_moved",
+            "the registered plan changed after the human read the mapping",
+            rebound["plan"]["content_identity"],
+        )
     branch = _branch_facts(attempt.main_checkout, attempt.branch, binding["base_head"], _recorded_commits(execution_model.effective_events(events)))
     head = run_git(attempt.main_checkout, "rev-parse", f"refs/heads/{attempt.branch}").stdout.strip()
     changed = changed_paths(attempt.worktree)

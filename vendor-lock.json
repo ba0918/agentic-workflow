@@ -39,7 +39,7 @@
       },
       "scripts/runtime/": {
         "contract": "implement-runtime",
-        "digest": "sha256:28eed375d05d846c88e6b03f502d0f91c817a88ee7a9584e06037e4f8ba2d0ac",
+        "digest": "sha256:2d3b030795c9f77c94cdae4af5526e8209b9c750f5994b0776e2e34ad2da05be",
         "src": "tools/workflow-runtime/implement/runtime/"
       }
     },
@@ -69,7 +69,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:3d2a48ff367f0d3cf42666ddf9a2e1228025caa54d10a9c6db7fc1b7f02db1a0",
+      "digest": "sha256:a7c7c2e4cdc753743e7d4d44919676d4c04f643da764189787b68dda4e66c6c9",
       "kind": "raw"
     },
     "plan-runtime": {

@@ -142,8 +142,14 @@ Only after the human confirmed:
 ```text
 python3 <implement-runtime> rebind \
   --repo <main-checkout> --plan-id <plan-id> --execution-id <execution-id> \
-  [--plan-path <repo-relative-revised-plan>] --confirm
+  [--plan-path <repo-relative-revised-plan>] --confirm \
+  --expect-plan-identity <the identity the preview printed>
 ```
+
+`--expect-plan-identity` is required, and it is the `plan.content_identity` of the table the
+human actually read. Another revision may be registered between reading and confirming, and
+recording a rebound onto a revision nobody read would make the record and the decision two
+different things; the helper refuses with `rebind_target_moved` and the preview is shown again.
 
 This appends a `rebound` event carrying the revised plan (id, path, revision, identity), its
 specification identities, write scope, human gates, the step map, the branch head, the extra
@@ -152,8 +158,8 @@ revised plan, and step ids are the revised numbering. The rebind target is the r
 plan (or the registered plan at `--plan-path`) and must be the same plan id; when the bound
 revision's file is no longer readable the rebind is refused and only starting over remains.
 
-The review skill reads the binding of an execution; until it learns to read the rebound
-identities, an execution that was rebound cannot be handed to review. Say so when handing off.
+The review skill reads the binding of an execution as the last rebound left it, so a rebound
+execution is handed to review like any other.
 
 ## Enter from a fresh session
 

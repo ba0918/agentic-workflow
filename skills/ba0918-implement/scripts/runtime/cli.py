@@ -333,6 +333,7 @@ def main(argv: list[str] | None = None) -> int:
     rebind.add_argument("--execution-id", required=True)
     rebind.add_argument("--plan-path")
     rebind.add_argument("--confirm", action="store_true")
+    rebind.add_argument("--expect-plan-identity", help="the plan identity the preview showed the human")
 
     residual = commands.add_parser("residual", help="describe unfinished executions of a plan (read-only)")
     residual.add_argument("--repo", required=True)
@@ -408,7 +409,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(resumed.value, ensure_ascii=False, sort_keys=True))
         return 0
     if args.command == "rebind":
-        operation = rebind_execution if args.confirm else rebind_preview
+        operation = (
+            (lambda *a, **kw: rebind_execution(*a, expected_plan_identity=args.expect_plan_identity, **kw))
+            if args.confirm
+            else rebind_preview
+        )
         rebound = operation(repo, plan_id=args.plan_id, attempt_id=args.execution_id, plan_path=args.plan_path)
         if not rebound.ok:
             return _print_failure(rebound, state="stopped")

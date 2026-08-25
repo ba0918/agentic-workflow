@@ -2754,7 +2754,10 @@ class CheckStepTest(unittest.TestCase):
             append_check_step(root, attempt.plan_id)
             self.assertTrue(
                 implement_runtime.resume.rebind_execution(
-                    root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+                    root,
+                    plan_id=attempt.plan_id,
+                    attempt_id=attempt.attempt_id,
+                    expected_plan_identity=plan_artifact.read_registered_plan(root, None).content_identity,
                 ).ok
             )
             self._change_a_file_in_scope(attempt)
@@ -2774,6 +2777,23 @@ def append_check_step(root: Path, plan_id: str):
         plan_id=plan_id,
         revision=2,
         relative_path=f".agents/artifacts/plans/{plan_id}_fixture-r2.md",
+        text=revised,
+        approved_identity=plan_artifact.content_identity(revised),
+        switch_confirmed=False,
+    )
+    return plan_artifact.read_registered_plan(root, None)
+
+
+def revise_again(root: Path, plan_id: str):
+    """A third revision published after the human read the second one's table."""
+    current = plan_artifact.read_registered_plan(root, None)
+    revised = current.text.replace("**Plan revision:** `2`", "**Plan revision:** `3`")
+    revised += "\n### 6. さらに足した手順\n\n**Completion:** test\n"
+    publish_text(
+        root,
+        plan_id=plan_id,
+        revision=3,
+        relative_path=f".agents/artifacts/plans/{plan_id}_fixture-r3.md",
         text=revised,
         approved_identity=plan_artifact.content_identity(revised),
         switch_confirmed=False,
@@ -2850,7 +2870,10 @@ class RebindTest(unittest.TestCase):
             unrecorded = git(attempt.worktree, "rev-parse", "HEAD")
             revised = revise_three_step_plan(root, attempt.plan_id)
 
-            result = implement_runtime.resume.rebind_execution(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id)
+            shown = plan_artifact.read_registered_plan(root, None).content_identity
+            result = implement_runtime.resume.rebind_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, expected_plan_identity=shown
+            )
 
             self.assertTrue(result.ok, result.error)
             self.assertEqual(result.value["next_step"], "step-2")
@@ -2883,22 +2906,72 @@ class RebindTest(unittest.TestCase):
             )
             before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
 
-            other = implement_runtime.resume.rebind_execution(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id)
+            unread = "sha256:" + "0" * 64
+            other = implement_runtime.resume.rebind_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, expected_plan_identity=unread
+            )
             self.assertFalse(other.ok)
             self.assertEqual(other.error.code, "rebind_target_invalid")
 
             unregistered = implement_runtime.resume.rebind_execution(
-                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/nowhere.md"
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/nowhere.md",
+                expected_plan_identity=unread,
             )
             self.assertFalse(unregistered.ok)
             self.assertEqual(unregistered.error.code, "rebind_target_invalid")
 
             (root / f".agents/artifacts/plans/{attempt.plan_id}_fixture.md").unlink()
             missing = implement_runtime.resume.rebind_execution(
-                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/20260822150001_other.md"
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/20260822150001_other.md",
+                expected_plan_identity=unread,
             )
             self.assertFalse(missing.ok)
             self.assertEqual(sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before)
+
+    def test_recording_a_rebound_requires_the_revision_the_human_was_shown(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            complete_step_one(attempt)
+            revise_three_step_plan(root, attempt.plan_id)
+
+            result = implement_runtime.resume.rebind_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "rebind_preview_missing")
+
+    def test_a_rebound_is_refused_when_the_plan_moved_after_the_human_saw_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            complete_step_one(attempt)
+            revise_three_step_plan(root, attempt.plan_id)
+            shown = implement_runtime.resume.rebind_preview(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            ).value["plan"]["content_identity"]
+            revise_again(root, attempt.plan_id)
+
+            result = implement_runtime.resume.rebind_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, expected_plan_identity=shown
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "rebind_target_moved")
+
+    def test_a_rebound_is_recorded_when_it_matches_what_the_human_saw(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
+            complete_step_one(attempt)
+            revise_three_step_plan(root, attempt.plan_id)
+            shown = implement_runtime.resume.rebind_preview(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+            ).value["plan"]["content_identity"]
+
+            result = implement_runtime.resume.rebind_execution(
+                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, expected_plan_identity=shown
+            )
+
+            self.assertTrue(result.ok, result.error)
 
     def test_rebind_command_prints_the_table_and_records_only_with_confirm(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -2911,8 +2984,11 @@ class RebindTest(unittest.TestCase):
             self.assertIn("step_map", json.loads(preview.getvalue()))
             self.assertEqual(len(list(attempt.evidence_path.glob("0*.json"))), 1)
 
+            shown = plan_artifact.read_registered_plan(root, None).content_identity
             with contextlib.redirect_stdout(io.StringIO()) as recorded:
-                self.assertEqual(implement_runtime.main(common + ["--confirm"]), 0)
+                self.assertEqual(
+                    implement_runtime.main(common + ["--confirm", "--expect-plan-identity", shown]), 0
+                )
             self.assertEqual(json.loads(recorded.getvalue())["next_step"], "step-1")
             self.assertEqual(len(list(attempt.evidence_path.glob("0*.json"))), 2)
 
