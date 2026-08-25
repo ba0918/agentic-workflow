@@ -187,6 +187,20 @@ def _main_checkout(repo: Path) -> RuntimeResult:
     return _ok(common_directory.parent)
 
 
+def _effective_binding(binding: dict, events: list[dict]) -> dict:
+    """The binding as the last rebound left it.
+
+    implement never rewrites binding.json; a plan revision is recorded as a `rebound` event
+    carrying the revision and the specifications it cites. Reading binding.json alone would
+    verify the hand-off against a superseded revision, and refuse the execution whose
+    specifications the revision approved."""
+    for event in reversed(events):
+        if event.get("event_type") == "rebound":
+            revised = {field: event[field] for field in ("plan", "specs", "write_scope", "human_gates")}
+            return {**binding, **revised}
+    return dict(binding)
+
+
 def load_review(repo: Path, *, plan_id: str, attempt_id: str) -> RuntimeResult:
     """Read the implement evidence of one execution; nothing is written here."""
     checkout = _main_checkout(repo)
@@ -209,7 +223,7 @@ def load_review(repo: Path, *, plan_id: str, attempt_id: str) -> RuntimeResult:
             attempt_id=attempt_id,
             evidence_path=evidence_path,
             review_path=evidence_path / REVIEW_DIR,
-            binding=binding.value,
+            binding=_effective_binding(binding.value, events),
             implement_events=events,
             worktree=Path(binding.value["worktree"]),
         )

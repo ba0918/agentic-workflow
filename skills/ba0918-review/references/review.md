@@ -10,7 +10,10 @@ The input is one implementation execution whose evidence ends in `implementation
 Never pick it from conversation memory: the helper reads the evidence directory and refuses,
 before anything is written, when the last event is not the terminal completion, when the plan
 or a specification no longer matches the fingerprint the implementation was bound to, or when
-the worktree is missing or on another branch.
+the worktree is missing or on another branch. When the implementation was rebound to a revised
+plan, the fingerprints it is bound to are the ones the last `rebound` event carries, not the
+ones `binding.json` was written with — the review reads the revision the implementation
+actually followed.
 
 ```text
 python3 <review-runtime> bind --repo <main-checkout> --plan-id <id> --attempt-id <id> \
