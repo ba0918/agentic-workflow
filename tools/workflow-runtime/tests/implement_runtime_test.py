@@ -1859,6 +1859,67 @@ class FreezeRedoTest(unittest.TestCase):
             self.assertIn("stopped", recorded)
 
 
+class CheckStepCommitBoundaryTest(unittest.TestCase):
+    """A check step is decided by its commands, so the commit boundary asks for no verdict."""
+
+    @staticmethod
+    def _prepare(directory: str, *, recorded: bool = True):
+        root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "check"))
+        complete_step_one(attempt)
+        target = attempt.worktree / "docs/guide.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("配布の複製についての手引き\n", encoding="utf-8")
+        if recorded:
+            assert implement_runtime.record_check(attempt, step_id="step-2").ok
+        return attempt
+
+    def test_a_check_step_stages_without_a_human_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            attempt = self._prepare(directory)
+
+            result = implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-2")
+
+            self.assertTrue(result.ok, result.error)
+
+    def test_a_check_step_that_recorded_no_check_cannot_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            attempt = self._prepare(directory, recorded=False)
+
+            result = implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-2")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "check_missing")
+
+    def test_a_check_step_records_its_commit_without_a_human_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            attempt = self._prepare(directory)
+            self.assertTrue(implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-2").ok)
+            previous_head = git(attempt.worktree, "rev-parse", "HEAD")
+            git(attempt.worktree, "commit", "-m", "docs: add the guide")
+
+            result = implement_runtime.record_commit(attempt, "step-2", previous_head)
+
+            self.assertTrue(result.ok, result.error)
+
+    def test_an_artifact_step_still_needs_an_approved_verdict_to_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "artifact"))
+            complete_step_one(attempt)
+            target = attempt.worktree / "docs/guide.md"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("手引き\n", encoding="utf-8")
+            self.assertTrue(
+                implement_runtime.record_artifact(
+                    attempt, step_id="step-2", paths=["docs/guide.md"], checks=[]
+                ).ok
+            )
+
+            result = implement_runtime.stage_paths(attempt, ["docs/guide.md"], step_id="step-2")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "approval_missing")
+
+
 class CommitBoundaryTest(unittest.TestCase):
     def prepare_green_change(self, attempt):
         candidate = red_oracle(

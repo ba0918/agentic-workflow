@@ -12,6 +12,18 @@ from runtime.tdd import validate_step_test_targets, validate_step_test_targets_a
 from runtime.gates import check_human_gates
 
 
+def _check_is_recorded(attempt: Attempt, step_id: str) -> RuntimeResult:
+    """A check step earns its commit from its own commands, so no human verdict is looked for."""
+    events = load_events(attempt)
+    if not events.ok:
+        return events
+    if not any(
+        event["event_type"] == "check" and event.get("step_id") == step_id for event in events.value
+    ):
+        return failure("check_missing", f"{step_id} has no recorded check to commit")
+    return ok(step_id)
+
+
 _CREDENTIAL_QUOTED = re.compile(
     rb"(?i)(api[_-]?key|secret|token|password|credential)\s*[=:]\s*[\"'][^\"'\n]{4,}[\"']"
 )
@@ -67,6 +79,10 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
         targets = validate_step_test_targets(attempt, step_id)
         if not targets.ok:
             return targets
+    elif kinds.value.get(step_id) == "check":
+        recorded = _check_is_recorded(attempt, step_id)
+        if not recorded.ok:
+            return recorded
     else:
         events = load_events(attempt)
         if not events.ok:
@@ -121,6 +137,10 @@ def _verify_commit_for_step(attempt: Attempt, step_id: str, committed: list[str]
         targets = validate_step_test_targets_at(attempt, step_id, commit_sha)
         if not targets.ok:
             return targets
+    elif kinds.value.get(step_id) == "check":
+        recorded = _check_is_recorded(attempt, step_id)
+        if not recorded.ok:
+            return recorded
     else:
         events = load_events(attempt)
         if not events.ok:
