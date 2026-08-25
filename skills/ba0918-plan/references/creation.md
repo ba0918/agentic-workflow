@@ -44,7 +44,7 @@ language. Explanatory text may follow a marker on the next lines.
 | Target specifications | `**Target specifications:**` followed by one list item per specification (form below) | verifying the specification has not changed |
 | Change scope | `## Scope` containing one `text` code block holding a file tree | refusing edits outside the scope |
 | Steps | `## Steps` containing `### 1.`, `### 2.` … counted from 1 without gaps | executing one step at a time |
-| Completion kind | exactly one `**Completion:**` line per step naming one of the three kinds | demanding the matching evidence |
+| Completion kind | exactly one `**Completion:**` line per step naming one of the four kinds, plus a `**Checks:**` declaration when that kind is `check` | demanding the matching evidence |
 | Human gates | `**Human gates:**` plus a JSON block inside the step that needs one | pausing for a human decision |
 
 ### Target specifications
@@ -84,13 +84,39 @@ or box-drawing characters.
 
 ### Completion kind
 
-Each step states how its completion will be shown. Choose by what the step produces:
+Each step states how its completion will be shown. Choose by **who can judge it**, not by what the
+step produces:
 
 | Line | Use for | Evidence the implement skill demands |
 |---|---|---|
 | `**Completion:** test` | code that maps fixed inputs to fixed outputs | a failing test written first, then passing |
-| `**Completion:** artifact` | prose read by an AI, configuration files | the file exists with the agreed content, passes its format check, and the human reads it and approves |
+| `**Completion:** check` | generated copies, anything a named command can judge | every command the step declares succeeds |
+| `**Completion:** artifact` | prose a person reads to decide whether it is right, configuration files | the file exists with the agreed content, passes its format check, and the human reads it and approves |
 | `**Completion:** external` | checks on a running system; measurement the human explicitly asked for | the human sees the result and approves |
+
+A named command can judge it → `test` when a failing test can be written first, otherwise `check`.
+Only a person reading it can decide → `artifact` or `external`.
+
+A `check` step declares its commands in the same step, one per line, each command in backquotes:
+
+````markdown
+**Completion:** check
+
+**Checks:**
+
+- `bunx agentic-skill-vendor gen`
+- `bunx agentic-skill-vendor verify`
+````
+
+The implement skill runs exactly these, in this order, and nothing else; a command written only in
+the step's prose does not run. A `check` step with no declaration, and a step of another kind that
+carries one, are both refused when the plan is saved.
+
+**Never make a document a `check` step.** Specifications, skill prose, plans, and anything else a
+person reads to decide whether it is right are `artifact`, even when a format check exists for
+them. Naming one command to skip the reading is exactly the ritual approval this workflow exists
+to remove — in the other direction. No command decides this line; the plan does, when it is
+written.
 
 Do not add a measurement step (running an LLM to observe behaviour) unless the human asked for
 it by name.

@@ -23,7 +23,7 @@ uses the effective binding.
 
 Events are one atomic file per sequence. Each carries the execution, plan and spec identities,
 previous-event identity, and its own content identity. Event types are `worktree-bound`, `red`,
-`green`, `refactor`, `artifact`, `external`, `approval`, `commit`, `human_gate`, `resumed`,
+`green`, `refactor`, `check`, `artifact`, `external`, `approval`, `commit`, `human_gate`, `resumed`,
 `rebound`, `history_approved`, `permission_required`, `stopped`, and `implementation_green`.
 Existing files are never overwritten.
 
@@ -39,8 +39,11 @@ A `history_approved` event holds the listing the human approved at the terminal 
 event explains, history paths outside the write scope, uncommitted changes outside it — and an
 optional bounded reason. It is valid only while that listing is unchanged.
 
-`artifact` holds the files a step produced (path and content identity) and the format checks it
-ran (command and exit code); `external` holds what was checked and a short result. `approval` is
+`check` holds the commands the plan named with their exit codes — all of them successful, or the
+event is not written — and every in-scope file that changed, with its content identity. It carries
+no verdict: a check step has none. `artifact` holds the files a step produced (path and content
+identity) and the format checks it ran (command and exit code); `external` holds what was checked
+and a short result. `approval` is
 the human's verdict on the newest of those, bound to that event's identity. It is not a
 `human_gate`: a `human_gate` records a decision the plan declared under `**Human gates:**`, while
 an `approval` is required for every `artifact` and `external` step whether or not the plan

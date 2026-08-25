@@ -1,6 +1,6 @@
 ---
 name: ba0918-implement
-description: Use when an approved, registered implementation plan must be executed step by step in a dedicated branch and linked worktree, leaving durable evidence for review. Detects unfinished executions of the same plan and lets the human continue, rebind the execution to a revised plan, or start over. Stops on drift, unreadable plan format, or unintended RED, but a stop is never the end — reading and stopping never depend on the plan or specs still matching, and drift leaves the human two ways forward. Hands implementation_green evidence to review, after the human approves any commit or change the evidence does not explain, without completing or merging the plan.
+description: Use when an approved, registered implementation plan must be executed step by step in a dedicated branch and linked worktree, leaving durable evidence for review. Asks the human only where a human decides — a step a named command can judge completes on that command alone. Detects unfinished executions of the same plan and lets the human continue, rebind the execution to a revised plan, or start over. Stops on drift, unreadable plan format, or unintended RED, but a stop is never the end — reading and stopping never depend on the plan or specs still matching, and drift leaves the human two ways forward. Hands implementation_green evidence to review, after the human approves any commit or change the evidence does not explain, without completing or merging the plan.
 metadata:
   contracts:
     - implement-runtime
@@ -18,8 +18,9 @@ evidence directory under `.agents/artifacts/executions/<plan-id>/<execution-id>/
   from a fresh session, or stopping, read [execution.md](references/execution.md).
 - While executing a `test` step through RED, GREEN, REFACTOR, and commit, read
   [tdd.md](references/tdd.md).
-- While executing an `artifact` or `external` step (deliverables a test cannot prove, recorded
-  and then approved by the human), read [artifacts.md](references/artifacts.md).
+- While executing a `check` step (completion the commands the plan names decide, with no human
+  verdict), or an `artifact` or `external` step (deliverables a test cannot prove, recorded and
+  then approved by the human), read [artifacts.md](references/artifacts.md).
 - Before writing or retrying binding, oracle, event, permission, or result evidence, read
   [evidence.md](references/evidence.md).
 - Do not preload every reference. Read the reference for the current boundary.
@@ -67,7 +68,8 @@ whether refactoring is warranted, and applying the project's commit rules.
 
 Complete only when every step carries the evidence its completion kind demands — a `test` step
 its current expected RED, the same frozen oracle passing after GREEN and REFACTOR, and a commit;
-an `artifact` step its recorded files and checks, the human's approval, and a commit; an
+a `check` step every command the plan named succeeding, and a commit when the check covered a
+change; an `artifact` step its recorded files and checks, the human's approval, and a commit; an
 `external` step its recorded check and the human's approval — durable evidence is intact, every
 commit or change the evidence does not explain has been listed and approved by the human
 (`history_approved`), and the terminal event is `implementation_green`.

@@ -1,8 +1,36 @@
-# Artifact and external steps
+# Check, artifact and external steps
 
-Read this reference for steps whose `**Completion:**` is `artifact` or `external`. These steps
-produce something a test cannot prove — prose an AI will read, a configuration file, a check on a
-running system — so their completion rests on recorded evidence plus the human's verdict.
+Read this reference for steps whose `**Completion:**` is `check`, `artifact`, or `external`. None
+of them can be shown by a test written first. A `check` step is decided by the commands the plan
+names; the other two produce something only a person can judge — prose an AI will read, a
+configuration file, a check on a running system — so their completion rests on recorded evidence
+plus the human's verdict.
+
+## Check steps (`check`)
+
+The plan names the commands, and their exit codes decide the step. Do not ask for approval here:
+there is nothing for a person to read that the commands do not already answer, and an approval
+with nothing to read teaches the human to answer without looking.
+
+1. Run `context` for the step, then do the work the step describes — run the generator, fix the
+   files — inside the plan's scope.
+2. Record the step:
+
+   ```text
+   python3 <implement-runtime> record-check \
+     --repo <main-checkout> --step step-<n>
+   ```
+
+   The helper reads the commands from the step's `**Checks:**` declaration and runs them in the
+   order the plan writes them, inside the worktree. It appends a `check` event holding each
+   command with its exit code, and every in-scope file that changed with its content identity.
+   It passes no command of its own and takes none from the agent: what the plan named is what
+   runs.
+3. A command that does not succeed records nothing and does not stop the execution
+   (`check_failed` names the command). Fix what the command reports and run `record-check` again.
+4. Stage, commit, and record the commit as in [tdd.md](tdd.md) — but only when the check covered
+   a change. A step that changed no file is complete on its `check` event alone: a check confirms,
+   it does not produce.
 
 ## Artifact steps (`artifact`)
 
@@ -68,7 +96,8 @@ approved afresh.
 ## Terminal hand-off
 
 `implementation-green` checks every step against its completion kind: `test` needs RED, GREEN,
-REFACTOR, and commit; `artifact` needs an approved `artifact` event followed by a commit;
-`external` needs an approved `external` event, with or without a commit. Test evidence on an
-`artifact` or `external` step, or artifact evidence on a `test` step, is a mismatch and never
-completes the step.
+REFACTOR, and commit; `check` needs a `check` event whose commands all succeeded, followed by a
+commit when that check recorded a changed file; `artifact` needs an approved `artifact` event
+followed by a commit; `external` needs an approved `external` event, with or without a commit.
+Evidence of another completion kind on a step — test evidence on an `artifact`, `external`, or
+`check` step, or a `check` inside a `test` step — is a mismatch and never completes the step.

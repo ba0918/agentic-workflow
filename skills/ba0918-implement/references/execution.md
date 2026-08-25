@@ -242,8 +242,9 @@ state. Never use that exception to assert progress or success.
 
 Not every unplanned fact is a blocking stop. Uncommitted changes outside the write scope, commits
 no event explains, a defect in the helper itself (the helper is not part of the bound identities,
-so repairing it mid-execution invalidates nothing), and a record that failed to be written (record
-it late) are facts to show the human. A decision the plan does not make about the deliverable is
+so repairing it mid-execution invalidates nothing), a frozen test that changed (accept a new RED
+for the same step), a check command that failed (fix what it reports and record again), and a
+record that failed to be written (record it late) are facts to show the human. A decision the plan does not make about the deliverable is
 the only reason to return to brainstorm.
 
 ## Terminal hand-off and the history approval

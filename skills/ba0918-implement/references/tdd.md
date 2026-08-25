@@ -69,9 +69,15 @@ classifies the failure, freezes the oracle, and writes the RED event. A candidat
 validation, or a RED that fails for another reason, writes a durable `stopped` event naming the
 reason; read that reason before touching anything. Do not proceed unless the failure is the
 approved missing behavior. A RED command that changes a spec is identity drift,
-not a valid RED. Later GREEN, REFACTOR, staging, and commit checks recompute every
-`test_targets` identity and stop if any target changed; the terminal check verifies each
-step's targets as of that step's commit, so a later step may evolve the same test file.
+not a valid RED.
+
+Later GREEN, REFACTOR, staging, and commit checks recompute every `test_targets` identity. A
+target that changed is answered with `test_identity_drift` and no `stopped` event: the freeze
+forbids weakening a test into GREEN, not changing your mind about the test. Accept a new RED for
+the same step and the new freeze replaces the old one, which is exactly the demand — the changed
+test has to be seen failing before it is allowed to pass. The superseded `red` event stays in the
+evidence. The terminal check verifies each step's targets as of that step's commit, so a later
+step may evolve the same test file.
 
 ## GREEN
 
