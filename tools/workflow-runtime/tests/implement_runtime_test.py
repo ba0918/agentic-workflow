@@ -39,12 +39,22 @@ def git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+PASSING_CHECK = "python3 -c pass"
+FAILING_CHECK = "python3 -c \"import sys; sys.exit(3)\""
+
+
+def declared_checks(commands: tuple[str, ...]) -> str:
+    """The **Checks:** declaration a check step needs, written as the plan specification writes it."""
+    return "\n**Checks:**\n\n" + "".join(f"- `{command}`\n" for command in commands)
+
+
 def create_repository(
     parent: Path,
     *,
     human_gate: bool = False,
     human_gate_timing: str = "before_implementation_green",
     step_kinds: tuple[str, ...] = ("test",),
+    check_commands: tuple[str, ...] = (PASSING_CHECK,),
 ) -> tuple[Path, str, str]:
     root = parent / "repository"
     root.mkdir()
@@ -115,6 +125,7 @@ docs/
 {gate_declaration}
 """ + "".join(
         f"\n### {number}. 手順 {number}\n\n**Completion:** {kind}\n"
+        + (declared_checks(check_commands) if kind == "check" else "")
         for number, kind in enumerate(step_kinds[1:], start=2)
     )
     publish_text(
@@ -135,12 +146,14 @@ def bootstrap_fixture(
     human_gate: bool = False,
     human_gate_timing: str = "before_implementation_green",
     step_kinds: tuple[str, ...] = ("test",),
+    check_commands: tuple[str, ...] = (PASSING_CHECK,),
 ):
     root, _, _ = create_repository(
         parent,
         human_gate=human_gate,
         human_gate_timing=human_gate_timing,
         step_kinds=step_kinds,
+        check_commands=check_commands,
     )
     resolved = implement_runtime.resolve_plan(root).value
     result = implement_runtime.bootstrap_attempt(
@@ -2557,6 +2570,89 @@ class RevisedPlanTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "human_gate_undeclared")
             self.assertTrue(implement_runtime.check_human_gates(attempt, step_id="step-1", timing="before_edit").ok)
+
+
+class CheckStepTest(unittest.TestCase):
+    @staticmethod
+    def _change_a_file_in_scope(attempt) -> str:
+        target = attempt.worktree / "docs/guide.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("配布の複製についての手引き\n", encoding="utf-8")
+        return "docs/guide.md"
+
+    def test_a_check_step_runs_the_commands_the_plan_declared(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "check"))
+            complete_step_one(attempt)
+            changed = self._change_a_file_in_scope(attempt)
+
+            result = implement_runtime.record_check(attempt, step_id="step-2")
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(
+                [check["command"] for check in result.value["checks"]],
+                [["python3", "-c", "pass"]],
+            )
+            self.assertEqual([entry["path"] for entry in result.value["files"]], [changed])
+
+    def test_a_check_step_records_nothing_when_a_declared_command_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(
+                Path(directory), step_kinds=("test", "check"), check_commands=(FAILING_CHECK,)
+            )
+            complete_step_one(attempt)
+            before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
+
+            result = implement_runtime.record_check(attempt, step_id="step-2")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "check_failed")
+            self.assertEqual(sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before)
+
+    def test_a_check_step_refuses_a_human_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "check"))
+            complete_step_one(attempt)
+            self._change_a_file_in_scope(attempt)
+            self.assertTrue(implement_runtime.record_check(attempt, step_id="step-2").ok)
+
+            result = implement_runtime.record_approval(attempt, step_id="step-2", result="approved")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "completion_kind_mismatch")
+
+    def test_a_step_only_the_revised_plan_has_can_record_its_check(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test",))
+            complete_step_one(attempt)
+            append_check_step(root, attempt.plan_id)
+            self.assertTrue(
+                implement_runtime.resume.rebind_execution(
+                    root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
+                ).ok
+            )
+            self._change_a_file_in_scope(attempt)
+
+            result = implement_runtime.record_check(attempt, step_id="step-2")
+
+            self.assertTrue(result.ok, result.error)
+
+
+def append_check_step(root: Path, plan_id: str):
+    """Revision 2 of a one-step fixture: a check step the first revision does not have."""
+    current = plan_artifact.read_registered_plan(root, None)
+    revised = current.text.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
+    revised += "\n### 2. 複製を作り直す\n\n**Completion:** check\n" + declared_checks((PASSING_CHECK,))
+    publish_text(
+        root,
+        plan_id=plan_id,
+        revision=2,
+        relative_path=f".agents/artifacts/plans/{plan_id}_fixture-r2.md",
+        text=revised,
+        approved_identity=plan_artifact.content_identity(revised),
+        switch_confirmed=False,
+    )
+    return plan_artifact.read_registered_plan(root, None)
 
 
 def revise_three_step_plan(root: Path, plan_id: str):

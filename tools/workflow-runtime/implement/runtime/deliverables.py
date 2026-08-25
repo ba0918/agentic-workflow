@@ -1,5 +1,6 @@
-"""Artifact and external steps with their human approval records."""
-from runtime.planning import raw_identity, step_completion_kinds
+"""Check, artifact and external steps: what each records, and which of them a human judges."""
+from runtime.planning import raw_identity, step_checks, step_completion_kinds
+import shlex
 import subprocess
 from pathlib import PurePosixPath
 from typing import Any
@@ -7,7 +8,7 @@ from typing import Any
 from runtime.deps import execution_model
 from runtime.types import RuntimeFailure, RuntimeResult, Attempt, ok, failure
 from runtime.planning import require_completion_kind
-from runtime.context import append_event, load_events, validate_context, stop_attempt
+from runtime.context import append_event, changed_paths, load_events, validate_context, stop_attempt
 
 
 def _run_check(attempt: Attempt, command: list[str]) -> RuntimeResult:
@@ -25,6 +26,50 @@ def _run_check(attempt: Attempt, command: list[str]) -> RuntimeResult:
     except (OSError, subprocess.TimeoutExpired) as error:
         return failure("check_failed", "format check could not be executed", str(error))
     return ok({"command": list(command), "exit_code": completed.returncode})
+
+def _changed_files_in_scope(attempt: Attempt, scopes: list[str]) -> RuntimeResult:
+    changed = changed_paths(attempt.worktree)
+    if not changed.ok:
+        return changed
+    files: list[dict[str, str]] = []
+    for path in changed.value:
+        if not execution_model.validate_write_path(path, scopes).ok:
+            continue
+        candidate = attempt.worktree.joinpath(*PurePosixPath(path).parts)
+        if candidate.is_symlink() or not candidate.is_file():
+            continue
+        files.append({"path": path, "content_identity": raw_identity(candidate.read_text(encoding="utf-8"))})
+    return ok(files)
+
+def record_check(attempt: Attempt, *, step_id: str) -> RuntimeResult:
+    """Run the checks the plan declared for the step; no human verdict stands between them and done."""
+    kind = require_completion_kind(attempt, step_id, "check")
+    if not kind.ok:
+        return stop_attempt(attempt, kind.error, step_id)
+    declared = step_checks(attempt, step_id)
+    if not declared.ok:
+        return declared
+    if not declared.value:
+        return failure("check_declaration_missing", f"{step_id} declares no check command")
+    context = validate_context(attempt, step_id=step_id)
+    if not context.ok:
+        return stop_attempt(attempt, context.error, step_id)
+    results: list[dict[str, Any]] = []
+    for command in declared.value:
+        ran = _run_check(attempt, shlex.split(command))
+        if not ran.ok:
+            return ran
+        results.append(ran.value)
+        if ran.value["exit_code"] != 0:
+            # A check that fails is not a stop: it names what to fix, and the step records again.
+            return failure("check_failed", f"a declared check of {step_id} did not succeed", command)
+    after = validate_context(attempt, step_id=step_id)
+    if not after.ok:
+        return stop_attempt(attempt, after.error, step_id)
+    files = _changed_files_in_scope(attempt, after.value["write_scope"])
+    if not files.ok:
+        return files
+    return append_event(attempt, "check", {"step_id": step_id, "checks": results, "files": files.value})
 
 def record_artifact(attempt: Attempt, *, step_id: str, paths: list[str], checks: list[list[str]]) -> RuntimeResult:
     """Record the files an artifact step produced, with their identities and format checks."""

@@ -107,16 +107,36 @@ def resolve_plan(
         )
     )
 
-def step_completion_kinds(attempt: Attempt) -> RuntimeResult:
-    binding = read_json(attempt.binding_path)
+def effective_plan_steps(attempt: Attempt) -> RuntimeResult:
+    """The steps of the plan revision the execution is bound to now, after any rebound."""
+    # context imports this module, so the effective binding is fetched at call time rather than
+    # at module load: importing it at the top would close an import cycle.
+    from runtime.context import load_effective_binding
+
+    binding = load_effective_binding(attempt)
     if not binding.ok:
         return binding
     try:
         registered = plan_artifact.read_registered_plan(attempt.main_checkout, binding.value["plan"]["path"])
-        steps = plan_artifact.read_plan_steps(registered.text)
+        return ok(plan_artifact.read_plan_steps(registered.text))
     except plan_artifact.PlanArtifactError as error:
         return failure("plan_format_invalid", str(error))
-    return ok({f"step-{step.number}": step.completion_kind for step in steps})
+
+def step_completion_kinds(attempt: Attempt) -> RuntimeResult:
+    steps = effective_plan_steps(attempt)
+    if not steps.ok:
+        return steps
+    return ok({f"step-{step.number}": step.completion_kind for step in steps.value})
+
+def step_checks(attempt: Attempt, step_id: str) -> RuntimeResult:
+    """The check commands the plan declared for the step, in the order it names them."""
+    steps = effective_plan_steps(attempt)
+    if not steps.ok:
+        return steps
+    declared = {f"step-{step.number}": step.checks for step in steps.value}
+    if step_id not in declared:
+        return failure("step_unknown", f"the plan has no step {step_id}")
+    return ok(declared[step_id])
 
 def require_completion_kind(attempt: Attempt, step_id: str, expected: str) -> RuntimeResult:
     kinds = step_completion_kinds(attempt)

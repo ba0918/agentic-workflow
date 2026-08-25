@@ -661,6 +661,84 @@ class EventChainTest(unittest.TestCase):
         )
 
 
+class CheckEventTest(unittest.TestCase):
+    @staticmethod
+    def _event(**fields) -> dict:
+        return {
+            "version": 1,
+            "sequence": 1,
+            "event_type": "check",
+            "attempt_id": binding()["attempt_id"],
+            "plan_identity": PLAN_IDENTITY,
+            "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
+            "previous_identity": None,
+            "step_id": "step-2",
+            "checks": [{"command": ["bunx", "agentic-skill-vendor", "verify"], "exit_code": 0}],
+            "files": [{"path": "skills/ba0918-cycle/scripts/run.py", "content_identity": "sha256:" + "6" * 64}],
+            **fields,
+        }
+
+    def test_a_check_records_the_commands_that_ran_and_the_files_they_covered(self) -> None:
+        sealed = implement_model.seal_event(self._event())
+
+        self.assertTrue(sealed.ok, sealed.error)
+
+    def test_a_check_that_changed_no_file_is_still_evidence(self) -> None:
+        sealed = implement_model.seal_event(self._event(files=[]))
+
+        self.assertTrue(sealed.ok, sealed.error)
+
+    def test_a_check_carrying_a_command_that_did_not_succeed_is_rejected(self) -> None:
+        sealed = implement_model.seal_event(
+            self._event(checks=[{"command": ["bunx", "agentic-skill-vendor", "verify"], "exit_code": 1}])
+        )
+
+        self.assertFalse(sealed.ok)
+
+    def test_a_check_without_a_command_is_rejected(self) -> None:
+        sealed = implement_model.seal_event(self._event(checks=[]))
+
+        self.assertFalse(sealed.ok)
+
+
+class CheckStepEvidenceTest(unittest.TestCase):
+    @staticmethod
+    def _events(*event_types: str) -> list[dict]:
+        return [{"event_type": kind, "step_id": "step-1"} for kind in event_types]
+
+    def test_a_check_step_is_complete_once_its_check_is_committed(self) -> None:
+        result = implement_model.validate_step_evidence(self._events("check", "commit"), "step-1", "check")
+
+        self.assertTrue(result.ok, result.error)
+
+    def test_a_check_step_needs_no_human_approval(self) -> None:
+        events = self._events("check", "commit")
+
+        self.assertNotIn("approval", [event["event_type"] for event in events])
+        result = implement_model.validate_step_evidence(events, "step-1", "check")
+
+        self.assertTrue(result.ok, result.error)
+
+    def test_a_check_step_without_a_commit_is_incomplete(self) -> None:
+        result = implement_model.validate_step_evidence(self._events("check"), "step-1", "check")
+
+        self.assertFalse(result.ok)
+
+    def test_test_evidence_on_a_check_step_is_rejected(self) -> None:
+        result = implement_model.validate_step_evidence(
+            self._events("red", "green", "refactor", "check", "commit"), "step-1", "check"
+        )
+
+        self.assertFalse(result.ok)
+
+    def test_a_check_inside_a_test_step_breaks_its_evidence(self) -> None:
+        result = implement_model.validate_step_evidence(
+            self._events("red", "green", "refactor", "check", "commit"), "step-1", "test"
+        )
+
+        self.assertFalse(result.ok)
+
+
 class HumanGateStateTest(unittest.TestCase):
     def test_declared_human_gate_is_part_of_the_exact_binding(self) -> None:
         value = binding()

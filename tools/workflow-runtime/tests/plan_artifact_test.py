@@ -90,6 +90,42 @@ PLAN_TEXT = PLAN_HEADER + """
 """
 
 
+PLAN_WITH_CHECK_STEP = PLAN_HEADER + """
+## Steps
+
+### 1. 配備の入力を整える
+
+**Completion:** test
+
+### 2. 手引きを書く
+
+**Completion:** artifact
+
+### 3. 実機で配備を確かめる
+
+**Completion:** external
+
+### 4. 配布の複製を作り直す
+
+**Completion:** check
+
+**Checks:**
+
+- `bunx agentic-skill-vendor gen`
+- `bunx agentic-skill-vendor verify`
+
+確かめること:
+
+- `git status --porcelain` が何も出さない
+"""
+
+CHECK_DECLARATION = (
+    "**Checks:**\n\n"
+    "- `bunx agentic-skill-vendor gen`\n"
+    "- `bunx agentic-skill-vendor verify`\n"
+)
+
+
 PLAN_WITH_HUMAN_GATE = PLAN_HEADER + r"""
 ## Steps
 
@@ -285,6 +321,54 @@ class PlanScopeAndStepsTest(unittest.TestCase):
             with self.subTest(case=case):
                 with self.assertRaises(plan_artifact.InvalidPlanFormat):
                     plan_artifact.read_plan_steps(malformed)
+
+
+class CheckStepDeclarationTest(unittest.TestCase):
+    def test_a_check_step_carries_the_commands_it_declares_in_order(self) -> None:
+        steps = plan_artifact.read_plan_steps(PLAN_WITH_CHECK_STEP)
+
+        self.assertEqual(steps[3].completion_kind, "check")
+        self.assertEqual(
+            steps[3].checks,
+            ("bunx agentic-skill-vendor gen", "bunx agentic-skill-vendor verify"),
+        )
+
+    def test_a_command_named_outside_the_declaration_is_not_collected(self) -> None:
+        steps = plan_artifact.read_plan_steps(PLAN_WITH_CHECK_STEP)
+
+        self.assertNotIn("git status --porcelain", steps[3].checks)
+
+    def test_steps_shown_another_way_declare_no_command(self) -> None:
+        steps = plan_artifact.read_plan_steps(PLAN_WITH_CHECK_STEP)
+
+        self.assertEqual([step.checks for step in steps[:3]], [(), (), ()])
+
+    def test_a_check_step_that_declares_no_command_is_rejected(self) -> None:
+        malformed = {
+            "no declaration": PLAN_WITH_CHECK_STEP.replace(CHECK_DECLARATION + "\n", ""),
+            "declaration without a command": PLAN_WITH_CHECK_STEP.replace(
+                "- `bunx agentic-skill-vendor gen`\n- `bunx agentic-skill-vendor verify`\n", ""
+            ),
+            "command written without backquotes": PLAN_WITH_CHECK_STEP.replace(
+                "- `bunx agentic-skill-vendor gen`\n- `bunx agentic-skill-vendor verify`\n",
+                "- bunx agentic-skill-vendor gen\n",
+            ),
+        }
+
+        for case, text in malformed.items():
+            with self.subTest(case=case):
+                with self.assertRaises(plan_artifact.InvalidPlanFormat):
+                    plan_artifact.read_plan_steps(text)
+
+    def test_a_step_shown_another_way_may_not_declare_commands(self) -> None:
+        malformed = PLAN_WITH_CHECK_STEP.replace(
+            "### 2. 手引きを書く\n\n**Completion:** artifact\n",
+            "### 2. 手引きを書く\n\n**Completion:** artifact\n\n"
+            "**Checks:**\n\n- `bunx skills-ref validate skills/ba0918-plan`\n",
+        )
+
+        with self.assertRaises(plan_artifact.InvalidPlanFormat):
+            plan_artifact.read_plan_steps(malformed)
 
 
 class RegisteredPlanConsumerTest(unittest.TestCase):

@@ -21,7 +21,7 @@ from runtime.context import load_events, validate_context, append_event, derive_
 from runtime.resume import rebind_execution, rebind_preview, residual_executions, resume_execution, load_current_attempt
 from runtime.tdd import accept_red, run_frozen_oracle
 from runtime.gates import record_human_gate
-from runtime.deliverables import record_artifact, record_external, record_approval
+from runtime.deliverables import record_artifact, record_check, record_external, record_approval
 from runtime.staging import stage_paths, record_commit, record_commit_late
 
 
@@ -249,6 +249,11 @@ def main(argv: list[str] | None = None) -> int:
     stage.add_argument("--step", required=True)
     stage.add_argument("--path", action="append", required=True)
 
+    checked = commands.add_parser("record-check", help="run and record the checks a check step declares")
+    checked.add_argument("--repo", required=True)
+    execution_ids(checked)
+    checked.add_argument("--step", required=True)
+
     artifact = commands.add_parser("record-artifact", help="record the files an artifact step produced")
     artifact.add_argument("--repo", required=True)
     execution_ids(artifact)
@@ -422,6 +427,12 @@ def main(argv: list[str] | None = None) -> int:
     attempt = loaded.value
     if args.command == "load":
         print(json.dumps(_attempt_payload(attempt), ensure_ascii=False, sort_keys=True))
+        return 0
+    if args.command == "record-check":
+        recorded = record_check(attempt, step_id=args.step)
+        if not recorded.ok:
+            return _print_failure(recorded, state="stopped")
+        print(json.dumps(recorded.value, ensure_ascii=False, sort_keys=True))
         return 0
     if args.command == "record-artifact":
         recorded = record_artifact(

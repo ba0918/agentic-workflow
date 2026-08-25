@@ -38,6 +38,7 @@ EVENT_TYPES = {
     "permission_required": {"step_id", "operation_identity", "outcome"},
     "stopped": {"reason"},
     "resumed": {"head", "extra_commits", "uncommitted_changes", "next_step", "redo"},
+    "check": {"step_id", "checks", "files"},
     "artifact": {"step_id", "files", "checks"},
     "external": {"step_id", "checked", "summary"},
     "approval": {"step_id", "target_identity", "result"},
@@ -546,34 +547,66 @@ def _bounded_text(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip()) and len(value) <= BOUNDED_TEXT
 
 
+def _validate_check_commands(checks: object, label: str) -> ModelResult:
+    if not isinstance(checks, list):
+        return _failure("event_field_invalid", label, f"{label} must be a list")
+    for check in checks:
+        if not isinstance(check, dict) or set(check) != {"command", "exit_code"}:
+            return _failure("event_field_invalid", label, f"{label} fields are invalid")
+        command = check["command"]
+        if not isinstance(command, list) or not command or any(not isinstance(part, str) for part in command):
+            return _failure("event_field_invalid", f"{label}.command", f"{label} command is invalid")
+        if any(SECRET_ARGUMENT.search(part) for part in command):
+            return _failure("secret_value_forbidden", f"{label}.command", f"secret-shaped argument in {label} command")
+        if not isinstance(check["exit_code"], int) or isinstance(check["exit_code"], bool):
+            return _failure("event_field_invalid", f"{label}.exit_code", f"{label} exit code is invalid")
+    return _ok(checks)
+
+
+def _validate_recorded_files(files: object, label: str) -> ModelResult:
+    if not isinstance(files, list):
+        return _failure("event_field_invalid", label, f"{label} must be a list")
+    seen: set[str] = set()
+    for entry in files:
+        if not isinstance(entry, dict) or set(entry) != {"path", "content_identity"}:
+            return _failure("event_field_invalid", label, f"{label} fields are invalid")
+        if not _safe_relative_path(entry["path"]) or entry["path"] in seen:
+            return _failure("event_field_invalid", f"{label}.path", f"{label} path is unsafe or duplicated")
+        if not _matches(IDENTITY, entry["content_identity"]):
+            return _failure("event_field_invalid", f"{label}.content_identity", f"{label} identity is invalid")
+        seen.add(entry["path"])
+    return _ok(files)
+
+
+def _validate_check_event(candidate: dict) -> ModelResult:
+    """A check step's evidence: every declared command succeeded, and what changed under them."""
+    if not _matches(STEP_ID, candidate["step_id"]):
+        return _failure("event_field_invalid", "step_id", "check step is invalid")
+    checks = candidate["checks"]
+    if not isinstance(checks, list) or not checks:
+        return _failure("event_field_invalid", "checks", "a check needs at least one command")
+    commands = _validate_check_commands(checks, "checks")
+    if not commands.ok:
+        return commands
+    if any(check["exit_code"] != 0 for check in checks):
+        return _failure("event_field_invalid", "checks.exit_code", "a command that did not succeed is not evidence")
+    return _validate_recorded_files(candidate["files"], "files")
+
+
 def _validate_artifact_event(candidate: dict) -> ModelResult:
     if not _matches(STEP_ID, candidate["step_id"]):
         return _failure("event_field_invalid", "step_id", "artifact step is invalid")
     files = candidate["files"]
     if not isinstance(files, list) or not files:
         return _failure("event_field_invalid", "files", "artifact needs at least one file")
-    seen: set[str] = set()
-    for entry in files:
-        if not isinstance(entry, dict) or set(entry) != {"path", "content_identity"}:
-            return _failure("event_field_invalid", "files", "artifact file fields are invalid")
-        if not _safe_relative_path(entry["path"]) or entry["path"] in seen:
-            return _failure("event_field_invalid", "files.path", "artifact file path is unsafe or duplicated")
-        if not _matches(IDENTITY, entry["content_identity"]):
-            return _failure("event_field_invalid", "files.content_identity", "artifact file identity is invalid")
-        seen.add(entry["path"])
-    checks = candidate["checks"]
-    if not isinstance(checks, list):
-        return _failure("event_field_invalid", "checks", "artifact checks must be a list")
-    for check in checks:
-        if not isinstance(check, dict) or set(check) != {"command", "exit_code"}:
-            return _failure("event_field_invalid", "checks", "artifact check fields are invalid")
-        command = check["command"]
-        if not isinstance(command, list) or not command or any(not isinstance(part, str) for part in command):
-            return _failure("event_field_invalid", "checks.command", "artifact check command is invalid")
-        if any(SECRET_ARGUMENT.search(part) for part in command):
-            return _failure("secret_value_forbidden", "checks.command", "secret-shaped argument in check command")
-        if not isinstance(check["exit_code"], int) or isinstance(check["exit_code"], bool):
-            return _failure("event_field_invalid", "checks.exit_code", "artifact check exit code is invalid")
+    recorded = _validate_recorded_files(files, "files")
+    if not recorded.ok:
+        return recorded
+    # An artifact records what its format checks reported, a failed one included: the human's
+    # verdict is refused until it passes, which a check step decides without a human at all.
+    commands = _validate_check_commands(candidate["checks"], "checks")
+    if not commands.ok:
+        return commands
     return _ok(candidate)
 
 
@@ -674,6 +707,10 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         or candidate["outcome"] != "permission_required"
     ):
         return _failure("event_field_invalid", "permission_required", "permission event is invalid")
+    if event_type == "check":
+        checked = _validate_check_event(candidate)
+        if not checked.ok:
+            return checked
     if event_type == "artifact":
         artifact = _validate_artifact_event(candidate)
         if not artifact.ok:
@@ -836,9 +873,24 @@ def _tdd_step_complete(step_events: list[dict]) -> bool:
                 state = "complete"
             elif state != "complete":
                 return False
-        elif event_type in {"artifact", "external", "approval"}:
+        elif event_type in {"check", "artifact", "external", "approval"}:
             return False
     return state == "complete"
+
+
+def _validate_check_step_evidence(step_events: list[dict], step_id: str) -> ModelResult:
+    """A check step completes on its own evidence: the checks passed, then the change was committed."""
+    if any(event["event_type"] in {"red", "green", "refactor", "artifact", "external", "approval"} for event in step_events):
+        return _failure("step_evidence_missing", step_id, f"evidence of another completion kind on a check step: {step_id}")
+    positions = [index for index, event in enumerate(step_events) if event["event_type"] == "check"]
+    if not positions:
+        return _failure("step_evidence_missing", step_id, f"check evidence is missing: {step_id}")
+    committed = any(
+        event["event_type"] == "commit" and index > positions[-1] for index, event in enumerate(step_events)
+    )
+    if not committed:
+        return _failure("step_evidence_missing", step_id, f"the checks passed but nothing was committed: {step_id}")
+    return _ok(step_id)
 
 
 def validate_step_evidence(events: list[dict], step_id: str, completion_kind: str) -> ModelResult:
@@ -848,6 +900,8 @@ def validate_step_evidence(events: list[dict], step_id: str, completion_kind: st
         if not _tdd_step_complete(step_events):
             return _failure("step_evidence_missing", step_id, f"incomplete TDD evidence: {step_id}")
         return _ok(step_id)
+    if completion_kind == "check":
+        return _validate_check_step_evidence(step_events, step_id)
     if completion_kind not in {"artifact", "external"}:
         return _failure("completion_kind_invalid", step_id, f"unknown completion kind: {completion_kind}")
     if any(event["event_type"] in {"red", "green", "refactor"} for event in step_events):
