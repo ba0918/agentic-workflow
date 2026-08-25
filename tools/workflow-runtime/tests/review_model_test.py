@@ -90,8 +90,19 @@ class FindingValidationTest(unittest.TestCase):
         result = self.model.validate_finding(finding(severity="info", action="auto_fix"))
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "info_action_invalid")
-        accepted = self.model.validate_finding(finding(severity="info", action="record_only"))
+
+    def test_an_info_finding_carries_no_way_of_verifying_it_and_is_closed_at_once(self):
+        rejected = self.model.validate_finding(finding(severity="info", action="record_only"))
+        self.assertFalse(rejected.ok)
+        self.assertEqual(rejected.error.code, "oracle_unexpected")
+
+        accepted = self.model.validate_finding(
+            finding(severity="info", action="record_only", oracle=None, oracle_unavailable_reason=None)
+        )
+
         self.assertTrue(accepted.ok, accepted.error)
+        self.assertEqual(accepted.value["state"], "closed")
+        self.assertTrue(accepted.value["id"].startswith("i-"))
 
     def test_a_human_judgment_finding_needs_the_reason_the_oracle_is_impossible(self):
         result = self.model.validate_finding(

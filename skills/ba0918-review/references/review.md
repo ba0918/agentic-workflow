@@ -74,8 +74,10 @@ direct callers of what the diff touched (one hop, inside the worktree, only afte
 candidate exists) plus the affected specification sections; for `warn`, the diff alone; for
 `info`, record only.
 
-Write the oracle first for every finding; only a recorded reason why none can be written
-makes it a human judgment — reluctance to write one is not a reason. A `warn` oracle may
+Write the oracle first for every finding except an `info` one; only a recorded reason why none
+can be written makes it a human judgment — reluctance to write one is not a reason. An `info`
+finding takes neither: it is an observation, nothing about it will be fixed, and it is closed
+the moment the set freezes. A `warn` oracle may
 rerun an existing test or a static check; writing new tests is not required. The mandatory
 security items of the profile are part of the same review; report their completion in the
 `security_check` field of the findings file.

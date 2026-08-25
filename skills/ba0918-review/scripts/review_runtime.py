@@ -545,14 +545,16 @@ def admit_findings(review: Review, findings: list[dict], *, level: str) -> Runti
             )
         validated.append(checked.value)
     for finding in validated:
-        if finding["action"] != "human_judgment":
+        if finding["oracle"] is not None:
             unsafe = _oracle_unsafe_reason(_oracle_command(finding["oracle"]))
             if unsafe is not None:
                 return _failure("oracle_command_unsafe", f"the oracle command carries {unsafe}", finding["id"])
     admitted: list[dict] = []
     not_admitted: list[dict] = []
     for finding in validated:
-        if finding["action"] == "human_judgment":
+        # A finding with no oracle is admitted as it stands: a human judgment waits for the
+        # human, and an observation is closed the moment it is recorded.
+        if finding["oracle"] is None:
             admitted.append(finding)
             continue
         outcome = run_oracle(review, finding["oracle"])

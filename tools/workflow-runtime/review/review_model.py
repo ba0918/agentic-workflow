@@ -204,6 +204,12 @@ def finding_id(oracle: dict) -> str:
     return "f-" + hashlib.sha256(canonical_json(checked.value)).hexdigest()[:16]
 
 
+def _observation_id(evidence: dict) -> str:
+    """An observation is identified by what was seen: it has no way of being verified."""
+    key = {"summary": " ".join(evidence["summary"].split()), "files": sorted(evidence["files"])}
+    return "i-" + hashlib.sha256(canonical_json(key)).hexdigest()[:16]
+
+
 def _human_judgment_id(reason: str, evidence: dict) -> str:
     key = {"reason": " ".join(reason.split()), "files": sorted(evidence["files"])}
     return "h-" + hashlib.sha256(canonical_json(key)).hexdigest()[:16]
@@ -284,7 +290,13 @@ def validate_finding(value: object) -> ModelResult:
     if not isinstance(failures, int) or failures < 0:
         return _failure("oracle_failures_invalid", "oracle_failures", "oracle failure count is invalid")
 
-    if value["action"] == "human_judgment":
+    if value["severity"] == "info":
+        # An observation is recorded, never fixed. Demanding a way to tell whether it is fixed
+        # asks for something that cannot exist, so the set closes it as it freezes it.
+        if value["oracle"] is not None or value["oracle_unavailable_reason"] is not None:
+            return _failure("oracle_unexpected", "oracle", "an info finding carries no oracle and no reason")
+        derived_id = _observation_id(value["evidence"])
+    elif value["action"] == "human_judgment":
         if value["oracle"] is not None:
             return _failure("oracle_unexpected", "oracle", "a human judgment finding carries no oracle")
         if not _bounded_text(value["oracle_unavailable_reason"]):
@@ -308,6 +320,8 @@ def validate_finding(value: object) -> ModelResult:
 
     validated = dict(value)
     validated["id"] = derived_id
+    if value["severity"] == "info":
+        validated["state"] = "closed"
     validated.setdefault("oracle_failures", 0)
     return _ok(validated)
 

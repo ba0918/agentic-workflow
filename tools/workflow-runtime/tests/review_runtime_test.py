@@ -374,6 +374,47 @@ def finding(scenario: Scenario, *, oracle=UNSET, severity="warn", action="fix_an
     return value
 
 
+class ObservationFindingTest(RuntimeCase):
+    """An info finding is an observation: nothing to fix, so nothing to verify."""
+
+    def observation(self, scenario: Scenario) -> dict:
+        return finding(
+            scenario,
+            severity="info",
+            action="record_only",
+            oracle=None,
+            oracle_unavailable_reason=None,
+            root_cause_key="observation",
+        )
+
+    def test_an_info_finding_is_admitted_without_a_way_to_verify_it(self):
+        scenario = Scenario(self.parent)
+        self.bind(scenario)
+        path = self.write_findings(scenario, [self.observation(scenario)])
+
+        code, payload = self.command(
+            scenario, "register", "--level", "standard", "--findings", str(path),
+            "--profile-dir", str(scenario.profiles),
+        )
+
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(len(payload["admitted"]), 1)
+
+    def test_a_frozen_info_finding_needs_no_verdict_to_complete_the_review(self):
+        scenario = Scenario(self.parent)
+        self.bind(scenario)
+        path = self.write_findings(scenario, [self.observation(scenario)])
+        self.command(
+            scenario, "register", "--level", "standard", "--findings", str(path),
+            "--profile-dir", str(scenario.profiles),
+        )
+
+        code, payload = self.bind(scenario)
+
+        self.assertNotEqual(code, 0)
+        self.assertEqual(payload["reason"], "review_complete")
+
+
 class InputsTest(RuntimeCase):
     def inputs(self, scenario: Scenario, *extra: str) -> tuple[int, dict]:
         return self.command(scenario, "inputs", "--profile-dir", str(scenario.profiles), *extra)
