@@ -1,4 +1,5 @@
 import importlib.util
+import inspect
 import itertools
 import contextlib
 import io
@@ -384,7 +385,6 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
                 text=PLAN_TEXT,
                 approved_identity=identity,
                 switch_confirmed=False,
-                worktree_dirty=False,
             )
             before = {
                 path.relative_to(root).as_posix(): path.read_bytes()
@@ -418,7 +418,6 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
                 text=PLAN_TEXT,
                 approved_identity=first_identity,
                 switch_confirmed=False,
-                worktree_dirty=False,
             )
             second = PLAN_TEXT.replace("20260822022624", "20260822022625")
             publish_text(
@@ -429,7 +428,6 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
                 text=second,
                 approved_identity=plan_artifact.content_identity(second),
                 switch_confirmed=True,
-                worktree_dirty=False,
             )
 
             registered = plan_artifact.read_registered_plan(
@@ -461,7 +459,6 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
                 text=PLAN_TEXT,
                 approved_identity=identity,
                 switch_confirmed=False,
-                worktree_dirty=False,
             )
             target.write_text(PLAN_TEXT + "changed\n", encoding="utf-8")
             index_before = (target.parent / "open-plans.json").read_bytes()
@@ -648,7 +645,6 @@ class DraftValidationTest(unittest.TestCase):
                     source=draft.path,
                     approved_identity=draft.content_identity,
                     switch_confirmed=False,
-                    worktree_dirty=False,
                 )
 
             self.assertTrue(draft.path.is_file())
@@ -671,7 +667,6 @@ class PublishPlanTest(unittest.TestCase):
                 source=draft.path,
                 approved_identity=draft.content_identity,
                 switch_confirmed=False,
-                worktree_dirty=False,
             )
 
             self.assertEqual(result.read_text(encoding="utf-8"), PLAN_TEXT)
@@ -699,7 +694,6 @@ class PublishPlanTest(unittest.TestCase):
                     source=draft.path,
                     approved_identity=draft.content_identity,
                     switch_confirmed=False,
-                    worktree_dirty=False,
                 )
 
             self.assertEqual(draft.path.read_text(encoding="utf-8"), edited)
@@ -720,7 +714,6 @@ class PublishPlanTest(unittest.TestCase):
                     source=elsewhere,
                     approved_identity=plan_artifact.content_identity(PLAN_TEXT),
                     switch_confirmed=False,
-                    worktree_dirty=False,
                 )
 
             self.assertTrue(elsewhere.exists())
@@ -749,7 +742,6 @@ class PublishPlanTest(unittest.TestCase):
                         source=draft.path,
                         approved_identity=draft.content_identity,
                         switch_confirmed=False,
-                        worktree_dirty=False,
                     )
 
             self.assertEqual(draft.path.read_text(encoding="utf-8"), PLAN_TEXT)
@@ -768,7 +760,6 @@ class PublishPlanTest(unittest.TestCase):
                 text=PLAN_TEXT,
                 approved_identity=identity,
                 switch_confirmed=False,
-                worktree_dirty=False,
             )
 
             self.assertEqual(result.read_text(encoding="utf-8"), PLAN_TEXT)
@@ -792,7 +783,6 @@ class PublishPlanTest(unittest.TestCase):
                     text=PLAN_TEXT,
                     approved_identity="sha256:" + "0" * 64,
                     switch_confirmed=False,
-                    worktree_dirty=False,
                 )
 
             self.assertFalse((root / ".agents/artifacts").exists())
@@ -809,7 +799,6 @@ class PublishPlanTest(unittest.TestCase):
                 text=PLAN_TEXT,
                 approved_identity=first_identity,
                 switch_confirmed=False,
-                worktree_dirty=False,
             )
 
             with self.assertRaises(plan_artifact.CurrentPlanConflict):
@@ -823,7 +812,6 @@ class PublishPlanTest(unittest.TestCase):
                         PLAN_TEXT.replace("20260822022624", "20260822022625")
                     ),
                     switch_confirmed=False,
-                    worktree_dirty=False,
                 )
 
             index = json.loads(
@@ -832,7 +820,8 @@ class PublishPlanTest(unittest.TestCase):
             self.assertEqual(index["current"], "20260822022624")
             self.assertEqual(len(index["plans"]), 1)
 
-    def test_dirty_worktree_blocks_even_a_confirmed_switch(self) -> None:
+    def test_a_dirty_worktree_is_not_a_reason_to_refuse_a_confirmed_switch(self) -> None:
+        self.assertNotIn("worktree_dirty", inspect.signature(plan_artifact.publish_plan).parameters)
         with plan_root() as directory:
             root = Path(directory)
             publish_text(
@@ -843,25 +832,22 @@ class PublishPlanTest(unittest.TestCase):
                 text=PLAN_TEXT,
                 approved_identity=plan_artifact.content_identity(PLAN_TEXT),
                 switch_confirmed=False,
-                worktree_dirty=False,
             )
+            (root / "scratch.txt").write_text("uncommitted\n", encoding="utf-8")
             second = PLAN_TEXT.replace("20260822022624", "20260822022625")
 
-            with self.assertRaises(plan_artifact.DirtyWorktree):
-                publish_text(
-                    root,
-                    plan_id="20260822022625",
-                    revision=1,
-                    relative_path=".agents/artifacts/plans/20260822022625_second.md",
-                    text=second,
-                    approved_identity=plan_artifact.content_identity(second),
-                    switch_confirmed=True,
-                    worktree_dirty=True,
-                )
-
-            self.assertFalse(
-                (root / ".agents/artifacts/plans/20260822022625_second.md").exists()
+            publish_text(
+                root,
+                plan_id="20260822022625",
+                revision=1,
+                relative_path=".agents/artifacts/plans/20260822022625_second.md",
+                text=second,
+                approved_identity=plan_artifact.content_identity(second),
+                switch_confirmed=True,
             )
+
+            self.assertTrue((root / ".agents/artifacts/plans/20260822022625_second.md").exists())
+            self.assertEqual(plan_artifact.read_registered_plan(root, None).plan_id, "20260822022625")
 
     def test_confirmed_switch_holds_the_previous_plan(self) -> None:
         with plan_root() as directory:
@@ -874,7 +860,6 @@ class PublishPlanTest(unittest.TestCase):
                 text=PLAN_TEXT,
                 approved_identity=plan_artifact.content_identity(PLAN_TEXT),
                 switch_confirmed=False,
-                worktree_dirty=False,
             )
             second = PLAN_TEXT.replace("20260822022624", "20260822022625")
             publish_text(
@@ -885,7 +870,6 @@ class PublishPlanTest(unittest.TestCase):
                 text=second,
                 approved_identity=plan_artifact.content_identity(second),
                 switch_confirmed=True,
-                worktree_dirty=False,
             )
 
             index = json.loads(
@@ -910,7 +894,6 @@ class PublishPlanTest(unittest.TestCase):
                     text=PLAN_TEXT,
                     approved_identity=identity,
                     switch_confirmed=False,
-                    worktree_dirty=False,
                 )
 
             plans = root / ".agents/artifacts/plans"
@@ -927,7 +910,6 @@ class PublishPlanTest(unittest.TestCase):
                     text=PLAN_TEXT,
                     approved_identity=identity,
                     switch_confirmed=False,
-                    worktree_dirty=False,
                 )
             self.assertEqual(outside.read_text(encoding="utf-8"), "untouched")
 
@@ -942,7 +924,6 @@ class PublishPlanTest(unittest.TestCase):
                 text=PLAN_TEXT,
                 approved_identity=plan_artifact.content_identity(PLAN_TEXT),
                 switch_confirmed=False,
-                worktree_dirty=False,
             )
             revised = PLAN_TEXT.replace("revision:** `1`", "revision:** `2`") + "\n手順を修正する。\n"
 
@@ -954,7 +935,6 @@ class PublishPlanTest(unittest.TestCase):
                 text=revised,
                 approved_identity=plan_artifact.content_identity(revised),
                 switch_confirmed=False,
-                worktree_dirty=False,
             )
 
             self.assertEqual(result.read_text(encoding="utf-8"), revised)

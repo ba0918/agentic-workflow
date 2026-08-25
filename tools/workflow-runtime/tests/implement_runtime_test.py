@@ -125,7 +125,6 @@ docs/
         text=plan_text,
         approved_identity=plan_artifact.content_identity(plan_text),
         switch_confirmed=False,
-        worktree_dirty=False,
     )
     return root, plan_id, spec_identity
 
@@ -238,7 +237,6 @@ def revise_fixture_plan(root: Path, plan_id: str, *, extra_step_kind: str = "tes
         text=revised,
         approved_identity=plan_artifact.content_identity(revised),
         switch_confirmed=False,
-        worktree_dirty=False,
     )
     return plan_artifact.read_registered_plan(root, None)
 
@@ -2579,7 +2577,6 @@ def revise_three_step_plan(root: Path, plan_id: str):
         text=revised,
         approved_identity=plan_artifact.content_identity(revised),
         switch_confirmed=False,
-        worktree_dirty=False,
     )
     return plan_artifact.read_registered_plan(root, None)
 
@@ -2661,7 +2658,6 @@ class RebindTest(unittest.TestCase):
                 text=other_text,
                 approved_identity=plan_artifact.content_identity(other_text),
                 switch_confirmed=True,
-                worktree_dirty=False,
             )
             before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
 

@@ -40,10 +40,6 @@ class CurrentPlanConflict(PlanArtifactError):
     """Publishing would silently replace the current plan."""
 
 
-class DirtyWorktree(PlanArtifactError):
-    """A dirty worktree prevents a safe current-plan switch."""
-
-
 class UnsafePlanPath(PlanArtifactError):
     """The requested plan path escapes or aliases the plan store."""
 
@@ -577,7 +573,6 @@ def publish_plan(
     source: Path,
     approved_identity: str,
     switch_confirmed: bool,
-    worktree_dirty: bool,
 ) -> Path:
     _validate_plan_identity(plan_id, revision)
     draft = _approved_draft(project_root, source)
@@ -604,8 +599,6 @@ def publish_plan(
     if existing is None and current is not None and current != plan_id:
         if not switch_confirmed:
             raise CurrentPlanConflict("switching the current plan requires human confirmation")
-        if worktree_dirty:
-            raise DirtyWorktree("a dirty worktree must be isolated before switching plans")
         for item in index["plans"]:
             if item["id"] == current:
                 item["state"] = "held"
@@ -657,7 +650,6 @@ def main(argv: list[str] | None = None) -> int:
     publish.add_argument("--source", required=True)
     publish.add_argument("--approved-identity", required=True)
     publish.add_argument("--switch-confirmed", action="store_true")
-    publish.add_argument("--worktree-dirty", action="store_true")
     args = parser.parse_args(argv)
     try:
         return _run(args)
@@ -699,7 +691,6 @@ def _run(args: argparse.Namespace) -> int:
         source=Path(args.source),
         approved_identity=args.approved_identity,
         switch_confirmed=args.switch_confirmed,
-        worktree_dirty=args.worktree_dirty,
     )
     print(published)
     return 0
