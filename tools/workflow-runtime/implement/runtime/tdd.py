@@ -1,7 +1,6 @@
 """The test-first cycle: oracle execution, RED acceptance, frozen GREEN/REFACTOR."""
 import hashlib
 from runtime.gitio import run_git
-from runtime.context import raw_events
 import re
 import subprocess
 from pathlib import Path, PurePosixPath
@@ -188,16 +187,6 @@ def validate_step_test_targets_at(attempt: Attempt, step_id: str, commit_sha: st
     return ok(oracle_result.value["test_targets"])
 
 
-def _redo_after_resume(attempt: Attempt, step_id: str) -> bool:
-    """True when the latest resumed event marks this step as a redo and no RED followed it."""
-    events = raw_events(attempt.evidence_path)
-    for event in reversed(events):
-        if event.get("event_type") == "red" and event.get("step_id") == step_id:
-            return False
-        if event.get("event_type") == "resumed":
-            return bool(event.get("redo")) and event.get("next_step") == step_id
-    return False
-
 def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
     validation = execution_model.validate_oracle_candidate(oracle)
     if not validation.ok:
@@ -264,17 +253,9 @@ def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
     persisted = write_once(oracle_path, execution_model.canonical_json(frozen))
     if not persisted.ok:
         if persisted.error.code == "write_collision":
-            existing = read_json(oracle_path)
-            if _redo_after_resume(attempt, step_id):
-                # A resumed execution redoes an unfinished step from RED; the earlier freeze is
-                # superseded rather than trusted, so the new freeze replaces it.
-                oracle_path.write_bytes(execution_model.canonical_json(frozen))
-            elif not existing.ok or execution_model.content_identity(existing.value) != oracle_identity:
-                return stop_attempt(
-                    attempt,
-                    RuntimeFailure("oracle_identity_collision", "frozen oracle differs from existing evidence"),
-                    step_id,
-                )
+            # A step may change its mind about the test it freezes. What the freeze forbids is
+            # weakening a test into GREEN, and this RED has just shown the new test failing.
+            oracle_path.write_bytes(execution_model.canonical_json(frozen))
         else:
             return stop_attempt(attempt, persisted.error, step_id)
     return append_event(
@@ -302,7 +283,9 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
         return stop_attempt(attempt, RuntimeFailure(validation.error.code, validation.error.message), step_id)
     target_validation = _validate_frozen_test_targets(attempt, oracle)
     if not target_validation.ok:
-        return stop_attempt(attempt, target_validation.error, step_id)
+        # A frozen test that changed does not end the execution: the step takes a new RED,
+        # which shows the changed test failing before it is allowed to pass.
+        return target_validation
     events_result = load_events(attempt)
     if not events_result.ok:
         return RuntimeResult(None, events_result.error)
@@ -332,7 +315,7 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
         return stop_attempt(attempt, after.error, step_id)
     target_validation = _validate_frozen_test_targets(attempt, oracle)
     if not target_validation.ok:
-        return stop_attempt(attempt, target_validation.error, step_id)
+        return target_validation
     if executed.value["exit_code"] != 0:
         return stop_attempt(
             attempt,

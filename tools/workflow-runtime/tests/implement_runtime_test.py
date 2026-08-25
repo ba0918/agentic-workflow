@@ -1735,7 +1735,7 @@ FAILED (failures=1, errors=1, skipped=1)
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "oracle_identity_drift")
 
-    def test_changed_frozen_test_target_is_rejected_before_green(self) -> None:
+    def test_a_changed_frozen_test_target_keeps_green_from_passing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
             candidate = red_oracle(
@@ -1792,6 +1792,71 @@ FAILED (failures=1, errors=1, skipped=1)
                 "permission_required",
                 "red",
             ])
+
+
+class FreezeRedoTest(unittest.TestCase):
+    """The freeze forbids weakening a test into GREEN, not changing one's mind about the test."""
+
+    @staticmethod
+    def _drifted(attempt) -> None:
+        (attempt.worktree / "tests/greeting_test.py").write_text(
+            "# the behavior needs a different test\n", encoding="utf-8"
+        )
+
+    def test_a_changed_frozen_test_target_does_not_stop_the_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+            self._drifted(attempt)
+
+            result = implement_runtime.run_frozen_oracle(attempt, "step-1", "green")
+
+            self.assertEqual(result.error.code, "test_identity_drift")
+            recorded = [event["event_type"] for event in implement_runtime._load_events(attempt).value]
+            self.assertNotIn("stopped", recorded)
+
+    def test_a_new_red_in_the_same_step_becomes_the_freeze_green_answers_to(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+            self._drifted(attempt)
+            self.assertFalse(implement_runtime.run_frozen_oracle(attempt, "step-1", "green").ok)
+
+            again = implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND))
+
+            self.assertTrue(again.ok, again.error)
+            production = attempt.worktree / "src/greeting.py"
+            production.parent.mkdir(parents=True, exist_ok=True)
+            production.write_text("def greeting():\n    return 'hello'\n", encoding="utf-8")
+            green = implement_runtime.run_frozen_oracle(attempt, "step-1", "green")
+            self.assertTrue(green.ok, green.error)
+
+    def test_the_red_the_new_freeze_replaced_stays_in_the_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+            self._drifted(attempt)
+
+            again = implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND))
+
+            self.assertTrue(again.ok, again.error)
+            recorded = [event["event_type"] for event in implement_runtime._load_events(attempt).value]
+            self.assertEqual(recorded, ["worktree-bound", "red", "red"])
+
+    def test_a_redone_red_that_fails_for_another_reason_still_stops(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+            self._drifted(attempt)
+
+            result = implement_runtime.accept_red(
+                attempt, red_oracle(["python3", "-c", "print('greeting missing')"])
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "unintended_red")
+            recorded = [event["event_type"] for event in implement_runtime._load_events(attempt).value]
+            self.assertIn("stopped", recorded)
 
 
 class CommitBoundaryTest(unittest.TestCase):
