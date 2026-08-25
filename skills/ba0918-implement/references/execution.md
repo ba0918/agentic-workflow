@@ -41,20 +41,25 @@ the branch list, so a branch someone created by hand is not mistaken for an exec
 returns, per unfinished execution: when it started, how many steps were committed, the last
 event and its reason, whether the branch exists and which commits (SHA and subject) it holds
 that no commit event explains — wherever they sit between the base and the head — and whether
-the worktree exists, is registered, and which files it has changed without a commit. `resumable.ok` is false only when the bound plan or
-specification identities no longer match the repository; that execution cannot be continued and
-only "start over" remains. An execution whose `binding.json` is missing or unreadable is listed
-with its id and `resumable.ok: false` alone.
+the worktree exists, is registered, and which files it has changed without a commit. `resumable.ok`
+is false only when the plan or specification identities the execution currently stands on (its
+binding, as the last rebound left it) no longer match the repository; that execution cannot be
+continued as it is. `rebindable.ok` then says whether it can be rebound instead: the current
+registered plan must be a revision of the same plan, and the plan revision the execution was
+bound to must still be readable. An execution whose `binding.json` is missing or unreadable is
+listed with its id and `resumable.ok: false` alone.
 
 When the list is empty, bootstrap a new execution. Otherwise present the facts to the human in
-plain language and let them choose between continuing one execution and starting over. The
-human may first ask for an investigation: read the extra commits, the uncommitted diff, and the
-stop reason, and advise with reasons — without changing the branch, the worktree, or the
-evidence. The choice is theirs; do not infer it from silence or from the facts alone.
+plain language and let them choose between continuing one execution, rebinding it to the revised
+plan, and starting over. The human may first ask for an investigation: read the extra commits,
+the uncommitted diff, and the stop reason, and advise with reasons — without changing the branch,
+the worktree, or the evidence. The choice is theirs; do not infer it from silence or from the
+facts alone.
 
 - Start over: bootstrap a new execution. Leave the old branch, worktree, and evidence in place;
   removing them is the human's manual task.
 - Continue: run `resume` (below) and carry on from the step it names.
+- Rebind: run `rebind` (below), show the human its table, and record it only when they confirm.
 
 ## Bootstrap
 
@@ -99,15 +104,56 @@ python3 <implement-runtime> resume \
 ```
 
 The helper reloads the execution from its evidence, refuses when the plan or spec identities
-differ, and otherwise appends a `resumed` event recording the branch head, the commits the
-evidence does not explain, and whether uncommitted changes exist — so nothing is inherited
-silently. It returns the step to continue from: the first step without a commit event. When
-that step already has RED, GREEN, or REFACTOR evidence but no commit, it is marked `redo`:
+differ (rebind instead), and otherwise appends a `resumed` event recording the branch head, the
+commits the evidence does not explain, and whether uncommitted changes exist — so nothing is
+inherited silently. It returns the step to continue from: the first step without a commit event.
+When that step already has RED, GREEN, or REFACTOR evidence but no commit, it is marked `redo`:
 start it again from RED, and the new RED replaces the earlier frozen oracle. When the step's
 commit already exists on the branch — the commit succeeded and only its record failed — record
 it late instead of redoing the work (`record-commit --commit <sha>`, see [tdd.md](tdd.md)).
 Uncommitted changes are left untouched; the staging helper still admits only paths inside the
-approved scope.
+approved scope, and changes outside it are listed at the terminal for the human's approval.
+
+## Rebind an execution to a revised plan
+
+When the plan was revised (a new revision is registered as current) while an execution of it is
+unfinished, the execution stands on the old revision and every forward command reports
+`plan_identity_drift`. The human need not start over. First show them how the revision maps onto
+the execution; this writes nothing:
+
+```text
+python3 <implement-runtime> rebind \
+  --repo <main-checkout> --plan-id <plan-id> --execution-id <execution-id> \
+  [--plan-path <repo-relative-revised-plan>]
+```
+
+The helper matches the steps of the bound revision and the revised plan by the identity of
+their wording (heading and body, never the number), and returns a `step_map`: for each revised
+step, `carry` (same wording, already committed — its evidence and commit are kept), `continue`
+(same wording, not yet committed — resumed from its evidence), or `new` (no step with that
+wording existed). Previous steps no revised step matches are `superseded_steps`: their evidence
+no longer counts and they are done again, while their commits stay on the branch and are listed
+at the terminal. It also names `next_step`, the first revised step that is not carried, and the
+commits the evidence does not explain. Present the table in plain language and let the human
+decide; a narrowed write scope does not block the rebind (the terminal lists what falls outside).
+
+Only after the human confirmed:
+
+```text
+python3 <implement-runtime> rebind \
+  --repo <main-checkout> --plan-id <plan-id> --execution-id <execution-id> \
+  [--plan-path <repo-relative-revised-plan>] --confirm
+```
+
+This appends a `rebound` event carrying the revised plan (id, path, revision, identity), its
+specification identities, write scope, human gates, the step map, the branch head, the extra
+commits, and whether uncommitted changes exist. From then on every command checks against the
+revised plan, and step ids are the revised numbering. The rebind target is the registered current
+plan (or the registered plan at `--plan-path`) and must be the same plan id; when the bound
+revision's file is no longer readable the rebind is refused and only starting over remains.
+
+The review skill reads the binding of an execution; until it learns to read the rebound
+identities, an execution that was rebound cannot be handed to review. Say so when handing off.
 
 ## Enter from a fresh session
 
@@ -121,8 +167,10 @@ python3 <implement-runtime> load --repo <main-checkout> \
 Without ids the helper accepts only the single unfinished execution of the current plan (or its
 single execution when none is unfinished); with several candidates it stops with
 `execution_ambiguous` and lists them. It reads nothing but the evidence directory and
-`binding.json`, then checks that the bound plan and spec identities still match, and that the
-branch and the linked worktree exist. Every later command accepts the same two ids.
+`binding.json`, and checks that the branch and the linked worktree exist. It does not require the
+plan or spec identities to match: reading an execution and stopping it never depend on that, so a
+revised plan is reported by `context`, not by `load`. Every later command accepts the same two
+ids.
 
 Then revalidate the current plan step before reading or editing implementation files. Step ids
 are `step-<n>`, taken from the `### <n>.` headings under the plan's `## Steps` section:
@@ -131,9 +179,12 @@ are `step-<n>`, taken from the `### <n>.` headings under the plan's `## Steps` s
 python3 <implement-runtime> context --repo <main-checkout> --step step-<n>
 ```
 
-The context check compares the immutable binding with the current locator, plan, specs, Git
-common directory, linked worktree, branch, base ancestry, current step, and every changed path.
-Run it again at every RED, GREEN, REFACTOR, and commit boundary.
+The context check compares the effective binding — the immutable `binding.json` as the last
+`rebound` event left it — with the current locator, plan, specs, Git common directory, linked
+worktree, branch, base ancestry, and current step. Uncommitted changes inside the write scope are
+work in progress; changes outside it are returned as `out_of_scope_changes`, a fact for the
+human, never a stop — the staging boundary keeps them out of commits and the terminal lists them.
+Run the check again at every RED, GREEN, REFACTOR, and commit boundary.
 
 Each step's `**Completion:**` line decides how it is executed: `test` follows [tdd.md](tdd.md);
 `artifact` and `external` follow [artifacts.md](artifacts.md). Evidence of the wrong kind for a
@@ -167,7 +218,8 @@ artifacts cannot reconstruct the current meaning or any identity differs.
 ## Blocking stop
 
 On a blocking failure, freeze edits and commits first. Record the reason when durable evidence
-is writable:
+is writable — this works even when the plan or specs no longer match the binding, so a revised
+plan never leaves an execution unable to say that it stopped:
 
 ```text
 python3 <implement-runtime> stop \
@@ -187,3 +239,29 @@ finds this execution through the unfinished-execution check and lets the human d
 
 If evidence itself is unavailable, report an unverified stop from the observable runtime and Git
 state. Never use that exception to assert progress or success.
+
+Not every unplanned fact is a blocking stop. Uncommitted changes outside the write scope, commits
+no event explains, a defect in the helper itself (the helper is not part of the bound identities,
+so repairing it mid-execution invalidates nothing), and a record that failed to be written (record
+it late) are facts to show the human. A decision the plan does not make about the deliverable is
+the only reason to return to brainstorm.
+
+## Terminal hand-off and the history approval
+
+The terminal check (`implementation-green`) compares every commit between the base and the head
+with the `commit` events, the paths the history touched with the write scope, and the worktree
+with the scope. In-scope uncommitted leftovers are a stop (`post_verification_dirty`: something was
+not committed); a recorded commit missing from the history is a stop (`commit_identity_drift`: the
+branch was rewritten). Everything else the evidence does not explain — commits without a commit
+event, history paths outside the scope, uncommitted changes outside the scope — is listed and
+answered with `history_approval_required`, without a stop event. Present the listing to the
+human; when they approve it, record it:
+
+```text
+python3 <implement-runtime> approve-history --repo <main-checkout> [--reason <short-reason>]
+```
+
+The `history_approved` event holds the listing itself, so the approval is valid only while the
+listing is unchanged; a later commit or change is listed again. Then run `implementation-green`
+again. When nothing needs approval, the terminal completes without one, and `approve-history`
+refuses with `history_approval_unnecessary`.

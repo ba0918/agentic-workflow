@@ -1,6 +1,6 @@
 ---
 name: ba0918-implement
-description: Use when an approved, registered implementation plan must be executed step by step in a dedicated branch and linked worktree, leaving durable evidence for review. Detects unfinished executions of the same plan and lets the human continue or start over. Stops on drift, unreadable plan format, or unintended RED, and hands implementation_green evidence to review without completing or merging the plan.
+description: Use when an approved, registered implementation plan must be executed step by step in a dedicated branch and linked worktree, leaving durable evidence for review. Detects unfinished executions of the same plan and lets the human continue, rebind the execution to a revised plan, or start over. Stops on drift, unreadable plan format, or unintended RED, but a stop is never the end — reading and stopping never depend on the plan or specs still matching, and drift leaves the human two ways forward. Hands implementation_green evidence to review, after the human approves any commit or change the evidence does not explain, without completing or merging the plan.
 metadata:
   contracts:
     - implement-runtime
@@ -28,8 +28,17 @@ evidence directory under `.agents/artifacts/executions/<plan-id>/<execution-id>/
 
 - Own registered-plan resolution, detection of unfinished executions, linked-worktree isolation,
   executable oracle binding, direct TDD, scoped staging, commit verification, immutable evidence,
-  continuation of an execution the human chose to continue, and the `implementation_green`
-  hand-off.
+  continuation of an execution the human chose to continue, rebinding an execution to a revised
+  plan the human approved, the human's approval of commits and changes the evidence does not
+  explain, and the `implementation_green` hand-off.
+- A mismatch between the approved plan or specs and what is present stops every command that
+  moves the execution forward (`context` onward). It never stops reading (`load`, `residual`) or
+  stopping (`stop`), and it never forces a restart: the human chooses between starting over and
+  rebinding to the revised plan, which carries every step whose wording is unchanged.
+- Facts the plan did not foresee — uncommitted changes outside the write scope, commits no event
+  explains, a helper defect, a missing record — are shown to the human, never refused. The write
+  scope is enforced at the staging boundary and listed at the terminal for approval; only
+  in-scope uncommitted leftovers stop the terminal.
 - Read the plan only through the plan skill's `plan_artifact.py` (plan id and revision, target
   specifications, scope tree, steps with their completion kind, human gates). Keep no parser of
   your own; a plan the reader rejects is `plan_format_invalid` and the plan skill issues a new
@@ -59,8 +68,9 @@ whether refactoring is warranted, and applying the project's commit rules.
 Complete only when every step carries the evidence its completion kind demands — a `test` step
 its current expected RED, the same frozen oracle passing after GREEN and REFACTOR, and a commit;
 an `artifact` step its recorded files and checks, the human's approval, and a commit; an
-`external` step its recorded check and the human's approval — every concern is committed within
-scope, durable evidence is intact, and the terminal event is `implementation_green`.
+`external` step its recorded check and the human's approval — durable evidence is intact, every
+commit or change the evidence does not explain has been listed and approved by the human
+(`history_approved`), and the terminal event is `implementation_green`.
 
 `implementation_green` is not plan completion. Preserve the branch, linked worktree, commits,
 and evidence for the independent review phase.

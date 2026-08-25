@@ -52,7 +52,7 @@ language. Explanatory text may follow a marker on the next lines.
 ```markdown
 **Target specifications:**
 
-- `docs/spec/implement.md`
+- `docs/features/greeting.md`
   - content identity: `sha256:0123…abcd`
   - sections: `残っている作業があるとき`, `証拠の残し方`
 ```
@@ -84,8 +84,7 @@ or box-drawing characters.
 
 ### Completion kind
 
-Each step states how its completion will be shown. Choose by what the step produces, following
-the "plan → implement" section of `docs/spec/workflow.md`:
+Each step states how its completion will be shown. Choose by what the step produces:
 
 | Line | Use for | Evidence the implement skill demands |
 |---|---|---|
@@ -176,12 +175,12 @@ file.
 
 After explicit confirmation:
 
-1. Determine whether an open plan is already current and whether the worktree is dirty.
+1. Determine whether an open plan is already current.
 2. If another plan is current, load [lifecycle.md](lifecycle.md) and obtain the required switch
    decision before publication.
 3. Run `python3 skills/ba0918-plan/scripts/plan_artifact.py publish` with `--source` set to the
-   draft path, `--approved-identity` set to the presented identity, and the observed switch
-   inputs. The helper moves the draft to the canonical path only when the file still has the
+   draft path, `--approved-identity` set to the presented identity, and `--switch-confirmed` when
+   the human confirmed a switch. The helper moves the draft to the canonical path only when the file still has the
    presented identity and still passes the same checks as at save time (so a specification
    revised after the draft stops publication), reads the canonical file back, and registers it
    only when that read-back matches. A draft the human edited after presentation fails the
