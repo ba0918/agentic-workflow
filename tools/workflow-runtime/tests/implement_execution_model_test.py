@@ -1114,6 +1114,32 @@ class EffectiveEventsTest(unittest.TestCase):
         self.assertEqual(effective[-1], {"event_type": "red", "step_id": "step-2"})
         self.assertEqual(len(before), 12)
 
+    def test_evidence_an_earlier_rebound_superseded_does_not_come_back(self) -> None:
+        first = {
+            "event_type": "rebound",
+            "step_map": [{"step_id": "step-1", "previous_step_id": "step-1", "disposition": "carry"}],
+            "superseded_steps": ["step-2"],
+        }
+        second = {
+            "event_type": "rebound",
+            "step_map": [
+                {"step_id": "step-1", "previous_step_id": "step-1", "disposition": "carry"},
+                {"step_id": "step-2", "previous_step_id": "step-2", "disposition": "carry"},
+            ],
+            "superseded_steps": [],
+        }
+        events = (
+            self._tdd("step-1", "red", "green", "refactor", "commit")
+            + self._tdd("step-2", "artifact")
+            + [first]
+            + self._tdd("step-2", "red", "green", "refactor", "commit")
+            + [second]
+        )
+
+        effective = implement_model.effective_events(events)
+
+        self.assertNotIn("artifact", [event["event_type"] for event in effective])
+
 
 if __name__ == "__main__":
     unittest.main()

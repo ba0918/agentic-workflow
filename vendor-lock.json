@@ -29,7 +29,7 @@
     "ba0918-implement": {
       "scripts/execution_model.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:884888a52bf14e8c59c5462bf567eadf35aa2121da23f2936351528c47c250cd",
+        "digest": "sha256:9e85b6a0e3e01a20ef5c2ee3405734496bc57c64519fa179bab81981a1f613d0",
         "src": "tools/workflow-runtime/implement/execution_model.py"
       },
       "scripts/implement_runtime.py": {
@@ -69,7 +69,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:604fd7c3ed9b8080918c8e0d4bb0994ab3857dd27bac57bb4d573e84702a0d95",
+      "digest": "sha256:3d2a48ff367f0d3cf42666ddf9a2e1228025caa54d10a9c6db7fc1b7f02db1a0",
       "kind": "raw"
     },
     "plan-runtime": {

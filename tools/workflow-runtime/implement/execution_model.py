@@ -941,26 +941,30 @@ def effective_binding(binding: dict, events: list[dict]) -> dict:
 
 
 def effective_events(events: list[dict]) -> list[dict]:
-    """Events as the last rebound reads them: carried steps renumbered, superseded evidence dropped."""
-    index, rebound = _last_rebound(events)
-    if rebound is None:
-        return list(events)
-    renumbered = {
-        entry["previous_step_id"]: entry["step_id"]
-        for entry in rebound["step_map"]
-        if entry["previous_step_id"] is not None
-    }
-    superseded = set(rebound["superseded_steps"])
+    """Events as the rebounds read them: carried steps renumbered, superseded evidence dropped.
+
+    Every rebound applies to what the rebounds before it already left, so evidence one revision
+    dropped stays dropped even when a later revision carries a step of the same number."""
     effective: list[dict] = []
-    for event in events[:index]:
-        step_id = event.get("step_id")
-        if step_id is None:
-            effective.append(event)
-        elif step_id in superseded or step_id not in renumbered:
-            continue
-        else:
-            effective.append(dict(event, step_id=renumbered[step_id]))
-    effective.extend(events[index:])
+    for event in events:
+        if event.get("event_type") == "rebound":
+            renumbered = {
+                entry["previous_step_id"]: entry["step_id"]
+                for entry in event["step_map"]
+                if entry["previous_step_id"] is not None
+            }
+            superseded = set(event["superseded_steps"])
+            carried: list[dict] = []
+            for earlier in effective:
+                step_id = earlier.get("step_id")
+                if step_id is None:
+                    carried.append(earlier)
+                elif step_id in superseded or step_id not in renumbered:
+                    continue
+                else:
+                    carried.append(dict(earlier, step_id=renumbered[step_id]))
+            effective = carried
+        effective.append(event)
     return effective
 
 
