@@ -101,6 +101,25 @@ class ReviewRuntimeTest(unittest.TestCase):
             "implementation_incomplete",
         )
 
+    def test_all_implementation_and_review_events_require_version_two(self) -> None:
+        root, _, _ = self.execution_fixture()
+        green = root / ".agents/evidence/plan-a/run-1/000004-implementation_green.json"
+        payload = json.loads(green.read_text(encoding="utf-8"))
+        payload.pop("version")
+        green.write_text(json.dumps(payload), encoding="utf-8")
+        self.assertEqual(
+            runtime.resolve_input(root, review_id="bad", plan_key="plan-a", run_id="run-1").error.code,
+            "execution_input_invalid",
+        )
+        root, _, _ = self.repository()
+        binding = runtime.resolve_input(root, review_id="review-v", branch="feature", base="main").value
+        runtime.bind_review(root, binding, model="model-x")
+        event = root / ".agents/evidence/reviews/review-v/000001-review-bound.json"
+        payload = json.loads(event.read_text(encoding="utf-8"))
+        payload["version"] = 3
+        event.write_text(json.dumps(payload), encoding="utf-8")
+        self.assertEqual(runtime.load_events(root, binding).error.code, "review_event_invalid")
+
     def test_branch_base_uses_explicit_then_pr_then_unique_default(self) -> None:
         root, base, _ = self.repository()
         explicit = runtime.resolve_input(root, review_id="one", branch="feature", base="main")
@@ -227,6 +246,94 @@ class ReviewRuntimeTest(unittest.TestCase):
         self.assertEqual(runtime.current_findings(runtime.load_events(root, binding).value)[0]["state"], "closed")
         later = runtime.record_targeted_result(root, binding, item["id"], oracle_exit_code=0, fix_commits=[])
         self.assertEqual(later.error.code, "finding_not_open")
+
+    def test_stale_state_blocks_every_operation_except_rebound(self) -> None:
+        root, _, _ = self.repository()
+        binding = runtime.resolve_input(root, review_id="stale", branch="feature", base="main").value
+        runtime.bind_review(root, binding, model="model-x")
+        runtime.begin_stage(root, binding, reviewer_context="initial")
+        item = finding(action="human_judgment", oracle="", oracle_status="unavailable",
+                       oracle_unavailable_reason="decision", spec_commit=binding["spec_commit"])
+        runtime.record_findings(root, binding, stage="initial", findings=[item], safety=safety(), reviewer_context="initial")
+        runtime.mark_stale(root, binding, reason="spec changed")
+        self.assertEqual(runtime.record_human_decision(
+            root, binding, item["id"], decision="accept", reason="human choice",
+        ).error.code, "findings_stale")
+        self.assertEqual(runtime.record_findings(
+            root, binding, stage="final", findings=[], safety=safety(), reviewer_context="final",
+        ).error.code, "findings_stale")
+        self.assertEqual(runtime.complete_review(root, binding).error.code, "findings_stale")
+
+    def test_fix_commits_are_derived_from_the_bound_branch_range(self) -> None:
+        root, _, _ = self.repository()
+        binding = runtime.resolve_input(root, review_id="range", branch="feature", base="main").value
+        runtime.bind_review(root, binding, model="model-x")
+        runtime.begin_stage(root, binding, reviewer_context="initial")
+        item = finding(spec_commit=binding["spec_commit"])
+        runtime.record_findings(root, binding, stage="initial", findings=[item], safety=safety(), reviewer_context="initial")
+        runtime.begin_stage(root, binding, reviewer_context="targeted")
+        subprocess.run(["git", "-C", str(root), "switch", "-qc", "side", "main"], check=True)
+        (root / "side.txt").write_text("side\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "side.txt"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", f"unrelated\n\nFinding: {item['id']}"], check=True)
+        side = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+        result = runtime.close_finding(root, binding, item["id"], oracle_exit_code=0, fix_commits=[side])
+        self.assertEqual(result.error.code, "fix_commit_unlinked")
+
+    def test_review_options_use_known_profiles_and_valid_second_reviewer_pairs(self) -> None:
+        root, _, _ = self.repository()
+        binding = runtime.resolve_input(root, review_id="options", branch="feature", base="main").value
+        self.assertEqual(runtime.bind_review(root, binding, model="m", profiles=["unknown"]).error.code, "review_profile_invalid")
+        self.assertEqual(runtime.bind_review(root, binding, model="m", second_model="m2").error.code, "second_reviewer_invalid")
+        eval_binding = runtime.resolve_input(root, review_id="eval", branch="feature", base="main").value
+        (root / "evals/cases/ba0918-review").mkdir(parents=True)
+        (root / "evals/cases/ba0918-review/case.md").write_text("case\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "evals"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "eval case"], check=True)
+        eval_binding["input"]["head"] = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+        selected, source = runtime._selected_profiles(root, eval_binding, [])
+        self.assertIn("skill", selected)
+        self.assertNotIn("document", selected)
+        self.assertEqual(source, "changed_files")
+
+    def test_bounded_review_text_rejects_secrets_and_stage_records_actual_model(self) -> None:
+        root, _, _ = self.repository()
+        binding = runtime.resolve_input(root, review_id="text", branch="feature", base="main").value
+        runtime.bind_review(root, binding, model="requested")
+        runtime.begin_stage(root, binding, reviewer_context="initial")
+        fake_secret = "API_TOKEN=fake-review-secret-value"
+        rejected = runtime.record_findings(
+            root, binding, stage="initial", findings=[], safety=safety(summary=fake_secret),
+            reviewer_context="initial", actual_model="actual-model",
+        )
+        self.assertEqual(rejected.error.code, "bounded_text_invalid")
+        self.assertNotIn(fake_secret, str(rejected))
+        recorded = runtime.record_findings(
+            root, binding, stage="initial", findings=[], safety=safety(),
+            reviewer_context="initial", actual_model="actual-model",
+        )
+        self.assertTrue(recorded.ok, recorded.error)
+        self.assertEqual(recorded.value["actual_model"], "actual-model")
+
+    def test_second_review_and_human_decision_do_not_persist_secret_shaped_text(self) -> None:
+        root, _, _ = self.repository()
+        binding = runtime.resolve_input(root, review_id="secret-text", branch="feature", base="main").value
+        runtime.bind_review(root, binding, model="first", second_reviewer="codex", second_model="second")
+        secret = "CREDENTIAL=fake-review-credential"
+        second = runtime.record_second_review(
+            root, binding, status="completed", actual_model="second", summary=secret,
+        )
+        self.assertEqual(second.error.code, "second_review_invalid")
+        self.assertNotIn(secret, str(second))
+        runtime.begin_stage(root, binding, reviewer_context="initial")
+        item = finding(action="human_judgment", oracle="", oracle_status="unavailable",
+                       oracle_unavailable_reason="decision", spec_commit=binding["spec_commit"])
+        runtime.record_findings(root, binding, stage="initial", findings=[item], safety=safety(), reviewer_context="initial")
+        decided = runtime.record_human_decision(
+            root, binding, item["id"], decision="accept", reason=secret,
+        )
+        self.assertEqual(decided.error.code, "human_decision_invalid")
+        self.assertNotIn(secret, str(decided))
 
     def test_cli_binds_real_branch_and_starts_initial_review(self) -> None:
         root, _, _ = self.repository()
