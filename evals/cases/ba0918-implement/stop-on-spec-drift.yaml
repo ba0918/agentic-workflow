@@ -11,8 +11,6 @@ files:
     to: docs/spec/greeting.md
   - from: drift/.agents/artifacts/plans/20260822170002_greeting.md
     to: .agents/artifacts/plans/20260822170002_greeting.md
-  - from: drift/.agents/artifacts/plans/open-plans.json
-    to: .agents/artifacts/plans/open-plans.json
 git:
   init: true
   branch: main

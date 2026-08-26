@@ -15,8 +15,6 @@ files:
     to: tests/existing_test.py
   - from: unintended-red/.agents/artifacts/plans/20260822170003_greeting.md
     to: .agents/artifacts/plans/20260822170003_greeting.md
-  - from: unintended-red/.agents/artifacts/plans/open-plans.json
-    to: .agents/artifacts/plans/open-plans.json
 git:
   init: true
   branch: main

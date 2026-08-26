@@ -17,8 +17,6 @@ files:
     to: tests/greeting_test.py
   - from: weakened-test/.agents/artifacts/plans/20260822170004_greeting.md
     to: .agents/artifacts/plans/20260822170004_greeting.md
-  - from: weakened-test/.agents/artifacts/plans/open-plans.json
-    to: .agents/artifacts/plans/open-plans.json
 git:
   init: true
   branch: main

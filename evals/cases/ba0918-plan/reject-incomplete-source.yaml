@@ -22,7 +22,7 @@ expectations:
     critical: true
   - text: 不足した意味を推測またはdefaultで補わない
     critical: true
-  - text: plan fileと未完了plan索引を作成しない
+  - text: 正本のplan fileも草稿も作成しない
     critical: true
   - text: 不足した意味をbrainstormへ戻す
     critical: true

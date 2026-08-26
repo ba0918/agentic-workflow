@@ -15,8 +15,6 @@ files:
     to: src/greeting.py
   - from: normal/.agents/artifacts/plans/20260822170001_greeting.md
     to: .agents/artifacts/plans/20260822170001_greeting.md
-  - from: normal/.agents/artifacts/plans/open-plans.json
-    to: .agents/artifacts/plans/open-plans.json
 git:
   init: true
   branch: main

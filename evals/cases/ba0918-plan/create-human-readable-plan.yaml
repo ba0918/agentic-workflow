@@ -17,7 +17,7 @@ exercises:
 prompt: |
   small-approved-change.mdにある承認済み仕様集合から実装planを作成してください。
 expected_output: |
-  正本へ保存する全内容を日本語の草稿として.agents/tmp/plans/配下の一時fileへ保存し、chatにはpath、content identity、保存先、判断事項だけを出して人間の確認を求める。確認前は正本と索引を変更しない。
+  正本へ保存する全内容を日本語の草稿として.agents/tmp/plans/配下の一時fileへ保存し、chatにはpath、content identity、保存先、判断事項だけを出して人間の確認を求める。確認前は正本を作成も変更もしない。
 expectations:
   - text: 正本へ保存するplan全体を日本語で、.agents/tmp/plans/配下の一時fileとして正本と同一bytesで保存する
     critical: true
@@ -36,11 +36,7 @@ expectations:
     critical: true
   - text: 変更しないもの、外部影響、主要riskをplan単体で判断できる
     critical: true
-  - text: 人間確認前にplan、索引、status、session historyを作成または変更しない
+  - text: 人間確認前に正本のplan、status、session historyを作成または変更しない
     critical: true
-    assert:
-      - type: file_exists
-        path: .agents/artifacts/plans/open-plans.json
-        expect: false
   - text: 草稿のpath、identity、保存先を示して人間の確認を求め、fileの直接編集を求めない
     critical: true
