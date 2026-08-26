@@ -92,6 +92,37 @@ def standalone_binding(
 def input_kind(binding: dict) -> str:
     return "execution" if binding.get("kind") == "execution" else binding.get("input", {}).get("kind", "unknown")
 
+def _validate_review_binding(binding: object) -> RuntimeResult:
+    if not isinstance(binding, dict) or binding.get("version") != 2:
+        return failure("review_binding_invalid", "review binding must be a version 2 object")
+    if binding.get("kind") == "execution":
+        if (
+            SAFE_ID.fullmatch(str(binding.get("plan_key", ""))) is None
+            or SAFE_ID.fullmatch(str(binding.get("run_id", ""))) is None
+            or COMMIT.fullmatch(str(binding.get("approval_commit", ""))) is None
+            or not isinstance(binding.get("implement_sequence"), int)
+        ):
+            return failure("review_binding_invalid", "execution review binding is invalid")
+        return ok(binding)
+    if binding.get("kind") != "standalone" or SAFE_ID.fullmatch(str(binding.get("review_id", ""))) is None:
+        return failure("review_binding_invalid", "standalone review binding is invalid")
+    review_input = binding.get("input")
+    if (
+        not isinstance(review_input, dict) or review_input.get("kind") not in {"branch", "commits"}
+        or COMMIT.fullmatch(str(review_input.get("base", ""))) is None
+        or COMMIT.fullmatch(str(review_input.get("head", ""))) is None
+        or COMMIT.fullmatch(str(binding.get("spec_commit", ""))) is None
+        or not isinstance(binding.get("spec_paths"), list)
+    ):
+        return failure("review_binding_invalid", "standalone review commit binding is invalid")
+    if review_input["kind"] == "branch" and not isinstance(review_input.get("branch"), str):
+        return failure("review_binding_invalid", "branch review binding is invalid")
+    for path in binding["spec_paths"]:
+        candidate = PurePosixPath(path) if isinstance(path, str) else PurePosixPath("/")
+        if candidate.is_absolute() or ".." in candidate.parts:
+            return failure("review_binding_invalid", "review specification path is invalid")
+    return ok(binding)
+
 def choose_comparison_base(
     *, explicit: str | None, pull_request_target: str | None, default_branch: str | None,
 ) -> RuntimeResult:
@@ -264,6 +295,9 @@ def resolve_input(
 
 def review_directory(root: Path, binding: dict) -> Path:
     repository = root.resolve()
+    checked = _validate_review_binding(binding)
+    if not checked.ok:
+        raise ValueError(checked.error.message)
     if binding["kind"] == "execution":
         path = repository / ".agents/evidence" / binding["plan_key"] / binding["run_id"] / "review"
     else:
@@ -273,7 +307,11 @@ def review_directory(root: Path, binding: dict) -> Path:
         cursor /= part
         if cursor.is_symlink():
             raise ValueError(f"symlink is not allowed: {cursor}")
-    return path
+    resolved = path.resolve()
+    evidence_root = (repository / ".agents/evidence").resolve()
+    if not resolved.is_relative_to(evidence_root):
+        raise ValueError("review directory is outside the evidence store")
+    return resolved
 
 def _write_once(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -290,7 +328,10 @@ def _write_once(path: Path, value: dict) -> None:
         temporary.unlink(missing_ok=True)
 
 def append_event(root: Path, binding: dict, event_type: str, fields: dict) -> RuntimeResult:
-    directory = review_directory(root, binding)
+    try:
+        directory = review_directory(root, binding)
+    except ValueError:
+        return failure("review_binding_invalid", "review directory is invalid")
     loaded = load_events(root, binding)
     if not loaded.ok:
         return loaded
@@ -298,6 +339,9 @@ def append_event(root: Path, binding: dict, event_type: str, fields: dict) -> Ru
         return failure("findings_stale", "stale findings allow only a human-approved rebound")
     if review_model.review_complete(loaded.value, current_findings(loaded.value)):
         return failure("review_already_completed", "completed review cannot be extended")
+    safe_fields = _safe_finding_strings(fields, field="event")
+    if not safe_fields.ok:
+        return safe_fields
     sequence = len(loaded.value) + 1
     event = {"version": 2, "sequence": sequence, "event_type": event_type, **fields}
     if any("identity" in key.lower() for key in event):
@@ -309,7 +353,10 @@ def append_event(root: Path, binding: dict, event_type: str, fields: dict) -> Ru
     return ok(event)
 
 def load_events(root: Path, binding: dict) -> RuntimeResult:
-    directory = review_directory(root, binding)
+    try:
+        directory = review_directory(root, binding)
+    except ValueError:
+        return failure("review_binding_invalid", "review directory is invalid")
     events: list[dict] = []
     paths = sorted(directory.glob("[0-9][0-9][0-9][0-9][0-9][0-9]-*.json")) if directory.is_dir() else []
     for expected, path in enumerate(paths, 1):
@@ -323,7 +370,18 @@ def load_events(root: Path, binding: dict) -> RuntimeResult:
             return failure("review_event_invalid", "review event version must be 2")
         if event.get("sequence") != expected or not path.name.startswith(f"{expected:06d}-{event.get('event_type')}"):
             return failure("review_event_invalid", "review event sequence is invalid")
+        safe_event = _safe_finding_strings(event, field="event")
+        if not safe_event.ok:
+            return safe_event
         events.append(event)
+    reduced = review_model.reduce_review(events)
+    if not reduced.ok:
+        return failure(reduced.error.code, reduced.error.message)
+    for event in events:
+        for item in event.get("findings", []) + event.get("terminal_observations", []):
+            checked = _validate_finding_for_binding(root, binding, item)
+            if not checked.ok:
+                return checked
     return ok(events)
 
 def _selected_profiles(root: Path, binding: dict, explicit: list[str]) -> tuple[list[str], str]:
@@ -347,6 +405,9 @@ def bind_review(
     profiles: list[str] | None = None, model_source: str = "explicit",
     second_reviewer: str | None = None, second_model: str | None = None,
 ) -> RuntimeResult:
+    checked_binding = _validate_review_binding(binding)
+    if not checked_binding.ok:
+        return checked_binding
     if not _bounded_text(model).ok or not _bounded_text(model_source).ok:
         return failure("review_model_required", "review model must be recorded")
     if level not in {"light", "standard"}:
@@ -363,7 +424,10 @@ def bind_review(
         "model": model, "model_source": model_source,
         "second_reviewer": second_reviewer, "second_model": second_model,
     }}
-    directory = review_directory(root, enriched)
+    try:
+        directory = review_directory(root, enriched)
+    except ValueError:
+        return failure("review_binding_invalid", "review directory is invalid")
     try:
         _write_once(directory / "binding.json", enriched)
     except FileExistsError:
@@ -376,20 +440,8 @@ def bind_review(
     })
 
 def current_findings(events: list[dict]) -> list[dict]:
-    findings: dict[str, dict] = {}
-    for event in events:
-        if event.get("event_type") in {"initial-findings-recorded", "final-findings-recorded", "findings-added"}:
-            for item in event.get("findings", []):
-                findings[item["id"]] = dict(item)
-        elif (
-            event.get("event_type") == "targeted-review-result"
-            and event.get("oracle_exit_code") == 0
-            and event.get("finding_id") in findings
-        ):
-            findings[event["finding_id"]]["state"] = "closed"
-        elif event.get("event_type") == "human-finding-decided" and event.get("finding_id") in findings:
-            findings[event["finding_id"]]["state"] = "closed"
-    return list(findings.values())
+    reduced = review_model.reduce_review(events)
+    return reduced.value["findings"] if reduced.ok else []
 
 def _findings_stale(events: list[dict]) -> bool:
     active = False
@@ -407,6 +459,50 @@ def _bounded_text(value: object, *, required: bool = True) -> RuntimeResult:
     if (required and not normalized) or len(normalized) > 2000 or contains_secret(normalized.encode()):
         return failure("bounded_text_invalid", "review text is empty, too long, or secret-shaped")
     return ok(normalized)
+
+def _safe_finding_strings(value: object, *, field: str = "finding") -> RuntimeResult:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            checked = _safe_finding_strings(item, field=str(key))
+            if not checked.ok:
+                return checked
+        return ok()
+    if isinstance(value, list):
+        for item in value:
+            checked = _safe_finding_strings(item, field=field)
+            if not checked.ok:
+                return checked
+        return ok()
+    if isinstance(value, str):
+        limit = 4096 if field == "oracle" else 512 if field == "path" else 2000
+        if len(value) > limit or "\x00" in value or contains_secret(value.encode()):
+            return failure("finding_content_invalid", f"finding {field} is unsafe")
+        if field == "path":
+            candidate = PurePosixPath(value)
+            if candidate.is_absolute() or ".." in candidate.parts:
+                return failure("finding_content_invalid", "finding path must be repository-relative")
+    return ok()
+
+def _validate_finding_for_binding(root: Path, binding: dict, item: object) -> RuntimeResult:
+    checked = review_model.validate_finding(item)
+    if not checked.ok:
+        return failure(checked.error.code, checked.error.message)
+    content = _safe_finding_strings(item)
+    if not content.ok:
+        return content
+    assert isinstance(item, dict)
+    profiles = binding.get("review_options", {}).get("profiles", [])
+    spec_commit = binding.get("spec_commit") or binding.get("approval_commit")
+    specification = item["specification"]
+    allowed_paths = binding.get("spec_paths") or ["docs/spec/"]
+    path = specification["path"]
+    allowed = any(path == prefix.rstrip("/") or path.startswith(prefix.rstrip("/") + "/") for prefix in allowed_paths)
+    if (
+        item.get("profile") not in profiles or item.get("spec_commit") != spec_commit
+        or not allowed or not _commit(root, item.get("spec_commit")).ok
+    ):
+        return failure("finding_binding_invalid", "finding profile or specification does not match the active review")
+    return ok(dict(item))
 
 def record_second_review(
     root: Path, binding: dict, *, status: str, actual_model: str, summary: str,
@@ -430,50 +526,41 @@ def record_second_review(
     })
 
 def begin_stage(root: Path, binding: dict, *, reviewer_context: str) -> RuntimeResult:
+    checked_context = _bounded_text(reviewer_context)
+    if not checked_context.ok:
+        return failure("review_context_invalid", "reviewer context must be safe bounded text")
+    reviewer_context = checked_context.value
     events_result = load_events(root, binding)
     if not events_result.ok:
         return events_result
     events = events_result.value
+    state = review_model.reduce_review(events).value
     if not events or events[0].get("event_type") != "review-bound":
         return failure("review_not_bound", "review input must be bound first")
-    if _findings_stale(events):
+    if state["stale"]:
         return failure("findings_stale", "review findings need a human-approved rebound")
-    initial_started = next((event for event in events if event.get("event_type") == "initial-full-review-started"), None)
-    initial_results = any(event.get("event_type") == "initial-findings-recorded" for event in events)
-    final_started = next((event for event in events if event.get("event_type") == "final-full-review-started"), None)
-    final_results = any(event.get("event_type") == "final-findings-recorded" for event in events)
-    if initial_started is None:
+    if not state["initial_started"]:
         return append_event(root, binding, "initial-full-review-started", {"reviewer_context": reviewer_context})
-    if not initial_results:
+    if not state["initial_done"]:
         return failure("stage_results_required", "initial full review results must be recorded")
-    findings = current_findings(events)
+    findings = state["findings"]
     if any(item.get("state") == "open" for item in findings):
-        targeted_positions = [index for index, event in enumerate(events) if event.get("event_type") == "targeted-review-started"]
-        if targeted_positions:
-            latest = targeted_positions[-1]
-            required_ids = set(events[latest].get("finding_ids", []))
-            result_ids = {
-                event.get("finding_id") for event in events[latest + 1:]
-                if event.get("event_type") == "targeted-review-result"
-            }
-        else:
-            required_ids = result_ids = set()
-        if required_ids - result_ids:
+        if state["targeted_pending"]:
             return failure("stage_results_required", "targeted review must update findings before another stage")
         return append_event(root, binding, "targeted-review-started", {
             "reviewer_context": reviewer_context,
             "finding_ids": sorted(item["id"] for item in findings if item.get("state") == "open"),
         })
-    if final_started is None:
+    if not state["final_started"]:
         targeted_positions = [index for index, event in enumerate(events) if event.get("event_type") == "targeted-review-started"]
         if targeted_positions and not any(
             event.get("event_type") == "progress-assessed" for event in events[targeted_positions[-1] + 1:]
         ):
             return failure("progress_assessment_required", "targeted convergence needs lexicographic progress evidence")
-        if reviewer_context == initial_started.get("reviewer_context"):
+        if reviewer_context == state["initial_context"]:
             return failure("fresh_context_required", "final full review needs a different context")
         return append_event(root, binding, "final-full-review-started", {"reviewer_context": reviewer_context})
-    if not final_results:
+    if not state["final_done"]:
         return failure("stage_results_required", "final full review results must be recorded")
     if any(item.get("state") == "open" for item in current_findings(events)):
         return append_event(root, binding, "targeted-review-started", {
@@ -511,7 +598,7 @@ def record_findings(
         return failure("findings_already_recorded", "stage findings are append-only")
     ids: set[str] = set()
     for item in findings:
-        checked = review_model.validate_finding(item)
+        checked = _validate_finding_for_binding(root, binding, item)
         if not checked.ok:
             return failure(checked.error.code, checked.error.message)
         if item["id"] in ids:
@@ -641,7 +728,7 @@ def add_findings(root: Path, binding: dict, *, candidates: list[dict], related_i
         return events
     existing_ids = {item["id"] for item in current_findings(events.value)}
     for item in candidates:
-        checked = review_model.validate_finding(item)
+        checked = _validate_finding_for_binding(root, binding, item)
         if not checked.ok:
             return failure(checked.error.code, checked.error.message)
     admitted, observations = review_model.admit_new_findings(candidates, related_ids)
@@ -700,13 +787,14 @@ def complete_review(root: Path, binding: dict) -> RuntimeResult:
     events = load_events(root, binding)
     if not events.ok:
         return events
-    if _findings_stale(events.value):
+    state = review_model.reduce_review(events.value).value
+    if state["stale"]:
         return failure("findings_stale", "stale findings cannot complete")
-    if not any(event.get("event_type") == "final-full-review-started" for event in events.value):
+    if not state["final_started"]:
         return failure("final_review_required", "final full review has not started")
-    if not any(event.get("event_type") == "final-findings-recorded" for event in events.value):
+    if not state["final_done"]:
         return failure("final_results_required", "final full review results are missing")
-    if any(item.get("state") == "open" for item in current_findings(events.value)):
+    if any(item.get("state") == "open" for item in state["findings"]):
         return failure("findings_open", "all admitted findings must close")
     targeted_positions = [index for index, event in enumerate(events.value) if event.get("event_type") == "targeted-review-started"]
     if targeted_positions and not any(
@@ -719,13 +807,18 @@ def load_review_binding(
     root: Path, *, review_id: str | None = None, plan_key: str | None = None, run_id: str | None = None,
 ) -> RuntimeResult:
     if plan_key is not None or run_id is not None:
-        if not plan_key or not run_id:
+        if not plan_key or not run_id or SAFE_ID.fullmatch(plan_key) is None or SAFE_ID.fullmatch(run_id) is None:
             return failure("review_selector_invalid", "plan key and run id must be supplied together")
         path = root.resolve() / ".agents/evidence" / plan_key / run_id / "review/binding.json"
-    elif review_id:
+    elif review_id and SAFE_ID.fullmatch(review_id) is not None:
         path = root.resolve() / ".agents/evidence/reviews" / review_id / "binding.json"
     else:
         return failure("review_selector_invalid", "review id or implementation run is required")
+    cursor = root.resolve()
+    for part in path.relative_to(root.resolve()).parts:
+        cursor /= part
+        if cursor.is_symlink():
+            return failure("review_selector_invalid", "review selector crosses a symlink")
     if path.is_symlink() or not path.is_file():
         return failure("review_not_bound", "review binding is unavailable")
     try:
@@ -734,6 +827,13 @@ def load_review_binding(
             return failure("legacy_evidence_unsupported", "version 1 review binding is unsupported")
         if value.get("version") != 2:
             return failure("review_not_bound", "review binding version is invalid")
+        checked = _validate_review_binding(value)
+        if not checked.ok:
+            return checked
+        if review_id and value.get("review_id") != review_id:
+            return failure("review_selector_invalid", "review binding does not match its selector")
+        if plan_key and (value.get("plan_key") != plan_key or value.get("run_id") != run_id):
+            return failure("review_selector_invalid", "review binding does not match its selector")
         return ok(value)
     except (OSError, json.JSONDecodeError):
         return failure("review_not_bound", "review binding is invalid")

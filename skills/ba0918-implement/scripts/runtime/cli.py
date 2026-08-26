@@ -58,8 +58,8 @@ def main(argv: list[str] | None = None) -> int:
     _run_arguments(stage)
     stage.add_argument("--step", required=True)
     stage.add_argument("--phase", choices=("red", "green", "refactor", "check", "artifact", "external"), required=True)
-    stage.add_argument("--command", dest="oracle_command", required=True)
-    stage.add_argument("--exit-code", type=int, required=True)
+    stage.add_argument("--command", dest="oracle_command")
+    stage.add_argument("--exit-code", type=int)
     stage.add_argument("--path", action="append", default=[])
     stage.add_argument("--test-path", action="append", default=[])
     stage.add_argument("--summary")
@@ -136,18 +136,23 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "stage":
         reasons = _reasons(parser, args.unplanned_reason)
         if args.phase in {"red", "green", "refactor"}:
+            if args.oracle_command is None or args.exit_code is None:
+                parser.error("test stage needs --command and --exit-code")
             result = record_stage(
                 run.value, args.step, args.phase, command=args.oracle_command,
                 exit_code=args.exit_code, test_paths=args.test_path,
             )
         elif args.phase in {"check", "artifact"}:
+            if args.phase == "check" and (args.oracle_command is None or args.exit_code is None):
+                parser.error("check stage needs --command and --exit-code")
+            checks = [] if args.oracle_command is None else [{"command": args.oracle_command, "exit_code": args.exit_code}]
             result = append_event(run.value, args.phase, {
-                "step": args.step, "checks": [{"command": args.oracle_command, "exit_code": args.exit_code}],
+                "step": args.step, "checks": checks,
                 "paths": sorted(args.path), "unplanned_reasons": reasons,
             })
         else:
-            if args.condition_met is None:
-                parser.error("external stage needs --condition-met=true|false")
+            if args.condition_met is None or args.oracle_command is None or not args.summary:
+                parser.error("external stage needs --command, --summary, and --condition-met=true|false")
             result = append_event(run.value, "external", {
                 "step": args.step, "checked": args.oracle_command, "summary": args.summary or "",
                 "condition_met": args.condition_met == "true",

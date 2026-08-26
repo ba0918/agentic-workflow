@@ -47,7 +47,7 @@ def _valid_evidence(step: dict, event: dict) -> bool:
         return False
     if kind in {"check", "artifact"}:
         checks = event.get("checks")
-        return isinstance(checks, list) and bool(checks) and all(
+        return isinstance(checks, list) and (kind == "artifact" or bool(checks)) and all(
             isinstance(check, dict) and check.get("exit_code") == 0 for check in checks
         )
     return event.get("condition_met") is True
@@ -113,7 +113,7 @@ def _valid_event(event: dict) -> bool:
         checks = event.get("checks")
         return (
             isinstance(event.get("step"), str) and bool(event["step"])
-            and isinstance(checks, list) and bool(checks)
+            and isinstance(checks, list) and (kind == "artifact" or bool(checks))
             and all(isinstance(check, dict) and isinstance(check.get("exit_code"), int) for check in checks)
             and _safe_paths(event.get("changed_paths"))
         )
@@ -121,6 +121,8 @@ def _valid_event(event: dict) -> bool:
         return (
             isinstance(event.get("step"), str) and bool(event["step"])
             and isinstance(event.get("condition_met"), bool)
+            and isinstance(event.get("checked"), str) and bool(event["checked"].strip())
+            and isinstance(event.get("summary"), str) and bool(event["summary"].strip())
             and _safe_paths(event.get("changed_paths"))
         )
     if kind == "commit":
@@ -181,6 +183,7 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
     segment: list[dict] = []
     segments: list[dict] = []
     test_stages: dict[str, str] = {}
+    red_snapshots: dict[str, dict] = {}
     stopped = False
     for event in events:
         kind = event["event_type"]
@@ -204,6 +207,10 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
                 )
                 if not valid:
                     return _failure("transition_invalid", "test stages must follow RED, GREEN, REFACTOR")
+                if kind == "red":
+                    red_snapshots[contract["id"]] = event["snapshot"]
+                elif event["snapshot"] != red_snapshots.get(contract["id"]):
+                    return _failure("frozen_red_mismatch", "GREEN and REFACTOR must use the accepted RED snapshot")
                 test_stages[contract["id"]] = kind
             elif kind in {"check", "artifact"} and (
                 kind != contract["completion"] or any(check["exit_code"] != 0 for check in event["checks"])
@@ -230,6 +237,7 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
         completed = {mapping[step_id] for step_id in completed if step_id in mapping}
         active_steps = new_steps
         test_stages = {mapping[step]: state for step, state in test_stages.items() if step in mapping}
+        red_snapshots = {mapping[step]: snapshot for step, snapshot in red_snapshots.items() if step in mapping}
         approval_commit = event.get("approval_commit")
         segment = []
     completed |= _completed_steps(active_steps, segment)

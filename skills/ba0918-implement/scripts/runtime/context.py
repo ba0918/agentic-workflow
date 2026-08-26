@@ -125,7 +125,10 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
                 return failure("stage_invalid", "evidence kind does not match step completion")
             if event_type in {"check", "artifact"}:
                 checks = fields.get("checks")
-                if not isinstance(checks, list) or not checks or any(check.get("exit_code") != 0 for check in checks):
+                if (
+                    not isinstance(checks, list) or (event_type == "check" and not checks)
+                    or any(not isinstance(check, dict) or check.get("exit_code") != 0 for check in checks)
+                ):
                     return failure("stage_invalid", "check evidence needs successful commands")
             elif not str(fields.get("summary", "")).strip() or not isinstance(fields.get("condition_met"), bool):
                 return failure("stage_invalid", "external evidence needs a bounded summary and explicit condition result")
