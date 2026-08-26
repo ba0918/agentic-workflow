@@ -732,6 +732,43 @@ class CurrentStatusTest(unittest.TestCase):
             self.assertEqual(facts.value[0]["resumable"], {"ok": False, "reason": "current-status is missing or unreadable"})
 
 
+class DelegationTest(unittest.TestCase):
+    def test_a_delegation_and_its_return_take_their_place_in_the_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+
+            started = implement_runtime.record_delegation(attempt, executor="codex", model="claude-opus-5")
+            returned = implement_runtime.record_return(attempt, step_id="step-1", reason="文脈を使い切った")
+
+            self.assertTrue(started.ok, started.error)
+            self.assertTrue(returned.ok, returned.error)
+            events = implement_runtime._load_events(attempt).value
+            self.assertEqual(
+                [event["event_type"] for event in events],
+                ["worktree-bound", "delegated", "returned"],
+            )
+            self.assertEqual(events[1]["executor"], "codex")
+            self.assertEqual(events[1]["model"], "claude-opus-5")
+            self.assertEqual(events[2]["step_id"], "step-1")
+            status = json.loads(
+                implement_runtime.current_status_path(attempt).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                status["last_event"], {"event_type": "returned", "reason": "文脈を使い切った"}
+            )
+
+    def test_a_delegation_carrying_a_secret_shaped_value_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+
+            result = implement_runtime.record_delegation(
+                attempt, executor="codex", model="to" + "ken=abc123"
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "secret_value_forbidden")
+
+
 class FreshSessionTest(unittest.TestCase):
     def test_execution_is_reconstructed_from_its_evidence_directory_alone(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

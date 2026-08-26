@@ -30,6 +30,8 @@ from runtime.context import (
     current_status_path,
     derive_attempt_result,
     load_events as _load_events,
+    record_delegation,
+    record_return,
     validate_context,
 )
 from runtime.resume import load_current_attempt, residual_executions, resume_execution

@@ -17,7 +17,7 @@ from runtime.gitio import run_git
 from runtime.storage import read_json
 from runtime.planning import resolve_plan
 from runtime.repository import bootstrap_attempt
-from runtime.context import load_events, validate_context, append_event, derive_attempt_result, stop_attempt
+from runtime.context import load_events, validate_context, append_event, derive_attempt_result, record_delegation, record_return, stop_attempt
 from runtime.resume import rebind_execution, rebind_preview, residual_executions, resume_execution, load_current_attempt
 from runtime.tdd import accept_red, run_frozen_oracle
 from runtime.gates import record_human_gate
@@ -315,6 +315,18 @@ def main(argv: list[str] | None = None) -> int:
     stop.add_argument("--step", required=True)
     stop.add_argument("--reason", required=True)
 
+    delegated = commands.add_parser("record-delegation", help="record that the implementation was handed to an executor")
+    delegated.add_argument("--repo", required=True)
+    execution_ids(delegated)
+    delegated.add_argument("--executor", required=True)
+    delegated.add_argument("--model", required=True)
+
+    returned = commands.add_parser("record-return", help="record that a delegated conversation came back")
+    returned.add_argument("--repo", required=True)
+    execution_ids(returned)
+    returned.add_argument("--step", required=True)
+    returned.add_argument("--reason", required=True)
+
     green = commands.add_parser(
         "implementation-green",
         help="record the Phase 3 terminal event",
@@ -497,6 +509,10 @@ def main(argv: list[str] | None = None) -> int:
             "stopped",
             {"reason": args.reason, "step_id": args.step},
         )
+    elif args.command == "record-delegation":
+        operation = record_delegation(attempt, executor=args.executor, model=args.model)
+    elif args.command == "record-return":
+        operation = record_return(attempt, step_id=args.step, reason=args.reason)
     elif args.command == "approve-history":
         operation = approve_history(attempt, reason=args.reason)
     elif args.command == "implementation-green":

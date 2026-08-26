@@ -186,6 +186,37 @@ def append_event(attempt: Attempt, event_type: str, details: dict[str, Any]) -> 
         return status
     return ok(sealed.value)
 
+RECORDED_TEXT_LIMIT = 500
+
+
+def bounded_outside_text(label: str, text: object) -> RuntimeResult:
+    """Text arriving from outside on its way into a durable record.
+
+    The length is the guard the specification asks for, not a format check: it is what keeps a
+    pasted process output out of the evidence, so it belongs where the text arrives.
+    """
+    if not isinstance(text, str) or not text.strip() or len(text) > RECORDED_TEXT_LIMIT:
+        return failure("recorded_text_invalid", f"{label} must be short, non-empty text")
+    if execution_model.SECRET_ARGUMENT.search(text):
+        return failure("secret_value_forbidden", f"{label} carries a secret-shaped value")
+    return ok(text)
+
+def record_delegation(attempt: Attempt, *, executor: str, model: str) -> RuntimeResult:
+    """Who the implementation was handed to. Handing it over is cycle's work, not implement's;
+    implement only writes down that it happened."""
+    for label, text in (("executor", executor), ("model", model)):
+        checked = bounded_outside_text(label, text)
+        if not checked.ok:
+            return checked
+    return append_event(attempt, "delegated", {"executor": executor, "model": model})
+
+def record_return(attempt: Attempt, *, step_id: str, reason: str) -> RuntimeResult:
+    """How far the delegated conversation got before it came back."""
+    checked = bounded_outside_text("reason", reason)
+    if not checked.ok:
+        return checked
+    return append_event(attempt, "returned", {"step_id": step_id, "reason": reason})
+
 def derive_attempt_result(attempt: Attempt) -> dict:
     loaded = load_events(attempt)
     if not loaded.ok:

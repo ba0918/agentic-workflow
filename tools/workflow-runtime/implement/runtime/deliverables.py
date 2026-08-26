@@ -8,9 +8,14 @@ from typing import Any
 from runtime.deps import execution_model
 from runtime.types import RuntimeFailure, RuntimeResult, Attempt, ok, failure
 from runtime.planning import require_completion_kind
-from runtime.context import append_event, changed_paths, load_events, validate_context, stop_attempt
-
-EXTERNAL_TEXT_LIMIT = 500
+from runtime.context import (
+    append_event,
+    bounded_outside_text,
+    changed_paths,
+    load_events,
+    stop_attempt,
+    validate_context,
+)
 
 
 def _run_check(attempt: Attempt, command: list[str]) -> RuntimeResult:
@@ -108,12 +113,9 @@ def record_external(attempt: Attempt, *, step_id: str, checked: str, summary: st
     if not kind.ok:
         return stop_attempt(attempt, kind.error, step_id)
     for label, text in (("checked", checked), ("summary", summary)):
-        # Bounded here rather than in the record's own validation: the length is what keeps a
-        # pasted process output from reaching the evidence, so it belongs where the text arrives.
-        if not text.strip() or len(text) > EXTERNAL_TEXT_LIMIT:
-            return failure("external_text_invalid", f"external {label} must be short, non-empty text")
-        if execution_model.SECRET_ARGUMENT.search(text):
-            return failure("secret_value_forbidden", f"external {label} carries a secret-shaped value")
+        accepted = bounded_outside_text(f"external {label}", text)
+        if not accepted.ok:
+            return accepted
     context = validate_context(attempt, step_id=step_id)
     if not context.ok:
         return stop_attempt(attempt, context.error, step_id)
