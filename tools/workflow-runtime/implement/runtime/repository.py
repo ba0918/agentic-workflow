@@ -3,7 +3,8 @@ from pathlib import Path
 
 from typing import Any, Callable
 
-from runtime.deps import execution_model
+from runtime.storage import canonical_json, first_secret_field
+from runtime.types import ATTEMPT_ID
 from runtime.types import RuntimeResult, ResolvedPlan, Attempt, ok, failure
 from runtime.gitio import run_git, discover_repository
 from runtime.storage import write_once, safe_agent_roots, classify_write_error
@@ -93,7 +94,7 @@ def bootstrap_attempt(
     if not preflighted.ok:
         return preflighted
     attempt_id = attempt_id_factory()
-    if not execution_model.ATTEMPT_ID.fullmatch(attempt_id):
+    if not ATTEMPT_ID.fullmatch(attempt_id):
         return failure("attempt_id_invalid", "generated attempt id is not path-safe")
     branch = execution_branch(attempt_id)
     evidence_path = (
@@ -136,11 +137,11 @@ def bootstrap_attempt(
         "steps": declared.value,
         "executor": executor,
     }
-    secret = execution_model.first_secret_field(binding)
+    secret = first_secret_field(binding)
     if secret is not None:
         return failure("secret_value_forbidden", "secret values are not durable evidence", secret)
     binding_path = evidence_path / "binding.json"
-    binding_result = write_once(binding_path, execution_model.canonical_json(binding))
+    binding_result = write_once(binding_path, canonical_json(binding))
     if not binding_result.ok:
         return binding_result
 
@@ -167,7 +168,11 @@ def bootstrap_attempt(
     if observed_branch.returncode != 0 or observed_branch.stdout.strip() != branch:
         return failure("worktree_identity_drift", "created worktree branch does not match its binding")
 
-    event = execution_model.seal_event(
+    # context imports this module, so the evidence writers are fetched at call time rather than
+    # at module load: importing them at the top would close an import cycle.
+    from runtime.context import seal_event, write_current_status
+
+    event = seal_event(
         {
             "version": 1,
             "sequence": 1,
@@ -182,7 +187,7 @@ def bootstrap_attempt(
         return failure(event.error.code, event.error.message)
     event_result = write_once(
         evidence_path / "000001-worktree-bound.json",
-        execution_model.canonical_json(event.value),
+        canonical_json(event.value),
     )
     if not event_result.ok:
         return event_result
@@ -196,10 +201,6 @@ def bootstrap_attempt(
         tmp_path=tmp_path,
         main_checkout=main_checkout,
     )
-    # context imports this module, so the status writer is fetched at call time rather than at
-    # module load: importing it at the top would close an import cycle.
-    from runtime.context import write_current_status
-
     status = write_current_status(attempt, [event.value])
     if not status.ok:
         return status

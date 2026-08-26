@@ -1,9 +1,10 @@
 """Repository discovery and the bound branch-plus-worktree bootstrap."""
 from pathlib import Path
 
-from typing import Callable
+from typing import Any, Callable
 
-from runtime.deps import execution_model
+from runtime.storage import canonical_json, first_secret_field
+from runtime.types import ATTEMPT_ID
 from runtime.types import RuntimeResult, ResolvedPlan, Attempt, ok, failure
 from runtime.gitio import run_git, discover_repository
 from runtime.storage import write_once, safe_agent_roots, classify_write_error
@@ -26,6 +27,41 @@ def preflight(main_checkout: Path, common_directory: Path) -> RuntimeResult:
 def execution_branch(execution_id: str) -> str:
     return f"implement/{execution_id}"
 
+COMPLETION_KINDS = ("test", "check", "artifact", "external")
+
+
+def declared_steps(steps: object) -> RuntimeResult:
+    """The one thing checked about the agent's declaration: that this runtime can act on it.
+
+    Every field here is consumed by a branch of the runtime, so an unusable value would surface
+    as a crash later instead of a refusal now. Nothing about the plan's wording is checked.
+    """
+    if not isinstance(steps, list) or not steps:
+        return failure("steps_undeclared", "at least one step must be declared")
+    declared: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for step in steps:
+        if not isinstance(step, dict):
+            return failure("steps_undeclared", "each declared step must be an object")
+        step_id = step.get("step_id")
+        completion = step.get("completion")
+        checks = [str(check) for check in (step.get("checks") or [])]
+        if not isinstance(step_id, str) or not step_id or step_id in seen:
+            return failure("steps_undeclared", "each declared step needs its own step_id")
+        if completion not in COMPLETION_KINDS:
+            return failure(
+                "steps_undeclared",
+                f"{step_id} must be shown by one of {', '.join(COMPLETION_KINDS)}",
+            )
+        if (completion == "check") != bool(checks):
+            return failure(
+                "steps_undeclared",
+                f"{step_id} declares check commands only if it is shown by check",
+            )
+        seen.add(step_id)
+        declared.append({"step_id": step_id, "completion": completion, "checks": checks})
+    return ok(declared)
+
 def bootstrap_attempt(
     project_root: Path,
     resolved_plan: ResolvedPlan | None,
@@ -33,7 +69,15 @@ def bootstrap_attempt(
     worktree_path: Path,
     attempt_id_factory: Callable[[], str],
     executor: dict[str, str],
+    steps: list[dict[str, Any]],
+    human_gates: list[dict[str, Any]] | None = None,
 ) -> RuntimeResult:
+    """Bind an execution to a plan. The steps and the human decisions come from the agent that
+    read the plan, not from a parser: only the specifications and the write scope are machine-read
+    (docs/spec/plan.md)."""
+    declared = declared_steps(steps)
+    if not declared.ok:
+        return declared
     safe_roots = safe_agent_roots(project_root)
     if not safe_roots.ok:
         return safe_roots
@@ -50,7 +94,7 @@ def bootstrap_attempt(
     if not preflighted.ok:
         return preflighted
     attempt_id = attempt_id_factory()
-    if not execution_model.ATTEMPT_ID.fullmatch(attempt_id):
+    if not ATTEMPT_ID.fullmatch(attempt_id):
         return failure("attempt_id_invalid", "generated attempt id is not path-safe")
     branch = execution_branch(attempt_id)
     evidence_path = (
@@ -89,14 +133,15 @@ def bootstrap_attempt(
         "branch": branch,
         "worktree": str(worktree_path.resolve(strict=False)),
         "write_scope": list(resolved_plan.write_scope),
-        "human_gates": list(resolved_plan.human_gates),
+        "human_gates": list(human_gates or []),
+        "steps": declared.value,
         "executor": executor,
     }
-    binding_validation = execution_model.validate_binding(binding)
-    if not binding_validation.ok:
-        return failure(binding_validation.error.code, binding_validation.error.message)
+    secret = first_secret_field(binding)
+    if secret is not None:
+        return failure("secret_value_forbidden", "secret values are not durable evidence", secret)
     binding_path = evidence_path / "binding.json"
-    binding_result = write_once(binding_path, execution_model.canonical_json(binding))
+    binding_result = write_once(binding_path, canonical_json(binding))
     if not binding_result.ok:
         return binding_result
 
@@ -123,41 +168,40 @@ def bootstrap_attempt(
     if observed_branch.returncode != 0 or observed_branch.stdout.strip() != branch:
         return failure("worktree_identity_drift", "created worktree branch does not match its binding")
 
-    event = execution_model.seal_event(
+    # context imports this module, so the evidence writers are fetched at call time rather than
+    # at module load: importing them at the top would close an import cycle.
+    from runtime.context import seal_event, write_current_status
+
+    event = seal_event(
         {
             "version": 1,
             "sequence": 1,
             "event_type": "worktree-bound",
             "attempt_id": attempt_id,
-            "plan_identity": resolved_plan.content_identity,
-            "spec_identities": dict(resolved_plan.specs),
-            "previous_identity": None,
             "outcome": "bound",
-            "repository_identity": repository.value.repository_identity,
             "base_head": repository.value.base_head,
             "branch": branch,
-            "worktree_identity": execution_model.content_identity(
-                {"path": str(worktree_path.resolve()), "common_directory": str(repository.value.common_directory)}
-            ),
         }
     )
     if not event.ok:
         return failure(event.error.code, event.error.message)
     event_result = write_once(
         evidence_path / "000001-worktree-bound.json",
-        execution_model.canonical_json(event.value),
+        canonical_json(event.value),
     )
     if not event_result.ok:
         return event_result
-    return ok(
-        Attempt(
-            attempt_id=attempt_id,
-            plan_id=resolved_plan.plan_id,
-            branch=branch,
-            worktree=worktree_path.resolve(),
-            binding_path=binding_path,
-            evidence_path=evidence_path,
-            tmp_path=tmp_path,
-            main_checkout=main_checkout,
-        )
+    attempt = Attempt(
+        attempt_id=attempt_id,
+        plan_id=resolved_plan.plan_id,
+        branch=branch,
+        worktree=worktree_path.resolve(),
+        binding_path=binding_path,
+        evidence_path=evidence_path,
+        tmp_path=tmp_path,
+        main_checkout=main_checkout,
     )
+    status = write_current_status(attempt, [event.value])
+    if not status.ok:
+        return status
+    return ok(attempt)

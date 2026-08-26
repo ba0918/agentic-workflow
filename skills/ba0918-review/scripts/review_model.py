@@ -10,7 +10,7 @@ import re
 from typing import Any, NamedTuple
 
 
-# The identity, path and secret helpers below mirror the implement skill's execution_model.py on
+# The identity, path and secret helpers below repeat what the implement skill's runtime holds, on
 # purpose: each skill is distributed on its own, so review must not import another skill's
 # scripts to validate its own evidence.
 IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")

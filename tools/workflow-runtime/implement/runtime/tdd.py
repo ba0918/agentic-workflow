@@ -6,7 +6,9 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from runtime.deps import execution_model
+from runtime.planning import validate_relative_path
+from runtime.storage import canonical_json, content_identity
+from runtime.storage import SECRET_ARGUMENT, first_secret_field
 from runtime.types import RuntimeFailure, RuntimeResult, Attempt, ok, failure
 from runtime.storage import read_json, write_once
 from runtime.planning import require_completion_kind
@@ -40,6 +42,42 @@ def classify_process_failure(stdout: str, stderr: str) -> str:
     if "network" in lowered or "connection" in lowered:
         return "network_failure"
     return "behavior_failure"
+
+GENERIC_FAILURE_SIGNATURE = re.compile(
+    r"(?i)^(?:failed(?:\s*\([^)]*\))?|errors?|[0-9]+\s+(?:failed|errors?)|"
+    r"exit(?:\s+code)?[=: ]+\d+)$"
+)
+
+
+def validate_oracle(value: object) -> RuntimeResult:
+    """What the oracle says about the outside world: no secrets, a safe working directory, and a
+    failure signature that names the approved missing behavior rather than "something failed"."""
+    forbidden = first_secret_field(value)
+    if forbidden is not None:
+        return failure("secret_value_forbidden", "only environment names may be recorded", forbidden)
+    if not isinstance(value, dict):
+        return failure("oracle_unreadable", "oracle is not a mapping", None)
+    command = value.get("command")
+    if isinstance(command, list) and any(
+        isinstance(part, str) and SECRET_ARGUMENT.search(part) for part in command
+    ):
+        return failure("secret_value_forbidden", "secret-shaped command arguments are forbidden", "command")
+    cwd = value.get("cwd")
+    if cwd != "." and not validate_relative_path(cwd).ok:
+        return failure("unsafe_path", "oracle cwd is unsafe", "cwd")
+    signature = value.get("failure_signature")
+    if (
+        not isinstance(signature, str)
+        or not signature.strip()
+        or GENERIC_FAILURE_SIGNATURE.fullmatch(signature.strip())
+    ):
+        return failure(
+            "oracle_failure_signature_invalid",
+            "failure signature does not identify the approved missing behavior",
+            "failure_signature",
+        )
+    return ok(value)
+
 
 def test_summary(stdout: str, stderr: str) -> dict[str, Any]:
     output = stdout + "\n" + stderr
@@ -80,7 +118,7 @@ def test_summary(stdout: str, stderr: str) -> dict[str, Any]:
     }
 
 def _oracle_cwd(attempt: Attempt, relative_path: str) -> RuntimeResult:
-    if not execution_model.validate_relative_path(relative_path).ok:
+    if not validate_relative_path(relative_path).ok:
         return failure("unsafe_path", "oracle cwd is not a safe relative path")
     root = attempt.worktree.resolve()
     parts = () if relative_path == "." else PurePosixPath(relative_path).parts
@@ -134,7 +172,7 @@ def test_target_snapshot(worktree: Path, paths: list[str]) -> RuntimeResult:
     targets: list[dict[str, str]] = []
     root = worktree.resolve()
     for relative_path in paths:
-        if not execution_model.validate_relative_path(relative_path).ok:
+        if not validate_relative_path(relative_path).ok:
             return failure("test_target_invalid", "test target path is unsafe", relative_path)
         path = worktree.joinpath(*PurePosixPath(relative_path).parts)
         try:
@@ -163,7 +201,7 @@ def validate_step_test_targets(attempt: Attempt, step_id: str) -> RuntimeResult:
     oracle_result = read_json(attempt.evidence_path / "oracles" / f"{step_id}.json")
     if not oracle_result.ok:
         return failure("oracle_missing", "frozen oracle is unavailable")
-    validation = execution_model.validate_oracle(oracle_result.value)
+    validation = validate_oracle(oracle_result.value)
     if not validation.ok:
         return failure(validation.error.code, validation.error.message)
     return _validate_frozen_test_targets(attempt, oracle_result.value)
@@ -174,7 +212,7 @@ def validate_step_test_targets_at(attempt: Attempt, step_id: str, commit_sha: st
     oracle_result = read_json(attempt.evidence_path / "oracles" / f"{step_id}.json")
     if not oracle_result.ok:
         return failure("oracle_missing", "frozen oracle is unavailable")
-    validation = execution_model.validate_oracle(oracle_result.value)
+    validation = validate_oracle(oracle_result.value)
     if not validation.ok:
         return failure(validation.error.code, validation.error.message)
     for expected in oracle_result.value["test_targets"]:
@@ -188,7 +226,7 @@ def validate_step_test_targets_at(attempt: Attempt, step_id: str, commit_sha: st
 
 
 def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
-    validation = execution_model.validate_oracle(oracle)
+    validation = validate_oracle(oracle)
     if not validation.ok:
         return stop_attempt(
             attempt,
@@ -212,7 +250,7 @@ def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
                 attempt,
                 executed.error,
                 step_id,
-                execution_model.content_identity(oracle),
+                content_identity(oracle),
             )
         return stop_attempt(attempt, executed.error, step_id)
     after = validate_context(attempt, step_id=step_id)
@@ -241,21 +279,21 @@ def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
     frozen = dict(oracle)
     frozen["test_targets"] = targets_before.value
     frozen["observed_failure_kind"] = observation["failure_kind"]
-    frozen_validation = execution_model.validate_oracle(frozen)
+    frozen_validation = validate_oracle(frozen)
     if not frozen_validation.ok:
         return stop_attempt(
             attempt,
             RuntimeFailure(frozen_validation.error.code, frozen_validation.error.message),
             step_id,
         )
-    oracle_identity = execution_model.content_identity(frozen)
+    oracle_identity = content_identity(frozen)
     oracle_path = attempt.evidence_path / "oracles" / f"{step_id}.json"
-    persisted = write_once(oracle_path, execution_model.canonical_json(frozen))
+    persisted = write_once(oracle_path, canonical_json(frozen))
     if not persisted.ok:
         if persisted.error.code == "write_collision":
             # A step may change its mind about the test it freezes. What the freeze forbids is
             # weakening a test into GREEN, and this RED has just shown the new test failing.
-            oracle_path.write_bytes(execution_model.canonical_json(frozen))
+            oracle_path.write_bytes(canonical_json(frozen))
         else:
             return stop_attempt(attempt, persisted.error, step_id)
     return append_event(
@@ -278,7 +316,7 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
     if not oracle_result.ok:
         return stop_attempt(attempt, RuntimeFailure("oracle_missing", "frozen oracle is unavailable"), step_id)
     oracle = oracle_result.value
-    validation = execution_model.validate_oracle(oracle)
+    validation = validate_oracle(oracle)
     if not validation.ok:
         return stop_attempt(attempt, RuntimeFailure(validation.error.code, validation.error.message), step_id)
     target_validation = _validate_frozen_test_targets(attempt, oracle)
@@ -297,7 +335,7 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
     ]
     # Superseded REDs stay in the append-only evidence after a redo; only the newest
     # one is the freeze that GREEN and REFACTOR answer to.
-    if not red_events or red_events[-1]["oracle_identity"] != execution_model.content_identity(
+    if not red_events or red_events[-1]["oracle_identity"] != content_identity(
         oracle
     ):
         return stop_attempt(
@@ -328,7 +366,7 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
         phase,
         {
             "step_id": step_id,
-            "oracle_identity": execution_model.content_identity(oracle),
+            "oracle_identity": content_identity(oracle),
             "outcome": "passed",
             "exit_code": executed.value["exit_code"],
             "test_summary": executed.value["test_summary"],

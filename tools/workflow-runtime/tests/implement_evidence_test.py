@@ -4,11 +4,11 @@ import unittest
 
 
 ROOT = Path(__file__).parents[3]
-MODEL_MODULE = ROOT / "tools/workflow-runtime/implement/execution_model.py"
-SPEC = importlib.util.spec_from_file_location("cycle_execution_model", MODEL_MODULE)
-implement_model = importlib.util.module_from_spec(SPEC)
+RUNTIME_MODULE = ROOT / "tools/workflow-runtime/implement/implement_runtime.py"
+SPEC = importlib.util.spec_from_file_location("implement_runtime_for_evidence_test", RUNTIME_MODULE)
+implement_runtime = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
-SPEC.loader.exec_module(implement_model)
+SPEC.loader.exec_module(implement_runtime)
 
 
 PLAN_IDENTITY = "sha256:" + "1" * 64
@@ -100,7 +100,7 @@ def command_event(event_type: str, test_summary: dict) -> dict:
         "event_type": event_type,
         "attempt_id": binding()["attempt_id"],
         "step_id": "step-1",
-        "oracle_identity": implement_model.content_identity(oracle()),
+        "oracle_identity": implement_runtime.storage.content_identity(oracle()),
         "outcome": "passed",
         "exit_code": 0,
         "observation": "test command completed",
@@ -113,24 +113,14 @@ class CanonicalIdentityTest(unittest.TestCase):
         first = {"b": 2, "a": {"d": 4, "c": 3}}
         second = {"a": {"c": 3, "d": 4}, "b": 2}
 
-        self.assertEqual(implement_model.content_identity(first), implement_model.content_identity(second))
+        self.assertEqual(implement_runtime.storage.content_identity(first), implement_runtime.storage.content_identity(second))
         self.assertEqual(
-            implement_model.canonical_json(first),
+            implement_runtime.storage.canonical_json(first),
             b'{"a":{"c":3,"d":4},"b":2}\n',
         )
 
 
 class OutwardFacingChecksTest(unittest.TestCase):
-    def test_identity_drift_names_the_changed_field(self) -> None:
-        observed = binding()
-        observed["base_head"] = "6" * 40
-
-        result = implement_model.validate_snapshot(binding(), observed)
-
-        self.assertFalse(result.ok)
-        self.assertEqual(result.error.code, "identity_drift")
-        self.assertEqual(result.error.field, "base_head")
-
     def test_environment_values_and_raw_logs_are_rejected(self) -> None:
         unsafe_oracle = oracle()
         unsafe_oracle["environment"] = {"API_TOKEN": "not-a-real-token"}
@@ -144,11 +134,11 @@ class OutwardFacingChecksTest(unittest.TestCase):
         }
 
         self.assertEqual(
-            implement_model.validate_oracle(unsafe_oracle).error.code,
+            implement_runtime.tdd.validate_oracle(unsafe_oracle).error.code,
             "secret_value_forbidden",
         )
         self.assertEqual(
-            implement_model.seal_event(unsafe_event).error.code,
+            implement_runtime.context.seal_event(unsafe_event).error.code,
             "raw_log_forbidden",
         )
 
@@ -159,17 +149,17 @@ class OutwardFacingChecksTest(unittest.TestCase):
         no_cwd["cwd"] = None
 
         self.assertEqual(
-            implement_model.validate_oracle(no_signature).error.code,
+            implement_runtime.tdd.validate_oracle(no_signature).error.code,
             "oracle_failure_signature_invalid",
         )
-        self.assertEqual(implement_model.validate_oracle(no_cwd).error.code, "unsafe_path")
-        self.assertEqual(implement_model.validate_oracle("not a mapping").error.code, "oracle_unreadable")
+        self.assertEqual(implement_runtime.tdd.validate_oracle(no_cwd).error.code, "unsafe_path")
+        self.assertEqual(implement_runtime.tdd.validate_oracle("not a mapping").error.code, "oracle_unreadable")
 
     def test_an_oracle_may_not_run_outside_the_worktree(self) -> None:
         escaping = oracle()
         escaping["cwd"] = "../elsewhere"
 
-        result = implement_model.validate_oracle(escaping)
+        result = implement_runtime.tdd.validate_oracle(escaping)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "unsafe_path")
@@ -178,7 +168,7 @@ class OutwardFacingChecksTest(unittest.TestCase):
         invalid_oracle = oracle()
         invalid_oracle["failure_signature"] = "FAILED (errors=1)"
 
-        result = implement_model.validate_oracle(invalid_oracle)
+        result = implement_runtime.tdd.validate_oracle(invalid_oracle)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "oracle_failure_signature_invalid")
@@ -187,7 +177,7 @@ class OutwardFacingChecksTest(unittest.TestCase):
         secret_argument = oracle()
         secret_argument["command"].append("--api-token=<credential>")
 
-        result = implement_model.validate_oracle(secret_argument)
+        result = implement_runtime.tdd.validate_oracle(secret_argument)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "secret_value_forbidden")
@@ -202,7 +192,7 @@ class OutwardFacingChecksTest(unittest.TestCase):
             "details": {"api_key": "<credential>"},
         }
 
-        result = implement_model.seal_event(candidate)
+        result = implement_runtime.context.seal_event(candidate)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "secret_value_forbidden")
@@ -211,16 +201,16 @@ class OutwardFacingChecksTest(unittest.TestCase):
         unsafe_binding = binding()
         unsafe_binding["executor"]["api_key"] = "<credential>"
 
-        self.assertEqual(implement_model.first_secret_field(unsafe_binding), "api_key")
-        self.assertIsNone(implement_model.first_secret_field(binding()))
+        self.assertEqual(implement_runtime.storage.first_secret_field(unsafe_binding), "api_key")
+        self.assertIsNone(implement_runtime.storage.first_secret_field(binding()))
 
 
 class WriteScopeTest(unittest.TestCase):
     def test_descendant_and_exact_file_are_inside_scope(self) -> None:
         scopes = ["skills/ba0918-cycle", "tests/cycle_runtime_test.py"]
 
-        self.assertTrue(implement_model.validate_write_path("skills/ba0918-cycle/SKILL.md", scopes).ok)
-        self.assertTrue(implement_model.validate_write_path("tests/cycle_runtime_test.py", scopes).ok)
+        self.assertTrue(implement_runtime.planning.validate_write_path("skills/ba0918-cycle/SKILL.md", scopes).ok)
+        self.assertTrue(implement_runtime.planning.validate_write_path("tests/cycle_runtime_test.py", scopes).ok)
 
     def test_absolute_traversal_and_sibling_paths_are_rejected(self) -> None:
         scopes = ["skills/ba0918-cycle"]
@@ -231,14 +221,14 @@ class WriteScopeTest(unittest.TestCase):
             "skills/ba0918-cycle-old/file.py",
         ):
             with self.subTest(candidate=candidate):
-                result = implement_model.validate_write_path(candidate, scopes)
+                result = implement_runtime.planning.validate_write_path(candidate, scopes)
                 self.assertFalse(result.ok)
                 self.assertEqual(result.error.code, "write_scope_violation")
 
 
 class EventChainTest(unittest.TestCase):
     def test_consecutive_events_are_ordered_by_sequence_alone(self) -> None:
-        first = implement_model.seal_event(
+        first = implement_runtime.context.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
@@ -248,14 +238,14 @@ class EventChainTest(unittest.TestCase):
             }
         )
         self.assertTrue(first.ok)
-        second = implement_model.seal_event(
+        second = implement_runtime.context.seal_event(
             {
                 "version": 1,
                 "sequence": 2,
                 "event_type": "red",
                 "attempt_id": binding()["attempt_id"],
                 "step_id": "step-1",
-                "oracle_identity": implement_model.content_identity(oracle()),
+                "oracle_identity": implement_runtime.storage.content_identity(oracle()),
                 "outcome": "expected_failure",
                 "exit_code": 1,
                 "observation": "1 failed",
@@ -271,7 +261,7 @@ class EventChainTest(unittest.TestCase):
         self.assertEqual(second.value["sequence"], 2)
 
     def test_stopped_event_is_terminal_for_the_attempt(self) -> None:
-        first = implement_model.seal_event(
+        first = implement_runtime.context.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
@@ -280,7 +270,7 @@ class EventChainTest(unittest.TestCase):
                 "outcome": "bound",
             }
         ).value
-        stopped = implement_model.seal_event(
+        stopped = implement_runtime.context.seal_event(
             {
                 "version": 1,
                 "sequence": 2,
@@ -291,14 +281,14 @@ class EventChainTest(unittest.TestCase):
             previous_event=first,
         ).value
 
-        result = implement_model.seal_event(
+        result = implement_runtime.context.seal_event(
             {
                 "version": 1,
                 "sequence": 3,
                 "event_type": "red",
                 "attempt_id": binding()["attempt_id"],
                 "step_id": "step-1",
-                "oracle_identity": implement_model.content_identity(oracle()),
+                "oracle_identity": implement_runtime.storage.content_identity(oracle()),
                 "outcome": "expected_failure",
                 "exit_code": 1,
                 "observation": "missing behavior",
@@ -314,7 +304,7 @@ class EventChainTest(unittest.TestCase):
         self.assertEqual(result.error.code, "terminal_event_chain")
 
     def test_only_a_resumed_event_may_follow_a_stop(self) -> None:
-        first = implement_model.seal_event(
+        first = implement_runtime.context.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
@@ -323,7 +313,7 @@ class EventChainTest(unittest.TestCase):
                 "outcome": "bound",
             }
         ).value
-        stopped = implement_model.seal_event(
+        stopped = implement_runtime.context.seal_event(
             {
                 "version": 1,
                 "sequence": 2,
@@ -334,7 +324,7 @@ class EventChainTest(unittest.TestCase):
             previous_event=first,
         ).value
 
-        resumed = implement_model.seal_event(
+        resumed = implement_runtime.context.seal_event(
             {
                 "version": 1,
                 "sequence": 3,
@@ -376,7 +366,7 @@ class CheckStepEvidenceTest(unittest.TestCase):
     def test_a_check_step_is_complete_once_its_check_is_committed(self) -> None:
         events = [self._check("vendor-lock.json"), {"event_type": "commit", "step_id": "step-1"}]
 
-        result = implement_model.validate_step_evidence(events, "step-1", "check")
+        result = implement_runtime.deliverables.validate_step_evidence(events, "step-1", "check")
 
         self.assertTrue(result.ok, result.error)
 
@@ -384,29 +374,29 @@ class CheckStepEvidenceTest(unittest.TestCase):
         events = self._events("check", "commit")
 
         self.assertNotIn("approval", [event["event_type"] for event in events])
-        result = implement_model.validate_step_evidence(events, "step-1", "check")
+        result = implement_runtime.deliverables.validate_step_evidence(events, "step-1", "check")
 
         self.assertTrue(result.ok, result.error)
 
     def test_a_check_that_changed_files_is_incomplete_until_they_are_committed(self) -> None:
-        result = implement_model.validate_step_evidence([self._check("vendor-lock.json")], "step-1", "check")
+        result = implement_runtime.deliverables.validate_step_evidence([self._check("vendor-lock.json")], "step-1", "check")
 
         self.assertFalse(result.ok)
 
     def test_a_check_that_changed_nothing_completes_without_a_commit(self) -> None:
-        result = implement_model.validate_step_evidence([self._check()], "step-1", "check")
+        result = implement_runtime.deliverables.validate_step_evidence([self._check()], "step-1", "check")
 
         self.assertTrue(result.ok, result.error)
 
     def test_test_evidence_on_a_check_step_is_rejected(self) -> None:
-        result = implement_model.validate_step_evidence(
+        result = implement_runtime.deliverables.validate_step_evidence(
             self._events("red", "green", "refactor", "check", "commit"), "step-1", "check"
         )
 
         self.assertFalse(result.ok)
 
     def test_a_check_inside_a_test_step_breaks_its_evidence(self) -> None:
-        result = implement_model.validate_step_evidence(
+        result = implement_runtime.deliverables.validate_step_evidence(
             self._events("red", "green", "refactor", "check", "commit"), "step-1", "test"
         )
 
@@ -417,20 +407,20 @@ class HumanGateStateTest(unittest.TestCase):
     def test_human_gate_event_must_match_a_declared_gate(self) -> None:
         value = binding()
         value["human_gates"] = [human_gate()]
-        event = implement_model.seal_event(human_gate_event()).value
+        event = implement_runtime.context.seal_event(human_gate_event()).value
 
-        declared = implement_model.validate_human_gate_event(value, event)
+        declared = implement_runtime.gates.validate_human_gate_event(value, event)
         ad_hoc = dict(event)
         ad_hoc["gate_id"] = "undeclared-gate"
 
         self.assertTrue(declared.ok, declared.error)
         self.assertEqual(
-            implement_model.validate_human_gate_event(value, ad_hoc).error.code,
+            implement_runtime.gates.validate_human_gate_event(value, ad_hoc).error.code,
             "human_gate_undeclared",
         )
 
     def test_plan_without_human_gates_crosses_the_boundary(self) -> None:
-        result = implement_model.validate_human_gate_boundary(
+        result = implement_runtime.gates.validate_human_gate_boundary(
             binding(),
             [],
             step_id="step-1",
@@ -445,16 +435,16 @@ class HumanGateStateTest(unittest.TestCase):
         value["human_gates"] = [human_gate()]
         targets = {"approve-cycle-files": "sha256:" + "8" * 64}
 
-        missing = implement_model.validate_human_gate_boundary(
+        missing = implement_runtime.gates.validate_human_gate_boundary(
             value,
             [],
             step_id="step-1",
             timing="before_implementation_green",
             target_identities=targets,
         )
-        rejected = implement_model.validate_human_gate_boundary(
+        rejected = implement_runtime.gates.validate_human_gate_boundary(
             value,
-            [implement_model.seal_event(human_gate_event("rejected")).value],
+            [implement_runtime.context.seal_event(human_gate_event("rejected")).value],
             step_id="step-1",
             timing="before_implementation_green",
             target_identities=targets,
@@ -466,9 +456,9 @@ class HumanGateStateTest(unittest.TestCase):
     def test_changed_target_stales_a_previous_approval(self) -> None:
         value = binding()
         value["human_gates"] = [human_gate()]
-        approved = implement_model.seal_event(human_gate_event()).value
+        approved = implement_runtime.context.seal_event(human_gate_event()).value
 
-        result = implement_model.validate_human_gate_boundary(
+        result = implement_runtime.gates.validate_human_gate_boundary(
             value,
             [approved],
             step_id="step-1",
@@ -481,9 +471,9 @@ class HumanGateStateTest(unittest.TestCase):
     def test_current_approval_crosses_the_declared_boundary(self) -> None:
         value = binding()
         value["human_gates"] = [human_gate()]
-        approved = implement_model.seal_event(human_gate_event()).value
+        approved = implement_runtime.context.seal_event(human_gate_event()).value
 
-        result = implement_model.validate_human_gate_boundary(
+        result = implement_runtime.gates.validate_human_gate_boundary(
             value,
             [approved],
             step_id="step-1",
@@ -496,13 +486,13 @@ class HumanGateStateTest(unittest.TestCase):
 
 class ResultDerivationTest(unittest.TestCase):
     def test_no_events_is_not_started(self) -> None:
-        result = implement_model.derive_result([])
+        result = implement_runtime.context.derive_result([])
 
         self.assertEqual(result["state"], "not_started")
         self.assertNotIn("attempt_id", result)
 
     def test_stopped_result_comes_from_the_last_durable_event(self) -> None:
-        stopped = implement_model.seal_event(
+        stopped = implement_runtime.context.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
@@ -513,14 +503,14 @@ class ResultDerivationTest(unittest.TestCase):
             }
         ).value
 
-        result = implement_model.derive_result([stopped])
+        result = implement_runtime.context.derive_result([stopped])
 
         self.assertEqual(result["state"], "stopped")
         self.assertEqual(result["reason"], "identity_drift")
         self.assertEqual(result["last_sequence"], 1)
 
     def test_implementation_green_requires_the_terminal_event(self) -> None:
-        terminal = implement_model.seal_event(
+        terminal = implement_runtime.context.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
@@ -530,7 +520,7 @@ class ResultDerivationTest(unittest.TestCase):
             }
         ).value
 
-        result = implement_model.derive_result([terminal])
+        result = implement_runtime.context.derive_result([terminal])
 
         self.assertEqual(result["state"], "implementation_green")
         self.assertEqual(result["commits"], ["7" * 40])
@@ -545,7 +535,7 @@ class ResultDerivationTest(unittest.TestCase):
                 "event_type": "refactor",
                 "attempt_id": binding()["attempt_id"],
                 "step_id": "step-1",
-                "oracle_identity": implement_model.content_identity(oracle()),
+                "oracle_identity": implement_runtime.storage.content_identity(oracle()),
                 "outcome": "no_change",
                 "exit_code": 0,
                 "observation": "no structural change needed",
@@ -554,10 +544,10 @@ class ResultDerivationTest(unittest.TestCase):
                     "reason": "fixture has no structured runner output",
                 },
             }
-            previous = implement_model.seal_event(candidate, previous_event=previous).value
+            previous = implement_runtime.context.seal_event(candidate, previous_event=previous).value
             events.append(previous)
 
-        result = implement_model.derive_result(events)
+        result = implement_runtime.context.derive_result(events)
 
         self.assertEqual(result["state"], "stopped")
         self.assertEqual(result["reason"], "terminal_event_missing")
@@ -571,14 +561,14 @@ class StepEvidenceRedoTest(unittest.TestCase):
 
     def test_a_step_redone_from_red_counts_as_complete(self) -> None:
         events = self._events("red", "stopped", "red", "green", "refactor", "commit")
-        self.assertTrue(implement_model.validate_step_evidence(events, "step-1", "test").ok)
+        self.assertTrue(implement_runtime.deliverables.validate_step_evidence(events, "step-1", "test").ok)
 
     def test_a_redo_may_interrupt_any_unfinished_phase(self) -> None:
         for shape in (
             ("red", "green", "red", "green", "refactor", "commit"),
             ("red", "green", "refactor", "red", "green", "refactor", "commit"),
         ):
-            result = implement_model.validate_step_evidence(self._events(*shape), "step-1", "test")
+            result = implement_runtime.deliverables.validate_step_evidence(self._events(*shape), "step-1", "test")
             self.assertTrue(result.ok, shape)
 
     def test_repeated_refactor_passes_still_complete_the_step(self) -> None:
@@ -586,16 +576,16 @@ class StepEvidenceRedoTest(unittest.TestCase):
             ("red", "green", "refactor", "refactor", "commit"),
             ("red", "green", "refactor", "refactor", "refactor", "commit"),
         ):
-            result = implement_model.validate_step_evidence(self._events(*shape), "step-1", "test")
+            result = implement_runtime.deliverables.validate_step_evidence(self._events(*shape), "step-1", "test")
             self.assertTrue(result.ok, shape)
 
     def test_a_rerun_green_before_refactor_still_completes_the_step(self) -> None:
         events = self._events("red", "green", "green", "refactor", "commit")
-        self.assertTrue(implement_model.validate_step_evidence(events, "step-1", "test").ok)
+        self.assertTrue(implement_runtime.deliverables.validate_step_evidence(events, "step-1", "test").ok)
 
     def test_a_commit_without_a_green_after_the_last_red_is_incomplete(self) -> None:
         events = self._events("red", "green", "red", "commit")
-        self.assertFalse(implement_model.validate_step_evidence(events, "step-1", "test").ok)
+        self.assertFalse(implement_runtime.deliverables.validate_step_evidence(events, "step-1", "test").ok)
 
 
 NEW_PLAN_IDENTITY = "sha256:" + "5" * 64
@@ -642,37 +632,37 @@ def rebound_event(sequence: int, previous: dict, **overrides: object) -> dict:
 
 class ReboundChainTest(unittest.TestCase):
     def _bound(self) -> dict:
-        return implement_model.seal_event(chain_event(1, "worktree-bound", None, outcome="bound")).value
+        return implement_runtime.context.seal_event(chain_event(1, "worktree-bound", None, outcome="bound")).value
 
     def test_a_rebound_moves_the_binding_onto_the_revised_plan_and_specs(self) -> None:
         bound = self._bound()
-        rebound = implement_model.seal_event(rebound_event(2, bound), previous_event=bound)
+        rebound = implement_runtime.context.seal_event(rebound_event(2, bound), previous_event=bound)
         self.assertIsNone(rebound.error)
 
-        effective = implement_model.effective_binding(binding(), [bound, rebound.value])
+        effective = implement_runtime.context.effective_binding(binding(), [bound, rebound.value])
 
         self.assertEqual(effective["plan"]["content_identity"], NEW_PLAN_IDENTITY)
         self.assertEqual(effective["specs"], [{"path": "docs/spec/cycle.md", "content_identity": NEW_SPEC_IDENTITY}])
 
     def test_a_rebound_may_follow_a_stop_but_not_implementation_green(self) -> None:
         bound = self._bound()
-        stopped = implement_model.seal_event(chain_event(2, "stopped", bound, reason="drift"), previous_event=bound).value
-        self.assertTrue(implement_model.seal_event(rebound_event(3, stopped), previous_event=stopped).ok)
-        green = implement_model.seal_event(
+        stopped = implement_runtime.context.seal_event(chain_event(2, "stopped", bound, reason="drift"), previous_event=bound).value
+        self.assertTrue(implement_runtime.context.seal_event(rebound_event(3, stopped), previous_event=stopped).ok)
+        green = implement_runtime.context.seal_event(
             chain_event(2, "implementation_green", bound, commits=[BASE_HEAD]), previous_event=bound
         ).value
-        result = implement_model.seal_event(rebound_event(3, green), previous_event=green)
+        result = implement_runtime.context.seal_event(rebound_event(3, green), previous_event=green)
         self.assertEqual(result.error.code, "terminal_event_chain")
 
 class EffectiveBindingTest(unittest.TestCase):
     def test_without_a_rebound_the_effective_binding_is_the_binding(self) -> None:
         events = [{"event_type": "worktree-bound"}, {"event_type": "stopped"}]
-        self.assertEqual(implement_model.effective_binding(binding(), events), binding())
+        self.assertEqual(implement_runtime.context.effective_binding(binding(), events), binding())
 
     def test_the_last_rebound_overlays_plan_specs_scope_and_gates(self) -> None:
-        bound = implement_model.seal_event(chain_event(1, "worktree-bound", None, outcome="bound")).value
-        rebound = implement_model.seal_event(rebound_event(2, bound), previous_event=bound).value
-        effective = implement_model.effective_binding(binding(), [bound, rebound])
+        bound = implement_runtime.context.seal_event(chain_event(1, "worktree-bound", None, outcome="bound")).value
+        rebound = implement_runtime.context.seal_event(rebound_event(2, bound), previous_event=bound).value
+        effective = implement_runtime.context.effective_binding(binding(), [bound, rebound])
         self.assertEqual(effective["plan"], rebound["plan"])
         self.assertEqual(effective["specs"], rebound["specs"])
         self.assertEqual(effective["write_scope"], rebound["write_scope"])
@@ -698,7 +688,7 @@ class EffectiveEventsTest(unittest.TestCase):
 
     def test_without_a_rebound_the_events_are_unchanged(self) -> None:
         events = self._tdd("step-1", "red", "green", "refactor", "commit")
-        self.assertEqual(implement_model.effective_events(events), events)
+        self.assertEqual(implement_runtime.context.effective_events(events), events)
 
     def test_carried_steps_are_renumbered_and_superseded_evidence_is_dropped(self) -> None:
         before = (
@@ -707,11 +697,11 @@ class EffectiveEventsTest(unittest.TestCase):
             + self._tdd("step-3", "red", "green", "refactor", "commit")
         )
         events = before + [self._rebound()] + self._tdd("step-2", "red")
-        effective = implement_model.effective_events(events)
+        effective = implement_runtime.context.effective_events(events)
 
-        self.assertTrue(implement_model.validate_step_evidence(effective, "step-1", "test").ok)
-        self.assertTrue(implement_model.validate_step_evidence(effective, "step-3", "test").ok)
-        self.assertFalse(implement_model.validate_step_evidence(effective, "step-2", "test").ok)
+        self.assertTrue(implement_runtime.deliverables.validate_step_evidence(effective, "step-1", "test").ok)
+        self.assertTrue(implement_runtime.deliverables.validate_step_evidence(effective, "step-3", "test").ok)
+        self.assertFalse(implement_runtime.deliverables.validate_step_evidence(effective, "step-2", "test").ok)
         self.assertEqual([event["step_id"] for event in effective if event.get("step_id") == "step-3"], ["step-3"] * 4)
         self.assertEqual(sum(1 for event in effective if event["event_type"] == "commit"), 2)
         self.assertEqual(effective[-1], {"event_type": "red", "step_id": "step-2"})
@@ -739,7 +729,7 @@ class EffectiveEventsTest(unittest.TestCase):
             + [second]
         )
 
-        effective = implement_model.effective_events(events)
+        effective = implement_runtime.context.effective_events(events)
 
         self.assertNotIn("artifact", [event["event_type"] for event in effective])
 
@@ -758,7 +748,7 @@ class EventFingerprintTest(unittest.TestCase):
             "outcome": "bound",
         }
 
-        sealed = implement_model.seal_event(candidate)
+        sealed = implement_runtime.context.seal_event(candidate)
 
         self.assertTrue(sealed.ok, sealed.error)
         self.assertEqual(sealed.value, candidate)

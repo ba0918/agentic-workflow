@@ -5,7 +5,6 @@ contracts:
       - "__pycache__/"
     files:
       tools/workflow-runtime/implement/implement_runtime.py: scripts/implement_runtime.py
-      tools/workflow-runtime/implement/execution_model.py: scripts/execution_model.py
       tools/workflow-runtime/implement/runtime/: scripts/runtime/
   plan-runtime:
     source: local

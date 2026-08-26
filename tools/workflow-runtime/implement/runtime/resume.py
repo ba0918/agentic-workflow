@@ -4,7 +4,9 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from runtime.deps import execution_model, plan_artifact
+from runtime.deps import plan_artifact
+from runtime.context import effective_binding, effective_events
+from runtime.types import ATTEMPT_ID
 from runtime.types import RuntimeResult, Attempt, ok, failure
 from runtime.gitio import run_git
 from runtime.storage import read_json, safe_agent_roots
@@ -158,7 +160,7 @@ def residual_executions(project_root: Path, *, plan_id: str) -> RuntimeResult:
         # fact to show, not a reason to fail the listing. Its fields are read, never validated.
         try:
             events = raw_events(evidence_path)
-            binding = execution_model.effective_binding(binding_result.value, events)
+            binding = effective_binding(binding_result.value, events)
             mismatch = _binding_fingerprints_match(main_checkout, binding)
             facts.append(
                 {
@@ -205,12 +207,12 @@ def resume_execution(project_root: Path, *, plan_id: str, attempt_id: str) -> Ru
     events = events_result.value
     if events and events[-1]["event_type"] == "implementation_green":
         return failure("execution_finished", "this execution already reached implementation_green")
-    binding = execution_model.effective_binding(read_json(attempt.binding_path).value, events)
+    binding = effective_binding(read_json(attempt.binding_path).value, events)
     mismatch = _binding_fingerprints_match(attempt.main_checkout, binding)
     if mismatch is not None:
         code = "spec_identity_drift" if "spec" in mismatch else "plan_identity_drift"
         return failure(code, mismatch)
-    events = execution_model.effective_events(events)
+    events = effective_events(events)
     declared = step_ids(attempt)
     if not declared.ok:
         return declared
@@ -250,7 +252,7 @@ def _superseded_steps(events: list[dict], step_map: list[dict]) -> list[str]:
     carried = {entry.get("previous_step_id") for entry in step_map}
     completed = {
         event["step_id"]
-        for event in execution_model.effective_events(events)
+        for event in effective_events(events)
         if event.get("event_type") == "commit"
     }
     return sorted(completed - carried)
@@ -280,7 +282,7 @@ def _rebind_plan(
     events = events_result.value
     if events and events[-1]["event_type"] == "implementation_green":
         return failure("execution_finished", "this execution already reached implementation_green")
-    binding = execution_model.effective_binding(read_json(attempt.binding_path).value, events)
+    binding = effective_binding(read_json(attempt.binding_path).value, events)
     try:
         target = plan_artifact.read_registered_plan(attempt.main_checkout, plan_path)
     except plan_artifact.PlanArtifactError as error:
@@ -318,7 +320,7 @@ def _rebind_plan(
         "step_map": list(step_map),
         "superseded_steps": _superseded_steps(events, step_map),
     }
-    projected = execution_model.effective_events(events + [dict(rebound, event_type="rebound")])
+    projected = effective_events(events + [dict(rebound, event_type="rebound")])
     next_step, redo, carried = _next_step_after_evidence(
         projected, [step["step_id"] for step in declared.value]
     )
@@ -348,7 +350,7 @@ def rebind_preview(
     if not planned.ok:
         return planned
     attempt, events, binding, rebound, continuation = planned.value
-    branch = _branch_facts(attempt.main_checkout, attempt.branch, binding["base_head"], _recorded_commits(execution_model.effective_events(events)))
+    branch = _branch_facts(attempt.main_checkout, attempt.branch, binding["base_head"], _recorded_commits(effective_events(events)))
     return ok({**rebound, **continuation, "previous_plan": binding["plan"], "extra_commits": branch["extra_commits"]})
 
 
@@ -389,7 +391,7 @@ def rebind_execution(
             "the registered plan changed after the human read the mapping",
             rebound["plan"]["content_identity"],
         )
-    branch = _branch_facts(attempt.main_checkout, attempt.branch, binding["base_head"], _recorded_commits(execution_model.effective_events(events)))
+    branch = _branch_facts(attempt.main_checkout, attempt.branch, binding["base_head"], _recorded_commits(effective_events(events)))
     head = run_git(attempt.main_checkout, "rev-parse", f"refs/heads/{attempt.branch}").stdout.strip()
     changed = changed_paths(attempt.worktree)
     if not changed.ok:
@@ -438,7 +440,7 @@ def load_current_attempt(
         if not selected.ok:
             return selected
         plan_id, attempt_id = selected.value
-    if not execution_model.ATTEMPT_ID.fullmatch(attempt_id) or not plan_artifact.PLAN_ID.fullmatch(plan_id):
+    if not ATTEMPT_ID.fullmatch(attempt_id) or not plan_artifact.PLAN_ID.fullmatch(plan_id):
         return failure("execution_ids_invalid", "plan id or execution id is not path-safe")
     evidence_path = main_checkout / ".agents/artifacts/executions" / plan_id / attempt_id
     tmp_path = main_checkout / ".agents/tmp/executions" / attempt_id

@@ -1,4 +1,4 @@
-"""Loads the two shared modules the runtime builds on, wherever this copy lives."""
+"""Loads the plan skill's reader, wherever this copy lives."""
 import importlib.util
 from pathlib import Path
 
@@ -13,8 +13,6 @@ def load_module(name: str, path: Path):
     specification.loader.exec_module(module)
     return module
 
-
-execution_model = load_module("ba0918_implement_execution_model", HOME / "execution_model.py")
 
 # The runtime lives in two homes: the canonical tree (tools/workflow-runtime/implement/,
 # where plan_artifact.py sits in the sibling plan/) and the vendored copy

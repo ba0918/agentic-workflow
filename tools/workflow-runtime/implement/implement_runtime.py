@@ -10,8 +10,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from runtime.deps import execution_model, plan_artifact
-from runtime import cli, context, deliverables, gates, gitio, planning, repository, resume, staging, storage, tdd
+from runtime.deps import plan_artifact
+from runtime import cli, context, deliverables, gates, gitio, planning, repository, resume, staging, storage, tdd, types
 from runtime.types import (
     Attempt,
     RepositoryInfo,

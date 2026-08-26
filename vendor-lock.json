@@ -27,19 +27,14 @@
       }
     },
     "ba0918-implement": {
-      "scripts/execution_model.py": {
-        "contract": "implement-runtime",
-        "digest": "sha256:9e85b6a0e3e01a20ef5c2ee3405734496bc57c64519fa179bab81981a1f613d0",
-        "src": "tools/workflow-runtime/implement/execution_model.py"
-      },
       "scripts/implement_runtime.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:932ba0c1537f254d7ccead162bbda1cf09b36056e9c8a1163f7cbddaf77d3894",
+        "digest": "sha256:5f0cddf88385f3bc9d2072c9b13744a5a9e7d4abf4a8f17efe14ac02e9881fda",
         "src": "tools/workflow-runtime/implement/implement_runtime.py"
       },
       "scripts/runtime/": {
         "contract": "implement-runtime",
-        "digest": "sha256:2d3b030795c9f77c94cdae4af5526e8209b9c750f5994b0776e2e34ad2da05be",
+        "digest": "sha256:081606c03944fbcfb1587116d08adbc90bbc1293b40d7a40479463cd603de7f0",
         "src": "tools/workflow-runtime/implement/runtime/"
       }
     },
@@ -53,12 +48,12 @@
     "ba0918-review": {
       "scripts/review_model.py": {
         "contract": "review-runtime",
-        "digest": "sha256:5614934ae7f2ec9a47c9e94f6a1693f0fa7d292a570fd19bcab4ca7d6056d6a7",
+        "digest": "sha256:aae1e99e5cefebbbc74ae3b173191fabf3fb6da3f697a83378f3a38f0680be21",
         "src": "tools/workflow-runtime/review/review_model.py"
       },
       "scripts/review_runtime.py": {
         "contract": "review-runtime",
-        "digest": "sha256:ed53cefbebdd649b539f743819a33da9e67cedd4a78a3de40869706202ad9c4c",
+        "digest": "sha256:480b63df7230ccbb34629b0a2eaae9a134904dc0224148d67fe3a4e5a250f3d6",
         "src": "tools/workflow-runtime/review/review_runtime.py"
       }
     }
@@ -69,7 +64,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:a7c7c2e4cdc753743e7d4d44919676d4c04f643da764189787b68dda4e66c6c9",
+      "digest": "sha256:1cd40a3f4f6e13aa46f646bfd7dbffcbd616bfd1fa0eee772002b49050946d87",
       "kind": "raw"
     },
     "plan-runtime": {
@@ -77,7 +72,7 @@
       "kind": "raw"
     },
     "review-runtime": {
-      "digest": "sha256:ea7eb14b858b5fb0bfdf4b872df20dbd207a501f2b7488f19f346cc5bbf07105",
+      "digest": "sha256:4533377cff4b10f599abe028dd07041458fc54c8560705895fb4ca3a9612efd6",
       "kind": "raw"
     }
   }

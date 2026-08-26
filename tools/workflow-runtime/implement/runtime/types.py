@@ -1,6 +1,19 @@
-"""Result and identity tuples every runtime module speaks in."""
+"""Result tuples, identity shapes and the vocabulary every runtime module speaks in."""
+import re
 from pathlib import Path
 from typing import Any, NamedTuple
+
+IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")
+ATTEMPT_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,95}")
+COMMIT_SHA = re.compile(r"[0-9a-f]{40,64}")
+# Only a behavior failure is an approved missing behavior; import, fixture, permission and
+# network failures are never an expected RED, so the candidate may not predict them.
+APPROVAL_RESULTS = ["approved", "rejected"]
+
+
+def matches(pattern: re.Pattern[str], value: object) -> bool:
+    return isinstance(value, str) and pattern.fullmatch(value) is not None
+
 
 
 class RuntimeFailure(NamedTuple):

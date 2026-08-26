@@ -11,7 +11,10 @@ import secrets
 from pathlib import Path
 from typing import Any
 
-from runtime.deps import execution_model
+from runtime.context import effective_events
+from runtime.deliverables import validate_step_evidence
+from runtime.gates import HUMAN_GATE_TIMINGS
+from runtime.planning import validate_write_path
 from runtime.types import RuntimeFailure, RuntimeResult, Attempt, ok, failure
 from runtime.gitio import run_git
 from runtime.storage import read_json
@@ -57,7 +60,7 @@ def _history_facts(attempt: Attempt, binding: dict, events: list[dict], final_st
     out_of_scope_paths = sorted(
         path
         for path in history_paths.stdout.splitlines()
-        if path and not execution_model.validate_write_path(path, binding["write_scope"]).ok
+        if path and not validate_write_path(path, binding["write_scope"]).ok
     )
     return ok(
         {
@@ -74,7 +77,7 @@ def _terminal_context(attempt: Attempt) -> RuntimeResult:
     loaded = load_events(attempt)
     if not loaded.ok:
         return loaded
-    events = execution_model.effective_events(loaded.value)
+    events = effective_events(loaded.value)
     if not any(event["event_type"] == "commit" for event in events):
         return failure("commit_missing", "implementation green requires at least one commit")
     declared = declared_steps(attempt)
@@ -118,7 +121,7 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
     raw_events, events, steps, binding = prepared.value
     for step in steps:
         step_id = step["step_id"]
-        evidence = execution_model.validate_step_evidence(events, step_id, step["completion"])
+        evidence = validate_step_evidence(events, step_id, step["completion"])
         if not evidence.ok:
             return failure(evidence.error.code, evidence.error.message)
         if step["completion"] == "test":
@@ -308,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
     check_gates.add_argument("--step", required=True)
     check_gates.add_argument(
         "--timing",
-        choices=tuple(execution_model.HUMAN_GATE_TIMINGS),
+        choices=tuple(HUMAN_GATE_TIMINGS),
         required=True,
     )
 

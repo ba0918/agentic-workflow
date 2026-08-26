@@ -2,12 +2,106 @@
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from runtime.deps import execution_model, plan_artifact
+from runtime.deps import plan_artifact
+from runtime.planning import validate_write_path
+from runtime.storage import SECRET_ARGUMENT, canonical_json
+from runtime.storage import RAW_LOG_FIELDS, first_forbidden_field, first_secret_field
 from runtime.types import RuntimeFailure, RuntimeResult, Attempt, ok, failure
 from runtime.gitio import run_git
 from runtime.storage import read_json, write_atomic, write_once
 from runtime.planning import raw_identity
 from runtime.repository import discover_repository
+
+
+def seal_event(candidate: dict, previous_event: dict | None = None) -> RuntimeResult:
+    raw_log = first_forbidden_field(candidate, RAW_LOG_FIELDS)
+    if raw_log is not None:
+        return failure("raw_log_forbidden", "raw process logs are not durable evidence", raw_log)
+    secret = first_secret_field(candidate)
+    if secret is not None:
+        return failure("secret_value_forbidden", "secret values are not durable evidence", secret)
+    if previous_event is not None and (
+        previous_event.get("event_type") == "implementation_green"
+        or (
+            previous_event.get("event_type") == "stopped"
+            and candidate.get("event_type") not in {"resumed", "rebound"}
+        )
+    ):
+        return failure("terminal_event_chain", "terminal event cannot be extended", "sequence")
+    return ok(dict(candidate))
+
+
+def _last_rebound(events: list[dict]) -> tuple[int, dict | None]:
+    for index in range(len(events) - 1, -1, -1):
+        if events[index].get("event_type") == "rebound":
+            return index, events[index]
+    return -1, None
+
+
+def effective_binding(binding: dict, events: list[dict]) -> dict:
+    """The binding as the last rebound left it: plan, specs, scope and gates follow the revision."""
+    _, rebound = _last_rebound(events)
+    if rebound is None:
+        return dict(binding)
+    effective = dict(binding)
+    for field in ("plan", "specs", "write_scope", "human_gates", "steps"):
+        if field not in rebound:
+            continue
+        effective[field] = rebound[field]
+    return effective
+
+
+def effective_events(events: list[dict]) -> list[dict]:
+    """Events as the rebounds read them: carried steps renumbered, superseded evidence dropped.
+
+    Every rebound applies to what the rebounds before it already left, so evidence one revision
+    dropped stays dropped even when a later revision carries a step of the same number."""
+    effective: list[dict] = []
+    for event in events:
+        if event.get("event_type") == "rebound":
+            renumbered = {
+                entry["previous_step_id"]: entry["step_id"]
+                for entry in event["step_map"]
+                if entry["previous_step_id"] is not None
+            }
+            superseded = set(event["superseded_steps"])
+            carried: list[dict] = []
+            for earlier in effective:
+                step_id = earlier.get("step_id")
+                if step_id is None:
+                    carried.append(earlier)
+                elif step_id in superseded or step_id not in renumbered:
+                    continue
+                else:
+                    carried.append(dict(earlier, step_id=renumbered[step_id]))
+            effective = carried
+        effective.append(event)
+    return effective
+
+
+def derive_result(events: list[dict]) -> dict:
+    if not events:
+        return {"state": "not_started", "event_count": 0}
+    last = events[-1]
+    result = {
+        "state": "stopped",
+        "attempt_id": last["attempt_id"],
+        "last_sequence": last["sequence"],
+        "event_count": len(events),
+    }
+    if last["event_type"] == "implementation_green":
+        result["state"] = "implementation_green"
+        result["commits"] = list(last["commits"])
+    elif last["event_type"] == "stopped":
+        result["reason"] = last["reason"]
+        if "step_id" in last:
+            result["step_id"] = last["step_id"]
+    elif last["event_type"] == "permission_required":
+        result["reason"] = "permission_required"
+        result["step_id"] = last["step_id"]
+    else:
+        result["reason"] = "terminal_event_missing"
+    return result
 
 
 def changed_paths(worktree: Path) -> RuntimeResult:
@@ -43,7 +137,7 @@ def load_effective_binding(attempt: Attempt) -> RuntimeResult:
     events = load_events(attempt)
     if not events.ok:
         return events
-    return ok(execution_model.effective_binding(binding, events.value))
+    return ok(effective_binding(binding, events.value))
 
 def validate_context(attempt: Attempt, *, step_id: str) -> RuntimeResult:
     effective = load_effective_binding(attempt)
@@ -102,7 +196,7 @@ def validate_context(attempt: Attempt, *, step_id: str) -> RuntimeResult:
     out_of_scope = [
         path
         for path in changed.value
-        if not execution_model.validate_write_path(path, binding["write_scope"]).ok
+        if not validate_write_path(path, binding["write_scope"]).ok
     ]
     return ok(dict(binding, out_of_scope_changes=sorted(out_of_scope)))
 
@@ -118,7 +212,7 @@ def load_events(attempt: Attempt) -> RuntimeResult:
 def completed_steps(events: list[dict]) -> list[str]:
     """Steps that reached a commit, numbered as the rebounds left them."""
     seen: list[str] = []
-    for event in execution_model.effective_events(events):
+    for event in effective_events(events):
         if event.get("event_type") != "commit":
             continue
         step_id = event.get("step_id")
@@ -138,7 +232,7 @@ def write_current_status(attempt: Attempt, events: list[dict]) -> RuntimeResult:
     binding_result = read_json(attempt.binding_path)
     if not binding_result.ok:
         return binding_result
-    binding = execution_model.effective_binding(binding_result.value, events)
+    binding = effective_binding(binding_result.value, events)
     plan = binding.get("plan") or {}
     last = events[-1] if events else {}
     document = {
@@ -151,7 +245,7 @@ def write_current_status(attempt: Attempt, events: list[dict]) -> RuntimeResult:
         "branch": attempt.branch,
         "worktree": str(attempt.worktree),
     }
-    return write_atomic(current_status_path(attempt), execution_model.canonical_json(document))
+    return write_atomic(current_status_path(attempt), canonical_json(document))
 
 def append_event(attempt: Attempt, event_type: str, details: dict[str, Any]) -> RuntimeResult:
     loaded = load_events(attempt)
@@ -166,12 +260,12 @@ def append_event(attempt: Attempt, event_type: str, details: dict[str, Any]) -> 
         "attempt_id": attempt.attempt_id,
         **details,
     }
-    sealed = execution_model.seal_event(candidate, previous_event=events[-1] if events else None)
+    sealed = seal_event(candidate, previous_event=events[-1] if events else None)
     if not sealed.ok:
         return failure(sealed.error.code, sealed.error.message)
     persisted = write_once(
         attempt.evidence_path / f"{next_sequence:06d}-{event_type}.json",
-        execution_model.canonical_json(sealed.value),
+        canonical_json(sealed.value),
     )
     if not persisted.ok:
         return persisted
@@ -193,7 +287,7 @@ def bounded_outside_text(label: str, text: object) -> RuntimeResult:
     """
     if not isinstance(text, str) or not text.strip() or len(text) > RECORDED_TEXT_LIMIT:
         return failure("recorded_text_invalid", f"{label} must be short, non-empty text")
-    if execution_model.SECRET_ARGUMENT.search(text):
+    if SECRET_ARGUMENT.search(text):
         return failure("secret_value_forbidden", f"{label} carries a secret-shaped value")
     return ok(text)
 
@@ -224,7 +318,7 @@ def derive_attempt_result(attempt: Attempt) -> dict:
             "worktree": str(attempt.worktree),
             "evidence_path": str(attempt.evidence_path),
         }
-    result = execution_model.derive_result(loaded.value)
+    result = derive_result(loaded.value)
     result.update(
         {
             "branch": attempt.branch,

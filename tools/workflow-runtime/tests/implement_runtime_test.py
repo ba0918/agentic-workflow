@@ -1140,7 +1140,7 @@ class ApprovalTest(unittest.TestCase):
             self.assertEqual(result.value["event_type"], "approval")
             self.assertEqual(
                 result.value["target_identity"],
-                implement_runtime.execution_model.content_identity(artifact),
+                implement_runtime.storage.content_identity(artifact),
             )
             self.assertEqual(result.value["result"], "approved")
 
@@ -2666,7 +2666,7 @@ class CommandLineTest(unittest.TestCase):
         )
 
         self.assertEqual(attempt_id, "20260822t160000-a1b2c3d4")
-        self.assertIsNotNone(implement_runtime.execution_model.ATTEMPT_ID.fullmatch(attempt_id))
+        self.assertIsNotNone(implement_runtime.types.ATTEMPT_ID.fullmatch(attempt_id))
 
     def test_help_lists_human_gate_commands_and_invalid_results_are_cli_errors(self) -> None:
         help_output = io.StringIO()
@@ -3168,8 +3168,8 @@ class RebindTest(unittest.TestCase):
             self.assertEqual(events[-1]["event_type"], "rebound")
             self.assertEqual(events[-1]["plan"]["content_identity"], revised.content_identity)
             self.assertEqual(events[-1]["extra_commits"], [unrecorded])
-            effective = implement_runtime.execution_model.effective_events(events)
-            self.assertTrue(implement_runtime.execution_model.validate_step_evidence(effective, "step-1", "test").ok)
+            effective = implement_runtime.context.effective_events(events)
+            self.assertTrue(implement_runtime.deliverables.validate_step_evidence(effective, "step-1", "test").ok)
             context = implement_runtime.validate_context(attempt, step_id="step-4")
             self.assertTrue(context.ok, context.error)
             self.assertEqual(context.value["plan"]["revision"], 2)

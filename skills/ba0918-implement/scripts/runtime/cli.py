@@ -11,13 +11,16 @@ import secrets
 from pathlib import Path
 from typing import Any
 
-from runtime.deps import execution_model, plan_artifact
+from runtime.context import effective_events
+from runtime.deliverables import validate_step_evidence
+from runtime.gates import HUMAN_GATE_TIMINGS
+from runtime.planning import validate_write_path
 from runtime.types import RuntimeFailure, RuntimeResult, Attempt, ok, failure
 from runtime.gitio import run_git
 from runtime.storage import read_json
-from runtime.planning import resolve_plan
+from runtime.planning import declared_steps, resolve_plan
 from runtime.repository import bootstrap_attempt
-from runtime.context import load_events, validate_context, append_event, derive_attempt_result, stop_attempt
+from runtime.context import load_events, validate_context, append_event, derive_attempt_result, record_delegation, record_return, stop_attempt
 from runtime.resume import rebind_execution, rebind_preview, residual_executions, resume_execution, load_current_attempt
 from runtime.tdd import accept_red, run_frozen_oracle
 from runtime.gates import record_human_gate
@@ -57,7 +60,7 @@ def _history_facts(attempt: Attempt, binding: dict, events: list[dict], final_st
     out_of_scope_paths = sorted(
         path
         for path in history_paths.stdout.splitlines()
-        if path and not execution_model.validate_write_path(path, binding["write_scope"]).ok
+        if path and not validate_write_path(path, binding["write_scope"]).ok
     )
     return ok(
         {
@@ -74,21 +77,14 @@ def _terminal_context(attempt: Attempt) -> RuntimeResult:
     loaded = load_events(attempt)
     if not loaded.ok:
         return loaded
-    events = execution_model.effective_events(loaded.value)
+    events = effective_events(loaded.value)
     if not any(event["event_type"] == "commit" for event in events):
         return failure("commit_missing", "implementation green requires at least one commit")
-    try:
-        registered = plan_artifact.read_registered_plan(
-            attempt.main_checkout,
-            execution_model.effective_binding(read_json(attempt.binding_path).value, loaded.value)["plan"]["path"],
-        )
-    except (KeyError, TypeError, plan_artifact.PlanArtifactError) as error:
-        return failure("plan_identity_drift", "bound plan cannot be verified", str(error))
-    try:
-        steps = plan_artifact.read_plan_steps(registered.text)
-    except plan_artifact.InvalidPlanFormat as error:
-        return failure("plan_format_invalid", str(error))
-    final_step = f"step-{steps[-1].number}"
+    declared = declared_steps(attempt)
+    if not declared.ok:
+        return declared
+    steps = declared.value
+    final_step = steps[-1]["step_id"]
     context = validate_context(attempt, step_id=final_step)
     if not context.ok:
         return stop_attempt(attempt, context.error, final_step)
@@ -100,7 +96,7 @@ def approve_history(attempt: Attempt, reason: str | None = None) -> RuntimeResul
     if not prepared.ok:
         return prepared
     _, events, steps, binding = prepared.value
-    facts = _history_facts(attempt, binding, events, f"step-{steps[-1].number}")
+    facts = _history_facts(attempt, binding, events, steps[-1]["step_id"])
     if not facts.ok:
         return facts
     listing = facts.value["listing"]
@@ -124,11 +120,11 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
         return prepared
     raw_events, events, steps, binding = prepared.value
     for step in steps:
-        step_id = f"step-{step.number}"
-        evidence = execution_model.validate_step_evidence(events, step_id, step.completion_kind)
+        step_id = step["step_id"]
+        evidence = validate_step_evidence(events, step_id, step["completion"])
         if not evidence.ok:
             return failure(evidence.error.code, evidence.error.message)
-        if step.completion_kind == "test":
+        if step["completion"] == "test":
             step_commits = [
                 event["commit_sha"]
                 for event in events
@@ -137,7 +133,7 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
             targets = validate_step_test_targets_at(attempt, step_id, step_commits[-1])
             if not targets.ok:
                 return targets
-    final_step = f"step-{steps[-1].number}"
+    final_step = steps[-1]["step_id"]
     facts = _history_facts(attempt, binding, events, final_step)
     if not facts.ok:
         return facts
@@ -151,7 +147,7 @@ def mark_implementation_green(attempt: Attempt) -> RuntimeResult:
     for step in steps:
         gates = check_human_gates(
             attempt,
-            step_id=f"step-{step.number}",
+            step_id=step["step_id"],
             timing="before_implementation_green",
         )
         if not gates.ok:
@@ -192,6 +188,17 @@ def _print_failure(result: RuntimeResult, *, state: str) -> int:
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     return 2
 
+def _json_arguments(args: argparse.Namespace, names: tuple[str, ...]) -> RuntimeResult:
+    """Read the declarations the agent passes in as JSON; a malformed one stops before any write."""
+    values: dict[str, Any] = {}
+    for name in names:
+        raw = getattr(args, name)
+        try:
+            values[name] = json.loads(raw)
+        except json.JSONDecodeError as error:
+            return failure("declaration_unreadable", f"--{name.replace('_', '-')} is not JSON", str(error))
+    return ok(values)
+
 def _load_for_command(args: argparse.Namespace) -> RuntimeResult:
     return load_current_attempt(
         Path(args.repo),
@@ -210,6 +217,12 @@ def main(argv: list[str] | None = None) -> int:
     resolve.add_argument("--receipt-identity")
 
     bootstrap = commands.add_parser("bootstrap", help="create the execution branch and worktree")
+    bootstrap.add_argument(
+        "--steps",
+        required=True,
+        help='JSON list of the steps read from the plan: [{"step_id","completion","checks"}]',
+    )
+    bootstrap.add_argument("--human-gates", default="[]", help="JSON list of the decisions the plan declares")
     bootstrap.add_argument("--repo", required=True)
     bootstrap.add_argument("--plan-path")
     bootstrap.add_argument("--receipt-path")
@@ -298,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
     check_gates.add_argument("--step", required=True)
     check_gates.add_argument(
         "--timing",
-        choices=tuple(execution_model.HUMAN_GATE_TIMINGS),
+        choices=tuple(HUMAN_GATE_TIMINGS),
         required=True,
     )
 
@@ -315,6 +328,18 @@ def main(argv: list[str] | None = None) -> int:
     stop.add_argument("--step", required=True)
     stop.add_argument("--reason", required=True)
 
+    delegated = commands.add_parser("record-delegation", help="record that the implementation was handed to an executor")
+    delegated.add_argument("--repo", required=True)
+    execution_ids(delegated)
+    delegated.add_argument("--executor", required=True)
+    delegated.add_argument("--model", required=True)
+
+    returned = commands.add_parser("record-return", help="record that a delegated conversation came back")
+    returned.add_argument("--repo", required=True)
+    execution_ids(returned)
+    returned.add_argument("--step", required=True)
+    returned.add_argument("--reason", required=True)
+
     green = commands.add_parser(
         "implementation-green",
         help="record the Phase 3 terminal event",
@@ -328,6 +353,13 @@ def main(argv: list[str] | None = None) -> int:
     resume.add_argument("--execution-id", required=True)
 
     rebind = commands.add_parser("rebind", help="map a revised plan onto an execution; record it only with --confirm")
+    rebind.add_argument("--steps", required=True, help="JSON list of the revised plan's steps")
+    rebind.add_argument(
+        "--step-map",
+        required=True,
+        help='JSON list matching revised to previous steps: [{"step_id","previous_step_id","disposition"}]',
+    )
+    rebind.add_argument("--human-gates", default="[]", help="JSON list of the revised plan's declared decisions")
     rebind.add_argument("--repo", required=True)
     rebind.add_argument("--plan-id", required=True)
     rebind.add_argument("--execution-id", required=True)
@@ -387,12 +419,16 @@ def main(argv: list[str] | None = None) -> int:
         }
         if args.backend == "unavailable" or args.session_id == "unavailable":
             executor["reason"] = "not exposed safely"
+        declarations = _json_arguments(args, ("steps", "human_gates"))
+        if not declarations.ok:
+            return _print_failure(declarations, state="not_started")
         bootstrapped = bootstrap_attempt(
             repo,
             resolved.value,
             worktree_path=Path(args.worktree),
             attempt_id_factory=generate_attempt_id,
             executor=executor,
+            **declarations.value,
         )
         if not bootstrapped.ok:
             return _print_failure(bootstrapped, state="not_started")
@@ -409,12 +445,21 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(resumed.value, ensure_ascii=False, sort_keys=True))
         return 0
     if args.command == "rebind":
+        declarations = _json_arguments(args, ("steps", "human_gates", "step_map"))
+        if not declarations.ok:
+            return _print_failure(declarations, state="stopped")
         operation = (
             (lambda *a, **kw: rebind_execution(*a, expected_plan_identity=args.expect_plan_identity, **kw))
             if args.confirm
             else rebind_preview
         )
-        rebound = operation(repo, plan_id=args.plan_id, attempt_id=args.execution_id, plan_path=args.plan_path)
+        rebound = operation(
+            repo,
+            plan_id=args.plan_id,
+            attempt_id=args.execution_id,
+            plan_path=args.plan_path,
+            **declarations.value,
+        )
         if not rebound.ok:
             return _print_failure(rebound, state="stopped")
         print(json.dumps(rebound.value, ensure_ascii=False, sort_keys=True))
@@ -497,6 +542,10 @@ def main(argv: list[str] | None = None) -> int:
             "stopped",
             {"reason": args.reason, "step_id": args.step},
         )
+    elif args.command == "record-delegation":
+        operation = record_delegation(attempt, executor=args.executor, model=args.model)
+    elif args.command == "record-return":
+        operation = record_return(attempt, step_id=args.step, reason=args.reason)
     elif args.command == "approve-history":
         operation = approve_history(attempt, reason=args.reason)
     elif args.command == "implementation-green":

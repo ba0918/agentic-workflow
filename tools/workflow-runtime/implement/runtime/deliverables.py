@@ -5,7 +5,9 @@ import subprocess
 from pathlib import PurePosixPath
 from typing import Any
 
-from runtime.deps import execution_model
+from runtime.planning import validate_write_path
+from runtime.storage import SECRET_ARGUMENT, content_identity
+from runtime.types import APPROVAL_RESULTS
 from runtime.types import RuntimeFailure, RuntimeResult, Attempt, ok, failure
 from runtime.planning import require_completion_kind
 from runtime.context import (
@@ -18,8 +20,105 @@ from runtime.context import (
 )
 
 
+def latest_deliverable(events: list[dict], step_id: str) -> dict | None:
+    """The newest artifact or external event of the step: the thing a human approves."""
+    for event in reversed(events):
+        if event.get("event_type") in {"artifact", "external"} and event.get("step_id") == step_id:
+            return event
+    return None
+
+
+def deliverable_is_approved(events: list[dict], step_id: str) -> bool:
+    """True when the step's newest artifact/external event has an approved verdict after it."""
+    step_events = [event for event in events if event.get("step_id") == step_id]
+    target = latest_deliverable(step_events, step_id)
+    if target is None:
+        return False
+    target_identity = content_identity(target)
+    after = step_events[step_events.index(target) + 1 :]
+    return any(
+        event.get("event_type") == "approval"
+        and event.get("target_identity") == target_identity
+        and event.get("result") == "approved"
+        for event in after
+    )
+
+
+def _tdd_step_complete(step_events: list[dict]) -> bool:
+    state = "red"
+    for event in step_events:
+        event_type = event["event_type"]
+        if event_type == "red":
+            # A resumed execution redoes an unfinished step from RED, so a fresh RED
+            # may follow any phase; it restarts the cycle it interrupts.
+            state = "green"
+        elif event_type == "green":
+            # The frozen oracle may be rerun; a repeated pass changes nothing.
+            if state not in {"green", "refactor"}:
+                return False
+            state = "refactor"
+        elif event_type == "refactor":
+            # Refactoring happens in as many passes as the inspection warrants,
+            # each recorded with its own oracle run.
+            if state not in {"refactor", "commit"}:
+                return False
+            state = "commit"
+        elif event_type == "commit":
+            if state == "commit":
+                state = "complete"
+            elif state != "complete":
+                return False
+        elif event_type in {"check", "artifact", "external", "approval"}:
+            return False
+    return state == "complete"
+
+
+def _validate_check_step_evidence(step_events: list[dict], step_id: str) -> RuntimeResult:
+    """A check step completes on its own evidence: the checks passed, then the change was committed."""
+    if any(event["event_type"] in {"red", "green", "refactor", "artifact", "external", "approval"} for event in step_events):
+        return failure("step_evidence_missing", f"evidence of another completion kind on a check step: {step_id}", step_id)
+    positions = [index for index, event in enumerate(step_events) if event["event_type"] == "check"]
+    if not positions:
+        return failure("step_evidence_missing", f"check evidence is missing: {step_id}", step_id)
+    # A check confirms; it does not produce. A step that changed nothing has nothing to commit,
+    # and only the change a check covered has to reach the history.
+    if not step_events[positions[-1]].get("files"):
+        return ok(step_id)
+    committed = any(
+        event["event_type"] == "commit" and index > positions[-1] for index, event in enumerate(step_events)
+    )
+    if not committed:
+        return failure("step_evidence_missing", f"the checked change was not committed: {step_id}", step_id)
+    return ok(step_id)
+
+
+def validate_step_evidence(events: list[dict], step_id: str, completion_kind: str) -> RuntimeResult:
+    """Decide whether one step carries the evidence its completion kind demands."""
+    step_events = [event for event in events if event.get("step_id") == step_id]
+    if completion_kind == "test":
+        if not _tdd_step_complete(step_events):
+            return failure("step_evidence_missing", f"incomplete TDD evidence: {step_id}", step_id)
+        return ok(step_id)
+    if completion_kind == "check":
+        return _validate_check_step_evidence(step_events, step_id)
+    if completion_kind not in {"artifact", "external"}:
+        return failure("completion_kind_invalid", f"unknown completion kind: {completion_kind}", step_id)
+    if any(event["event_type"] in {"red", "green", "refactor"} for event in step_events):
+        return failure("step_evidence_missing", f"test evidence on a {completion_kind} step: {step_id}", step_id)
+    if not deliverable_is_approved(events, step_id):
+        return failure("step_evidence_missing", f"approved {completion_kind} evidence is missing: {step_id}", step_id)
+    target = latest_deliverable(step_events, step_id)
+    committed = any(
+        event["event_type"] == "commit" and step_events.index(event) > step_events.index(target)
+        for event in step_events
+    )
+    if completion_kind == "artifact" and not committed:
+        return failure("step_evidence_missing", f"artifact is approved but not committed: {step_id}", step_id)
+    return ok(step_id)
+
+
 def _run_check(attempt: Attempt, command: list[str]) -> RuntimeResult:
-    if any(execution_model.SECRET_ARGUMENT.search(part) for part in command):
+    if any(SECRET_ARGUMENT.search(part) for part in command):
         return failure("secret_value_forbidden", "check command carries a secret-shaped argument")
     try:
         completed = subprocess.run(
@@ -40,7 +139,7 @@ def _changed_files_in_scope(attempt: Attempt, scopes: list[str]) -> RuntimeResul
         return changed
     files: list[dict[str, str]] = []
     for path in changed.value:
-        if not execution_model.validate_write_path(path, scopes).ok:
+        if not validate_write_path(path, scopes).ok:
             continue
         candidate = attempt.worktree.joinpath(*PurePosixPath(path).parts)
         if candidate.is_symlink() or not candidate.is_file():
@@ -89,7 +188,7 @@ def record_artifact(attempt: Attempt, *, step_id: str, paths: list[str], checks:
     scopes = context.value["write_scope"]
     files: list[dict[str, str]] = []
     for path in paths:
-        validation = execution_model.validate_write_path(path, scopes)
+        validation = validate_write_path(path, scopes)
         if not validation.ok:
             return failure(validation.error.code, validation.error.message, path)
         candidate = attempt.worktree.joinpath(*PurePosixPath(path).parts)
@@ -130,12 +229,12 @@ def record_approval(attempt: Attempt, *, step_id: str, result: str) -> RuntimeRe
     if kind not in {"artifact", "external"}:
         mismatch = RuntimeFailure("completion_kind_mismatch", f"{step_id} is shown by '{kind}', which needs no approval")
         return stop_attempt(attempt, mismatch, step_id)
-    if result not in execution_model.APPROVAL_RESULTS:
+    if result not in APPROVAL_RESULTS:
         return failure("approval_result_invalid", "approval result must be approved or rejected")
     events = load_events(attempt)
     if not events.ok:
         return events
-    target = execution_model.latest_deliverable(events.value, step_id)
+    target = latest_deliverable(events.value, step_id)
     if target is None:
         return failure("approval_target_missing", f"{step_id} has no artifact or external evidence to approve")
     failed_checks = [check for check in target.get("checks", []) if check.get("exit_code") != 0]
@@ -150,7 +249,7 @@ def record_approval(attempt: Attempt, *, step_id: str, result: str) -> RuntimeRe
     recorded = append_event(
         attempt,
         "approval",
-        {"step_id": step_id, "target_identity": execution_model.content_identity(target), "result": result},
+        {"step_id": step_id, "target_identity": content_identity(target), "result": result},
     )
     if not recorded.ok:
         return recorded

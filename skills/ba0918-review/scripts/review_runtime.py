@@ -352,7 +352,7 @@ def bind_review(
     bound = append_review_event(
         review,
         "review-bound",
-        {"review_id": generate_review_id(), "implement_event_identity": verified.value["content_identity"]},
+        {"review_id": generate_review_id(), "implement_event_identity": review_model.content_identity(verified.value)},
     )
     if not bound.ok:
         return bound

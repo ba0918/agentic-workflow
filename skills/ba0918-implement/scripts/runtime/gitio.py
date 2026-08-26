@@ -1,7 +1,7 @@
 """One place that shells out to git."""
-from runtime.deps import execution_model
 import subprocess
 
+from runtime.storage import content_identity
 from runtime.types import RepositoryInfo, RuntimeResult, ok, failure
 from pathlib import Path
 
@@ -38,7 +38,7 @@ def discover_repository(checkout: Path) -> RuntimeResult:
     if common_directory.name != ".git" or not common_directory.is_dir():
         return failure("repository_identity_invalid", "Git common directory is not a main checkout .git")
     main_checkout = common_directory.parent.resolve()
-    repository_identity = execution_model.content_identity(
+    repository_identity = content_identity(
         {"git_common_directory": str(common_directory)}
     )
     return ok(

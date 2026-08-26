@@ -10,8 +10,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from runtime.deps import execution_model, plan_artifact
-from runtime import cli, context, deliverables, gates, gitio, planning, repository, resume, staging, storage, tdd
+from runtime.deps import plan_artifact
+from runtime import cli, context, deliverables, gates, gitio, planning, repository, resume, staging, storage, tdd, types
 from runtime.types import (
     Attempt,
     RepositoryInfo,
@@ -23,12 +23,15 @@ from runtime.types import (
 )
 from runtime.gitio import discover_repository, run_git as _git
 from runtime.storage import read_json as _read_json, write_once
-from runtime.planning import resolve_plan
+from runtime.planning import declared_steps, resolve_plan, step_completion_kinds, step_ids
 from runtime.repository import bootstrap_attempt, execution_branch
 from runtime.context import (
     append_event,
+    current_status_path,
     derive_attempt_result,
     load_events as _load_events,
+    record_delegation,
+    record_return,
     validate_context,
 )
 from runtime.resume import load_current_attempt, residual_executions, resume_execution

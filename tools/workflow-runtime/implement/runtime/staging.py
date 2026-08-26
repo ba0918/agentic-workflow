@@ -2,7 +2,9 @@
 import re
 from pathlib import PurePosixPath
 
-from runtime.deps import execution_model
+from runtime.deliverables import deliverable_is_approved
+from runtime.planning import validate_write_path
+from runtime.types import COMMIT_SHA
 from runtime.types import RuntimeResult, Attempt, ok, failure
 from runtime.gitio import run_git
 from runtime.planning import step_completion_kinds
@@ -61,7 +63,7 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
         return context
     scopes = context.value["write_scope"]
     for path in paths:
-        validation = execution_model.validate_write_path(path, scopes)
+        validation = validate_write_path(path, scopes)
         if not validation.ok:
             return failure(validation.error.code, validation.error.message, path)
     for path in paths:
@@ -87,7 +89,7 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
         events = load_events(attempt)
         if not events.ok:
             return events
-        if not execution_model.deliverable_is_approved(events.value, step_id):
+        if not deliverable_is_approved(events.value, step_id):
             return failure("approval_missing", f"the latest deliverable of {step_id} has no approved verdict")
     gates = check_human_gates(attempt, step_id=step_id, timing="before_commit")
     if not gates.ok:
@@ -103,7 +105,7 @@ def stage_paths(attempt: Attempt, paths: list[str], *, step_id: str) -> RuntimeR
     if set(staged_paths) != set(paths):
         return failure("stage_scope_mismatch", "staging contains missing or additional paths")
     for path in staged_paths:
-        validation = execution_model.validate_write_path(path, scopes)
+        validation = validate_write_path(path, scopes)
         if not validation.ok:
             return failure(validation.error.code, validation.error.message, path)
     staged_diff = run_git(attempt.worktree, "diff", "--cached", "--")
@@ -145,10 +147,10 @@ def _verify_commit_for_step(attempt: Attempt, step_id: str, committed: list[str]
         events = load_events(attempt)
         if not events.ok:
             return events
-        if not execution_model.deliverable_is_approved(events.value, step_id):
+        if not deliverable_is_approved(events.value, step_id):
             return failure("approval_missing", f"the latest deliverable of {step_id} has no approved verdict")
     for path in committed:
-        validation = execution_model.validate_write_path(path, context.value["write_scope"])
+        validation = validate_write_path(path, context.value["write_scope"])
         if not validation.ok:
             return failure(validation.error.code, validation.error.message, path)
     return ok(context.value)
@@ -159,7 +161,7 @@ def record_commit(attempt: Attempt, step_id: str, previous_head: str) -> Runtime
     current_head = current.stdout.strip()
     if (
         current.returncode != 0
-        or not execution_model.COMMIT_SHA.fullmatch(previous_head)
+        or not COMMIT_SHA.fullmatch(previous_head)
         or current_head == previous_head
     ):
         return failure("commit_missing", "commit did not advance HEAD")
@@ -213,7 +215,7 @@ def record_commit_late(attempt: Attempt, step_id: str, commit_sha: str) -> Runti
     A record-commit that was refused after the commit succeeded, or a session that died between
     the two, leaves a commit the history explains and the record does not; the human may continue
     such an execution, so the commit must be recordable under the same checks as a fresh one."""
-    if not execution_model.COMMIT_SHA.fullmatch(commit_sha):
+    if not COMMIT_SHA.fullmatch(commit_sha):
         return failure("commit_sha_invalid", "commit SHA is invalid")
     binding = read_json(attempt.binding_path)
     if not binding.ok:

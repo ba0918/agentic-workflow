@@ -21,6 +21,34 @@ def parse_plan(text: str) -> RuntimeResult:
     specs = tuple((spec.path, spec.content_identity) for spec in header.specifications)
     return ok((specs, write_scope))
 
+def safe_relative_path(value: object) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    path = PurePosixPath(value)
+    return not path.is_absolute() and ".." not in path.parts and "" not in path.parts
+
+
+def validate_write_path(relative_path: str, scopes: list[str]) -> RuntimeResult:
+    if not safe_relative_path(relative_path):
+        return failure("write_scope_violation", "write path is unsafe", relative_path)
+    candidate = PurePosixPath(relative_path)
+    for raw_scope in scopes:
+        if not safe_relative_path(raw_scope):
+            continue
+        scope = PurePosixPath(raw_scope)
+        if candidate == scope:
+            return ok(relative_path)
+        if scope.suffix == "" and candidate.parts[: len(scope.parts)] == scope.parts:
+            return ok(relative_path)
+    return failure("write_scope_violation", "write path is outside the approved scope", relative_path)
+
+
+def validate_relative_path(relative_path: object) -> RuntimeResult:
+    if not safe_relative_path(relative_path):
+        return failure("unsafe_path", "path must be repository-relative without traversal", None)
+    return ok(relative_path)
+
+
 def raw_identity(text: str) -> str:
     return plan_artifact.content_identity(text)
 
