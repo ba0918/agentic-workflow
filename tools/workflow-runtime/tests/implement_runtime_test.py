@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -294,23 +295,25 @@ def _step_wording_identity(step) -> str:
 def rebind_declarations(root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None = None) -> dict:
     """Stand in for the agent: read both revisions and declare the revised steps and how they
     match the previous ones. The runtime no longer reads either out of the prose."""
-    try:
-        revised = plan_artifact.read_registered_plan(root, plan_path)
-    except plan_artifact.PlanArtifactError:
-        return {"steps": [], "human_gates": [], "step_map": []}
-    steps, gates = declare_from_plan(revised.text)
     binding_path = root / ".agents/artifacts/executions" / plan_id / attempt_id / "binding.json"
+    bound_path = None
     previous_steps: tuple = ()
     if binding_path.is_file():
-        previous_file = root / json.loads(binding_path.read_text(encoding="utf-8"))["plan"]["path"]
+        bound_path = json.loads(binding_path.read_text(encoding="utf-8"))["plan"]["path"]
+        previous_file = root / bound_path
         if previous_file.is_file():
             try:
                 previous_steps = plan_artifact.read_plan_steps(previous_file.read_text(encoding="utf-8"))
             except plan_artifact.InvalidPlanFormat:
                 previous_steps = ()
+    target = root / (plan_path or bound_path) if (plan_path or bound_path) else None
+    if target is None or not target.is_file():
+        return {"steps": [], "human_gates": [], "step_map": []}
+    revised_text = target.read_text(encoding="utf-8")
+    steps, gates = declare_from_plan(revised_text)
     unmatched = {f"step-{step.number}": _step_wording_identity(step) for step in previous_steps}
     step_map = []
-    for step in plan_artifact.read_plan_steps(revised.text):
+    for step in plan_artifact.read_plan_steps(revised_text):
         identity = _step_wording_identity(step)
         previous_id = next((key for key, other in unmatched.items() if other == identity), None)
         if previous_id is None:
@@ -323,43 +326,60 @@ def rebind_declarations(root: Path, *, plan_id: str, attempt_id: str, plan_path:
     return {"steps": steps, "human_gates": gates, "step_map": step_map}
 
 
-def rebind_preview(root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None = None):
+def rebind_preview(root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None = None, revision: int = 2):
     return implement_runtime.resume.rebind_preview(
         root,
         plan_id=plan_id,
         attempt_id=attempt_id,
         plan_path=plan_path,
+        revision=revision,
         **rebind_declarations(root, plan_id=plan_id, attempt_id=attempt_id, plan_path=plan_path),
     )
 
 
-def rebind_execution(root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None = None, expected_plan_identity=None):
+def rebind_execution(
+    root: Path,
+    *,
+    plan_id: str,
+    attempt_id: str,
+    plan_path: str | None = None,
+    revision: int = 2,
+    expected_plan_identity=None,
+):
     return implement_runtime.resume.rebind_execution(
         root,
         plan_id=plan_id,
         attempt_id=attempt_id,
         plan_path=plan_path,
+        revision=revision,
         expected_plan_identity=expected_plan_identity,
         **rebind_declarations(root, plan_id=plan_id, attempt_id=attempt_id, plan_path=plan_path),
     )
 
 
-def revise_fixture_plan(root: Path, plan_id: str, *, extra_step_kind: str = "test", relative_path: str | None = None):
-    """Publish revision 2 of the fixture plan: step 1 kept verbatim, one step appended."""
-    current = plan_artifact.read_registered_plan(root, None)
-    assert current.plan_id == plan_id
-    revised = current.text.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
-    revised += f"\n### {len(plan_artifact.read_plan_steps(current.text)) + 1}. 追加の手順\n\n**Completion:** {extra_step_kind}\n"
-    publish_text(
-        root,
-        plan_id=plan_id,
-        revision=2,
-        relative_path=relative_path or f".agents/artifacts/plans/{plan_id}_fixture-r2.md",
-        text=revised,
-        approved_identity=plan_artifact.content_identity(revised),
-        switch_confirmed=False,
+def fixture_plan_path(plan_id: str) -> str:
+    return f".agents/artifacts/plans/{plan_id}_fixture.md"
+
+
+def write_revision(root: Path, relative_path: str, text: str, revision: int):
+    """A revision is written over the plan it revises: it keeps the path it was approved at, so
+    the path a binding holds is where the next revision of that plan will be."""
+    (root / relative_path).write_text(text, encoding="utf-8")
+    return SimpleNamespace(
+        path=relative_path,
+        revision=revision,
+        content_identity=plan_artifact.content_identity(text),
+        text=text,
     )
-    return plan_artifact.read_registered_plan(root, None)
+
+
+def revise_fixture_plan(root: Path, plan_id: str, *, extra_step_kind: str = "test", relative_path: str | None = None):
+    """Revision 2 of the fixture plan: step 1 kept verbatim, one step appended."""
+    path = relative_path or fixture_plan_path(plan_id)
+    current = (root / path).read_text(encoding="utf-8")
+    revised = current.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
+    revised += f"\n### {len(plan_artifact.read_plan_steps(current)) + 1}. 追加の手順\n\n**Completion:** {extra_step_kind}\n"
+    return write_revision(root, path, revised, 2)
 
 
 def reregister(root: Path, text: str) -> None:
@@ -615,16 +635,36 @@ def bind_to_plan(root: Path, parent: Path, *, plan_path: str, plan_id: str, revi
     """Bind an execution to the plan at a named path, declaring its id and revision."""
     resolved = implement_runtime.resolve_plan(root, plan_path=plan_path, plan_id=plan_id, revision=revision)
     assert resolved.ok, resolved.error
+    steps, gates = declare_from_plan(resolved.value.text)
     bound = implement_runtime.bootstrap_attempt(
         root,
         resolved.value,
         worktree_path=parent / "linked-worktree",
         attempt_id_factory=lambda: "20260826t170000-aabbccdd",
-        steps=DECLARED_TEST_STEP,
+        steps=steps,
+        human_gates=gates,
         executor={"executor": "codex", "backend": "unavailable", "session_id": "unavailable"},
     )
     assert bound.ok, bound.error
-    return json.loads(bound.value.binding_path.read_text(encoding="utf-8"))
+    return bound.value
+
+
+def bound_plan(attempt) -> dict:
+    return json.loads(attempt.binding_path.read_text(encoding="utf-8"))["plan"]
+
+
+def bootstrap_at_path(parent: Path, *, relative_path: str, plan_id: str, step_kinds=("test",), approve: bool = True):
+    """Bind an execution to a plan the locator never knew, at a path the agent names."""
+    root, fixture_id, _ = create_repository(parent, step_kinds=step_kinds)
+    text = (root / f".agents/artifacts/plans/{fixture_id}_fixture.md").read_text(encoding="utf-8")
+    text = text.replace(fixture_id, plan_id)
+    target = root / relative_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    if approve:
+        git(root, "add", "--", relative_path)
+        git(root, "commit", "-m", "chore: approve the plan")
+    return root, bind_to_plan(root, parent, plan_path=relative_path, plan_id=plan_id, revision=1)
 
 
 class PlanApprovalRecordTest(unittest.TestCase):
@@ -635,10 +675,10 @@ class PlanApprovalRecordTest(unittest.TestCase):
             path = f".agents/artifacts/plans/{plan_id}_fixture.md"
             text = (root / path).read_text(encoding="utf-8")
 
-            binding = bind_to_plan(root, parent, plan_path=path, plan_id=plan_id, revision=1)
+            binding = bound_plan(bind_to_plan(root, parent, plan_path=path, plan_id=plan_id, revision=1))
 
             self.assertEqual(
-                binding["plan"]["approval"],
+                binding["approval"],
                 {
                     "committed_at_base_head": True,
                     "content_identity": plan_artifact.content_identity(text),
@@ -652,14 +692,14 @@ class PlanApprovalRecordTest(unittest.TestCase):
             root, plan_id, _ = create_repository(parent)
             path = f".agents/artifacts/plans/{plan_id}_fixture.md"
             approved = (root / path).read_text(encoding="utf-8")
-            corrected = approved + "\n### 9. 実行中に足した手順\n\n**Completion:** test\n"
+            corrected = approved + "\n### 2. 実行中に足した手順\n\n**Completion:** test\n"
             (root / path).write_text(corrected, encoding="utf-8")
 
-            binding = bind_to_plan(root, parent, plan_path=path, plan_id=plan_id, revision=1)
+            binding = bound_plan(bind_to_plan(root, parent, plan_path=path, plan_id=plan_id, revision=1))
 
-            self.assertEqual(binding["plan"]["content_identity"], plan_artifact.content_identity(corrected))
+            self.assertEqual(binding["content_identity"], plan_artifact.content_identity(corrected))
             self.assertEqual(
-                binding["plan"]["approval"],
+                binding["approval"],
                 {
                     "committed_at_base_head": True,
                     "content_identity": plan_artifact.content_identity(approved),
@@ -676,16 +716,18 @@ class PlanApprovalRecordTest(unittest.TestCase):
             uncommitted.parent.mkdir(parents=True, exist_ok=True)
             uncommitted.write_text(text, encoding="utf-8")
 
-            binding = bind_to_plan(
-                root,
-                parent,
-                plan_path="docs/plans/20260826170000_second.md",
-                plan_id="20260826170000",
-                revision=1,
+            binding = bound_plan(
+                bind_to_plan(
+                    root,
+                    parent,
+                    plan_path="docs/plans/20260826170000_second.md",
+                    plan_id="20260826170000",
+                    revision=1,
+                )
             )
 
             self.assertEqual(
-                binding["plan"]["approval"],
+                binding["approval"],
                 {
                     "committed_at_base_head": False,
                     "content_identity": None,
@@ -693,6 +735,47 @@ class PlanApprovalRecordTest(unittest.TestCase):
                 },
             )
 
+
+class LocatorFreeExecutionTest(unittest.TestCase):
+    """A plan is found by the path it was bound to, never by an index of open plans."""
+
+    PLAN_PATH = "docs/plans/20260826170000_second.md"
+
+    def test_an_execution_of_a_plan_no_locator_knows_is_loaded_without_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root, attempt = bootstrap_at_path(parent, relative_path=self.PLAN_PATH, plan_id="20260826170000")
+
+            result = implement_runtime.load_current_attempt(root)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value.attempt_id, attempt.attempt_id)
+
+    def test_context_reads_the_bound_plan_from_the_path_it_was_bound_to(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root, attempt = bootstrap_at_path(parent, relative_path=self.PLAN_PATH, plan_id="20260826170000")
+
+            result = implement_runtime.validate_context(attempt, step_id="step-1")
+
+            self.assertTrue(result.ok, result.error)
+
+    def test_a_revision_written_at_the_bound_path_is_the_rebind_target(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root, attempt = bootstrap_at_path(
+                parent, relative_path=self.PLAN_PATH, plan_id="20260826170000", step_kinds=("test", "test")
+            )
+            complete_step_one(attempt)
+            revised = (root / self.PLAN_PATH).read_text(encoding="utf-8") + "\n### 3. 足した手順\n\n**Completion:** test\n"
+            (root / self.PLAN_PATH).write_text(revised, encoding="utf-8")
+
+            result = rebind_preview(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, revision=2)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value["plan"]["path"], self.PLAN_PATH)
+            self.assertEqual(result.value["plan"]["revision"], 2)
+            self.assertEqual(result.value["plan"]["content_identity"], plan_artifact.content_identity(revised))
 
 class RepositoryDiscoveryTest(unittest.TestCase):
     def test_bare_repository_is_rejected(self) -> None:
@@ -1078,7 +1161,7 @@ class FreshSessionTest(unittest.TestCase):
             self.assertEqual(result.value.binding_path, attempt.binding_path)
             self.assertFalse((root / ".agents/runtime").exists())
 
-    def test_the_only_unfinished_execution_of_the_current_plan_is_loaded_without_ids(self) -> None:
+    def test_the_only_unfinished_execution_in_the_working_tree_is_loaded_without_ids(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory))
 
@@ -3235,13 +3318,13 @@ class CheckStepTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test",))
             complete_step_one(attempt)
-            append_check_step(root, attempt.plan_id)
+            revised = append_check_step(root, attempt.plan_id)
             self.assertTrue(
                 rebind_execution(
                     root,
                     plan_id=attempt.plan_id,
                     attempt_id=attempt.attempt_id,
-                    expected_plan_identity=plan_artifact.read_registered_plan(root, None).content_identity,
+                    expected_plan_identity=revised.content_identity,
                 ).ok
             )
             self._change_a_file_in_scope(attempt)
@@ -3253,58 +3336,31 @@ class CheckStepTest(unittest.TestCase):
 
 def append_check_step(root: Path, plan_id: str):
     """Revision 2 of a one-step fixture: a check step the first revision does not have."""
-    current = plan_artifact.read_registered_plan(root, None)
-    revised = current.text.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
+    current = (root / fixture_plan_path(plan_id)).read_text(encoding="utf-8")
+    revised = current.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
     revised += "\n### 2. 複製を作り直す\n\n**Completion:** check\n" + declared_checks((PASSING_CHECK,))
-    publish_text(
-        root,
-        plan_id=plan_id,
-        revision=2,
-        relative_path=f".agents/artifacts/plans/{plan_id}_fixture-r2.md",
-        text=revised,
-        approved_identity=plan_artifact.content_identity(revised),
-        switch_confirmed=False,
-    )
-    return plan_artifact.read_registered_plan(root, None)
+    return write_revision(root, fixture_plan_path(plan_id), revised, 2)
 
 
 def revise_again(root: Path, plan_id: str):
-    """A third revision published after the human read the second one's table."""
-    current = plan_artifact.read_registered_plan(root, None)
-    revised = current.text.replace("**Plan revision:** `2`", "**Plan revision:** `3`")
+    """A third revision written after the human read the second one's table."""
+    current = (root / fixture_plan_path(plan_id)).read_text(encoding="utf-8")
+    revised = current.replace("**Plan revision:** `2`", "**Plan revision:** `3`")
     revised += "\n### 6. さらに足した手順\n\n**Completion:** test\n"
-    publish_text(
-        root,
-        plan_id=plan_id,
-        revision=3,
-        relative_path=f".agents/artifacts/plans/{plan_id}_fixture-r3.md",
-        text=revised,
-        approved_identity=plan_artifact.content_identity(revised),
-        switch_confirmed=False,
-    )
-    return plan_artifact.read_registered_plan(root, None)
+    return write_revision(root, fixture_plan_path(plan_id), revised, 3)
 
 
 def revise_three_step_plan(root: Path, plan_id: str):
     """Revision 2 of a three-step fixture: step 2 reworded, a step inserted, old step 3 kept, one appended."""
-    current = plan_artifact.read_registered_plan(root, None)
-    revised = current.text.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
+    current = (root / fixture_plan_path(plan_id)).read_text(encoding="utf-8")
+    revised = current.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
     revised = revised.replace(
         "### 2. 手順 2\n\n**Completion:** test\n",
         "### 2. 手順 2（書き直した）\n\n**Completion:** test\n\n### 3. 挿入した手順\n\n**Completion:** test\n",
     )
     revised = revised.replace("### 3. 手順 3\n", "### 4. 手順 3\n")
     revised += "\n### 5. 新しい手順\n\n**Completion:** test\n"
-    publish_text(
-        root,
-        plan_id=plan_id,
-        revision=2,
-        relative_path=f".agents/artifacts/plans/{plan_id}_fixture-r2.md",
-        text=revised,
-        approved_identity=plan_artifact.content_identity(revised),
-        switch_confirmed=False,
-    )
-    return plan_artifact.read_registered_plan(root, None)
+    return write_revision(root, fixture_plan_path(plan_id), revised, 2)
 
 
 class RebindTest(unittest.TestCase):
@@ -3328,9 +3384,11 @@ class RebindTest(unittest.TestCase):
             unrecorded = git(attempt.worktree, "rev-parse", "HEAD")
             revised = revise_three_step_plan(root, attempt.plan_id)
 
-            shown = plan_artifact.read_registered_plan(root, None).content_identity
             result = rebind_execution(
-                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, expected_plan_identity=shown
+                root,
+                plan_id=attempt.plan_id,
+                attempt_id=attempt.attempt_id,
+                expected_plan_identity=revised.content_identity,
             )
 
             self.assertTrue(result.ok, result.error)
@@ -3349,41 +3407,32 @@ class RebindTest(unittest.TestCase):
             self.assertTrue(facts["resumable"]["ok"], facts["resumable"])
             self.assertEqual([commit["sha"] for commit in facts["branch"]["extra_commits"]], [unrecorded])
 
-    def test_rebind_refuses_another_plan_and_a_missing_previous_revision(self) -> None:
+    def test_rebind_refuses_a_target_it_cannot_read_or_a_revision_nobody_declared(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
-            other_text = plan_artifact.read_registered_plan(root, None).text.replace("20260822150000", "20260822150001")
-            publish_text(
-                root,
-                plan_id="20260822150001",
-                revision=1,
-                relative_path=".agents/artifacts/plans/20260822150001_other.md",
-                text=other_text,
-                approved_identity=plan_artifact.content_identity(other_text),
-                switch_confirmed=True,
-            )
+            revised = revise_three_step_plan(root, attempt.plan_id)
             before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
 
-            unread = "sha256:" + "0" * 64
-            other = rebind_execution(
-                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, expected_plan_identity=unread
+            nowhere = rebind_execution(
+                root,
+                plan_id=attempt.plan_id,
+                attempt_id=attempt.attempt_id,
+                plan_path=".agents/artifacts/plans/nowhere.md",
+                expected_plan_identity=revised.content_identity,
             )
-            self.assertFalse(other.ok)
-            self.assertEqual(other.error.code, "rebind_target_invalid")
+            self.assertFalse(nowhere.ok)
+            self.assertEqual(nowhere.error.code, "rebind_target_invalid")
 
-            unregistered = rebind_execution(
-                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/nowhere.md",
-                expected_plan_identity=unread,
+            undeclared = rebind_execution(
+                root,
+                plan_id=attempt.plan_id,
+                attempt_id=attempt.attempt_id,
+                revision=None,
+                expected_plan_identity=revised.content_identity,
             )
-            self.assertFalse(unregistered.ok)
-            self.assertEqual(unregistered.error.code, "rebind_target_invalid")
+            self.assertFalse(undeclared.ok)
+            self.assertEqual(undeclared.error.code, "plan_declaration_missing")
 
-            (root / f".agents/artifacts/plans/{attempt.plan_id}_fixture.md").unlink()
-            missing = rebind_execution(
-                root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/20260822150001_other.md",
-                expected_plan_identity=unread,
-            )
-            self.assertFalse(missing.ok)
             self.assertEqual(sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before)
 
     def test_recording_a_rebound_requires_the_revision_the_human_was_shown(self) -> None:
@@ -3448,6 +3497,8 @@ class RebindTest(unittest.TestCase):
                 json.dumps(declarations["steps"]),
                 "--step-map",
                 json.dumps(declarations["step_map"]),
+                "--plan-revision",
+                "2",
             ]
 
             with contextlib.redirect_stdout(io.StringIO()) as preview:
@@ -3455,7 +3506,9 @@ class RebindTest(unittest.TestCase):
             self.assertIn("step_map", json.loads(preview.getvalue()))
             self.assertEqual(len(list(attempt.evidence_path.glob("0*.json"))), 1)
 
-            shown = plan_artifact.read_registered_plan(root, None).content_identity
+            shown = plan_artifact.content_identity(
+                (root / fixture_plan_path(attempt.plan_id)).read_text(encoding="utf-8")
+            )
             with contextlib.redirect_stdout(io.StringIO()) as recorded:
                 self.assertEqual(
                     implement_runtime.main(common + ["--confirm", "--expect-plan-identity", shown]), 0

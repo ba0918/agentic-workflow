@@ -10,7 +10,7 @@ from runtime.types import ATTEMPT_ID
 from runtime.types import RuntimeResult, Attempt, ok, failure
 from runtime.gitio import run_git
 from runtime.storage import read_json, safe_agent_roots
-from runtime.planning import parse_plan, raw_identity, step_ids
+from runtime.planning import approval_record, parse_plan, raw_identity, read_plan_file, step_ids
 from runtime.repository import discover_repository, declared_steps as declared_steps_of
 from runtime.context import append_event, load_effective_binding, load_events
 
@@ -40,24 +40,40 @@ def _unfinished_executions(main_checkout: Path, plan_id: str) -> list[str]:
         if _last_event_type(path) != "implementation_green"
     ]
 
+def _plan_directories(main_checkout: Path) -> list[Path]:
+    store = main_checkout / ".agents/artifacts/executions"
+    if not store.is_dir():
+        return []
+    return sorted(path for path in store.iterdir() if path.is_dir() and not path.is_symlink())
+
 def _select_execution(main_checkout: Path) -> RuntimeResult:
-    """Without explicit ids, only the single unfinished execution of the current plan is implied."""
-    try:
-        registered = plan_artifact.read_registered_plan(main_checkout, None)
-    except plan_artifact.PlanArtifactError as error:
-        return failure("plan_registration_missing", "no current plan identifies an execution", str(error))
-    candidates = _unfinished_executions(main_checkout, registered.plan_id)
+    """Without explicit ids, only a single unfinished execution is implied.
+
+    Nothing marks one plan as the current one (docs/spec/plan.md, "未完了の手順書をどう知るか"),
+    so every execution the evidence store holds is a candidate and two of them are a question
+    for the human rather than a guess.
+    """
+    def executions(unfinished_only: bool) -> list[tuple[str, str]]:
+        return [
+            (directory.name, execution_id)
+            for directory in _plan_directories(main_checkout)
+            for execution_id in (
+                _unfinished_executions(main_checkout, directory.name)
+                if unfinished_only
+                else [path.name for path in _execution_directories(main_checkout, directory.name)]
+            )
+        ]
+
+    candidates = executions(unfinished_only=True) or executions(unfinished_only=False)
     if not candidates:
-        candidates = [path.name for path in _execution_directories(main_checkout, registered.plan_id)]
-    if not candidates:
-        return failure("execution_missing", "the current plan has no execution")
+        return failure("execution_missing", "no execution has been recorded")
     if len(candidates) > 1:
         return failure(
             "execution_ambiguous",
             "several unfinished executions exist; name one with --plan-id and --execution-id",
-            ", ".join(candidates),
+            ", ".join(execution_id for _, execution_id in candidates),
         )
-    return ok((registered.plan_id, candidates[0]))
+    return ok(candidates[0])
 
 def _started_at(execution_id: str) -> str | None:
     match = re.fullmatch(r"(\d{4})(\d{2})(\d{2})t(\d{2})(\d{2})(\d{2})-.*", execution_id)
@@ -69,12 +85,11 @@ def _started_at(execution_id: str) -> str | None:
 
 def _binding_fingerprints_match(main_checkout: Path, binding: dict) -> str | None:
     """Return None when the bound plan and specs still match the repository, else the reason."""
-    try:
-        registered = plan_artifact.read_registered_plan(main_checkout, binding["plan"]["path"])
-    except plan_artifact.PlanArtifactError as error:
-        return f"bound plan cannot be verified: {error}"
-    if registered.content_identity != binding["plan"]["content_identity"]:
-        return "bound plan differs from the registered plan"
+    bound_plan = read_plan_file(main_checkout, binding["plan"]["path"])
+    if not bound_plan.ok:
+        return f"bound plan cannot be read: {binding['plan']['path']}"
+    if raw_identity(bound_plan.value) != binding["plan"]["content_identity"]:
+        return "bound plan differs from the plan in the working tree"
     for spec in binding["specs"]:
         spec_path = main_checkout.joinpath(*PurePosixPath(spec["path"]).parts)
         if not spec_path.is_file() or raw_identity(spec_path.read_text(encoding="utf-8")) != spec["content_identity"]:
@@ -82,13 +97,8 @@ def _binding_fingerprints_match(main_checkout: Path, binding: dict) -> str | Non
     return None
 
 def _rebind_target(main_checkout: Path, binding: dict) -> dict[str, Any]:
-    """Whether a drifted execution can be rebound: the current plan must be a revision of its plan."""
-    try:
-        current = plan_artifact.read_registered_plan(main_checkout, None)
-    except plan_artifact.PlanArtifactError as error:
-        return {"ok": False, "reason": f"no current plan to rebind to: {error}"}
-    if current.plan_id != binding["plan"]["id"]:
-        return {"ok": False, "reason": "the current plan is a different plan"}
+    """Whether a drifted execution can be rebound: its plan must still be readable where it was
+    bound. A revision keeps the path it was approved at, so there is nowhere else to look."""
     previous = main_checkout.joinpath(*PurePosixPath(binding["plan"]["path"]).parts)
     if previous.is_symlink() or not previous.is_file():
         return {"ok": False, "reason": f"the bound plan revision is no longer readable: {binding['plan']['path']}"}
@@ -264,6 +274,7 @@ def _rebind_plan(
     plan_id: str,
     attempt_id: str,
     plan_path: str | None,
+    revision: int | None,
     steps: list[dict[str, Any]],
     step_map: list[dict[str, Any]],
     human_gates: list[dict[str, Any]] | None = None,
@@ -283,22 +294,24 @@ def _rebind_plan(
     if events and events[-1]["event_type"] == "implementation_green":
         return failure("execution_finished", "this execution already reached implementation_green")
     binding = effective_binding(read_json(attempt.binding_path).value, events)
-    try:
-        target = plan_artifact.read_registered_plan(attempt.main_checkout, plan_path)
-    except plan_artifact.PlanArtifactError as error:
-        return failure("rebind_target_invalid", "the revised plan is not registered", str(error))
-    if target.plan_id != attempt.plan_id:
-        return failure("rebind_target_invalid", "the registered plan is a different plan", target.plan_id)
-    previous_path = attempt.main_checkout.joinpath(*PurePosixPath(binding["plan"]["path"]).parts)
-    if previous_path.is_symlink() or not previous_path.is_file():
-        return failure("rebind_source_unavailable", "the bound plan revision is no longer readable", binding["plan"]["path"])
-    previous_text = previous_path.read_text(encoding="utf-8")
-    if raw_identity(previous_text) != binding["plan"]["content_identity"]:
-        return failure("rebind_source_unavailable", "the bound plan revision no longer has its bound content", binding["plan"]["path"])
+    # A revision is written where the plan was approved, so the bound path is the target unless
+    # the agent names another one.
+    plan_path = plan_path or binding["plan"]["path"]
+    if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
+        return failure("plan_declaration_missing", "name the revision you read out of the revised plan")
+    loaded_target = read_plan_file(attempt.main_checkout, plan_path)
+    if not loaded_target.ok:
+        return failure("rebind_target_invalid", "the revised plan cannot be read", plan_path)
+    target_text = loaded_target.value
+    target_identity = raw_identity(target_text)
+    # The revision the execution was bound to is not required to still exist: a revision is
+    # written over the plan it revises, so demanding the old bytes would refuse every ordinary
+    # rebound. What that revision was stays readable in the binding, which the preview shows the
+    # human as previous_plan.
     declared = declared_steps_of(steps)
     if not declared.ok:
         return declared
-    revised_plan = parse_plan(target.text)
+    revised_plan = parse_plan(target_text)
     if not revised_plan.ok:
         return revised_plan
     specs, write_scope = revised_plan.value
@@ -308,10 +321,16 @@ def _rebind_plan(
             return failure("spec_identity_drift", "revised plan cites a specification that differs from the repository", spec_path)
     rebound = {
         "plan": {
-            "id": target.plan_id,
-            "path": target.path,
-            "revision": target.revision,
-            "content_identity": target.content_identity,
+            "id": attempt.plan_id,
+            "path": plan_path,
+            "revision": revision,
+            "content_identity": target_identity,
+            "approval": approval_record(
+                attempt.main_checkout,
+                base_head=binding["base_head"],
+                plan_path=plan_path,
+                content_identity=target_identity,
+            ),
         },
         "specs": [{"path": spec_path, "content_identity": identity} for spec_path, identity in specs],
         "write_scope": list(write_scope),
@@ -333,6 +352,7 @@ def rebind_preview(
     plan_id: str,
     attempt_id: str,
     plan_path: str | None = None,
+    revision: int | None = None,
     steps: list[dict[str, Any]],
     step_map: list[dict[str, Any]],
     human_gates: list[dict[str, Any]] | None = None,
@@ -343,6 +363,7 @@ def rebind_preview(
         plan_id=plan_id,
         attempt_id=attempt_id,
         plan_path=plan_path,
+        revision=revision,
         steps=steps,
         step_map=step_map,
         human_gates=human_gates,
@@ -360,6 +381,7 @@ def rebind_execution(
     plan_id: str,
     attempt_id: str,
     plan_path: str | None = None,
+    revision: int | None = None,
     expected_plan_identity: str | None = None,
     steps: list[dict[str, Any]],
     step_map: list[dict[str, Any]],
@@ -378,6 +400,7 @@ def rebind_execution(
         plan_id=plan_id,
         attempt_id=attempt_id,
         plan_path=plan_path,
+        revision=revision,
         steps=steps,
         step_map=step_map,
         human_gates=human_gates,
@@ -388,7 +411,7 @@ def rebind_execution(
     if rebound["plan"]["content_identity"] != expected_plan_identity:
         return failure(
             "rebind_target_moved",
-            "the registered plan changed after the human read the mapping",
+            "the plan changed after the human read the mapping",
             rebound["plan"]["content_identity"],
         )
     branch = _branch_facts(attempt.main_checkout, attempt.branch, binding["base_head"], _recorded_commits(effective_events(events)))

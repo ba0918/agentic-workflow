@@ -368,6 +368,7 @@ def main(argv: list[str] | None = None) -> int:
     rebind.add_argument("--plan-id", required=True)
     rebind.add_argument("--execution-id", required=True)
     rebind.add_argument("--plan-path")
+    rebind.add_argument("--plan-revision", type=int, help="the revision you read out of the revised plan")
     rebind.add_argument("--confirm", action="store_true")
     rebind.add_argument("--expect-plan-identity", help="the plan identity the preview showed the human")
 
@@ -468,6 +469,7 @@ def main(argv: list[str] | None = None) -> int:
             plan_id=args.plan_id,
             attempt_id=args.execution_id,
             plan_path=args.plan_path,
+            revision=args.plan_revision,
             **declarations.value,
         )
         if not rebound.ok:

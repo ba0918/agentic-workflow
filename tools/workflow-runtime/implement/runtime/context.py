@@ -2,14 +2,13 @@
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from runtime.deps import plan_artifact
 from runtime.planning import validate_write_path
 from runtime.storage import SECRET_ARGUMENT, canonical_json
 from runtime.storage import RAW_LOG_FIELDS, first_forbidden_field, first_secret_field
 from runtime.types import RuntimeFailure, RuntimeResult, Attempt, ok, failure
 from runtime.gitio import run_git
 from runtime.storage import read_json, write_atomic, write_once
-from runtime.planning import raw_identity
+from runtime.planning import raw_identity, read_plan_file
 from runtime.repository import discover_repository
 
 
@@ -145,19 +144,14 @@ def validate_context(attempt: Attempt, *, step_id: str) -> RuntimeResult:
         return effective
     binding = effective.value
 
-    try:
-        registered = plan_artifact.read_registered_plan(
-            attempt.main_checkout,
-            binding["plan"]["path"],
-        )
-    except plan_artifact.PlanArtifactError as error:
-        return failure("plan_identity_drift", "registered plan is no longer valid", str(error))
-    if (
-        registered.plan_id != binding["plan"]["id"]
-        or registered.revision != binding["plan"]["revision"]
-        or registered.content_identity != binding["plan"]["content_identity"]
-    ):
-        return failure("plan_identity_drift", "registered plan differs from the binding")
+    # The id and revision are not compared: they are prose the agent read once and declared at
+    # binding time (docs/spec/plan.md), so the file cannot be asked for them again. The bytes are
+    # what the execution stands on, and they are checked here.
+    bound_plan = read_plan_file(attempt.main_checkout, binding["plan"]["path"])
+    if not bound_plan.ok:
+        return failure("plan_identity_drift", "the bound plan is no longer readable", binding["plan"]["path"])
+    if raw_identity(bound_plan.value) != binding["plan"]["content_identity"]:
+        return failure("plan_identity_drift", "the bound plan differs from the working tree", binding["plan"]["path"])
     if step_id not in {step.get("step_id") for step in (binding.get("steps") or [])}:
         return failure("step_missing", "current step is not one the execution was bound to")
 
