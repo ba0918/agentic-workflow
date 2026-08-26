@@ -132,6 +132,13 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
         elif event_type == "commit":
             if COMMIT_SHA.fullmatch(str(fields.get("commit", ""))) is None:
                 return failure("commit_invalid", "commit evidence needs a full Git SHA")
+            safety = fields.get("safety")
+            if (
+                not isinstance(safety, dict) or not isinstance(safety.get("paths"), list)
+                or not all(isinstance(path, str) and path for path in safety["paths"])
+                or not isinstance(safety.get("unplanned"), list)
+            ):
+                return failure("commit_invalid", "commit evidence needs canonical safety results")
             required = "refactor" if completion == "test" else completion
             if not prior or prior[-1].get("event_type") != required:
                 return failure("transition_invalid", "commit needs completed step evidence")
@@ -196,6 +203,8 @@ def _append_event(
         return ok({**event, "path": path})
 
 def append_event(run: Run, event_type: str, fields: dict, *, actor: str | None = None) -> RuntimeResult:
+    if event_type in {"commit", "implementation_green"}:
+        return failure("event_not_recordable", f"{event_type} is recorded only by its canonical operation")
     prepared = dict(fields)
     if event_type in {"red", "green", "refactor", "check", "artifact", "external"}:
         binding = read_json(run.binding_path)
@@ -285,7 +294,7 @@ def record_commit(
         safety = assessed.value
     else:
         safety = {"paths": [], "unplanned": []}
-    return append_event(run, "commit", {
+    return _append_event(run, "commit", {
         "step": step, "commit": commit, "recorded_late": recorded_late, "safety": safety,
     })
 
@@ -379,6 +388,21 @@ def _commits_after(worktree: Path, approval_commit: str) -> RuntimeResult:
         return failure("git_inspection_failed", "implementation commit range could not be inspected")
     return ok(list(filter(None, result.stdout.splitlines())))
 
+def _segment_commits(worktree: Path, segments: list[dict]) -> RuntimeResult:
+    commits: list[str] = []
+    for index, segment in enumerate(segments):
+        end = segments[index + 1]["approval_commit"] if index + 1 < len(segments) else "HEAD"
+        result = _git(worktree, "rev-list", "--reverse", f"{segment['approval_commit']}..{end}")
+        if result.returncode != 0:
+            return failure("git_inspection_failed", "implementation revision range could not be inspected")
+        revision = list(filter(None, result.stdout.splitlines()))
+        if end != "HEAD" and revision and revision[-1] == end:
+            revision.pop()
+        if revision != segment["commits"]:
+            return failure("commit_bijection_invalid", "revision history and commit evidence differ")
+        commits.extend(revision)
+    return ok(commits)
+
 def _validate_commit_ancestry(worktree: Path, binding: dict, commit: str) -> RuntimeResult:
     if commit == binding["approval_commit"] or _git(
         worktree, "merge-base", "--is-ancestor", binding["approval_commit"], commit,
@@ -442,7 +466,7 @@ def complete_run(run: Run) -> RuntimeResult:
     for event in events.value:
         if event.get("event_type") == "commit" and _git(worktree, "cat-file", "-e", f"{event['commit']}^{{commit}}").returncode != 0:
             return failure("commit_invalid", f"recorded commit does not exist: {event['commit']}")
-    history = _commits_after(worktree, derived.value["approval_commit"])
+    history = _segment_commits(worktree, derived.value["segments"])
     if not history.ok:
         return history
     recorded_list = [event["commit"] for event in events.value if event.get("event_type") == "commit"]
