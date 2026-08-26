@@ -1,5 +1,6 @@
-"""Facts observed while an implementation run is active."""
-from runtime.types import RuntimeResult, ok
+"""Append and inspect implementation evidence."""
+from runtime.storage import canonical_json, read_json, write_once
+from runtime.types import Run, RuntimeResult, failure, ok
 
 def document_context(binding: dict, current_commit: str, changed_documents: list[str]) -> RuntimeResult:
     return ok({
@@ -7,3 +8,29 @@ def document_context(binding: dict, current_commit: str, changed_documents: list
         "current_commit": current_commit,
         "changed_documents": sorted(changed_documents),
     })
+
+def append_event(run: Run, event_type: str, fields: dict) -> RuntimeResult:
+    binding = read_json(run.binding_path)
+    if not binding.ok:
+        return binding
+    if not binding.value.get("delegated"):
+        return failure("delegation_required", "only delegated implementation writes run evidence")
+    sequence = len(list(run.evidence_path.glob("[0-9][0-9][0-9][0-9][0-9][0-9]-*.json"))) + 1
+    event = {"version": 1, "sequence": sequence, "event_type": event_type, "run_id": run.run_id, **fields}
+    if any("identity" in key.lower() for key in event):
+        return failure("identity_field_forbidden", "event identity chains are not supported")
+    path = run.evidence_path / f"{sequence:06d}-{event_type}.json"
+    try:
+        write_once(path, canonical_json(event))
+    except FileExistsError:
+        return failure("event_collision", "event sequence already exists")
+    return ok({**event, "path": path})
+
+def load_events(run: Run) -> RuntimeResult:
+    events = []
+    for path in sorted(run.evidence_path.glob("[0-9][0-9][0-9][0-9][0-9][0-9]-*.json")):
+        loaded = read_json(path)
+        if not loaded.ok:
+            return loaded
+        events.append(loaded.value)
+    return ok(events)
