@@ -1,6 +1,6 @@
 # 承認済み変更
 
-適用仕様: `docs/spec/example.md` revision 3
+適用仕様: `docs/spec/example.md` の節 `EX-010`
 
 ## 条項
 
@@ -16,3 +16,4 @@
 - 保存形式、UI、network I/Oは変更しない。
 - 新しいdependencyは追加しない。
 - source auditは完了済み。
+- 仕様書はGitへcommit済みで、作業treeと同じ内容である。

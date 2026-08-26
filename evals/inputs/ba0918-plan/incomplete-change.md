@@ -1,6 +1,6 @@
 # 未完成の変更
 
-適用仕様: `docs/spec/example.md` revision 4
+適用仕様: `docs/spec/example.md` の節 `EX-020`
 
 `EX-020`: 検索を速くする。
 

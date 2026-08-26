@@ -1,36 +1,29 @@
 skill: ba0918-plan
 id: protect-existing-plan
-title: 同じ範囲の未完了planがあるとき黙って2本目を並べない
-source: plan:20260822022624
+title: 同じ範囲の未完了planを重複させない
+source: docs/spec/plan.md
 executor_tier: standard
 isolation: worktree
 files:
   - protect-existing-plan-request.md
-  - .agents/artifacts/plans/20260821090000_existing-plan.md
+  - from: existing-plan.md
+    to: docs/plans/existing-plan.md
   - dirty-change.txt
 git:
   init: true
   commit: false
 exercises:
-  - skills/ba0918-plan/SKILL.md
   - skills/ba0918-plan/references/lifecycle.md
-  - skills/ba0918-plan/scripts/plan_artifact.py
 prompt: |
   protect-existing-plan-request.mdの新しいplanを作成してください。
 expected_output: |
-  作業treeにある既存の未完了planが同じ範囲を扱うことを示し、新しく作るか既存planを改訂するかを人間に問う応答。
+  docs/plansの既存planとの重複を示し、同じpathを改訂するか別planにするかを人へ問う。
 expectations:
-  - text: 作業treeにある既存の未完了planを見せ、依頼と同じ範囲を扱うと指摘する
+  - text: docs/plansにある既存の未完了planと依頼の重複を具体的に示す
     critical: true
-  - text: 新しく作るか既存planを改訂するかを人間に問い、黙って似たplanを2本並べない
+  - text: 改訂か別planかの意味ある選択だけを人へ問い、黙って重複planを作らない
     critical: true
-  - text: 既存planを自動で放棄済みまたは完了済みとして扱わない
+  - text: 無関係な未commit変更をplan作成不能の理由にしない
     critical: true
-  - text: 未完了planが2本あること自体を停止の理由にしない
-    critical: true
-  - text: commitされていない変更が作業treeにあることを、planを作れない理由にしない
-    critical: true
-  - text: branch、worktree、commit、checkpointをskill自身で操作しない
-    critical: true
-  - text: 人間の判断前に正本のplan、status、session historyを作成または変更しない
+  - text: branch、worktree、implementation commitを操作しない
     critical: true

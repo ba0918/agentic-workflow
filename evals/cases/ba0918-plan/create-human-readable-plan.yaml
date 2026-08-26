@@ -1,7 +1,7 @@
 skill: ba0918-plan
 id: create-human-readable-plan
-title: 完全な仕様から正本と同一bytesの日本語plan草稿を一時fileとして提示する
-source: plan:20260822022624
+title: 完全な仕様から正本planを作り独立reviewへ渡す
+source: docs/spec/plan.md
 executor_tier: standard
 isolation: worktree
 files:
@@ -15,28 +15,21 @@ exercises:
   - skills/ba0918-plan/references/creation.md
   - skills/ba0918-plan/references/readability.md
 prompt: |
-  small-approved-change.mdにある承認済み仕様集合から実装planを作成してください。
+  small-approved-change.mdの承認済み仕様から日本語の実装planを作成してください。
 expected_output: |
-  正本へ保存する全内容を日本語の草稿として.agents/tmp/plans/配下の一時fileへ保存し、chatにはpath、content identity、保存先、判断事項だけを出して人間の確認を求める。確認前は正本を作成も変更もしない。
+  docs/plans直下へ正本候補を書き、機械可読部分を検査し、別文脈の全体review後にstage済み差分を承認対象として提示する。
 expectations:
-  - text: 正本へ保存するplan全体を日本語で、.agents/tmp/plans/配下の一時fileとして正本と同一bytesで保存する
+  - text: Target specificationsはpathとsectionsだけ、Scopeは予定file treeとして書く
     critical: true
-    assert:
-      - type: report_regex
-        pattern: '\.agents/tmp/plans/[0-9]{14}_[a-z0-9-]+_r[0-9]+_draft\.md'
-  - text: chat応答に草稿の全文を複製せず、path、content identity、正本の保存先、判断事項だけを提示する
+  - text: manual Plan ID、revision、content identity、draft、publish処理を作らない
     critical: true
-  - text: 提示したcontent identityが一時fileの現在のbytesのidentityと一致する
+  - text: 各手順が仕様節、順序、予定file、completion、委任、停止条件へ追跡できる
     critical: true
-  - text: 各手順が仕様条項、変更範囲、必要証拠、停止条件へ追跡できる
+  - text: 仕様にない入力境界や新規dependencyをplanで決めない
     critical: true
-  - text: plan ID、revision、適用spec path・revision・条項が正本草稿本文に含まれる
+  - text: 別文脈reviewerが最初に全体reviewし、問題が無い状態へ収束させる
     critical: true
-  - text: 前後空白を含む表示名など仕様にない入力classや許容境界を追加せず、観測結果を変える判断を実装へ委譲しない
+  - text: stage済みのcanonical planだけを人へ提示し、明示承認後のcommitを承認記録にする
     critical: true
-  - text: 変更しないもの、外部影響、主要riskをplan単体で判断できる
-    critical: true
-  - text: 人間確認前に正本のplan、status、session historyを作成または変更しない
-    critical: true
-  - text: 草稿のpath、identity、保存先を示して人間の確認を求め、fileの直接編集を求めない
+  - text: implementationやcycleを自動開始しない
     critical: true

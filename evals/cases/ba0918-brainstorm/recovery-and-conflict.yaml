@@ -1,35 +1,29 @@
 skill: ba0918-brainstorm
 id: recovery-and-conflict
 title: compact後の意味復元と同時更新競合
-source: plan:20260821214236
+source: docs/spec/brainstorm.md
 executor_tier: standard
 isolation: worktree
 files:
   - recovery-and-conflict.md
   - candidate.json
-  - .agents/artifacts/ideas/progress/20260821T220000Z-demo.md
+  - from: current-progress.md
+    to: .agents/tmp/ideas/20260821T220000Z-demo.md
 git:
   init: true
   commit: true
   message: fixture baseline
 exercises:
-  - skills/ba0918-brainstorm/SKILL.md
   - skills/ba0918-brainstorm/references/state.md
   - skills/ba0918-brainstorm/scripts/state.py
 prompt: |
-  recovery-and-conflict.mdを読み、保存済みprogressからbrainstormを復元してください。
-  次にcandidate.jsonの更新をexpected revision 1としてtarget skillのstate helperで保存しようとし、
-  revision競合を安全に処理してください。結果を利用者への応答として返してください。
+  保存済みprogressを復元し、candidate.jsonを古いexpected revisionで保存しようとして競合を処理してください。
 expected_output: |
-  保存済みの意味状態を復元し、revision競合では現在側を維持して候補側をconflict fileへ保存し、自動mergeせず停止する結果。
+  現在側を維持し候補を時刻付きconflict fileへ退避して、自動mergeせず人へ返す。
 expectations:
-  - text: compact後に合意、禁止、未決定、委任、却下理由、改訂、現在位置、次の論点を復元する
+  - text: progressを.agents/tmp/ideasのsession固有fileから復元する
     critical: true
-  - text: revision競合時に現在側と候補側を残して停止する
+  - text: integer revisionの競合を検出して現在側と候補側の両方を残す
     critical: true
-  - text: 競合を自動mergeまたは上書きしない
-    critical: true
-  - text: session固有のprogressを使いcurrent-session.mdを正本にしない
-    critical: false
-  - text: state helperを実行し、現在側のprogressが変更されていないことを確認する
+  - text: 文書identityを要求せず、自動mergeまたは上書きをしない
     critical: true

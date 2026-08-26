@@ -1,7 +1,7 @@
 skill: ba0918-brainstorm
 id: wrap-language-readiness
-title: 利用者言語のwrapとplan readiness
-source: plan:20260821214236
+title: 正本候補と独立reviewを使うwrap
+source: docs/spec/brainstorm.md
 executor_tier: standard
 isolation: worktree
 files:
@@ -13,32 +13,20 @@ git:
 exercises:
   - skills/ba0918-brainstorm/SKILL.md
   - skills/ba0918-brainstorm/references/wrap-readiness.md
-  - skills/ba0918-brainstorm/references/state.md
 prompt: |
   wrap-language-readiness.mdの依頼を処理し、wrapまたは継続の判断を返してください。
 expected_output: |
-  利用者の言語とspec集合の自由度を守り、草稿を一時fileとして提示し、readiness不足を示してplan生成を止め、progressを保持する応答。
+  正本候補を所定の場所へ直接書き、独立アーキテクトreviewで設計漏れを確認し、readiness不足ならplanへ進まず対話を続ける。
 expectations:
-  - text: 規範的なspecまたはROADMAPを現在の利用者の言語で提示する
+  - text: persistence、外部service、権限、新規dependencyを決定・委任・該当なしのいずれかへ確定する
     critical: true
-  - text: plan readiness不足時はplanを作らず不足項目を返す
+  - text: 別文脈のarchitectが目的、暗黙の未決定、既存構造との衝突を全体reviewする
     critical: true
-  - text: 人間の承認後だけ正本へ反映する
+  - text: 意味が変わる修正後は全体reviewを再実行する
     critical: true
-  - text: 承認済みwrap成功時だけprogressを除去し失敗時は保持する
+  - text: 承認前の別draft置き場やcontent identityを作らずcanonical pathへ直接書く
     critical: true
-  - text: specとplanを一対一に固定しない
-    critical: false
-  - text: 現在の明示許可なしにsecond reviewerを起動しない
-    critical: false
-  - text: 承認前の草稿を.agents/tmp/ideas/配下の一時fileとして保存し、chat応答には全文を複製せずpathとcontent identityを提示する
+  - text: review収束後のstage済み差分を人の承認対象にし、承認commitを記録にする
     critical: true
-    assert:
-      - type: report_regex
-        pattern: '\.agents/tmp/ideas/[A-Za-z0-9][A-Za-z0-9._-]*/'
-  - text: 承認前に正本spec、ROADMAP、その他のdocs配下fileを作成・変更しない
+  - text: 成功観測と反例が未決定なのでplanを作らずprogressを保持する
     critical: true
-    assert:
-      - type: file_exists
-        path: ROADMAP.md
-        expect: false

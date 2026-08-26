@@ -1,6 +1,6 @@
 ---
 name: ba0918-brainstorm
-description: Use when a broad change request or unsettled idea needs human-approved phases, requirements, a specification set or roadmap, and a plan-readiness decision. Does not create plans or implement changes.
+description: Use when a build-or-change request still needs its purpose, requirements, architecture boundaries, exclusions, verification, or human decisions settled through dialogue before planning.
 metadata:
   contracts:
     - brainstorm-runtime
@@ -8,24 +8,47 @@ metadata:
 
 # Brainstorm
 
-Use this as the entry point for build-or-change requests. Settle product meaning through dialogue; never turn a broad request directly into one monolithic plan.
+Turn an idea into a human-approved specification or roadmap. This is the workflow's design station:
+important meaning is settled here, not delegated silently to plan or implementation.
 
 ## Load routing
 
-- For session opening, sparring, and scope decomposition, read only [session.md](references/session.md).
-- Read [state.md](references/state.md) only when saving, restoring, resolving conflicts, handling compaction, or finalizing a wrap that has progress state.
-- Read [wrap-readiness.md](references/wrap-readiness.md) only for wrap or plan-readiness work.
-- Do not preload all references. Do not reread unchanged material.
+- Read [session.md](references/session.md) for dialogue and decomposition.
+- Read [state.md](references/state.md) only when saving or restoring semantic progress.
+- Read [wrap-readiness.md](references/wrap-readiness.md) when preparing canonical documents or
+  deciding whether planning can start.
 
 ## Boundary
 
-- Own dialogue, semantic state, scope decomposition, the applicable specification set, approval, and plan readiness.
-- Do not create or update plans, implement product changes, manage idea lists/archive/drop, or start a cycle.
-- During ordinary dialogue, reply in chat and create or edit no files. Only save session progress after the human agrees to a semantic change; during wrap, save the draft as a temporary file the human reads, and write canonical documents only after approval bound to its content identity.
-- Promote strategic brainstorms to ROADMAP and implementation brainstorms to the project-specific specification set.
-- Write normative ROADMAP, specification, and plan content in the current user's language. Stable machine identifiers may remain English.
-- Start a second reviewer at most once, and only when explicitly authorized for the current run by a flag or the user. Never carry or retry that authority.
+- Own purpose, user value, scope, exclusions, requirements, consequential design decisions,
+  explicit implementation delegation, verification, and the specification approval boundary.
+- Do not create plans, implement, review implementation, merge, publish, or start cycle.
+- During dialogue, write no repository files. After an agreed semantic change, save only temporary
+  progress under `.agents/tmp/ideas/`.
+- A missing decision is not delegation. Persistence and lifetime, external services, permissions,
+  new dependencies, failure and recovery, migration, and release impact must each be decided,
+  explicitly delegated with a reason, or recorded as not applicable when the requirement implies
+  them.
+- Write the candidate specification or roadmap directly to its canonical path. There is no draft
+  publication store and no document hash.
 
-## Completion
+## Independent architecture review
 
-Complete only after the human approves each draft by path and content identity, the canonical write succeeds with matching read-back and no draft left behind, and plan readiness is evaluated. If readiness is incomplete, return the missing items and continue brainstorming; do not hand off to planning as a success. If the canonical write fails, preserve progress, report the failure, and remain incomplete.
+Before asking for approval, delegate one full review to an architect in a separate context. Give it
+the purpose, agreements and prohibitions, unresolved and delegated matters, candidate documents,
+and relevant existing structure. It may challenge whether the change is needed, uncover implicit
+decisions, or identify conflicts with existing ownership and boundaries.
+
+Treat findings as data. Fix wording locally. Return changes of meaning to dialogue. After any
+meaning-changing revision, run the full architecture review again; do not narrow that re-review.
+
+## Approval and completion
+
+After the independent review has no unresolved finding, stage only the canonical documents under
+review and show their paths, the staged diff command, and the decisions the human must judge.
+Approval means explicit acceptance of that staged content. Commit those exact staged bytes; the Git
+commit is the approval record. Then remove temporary progress.
+
+Complete only when the canonical specification or roadmap is approved and committed, and plan
+readiness has been evaluated. If readiness is incomplete, continue dialogue with the next material
+question instead of reporting a successful hand-off.
