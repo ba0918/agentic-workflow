@@ -108,6 +108,13 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "unplanned_reason_missing")
 
+    def test_unplanned_reasons_reject_surplus_entries(self) -> None:
+        result = staging.assess_paths(
+            ["src/app.py"], expected_paths=["src/app.py"], reasons={"src/app.py": "not unplanned"},
+        )
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "unplanned_reason_extra")
+
     def test_safety_checks_apply_inside_and_outside_expected_paths(self) -> None:
         for expected in ([".env.production"], []):
             result = staging.assess_paths([".env.production"], expected_paths=expected, reasons={".env.production": "needed"})
@@ -263,6 +270,42 @@ class ImplementPlanBindingTest(unittest.TestCase):
             [event["event_type"] for event in context.load_events(run).value],
             ["worktree-bound", "check", "commit", "stopped", "rebound"],
         )
+
+    def test_cli_accepts_exact_reasons_for_safe_unplanned_paths(self) -> None:
+        from runtime.types import ResolvedPlan
+        root = self.fixture()
+        (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "ignore evidence"], check=True)
+        approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+        branch = subprocess.run(["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True).stdout.strip()
+        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+        run = repository.bind_run(
+            root, plan, run_id="run-1", delegated=False,
+            steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+        ).value
+        (root / "helper.py").write_text("value = 1\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "helper.py"], check=True)
+        selector = ["--repo", str(root), "--plan-key", "plan-a", "--run-id", "run-1"]
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main([
+                "stage", *selector, "--step", "1", "--phase", "check", "--command", "lint",
+                "--exit-code", "0", "--unplanned-reason", "helper.py=required helper",
+            ]), 0)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "helper"], check=True)
+        commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main([
+                "record-commit", *selector, "--step", "1", "--commit", commit,
+                "--unplanned-reason", "helper.py=required helper",
+            ]), 0)
+            self.assertEqual(cli.main(["complete", *selector]), 0)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            cli.main([
+                "stage", *selector, "--step", "1", "--phase", "check", "--command", "lint",
+                "--exit-code", "0", "--unplanned-reason", "helper.py=one",
+                "--unplanned-reason", "helper.py=two",
+            ])
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,6 +24,15 @@ def _emit(parser: argparse.ArgumentParser, result) -> int:
     print(json.dumps(value, ensure_ascii=False))
     return 0
 
+def _reasons(parser: argparse.ArgumentParser, values: list[str]) -> dict[str, str]:
+    reasons: dict[str, str] = {}
+    for value in values:
+        path, separator, reason = value.partition("=")
+        if not separator or not path or not reason.strip() or path in reasons:
+            parser.error("--unplanned-reason must be a unique PATH=REASON")
+        reasons[path] = reason.strip()
+    return reasons
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run an approved implementation plan")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -54,11 +63,13 @@ def main(argv: list[str] | None = None) -> int:
     stage.add_argument("--path", action="append", default=[])
     stage.add_argument("--test-path", action="append", default=[])
     stage.add_argument("--summary")
+    stage.add_argument("--unplanned-reason", action="append", default=[])
     commit = commands.add_parser("record-commit")
     _run_arguments(commit)
     commit.add_argument("--step", required=True)
     commit.add_argument("--commit", required=True)
     commit.add_argument("--recorded-late", action="store_true")
+    commit.add_argument("--unplanned-reason", action="append", default=[])
     stop = commands.add_parser("stop")
     _run_arguments(stop)
     stop.add_argument("--reason", required=True)
@@ -115,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     if not run.ok:
         parser.error(run.error.message)
     if args.command == "stage":
+        reasons = _reasons(parser, args.unplanned_reason)
         if args.phase in {"red", "green", "refactor"}:
             result = record_stage(
                 run.value, args.step, args.phase, command=args.oracle_command,
@@ -123,14 +135,18 @@ def main(argv: list[str] | None = None) -> int:
         elif args.phase in {"check", "artifact"}:
             result = append_event(run.value, args.phase, {
                 "step": args.step, "checks": [{"command": args.oracle_command, "exit_code": args.exit_code}],
-                "paths": sorted(args.path),
+                "paths": sorted(args.path), "unplanned_reasons": reasons,
             })
         else:
             result = append_event(run.value, "external", {
                 "step": args.step, "checked": args.oracle_command, "summary": args.summary or "",
+                "unplanned_reasons": reasons,
             })
     elif args.command == "record-commit":
-        result = record_commit(run.value, args.step, args.commit, recorded_late=args.recorded_late)
+        result = record_commit(
+            run.value, args.step, args.commit, recorded_late=args.recorded_late,
+            unplanned_reasons=_reasons(parser, args.unplanned_reason),
+        )
     elif args.command == "stop":
         result = stop_run(run.value, args.reason)
     elif args.command == "rebound":

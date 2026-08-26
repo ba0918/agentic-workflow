@@ -40,6 +40,11 @@ def assess_paths(
             return failure("dangerous_path", problem, path)
         if path in dangerous_paths:
             return failure("human_judgment_required", dangerous_paths[path], path)
+    unplanned_paths = set(paths) - expected
+    extra_reasons = set(reasons) - unplanned_paths
+    if extra_reasons:
+        return failure("unplanned_reason_extra", "a reason was supplied for a path that is not unplanned", sorted(extra_reasons)[0])
+    for path in paths:
         if path not in expected:
             reason = reasons.get(path, "").strip()
             if not reason:

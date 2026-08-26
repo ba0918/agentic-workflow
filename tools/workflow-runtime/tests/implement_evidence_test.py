@@ -8,7 +8,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/workflow-runtime/implement"))
 from runtime import deps
-from runtime import context, deliverables, gates, repository, storage, tdd
+from runtime import context, deliverables, gates, repository, secret_detect, storage, tdd
 from runtime.types import ResolvedPlan
 
 class ImplementDistributionTest(unittest.TestCase):
@@ -230,7 +230,13 @@ class ImplementDistributionTest(unittest.TestCase):
             test_path.write_text("test bytes\n", encoding="utf-8")
             self.assertTrue(context.record_stage(run, "1", "green", command="test cmd", exit_code=0).ok)
             self.assertTrue(context.record_stage(run, "1", "refactor", command="test cmd", exit_code=0).ok)
-            self.assertTrue(context.record_commit(run, "1", commit).ok)
+            (root / "README.md").write_text("implemented\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "README.md"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "implement"], check=True)
+            implementation_commit = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True
+            ).stdout.strip()
+            self.assertTrue(context.record_commit(run, "1", implementation_commit).ok)
             completed = context.complete_run(run)
             self.assertTrue(completed.ok, completed.error)
             self.assertEqual(completed.value["event_type"], "implementation_green")
@@ -290,6 +296,77 @@ class ImplementDistributionTest(unittest.TestCase):
             self.assertFalse(recorded.ok)
             self.assertEqual(recorded.error.code, "dangerous_path")
             self.assertFalse(context.complete_run(run).ok)
+
+    def test_secret_shaped_content_is_rejected_without_exposing_its_value(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+            approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            branch = subprocess.run(["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True).stdout.strip()
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("config.py",))
+            run = repository.bind_run(
+                root, plan, run_id="run-1", delegated=False,
+                steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+            ).value
+            fake_value = "fake_test_credential_123456789"
+            (root / "config.py").write_text(f"API_KEY={fake_value}\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "config.py"], check=True)
+            rejected = context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": ["config.py"],
+            })
+            self.assertFalse(rejected.ok)
+            self.assertEqual(rejected.error.code, "secret_content")
+            self.assertNotIn(fake_value, str(rejected.error))
+
+    def test_secret_detector_covers_credentials_and_private_key_headers(self) -> None:
+        self.assertTrue(secret_detect.contains_secret(b"password=fake_password_value"))
+        self.assertTrue(secret_detect.contains_secret(b"-----BEGIN FAKE PRIVATE KEY-----\nnot-a-key"))
+        self.assertFalse(secret_detect.contains_secret(b"password = os.environ['PASSWORD']"))
+
+    def test_record_commit_rejects_side_branch_and_duplicate_step_assignment(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+            approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("app.txt",))
+            run = repository.bind_run(
+                root, plan, run_id="run-1", delegated=False,
+                steps=[{"id": "1", "completion": "check"}, {"id": "2", "completion": "check"}],
+                branch="main", worktree=str(root),
+            ).value
+            subprocess.run(["git", "-C", str(root), "switch", "-qc", "side"], check=True)
+            (root / "app.txt").write_text("side\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "side"], check=True)
+            side = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            subprocess.run(["git", "-C", str(root), "switch", "-q", "main"], check=True)
+            self.assertTrue(context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            }).ok)
+            rejected = context.record_commit(run, "1", side)
+            self.assertEqual(rejected.error.code, "commit_not_on_branch")
+            (root / "app.txt").write_text("main\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "main change"], check=True)
+            commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            self.assertTrue(context.record_commit(run, "1", commit).ok)
+            self.assertTrue(context.append_event(run, "check", {
+                "step": "2", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            }).ok)
+            duplicate = context.record_commit(run, "2", commit)
+            self.assertEqual(duplicate.error.code, "commit_already_recorded")
 
     def test_red_test_snapshot_freezes_files_and_command(self) -> None:
         snapshot = tdd.freeze_test(
