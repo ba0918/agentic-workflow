@@ -27,7 +27,7 @@ def discover_unfinished(root: Path, plan_key: str) -> RuntimeResult:
         events = load_events(run)
         if not events.ok:
             continue
-        if not any(event.get("event_type") == "all-steps-complete" for event in events.value):
+        if not any(event.get("event_type") == "implementation_green" for event in events.value):
             runs.append(run)
     return ok(runs)
 
@@ -38,8 +38,8 @@ def _resume_step(run: Run) -> RuntimeResult:
         return binding if not binding.ok else events
     completed = {event.get("step") for event in events.value if event.get("event_type") == "commit"}
     for step in binding.value.get("steps", []):
-        if step not in completed:
-            return ok(step)
+        if step["id"] not in completed:
+            return ok(step["id"])
     return ok(None)
 
 def resume_unique(

@@ -16,6 +16,7 @@ staging = importlib.import_module("runtime.staging")
 context = importlib.import_module("runtime.context")
 resume = importlib.import_module("runtime.resume")
 cli = importlib.import_module("runtime.cli")
+repository = importlib.import_module("runtime.repository")
 
 PLAN = """# Plan
 
@@ -166,8 +167,12 @@ class ImplementPlanBindingTest(unittest.TestCase):
         from runtime.types import ResolvedPlan
         root = Path(tempfile.mkdtemp())
         plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
-        run = repository.bind_run(root, plan, run_id="run-1", delegated=False, steps=["1", "2"]).value
-        context.append_event(run, "commit", {"step": "1", "commit": "b" * 40}, actor="implement")
+        run = repository.bind_run(
+            root, plan, run_id="run-1", delegated=False,
+            steps=[{"id": "1", "completion": "check"}, {"id": "2", "completion": "check"}],
+        ).value
+        context.append_event(run, "check", {"step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": []})
+        context.record_commit(run, "1", "b" * 40)
         resumed = resume.resume_unique(
             root,
             plan_key="plan-a",
@@ -187,7 +192,7 @@ class ImplementPlanBindingTest(unittest.TestCase):
         root = Path(tempfile.mkdtemp())
         plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
         run = repository.bind_run(root, plan, run_id="run-1", delegated=False).value
-        context.append_event(run, "all-steps-complete", {}, actor="implement")
+        context.append_event(run, "implementation_green", {"completed_steps": []}, actor="implement", _derived=True)
         self.assertEqual(resume.discover_unfinished(root, "plan-a").value, [])
 
     def test_resume_cli_discovers_records_and_reports_the_resume_point(self) -> None:
@@ -201,6 +206,34 @@ class ImplementPlanBindingTest(unittest.TestCase):
             code = cli.main(["resume", "--repo", str(root), "--plan-key", "plan-a", "--branch-head", "b" * 40])
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(output.getvalue())["resume_step"], "1")
+
+    def test_cli_connects_binding_stage_commit_stop_and_rebound(self) -> None:
+        root = self.fixture()
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True
+        ).stdout.strip()
+        commit = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True
+        ).stdout.strip()
+        commands = [
+            ["bind", "--repo", str(root), "--plan-path", "docs/plans/example.md", "--run-id", "run-1",
+             "--branch", branch, "--worktree", str(root), "--step", "1:check"],
+            ["stage", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
+             "--step", "1", "--phase", "check", "--command", "lint", "--exit-code", "0"],
+            ["record-commit", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
+             "--step", "1", "--commit", commit],
+            ["stop", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1", "--reason", "permission"],
+            ["rebound", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
+             "--approval-commit", commit, "--reason", "approved wording update"],
+        ]
+        for command in commands:
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.main(command), 0)
+        run = repository.load_run(root, "example", "run-1").value
+        self.assertEqual(
+            [event["event_type"] for event in context.load_events(run).value],
+            ["worktree-bound", "check", "commit", "stopped", "rebound"],
+        )
 
 if __name__ == "__main__":
     unittest.main()
