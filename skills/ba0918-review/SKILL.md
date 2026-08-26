@@ -29,7 +29,10 @@ delegate fixes.
   current verdict for the terminal report.
 - A specification change is semantically judged. Follow a new Git version when no consequential
   decision changed; append resumable `findings_stale` only when one did.
-- Accept `light` or `standard`, selected profiles, the reviewer model and its selection source.
+- Accept `light` or `standard`; only the `default`, `document`, and `skill` profiles; and the
+  requested reviewer model and its selection source. Evaluation fixtures use the `skill` profile.
+  Record the actual first-reviewer model with every initial and final stage result even when it
+  differs from the requested model.
   A second reviewer runs once only when the human explicitly supplies its runner and model. The
   skill—not the Python runtime—checks the plan-and-diff-only payload for secrets, invokes the
   replaceable runner without the first reviewer's conclusion, and records either its bounded
