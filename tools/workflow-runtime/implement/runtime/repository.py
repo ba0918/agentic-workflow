@@ -7,6 +7,7 @@ from runtime.storage import canonical_json, first_secret_field
 from runtime.types import ATTEMPT_ID
 from runtime.types import RuntimeResult, ResolvedPlan, Attempt, ok, failure
 from runtime.gitio import run_git, discover_repository
+from runtime.planning import approval_record
 from runtime.storage import write_once, safe_agent_roots, classify_write_error
 
 
@@ -123,6 +124,12 @@ def bootstrap_attempt(
             "path": resolved_plan.path,
             "revision": resolved_plan.revision,
             "content_identity": resolved_plan.content_identity,
+            "approval": approval_record(
+                main_checkout,
+                base_head=repository.value.base_head,
+                plan_path=resolved_plan.path,
+                content_identity=resolved_plan.content_identity,
+            ),
         },
         "specs": [
             {"path": path, "content_identity": identity}

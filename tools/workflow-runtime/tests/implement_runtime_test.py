@@ -61,7 +61,12 @@ def create_repository(
     git(root, "init", "-b", "main")
     git(root, "config", "user.email", "fixture@example.invalid")
     git(root, "config", "user.name", "Fixture User")
-    (root / ".gitignore").write_text("/.agents/\n", encoding="utf-8")
+    # Plans are tracked and evidence is not, as the product repository ignores them: the
+    # commit that holds a plan is its approval record (docs/spec/plan.md).
+    (root / ".gitignore").write_text(
+        "/.agents/artifacts/*\n!/.agents/artifacts/plans/\n/.agents/tmp/\n/.agents/runtime/\n",
+        encoding="utf-8",
+    )
     spec_text = "# Fixture specification\n\n## Greeting\n\nReturn a greeting.\n"
     spec_path = root / "docs/spec/feature.md"
     spec_path.parent.mkdir(parents=True)
@@ -137,7 +142,14 @@ docs/
         approved_identity=plan_artifact.content_identity(plan_text),
         switch_confirmed=False,
     )
+    commit_plans(root, "chore: approve the fixture plan")
     return root, plan_id, spec_identity
+
+
+def commit_plans(root: Path, message: str) -> None:
+    """Approving a plan and committing it are one operation (docs/spec/plan.md)."""
+    git(root, "add", "--", ".agents/artifacts/plans")
+    git(root, "commit", "-m", message)
 
 
 DECLARED_TEST_STEP = [{"step_id": "step-1", "completion": "test", "checks": []}]
@@ -597,6 +609,90 @@ class PlanResolutionTest(unittest.TestCase):
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "plan_candidate_conflict")
+
+
+def bind_to_plan(root: Path, parent: Path, *, plan_path: str, plan_id: str, revision: int):
+    """Bind an execution to the plan at a named path, declaring its id and revision."""
+    resolved = implement_runtime.resolve_plan(root, plan_path=plan_path, plan_id=plan_id, revision=revision)
+    assert resolved.ok, resolved.error
+    bound = implement_runtime.bootstrap_attempt(
+        root,
+        resolved.value,
+        worktree_path=parent / "linked-worktree",
+        attempt_id_factory=lambda: "20260826t170000-aabbccdd",
+        steps=DECLARED_TEST_STEP,
+        executor={"executor": "codex", "backend": "unavailable", "session_id": "unavailable"},
+    )
+    assert bound.ok, bound.error
+    return json.loads(bound.value.binding_path.read_text(encoding="utf-8"))
+
+
+class PlanApprovalRecordTest(unittest.TestCase):
+    def test_the_binding_records_that_the_plan_was_approved_in_the_commit_it_starts_from(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root, plan_id, _ = create_repository(parent)
+            path = f".agents/artifacts/plans/{plan_id}_fixture.md"
+            text = (root / path).read_text(encoding="utf-8")
+
+            binding = bind_to_plan(root, parent, plan_path=path, plan_id=plan_id, revision=1)
+
+            self.assertEqual(
+                binding["plan"]["approval"],
+                {
+                    "committed_at_base_head": True,
+                    "content_identity": plan_artifact.content_identity(text),
+                    "unchanged_since_approval": True,
+                },
+            )
+
+    def test_a_plan_corrected_after_it_was_approved_still_binds_and_the_difference_is_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root, plan_id, _ = create_repository(parent)
+            path = f".agents/artifacts/plans/{plan_id}_fixture.md"
+            approved = (root / path).read_text(encoding="utf-8")
+            corrected = approved + "\n### 9. 実行中に足した手順\n\n**Completion:** test\n"
+            (root / path).write_text(corrected, encoding="utf-8")
+
+            binding = bind_to_plan(root, parent, plan_path=path, plan_id=plan_id, revision=1)
+
+            self.assertEqual(binding["plan"]["content_identity"], plan_artifact.content_identity(corrected))
+            self.assertEqual(
+                binding["plan"]["approval"],
+                {
+                    "committed_at_base_head": True,
+                    "content_identity": plan_artifact.content_identity(approved),
+                    "unchanged_since_approval": False,
+                },
+            )
+
+    def test_a_plan_that_was_never_committed_binds_and_is_recorded_as_unapproved(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root, plan_id, _ = create_repository(parent)
+            text = (root / f".agents/artifacts/plans/{plan_id}_fixture.md").read_text(encoding="utf-8")
+            uncommitted = root / "docs/plans/20260826170000_second.md"
+            uncommitted.parent.mkdir(parents=True, exist_ok=True)
+            uncommitted.write_text(text, encoding="utf-8")
+
+            binding = bind_to_plan(
+                root,
+                parent,
+                plan_path="docs/plans/20260826170000_second.md",
+                plan_id="20260826170000",
+                revision=1,
+            )
+
+            self.assertEqual(
+                binding["plan"]["approval"],
+                {
+                    "committed_at_base_head": False,
+                    "content_identity": None,
+                    "unchanged_since_approval": False,
+                },
+            )
+
 
 class RepositoryDiscoveryTest(unittest.TestCase):
     def test_bare_repository_is_rejected(self) -> None:

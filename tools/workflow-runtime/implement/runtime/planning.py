@@ -70,6 +70,34 @@ def read_plan_file(project_root: Path, relative_path: str) -> RuntimeResult:
         return failure("plan_registration_missing", f"no plan exists at {relative_path}")
     return ok(path.read_text(encoding="utf-8"))
 
+def approval_record(
+    main_checkout: Path,
+    *,
+    base_head: str,
+    plan_path: str,
+    content_identity: str,
+) -> dict:
+    """Whether the plan was approved as of the commit this execution starts from.
+
+    Approving a plan and committing it are one operation (docs/spec/plan.md, "未完了の手順書を
+    どう知るか"), so the commit that holds the plan is the approval record. What comes back is
+    written down and never branched on: a plan goes on being corrected while it runs, so making
+    the bytes match approval a condition would break the moment one is corrected.
+    """
+    approved = run_git(main_checkout, "show", f"{base_head}:{plan_path}")
+    if approved.returncode != 0:
+        return {
+            "committed_at_base_head": False,
+            "content_identity": None,
+            "unchanged_since_approval": False,
+        }
+    identity = raw_identity(approved.stdout)
+    return {
+        "committed_at_base_head": True,
+        "content_identity": identity,
+        "unchanged_since_approval": identity == content_identity,
+    }
+
 def resolve_plan(
     project_root: Path,
     *,
