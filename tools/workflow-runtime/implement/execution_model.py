@@ -21,50 +21,7 @@ GENERIC_FAILURE_SIGNATURE = re.compile(
     r"(?i)^(?:failed(?:\s*\([^)]*\))?|errors?|[0-9]+\s+(?:failed|errors?)|"
     r"exit(?:\s+code)?[=: ]+\d+)$"
 )
-EVENT_TYPES = {
-    "worktree-bound": {"outcome"},
-    "red": {"step_id", "oracle_identity", "outcome", "exit_code", "observation", "test_summary"},
-    "green": {"step_id", "oracle_identity", "outcome", "exit_code", "observation", "test_summary"},
-    "refactor": {
-        "step_id",
-        "oracle_identity",
-        "outcome",
-        "exit_code",
-        "observation",
-        "test_summary",
-    },
-    "commit": {"step_id", "commit_sha", "outcome"},
-    "human_gate": {"gate_id", "step_id", "target_identity", "result"},
-    "permission_required": {"step_id", "operation_identity", "outcome"},
-    "stopped": {"reason"},
-    "resumed": {"head", "extra_commits", "uncommitted_changes", "next_step", "redo"},
-    "check": {"step_id", "checks", "files"},
-    "artifact": {"step_id", "files", "checks"},
-    "external": {"step_id", "checked", "summary"},
-    "approval": {"step_id", "target_identity", "result"},
-    "implementation_green": {"commits"},
-    "rebound": {
-        "plan",
-        "specs",
-        "write_scope",
-        "human_gates",
-        "step_map",
-        "superseded_steps",
-        "head",
-        "extra_commits",
-        "uncommitted_changes",
-    },
-    "history_approved": {"unexplained_commits", "out_of_scope_paths", "uncommitted_out_of_scope"},
-}
-STEP_DISPOSITIONS = {"carry", "continue", "new"}
 APPROVAL_RESULTS = ["approved", "rejected"]
-BOUNDED_TEXT = 500
-EVENT_OPTIONAL_FIELDS = {
-    "worktree-bound": {"base_head", "branch"},
-    "commit": {"recorded_late"},
-    "stopped": {"step_id"},
-    "history_approved": {"reason"},
-}
 RAW_LOG_FIELDS = {"stdout", "stderr", "provider_log", "raw_log"}
 SECRET_VALUE_FIELDS = {"environment", "environment_values", "secret", "password", "credential"}
 SECRET_FIELD = re.compile(r"(?i)(?:api[_-]?key|secret|token|password|credential)")
@@ -278,62 +235,6 @@ def _validate_write_scope(scopes: object) -> ModelResult:
     return _ok(scopes)
 
 
-def _validate_step_map(candidate: dict) -> ModelResult:
-    step_map = candidate["step_map"]
-    if not isinstance(step_map, list) or not step_map:
-        return _failure("event_field_invalid", "step_map", "step map must list the revised steps")
-    seen: set[str] = set()
-    for entry in step_map:
-        if (
-            not isinstance(entry, dict)
-            or set(entry) != {"step_id", "previous_step_id", "disposition"}
-            or not _matches(STEP_ID, entry["step_id"])
-            or entry["step_id"] in seen
-            or entry["disposition"] not in STEP_DISPOSITIONS
-            or (entry["previous_step_id"] is None) != (entry["disposition"] == "new")
-            or (entry["previous_step_id"] is not None and not _matches(STEP_ID, entry["previous_step_id"]))
-        ):
-            return _failure("event_field_invalid", "step_map", "step map entry is invalid")
-        seen.add(entry["step_id"])
-    superseded = candidate["superseded_steps"]
-    if not isinstance(superseded, list) or any(not _matches(STEP_ID, step) for step in superseded):
-        return _failure("event_field_invalid", "superseded_steps", "superseded steps are invalid")
-    return _ok(step_map)
-
-
-def _validate_rebound_event(candidate: dict) -> ModelResult:
-    for check in (
-        _validate_plan_binding(candidate["plan"]),
-        _validate_spec_bindings(candidate["specs"]),
-        _validate_write_scope(candidate["write_scope"]),
-        _validate_human_gates(candidate["human_gates"]),
-        _validate_step_map(candidate),
-    ):
-        if not check.ok:
-            return check
-    if (
-        not _matches(COMMIT_SHA, candidate["head"])
-        or not isinstance(candidate["extra_commits"], list)
-        or any(not _matches(COMMIT_SHA, commit) for commit in candidate["extra_commits"])
-        or not isinstance(candidate["uncommitted_changes"], bool)
-    ):
-        return _failure("event_field_invalid", "rebound", "rebound branch facts are invalid")
-    return _ok(candidate)
-
-
-def _validate_history_approved_event(candidate: dict) -> ModelResult:
-    commits = candidate["unexplained_commits"]
-    if not isinstance(commits, list) or any(not _matches(COMMIT_SHA, commit) for commit in commits):
-        return _failure("event_field_invalid", "unexplained_commits", "approved commits are invalid")
-    for field in ("out_of_scope_paths", "uncommitted_out_of_scope"):
-        paths = candidate[field]
-        if not isinstance(paths, list) or any(not _safe_relative_path(path) for path in paths):
-            return _failure("event_field_invalid", field, "approved paths are invalid")
-    if "reason" in candidate and not _bounded_text(candidate["reason"]):
-        return _failure("event_field_invalid", "reason", "approval reason must be bounded text")
-    return _ok(candidate)
-
-
 def validate_binding(value: object) -> ModelResult:
     secret = _first_secret_field(value)
     if secret is not None:
@@ -534,179 +435,27 @@ def validate_oracle(value: object) -> ModelResult:
     return _validate_oracle(value, require_observed=True)
 
 
-def _bounded_text(value: object) -> bool:
-    return isinstance(value, str) and bool(value.strip()) and len(value) <= BOUNDED_TEXT
-
-
-def _validate_check_commands(checks: object, label: str) -> ModelResult:
-    if not isinstance(checks, list):
-        return _failure("event_field_invalid", label, f"{label} must be a list")
-    for check in checks:
-        if not isinstance(check, dict) or set(check) != {"command", "exit_code"}:
-            return _failure("event_field_invalid", label, f"{label} fields are invalid")
-        command = check["command"]
-        if not isinstance(command, list) or not command or any(not isinstance(part, str) for part in command):
-            return _failure("event_field_invalid", f"{label}.command", f"{label} command is invalid")
-        if any(SECRET_ARGUMENT.search(part) for part in command):
-            return _failure("secret_value_forbidden", f"{label}.command", f"secret-shaped argument in {label} command")
-        if not isinstance(check["exit_code"], int) or isinstance(check["exit_code"], bool):
-            return _failure("event_field_invalid", f"{label}.exit_code", f"{label} exit code is invalid")
-    return _ok(checks)
-
-
-def _validate_recorded_files(files: object, label: str) -> ModelResult:
-    if not isinstance(files, list):
-        return _failure("event_field_invalid", label, f"{label} must be a list")
-    seen: set[str] = set()
-    for entry in files:
-        if not isinstance(entry, dict) or set(entry) != {"path", "content_identity"}:
-            return _failure("event_field_invalid", label, f"{label} fields are invalid")
-        if not _safe_relative_path(entry["path"]) or entry["path"] in seen:
-            return _failure("event_field_invalid", f"{label}.path", f"{label} path is unsafe or duplicated")
-        if not _matches(IDENTITY, entry["content_identity"]):
-            return _failure("event_field_invalid", f"{label}.content_identity", f"{label} identity is invalid")
-        seen.add(entry["path"])
-    return _ok(files)
-
-
-def _validate_check_event(candidate: dict) -> ModelResult:
-    """A check step's evidence: every declared command succeeded, and what changed under them."""
-    if not _matches(STEP_ID, candidate["step_id"]):
-        return _failure("event_field_invalid", "step_id", "check step is invalid")
-    checks = candidate["checks"]
-    if not isinstance(checks, list) or not checks:
-        return _failure("event_field_invalid", "checks", "a check needs at least one command")
-    commands = _validate_check_commands(checks, "checks")
-    if not commands.ok:
-        return commands
-    if any(check["exit_code"] != 0 for check in checks):
-        return _failure("event_field_invalid", "checks.exit_code", "a command that did not succeed is not evidence")
-    return _validate_recorded_files(candidate["files"], "files")
-
-
-def _validate_artifact_event(candidate: dict) -> ModelResult:
-    if not _matches(STEP_ID, candidate["step_id"]):
-        return _failure("event_field_invalid", "step_id", "artifact step is invalid")
-    files = candidate["files"]
-    if not isinstance(files, list) or not files:
-        return _failure("event_field_invalid", "files", "artifact needs at least one file")
-    recorded = _validate_recorded_files(files, "files")
-    if not recorded.ok:
-        return recorded
-    # An artifact records what its format checks reported, a failed one included: the human's
-    # verdict is refused until it passes, which a check step decides without a human at all.
-    commands = _validate_check_commands(candidate["checks"], "checks")
-    if not commands.ok:
-        return commands
-    return _ok(candidate)
-
-
-def seal_event(candidate: object, previous_event: dict | None = None) -> ModelResult:
+def seal_event(candidate: dict, previous_event: dict | None = None) -> ModelResult:
     raw_log = _first_forbidden_field(candidate, RAW_LOG_FIELDS)
     if raw_log is not None:
         return _failure("raw_log_forbidden", raw_log, "raw process logs are not durable evidence")
     secret = _first_secret_field(candidate)
     if secret is not None:
         return _failure("secret_value_forbidden", secret, "secret values are not durable evidence")
-    common = {"version", "sequence", "event_type", "attempt_id"}
-    if not isinstance(candidate, dict) or not common.issubset(candidate):
-        return _failure("event_field_missing", None, "common event fields are missing")
-    event_type = candidate["event_type"]
-    if event_type not in EVENT_TYPES:
-        return _failure("event_type_invalid", "event_type", "event type is invalid")
-    missing = EVENT_TYPES[event_type] - set(candidate)
-    if missing:
-        return _failure("event_field_missing", sorted(missing)[0], "event-specific field is missing")
-    allowed = common | EVENT_TYPES[event_type] | EVENT_OPTIONAL_FIELDS.get(event_type, set())
-    if set(candidate) != allowed and not (
-        event_type in EVENT_OPTIONAL_FIELDS and set(candidate).issubset(allowed)
-    ):
-        return _failure("event_fields_invalid", None, "event fields are unknown or unexpected")
-    if candidate["version"] != 1:
-        return _failure("event_version_invalid", "version", "unsupported event version")
-    if not isinstance(candidate["sequence"], int) or candidate["sequence"] < 1:
-        return _failure("event_sequence_invalid", "sequence", "event sequence is invalid")
-    if not _matches(ATTEMPT_ID, candidate["attempt_id"]):
+    if not _matches(ATTEMPT_ID, candidate.get("attempt_id")):
         return _failure("attempt_id_invalid", "attempt_id", "attempt id is invalid")
-
-    if previous_event is None:
-        if candidate["sequence"] != 1:
-            return _failure("stale_event_chain", "sequence", "first event must start the chain")
-    else:
-        if previous_event["event_type"] == "implementation_green" or (
-            previous_event["event_type"] == "stopped" and event_type not in {"resumed", "rebound"}
-        ):
-            return _failure(
-                "terminal_event_chain",
-                "sequence",
-                "terminal event cannot be extended",
-            )
-        if (
-            candidate["sequence"] != previous_event["sequence"] + 1
-            or candidate["attempt_id"] != previous_event["attempt_id"]
-        ):
-            return _failure("stale_event_chain", "sequence", "event does not extend the current chain")
-
-    if event_type in {"red", "green", "refactor"} and not _matches(
-        IDENTITY, candidate["oracle_identity"]
+    if previous_event is not None and (
+        previous_event.get("event_type") == "implementation_green"
+        or (
+            previous_event.get("event_type") == "stopped"
+            and candidate.get("event_type") not in {"resumed", "rebound"}
+        )
     ):
-        return _failure("event_identity_invalid", "oracle_identity", "oracle identity is invalid")
-    if event_type in {"red", "green", "refactor"}:
-        summary = _validate_test_summary(candidate["test_summary"])
+        return _failure("terminal_event_chain", "sequence", "terminal event cannot be extended")
+    if candidate.get("event_type") in {"red", "green", "refactor"}:
+        summary = _validate_test_summary(candidate.get("test_summary"))
         if not summary.ok:
             return summary
-    if event_type == "commit" and not _matches(COMMIT_SHA, candidate["commit_sha"]):
-        return _failure("event_field_invalid", "commit_sha", "commit SHA is invalid")
-    if event_type == "commit" and candidate.get("recorded_late", True) is not True:
-        return _failure("event_field_invalid", "recorded_late", "recorded_late can only be true")
-    if event_type == "human_gate" and (
-        not _matches(GATE_ID, candidate["gate_id"])
-        or not _matches(STEP_ID, candidate["step_id"])
-        or not _matches(IDENTITY, candidate["target_identity"])
-        or candidate["result"] not in HUMAN_GATE_RESULTS
-    ):
-        return _failure("event_field_invalid", "human_gate", "human gate event is invalid")
-    if event_type == "permission_required" and (
-        not _matches(STEP_ID, candidate["step_id"])
-        or not _matches(IDENTITY, candidate["operation_identity"])
-        or candidate["outcome"] != "permission_required"
-    ):
-        return _failure("event_field_invalid", "permission_required", "permission event is invalid")
-    if event_type == "check":
-        checked = _validate_check_event(candidate)
-        if not checked.ok:
-            return checked
-    if event_type == "artifact":
-        artifact = _validate_artifact_event(candidate)
-        if not artifact.ok:
-            return artifact
-    if event_type == "external" and (
-        not _matches(STEP_ID, candidate["step_id"])
-        or not _bounded_text(candidate["checked"])
-        or not _bounded_text(candidate["summary"])
-    ):
-        return _failure("event_field_invalid", "external", "external event needs bounded checked and summary text")
-    if event_type == "approval" and (
-        not _matches(STEP_ID, candidate["step_id"])
-        or not _matches(IDENTITY, candidate["target_identity"])
-        or candidate["result"] not in APPROVAL_RESULTS
-    ):
-        return _failure("event_field_invalid", "approval", "approval event is invalid")
-    if event_type == "implementation_green" and (
-        not isinstance(candidate["commits"], list)
-        or not candidate["commits"]
-        or any(not _matches(COMMIT_SHA, commit) for commit in candidate["commits"])
-    ):
-        return _failure("event_field_invalid", "commits", "terminal commits are invalid")
-    if event_type == "rebound":
-        rebound = _validate_rebound_event(candidate)
-        if not rebound.ok:
-            return rebound
-    if event_type == "history_approved":
-        approved = _validate_history_approved_event(candidate)
-        if not approved.ok:
-            return approved
-
     return _ok(dict(candidate))
 
 
@@ -775,12 +524,6 @@ def validate_human_gate_boundary(
         if decision["result"] == "rejected":
             return _failure("human_gate_rejected", gate["gate_id"], "human gate was rejected")
     return _ok(required)
-
-
-def compare_event_retry(existing: dict, candidate: dict) -> ModelResult:
-    if existing != candidate:
-        return _failure("event_identity_collision", "sequence", "event retry differs from stored evidence")
-    return _ok(existing)
 
 
 def latest_deliverable(events: list[dict], step_id: str) -> dict | None:

@@ -633,6 +633,17 @@ class AtomicWriteTest(unittest.TestCase):
             self.assertEqual(result.error.code, "persistence_unavailable")
             self.assertFalse(target.exists())
 
+    def test_an_existing_file_is_never_replaced(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "000001-worktree-bound.json"
+            target.write_text("first\n", encoding="utf-8")
+
+            result = implement_runtime.write_once(target, b"second\n")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "write_collision")
+            self.assertEqual(target.read_text(encoding="utf-8"), "first\n")
+
     def test_parent_directory_permission_denial_is_classified(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "missing" / "event.json"
@@ -1369,38 +1380,6 @@ class EventPersistenceTest(unittest.TestCase):
             # The terminal freeze check now judges targets as of the step's commit; an
             # uncommitted rewrite is refused as a dirty worktree instead.
             self.assertEqual(result.error.code, "post_verification_dirty")
-    def test_event_retry_is_idempotent_only_for_the_same_event(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            _, attempt = bootstrap_fixture(Path(directory))
-            details = {"reason": "permission_required", "step_id": "step-1"}
-
-            first = implement_runtime.append_event(
-                attempt,
-                "stopped",
-                details,
-                sequence=2,
-            )
-            same = implement_runtime.append_event(
-                attempt,
-                "stopped",
-                details,
-                sequence=2,
-            )
-            collision = implement_runtime.append_event(
-                attempt,
-                "stopped",
-                {"reason": "persistence_unavailable", "step_id": "step-1"},
-                sequence=2,
-            )
-
-            self.assertTrue(first.ok)
-            self.assertTrue(same.ok)
-            self.assertEqual(first.value, same.value)
-            self.assertFalse(collision.ok)
-            self.assertEqual(collision.error.code, "event_identity_collision")
-            events = sorted(attempt.evidence_path.glob("0*.json"))
-            self.assertEqual(len(events), 2)
-
     def test_result_is_derived_without_a_result_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))

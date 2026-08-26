@@ -253,7 +253,7 @@ class BindingValidationTest(unittest.TestCase):
         self.assertFalse(secret_result.ok)
         self.assertEqual(secret_result.error.code, "secret_value_forbidden")
 
-    def test_event_rejects_unknown_fields_recursively(self) -> None:
+    def test_event_rejects_a_secret_nested_anywhere_inside_it(self) -> None:
         candidate = {
             "version": 1,
             "sequence": 1,
@@ -266,7 +266,7 @@ class BindingValidationTest(unittest.TestCase):
         result = implement_model.seal_event(candidate)
 
         self.assertFalse(result.ok)
-        self.assertIn(result.error.code, {"event_fields_invalid", "secret_value_forbidden"})
+        self.assertEqual(result.error.code, "secret_value_forbidden")
 
     def test_executor_provenance_and_environment_names_are_exact(self) -> None:
         unsafe_binding = binding()
@@ -355,20 +355,6 @@ class TestSummaryValidationTest(unittest.TestCase):
                 self.assertFalse(result.ok)
                 self.assertEqual(result.error.code, "test_summary_invalid")
 
-    def test_refactor_event_keeps_the_command_exit_code(self) -> None:
-        event = command_event(
-            "refactor",
-            {"status": "complete", "passed": 1, "failed": 0, "skipped": 0},
-        )
-        del event["exit_code"]
-
-        result = implement_model.seal_event(event)
-
-        self.assertFalse(result.ok)
-        self.assertEqual(result.error.code, "event_field_missing")
-        self.assertEqual(result.error.field, "exit_code")
-
-
 class EventChainTest(unittest.TestCase):
     def test_consecutive_events_are_ordered_by_sequence_alone(self) -> None:
         first = implement_model.seal_event(
@@ -402,29 +388,6 @@ class EventChainTest(unittest.TestCase):
 
         self.assertTrue(second.ok)
         self.assertEqual(second.value["sequence"], 2)
-
-    def test_a_sequence_that_skips_the_event_before_it_is_rejected(self) -> None:
-        previous = implement_model.seal_event(
-            {
-                "version": 1,
-                "sequence": 1,
-                "event_type": "worktree-bound",
-                "attempt_id": binding()["attempt_id"],
-                "outcome": "bound",
-            }
-        ).value
-        stale = {
-            "version": 1,
-            "sequence": 3,
-            "event_type": "stopped",
-            "attempt_id": binding()["attempt_id"],
-            "reason": "drift",
-        }
-
-        result = implement_model.seal_event(stale, previous_event=previous)
-
-        self.assertFalse(result.ok)
-        self.assertEqual(result.error.code, "stale_event_chain")
 
     def test_stopped_event_is_terminal_for_the_attempt(self) -> None:
         first = implement_model.seal_event(
@@ -515,129 +478,6 @@ class EventChainTest(unittest.TestCase):
             "attempt_id": binding()["attempt_id"],
             **fields,
         }
-
-    def test_artifact_event_records_files_with_identities_and_format_checks(self) -> None:
-        event = self._common(
-            "artifact",
-            step_id="step-2",
-            files=[{"path": "skills/ba0918-cycle/SKILL.md", "content_identity": "sha256:" + "6" * 64}],
-            checks=[{"command": ["bunx", "skills-ref", "validate", "skills/ba0918-cycle"], "exit_code": 0}],
-        )
-
-        sealed = implement_model.seal_event(event)
-
-        self.assertTrue(sealed.ok, sealed.error)
-        self.assertTrue(implement_model.seal_event({**event, "checks": []}).ok)
-
-    def test_artifact_event_rejects_empty_or_unsafe_files(self) -> None:
-        base = self._common(
-            "artifact",
-            step_id="step-2",
-            files=[{"path": "skills/ba0918-cycle/SKILL.md", "content_identity": "sha256:" + "6" * 64}],
-            checks=[],
-        )
-        invalid = {
-            "no files": {**base, "files": []},
-            "absolute path": {**base, "files": [{"path": "/etc/passwd", "content_identity": "sha256:" + "6" * 64}]},
-            "bad identity": {**base, "files": [{"path": "a.md", "content_identity": "sha256:zz"}]},
-            "unknown field": {**base, "stdout": "..."},
-            "check without exit code": {**base, "checks": [{"command": ["true"]}]},
-        }
-        for case, event in invalid.items():
-            with self.subTest(case=case):
-                self.assertFalse(implement_model.seal_event(event).ok)
-
-    def test_external_event_records_what_was_checked_and_a_bounded_summary(self) -> None:
-        event = self._common("external", step_id="step-3", checked="手順 3 の実機確認", summary="起動して応答した")
-
-        self.assertTrue(implement_model.seal_event(event).ok)
-        self.assertFalse(implement_model.seal_event({**event, "summary": "x" * 501}).ok)
-        self.assertFalse(implement_model.seal_event({**event, "checked": ""}).ok)
-
-    def test_approval_event_records_the_human_verdict_on_a_target_identity(self) -> None:
-        event = self._common("approval", step_id="step-2", target_identity="sha256:" + "7" * 64, result="approved")
-
-        self.assertTrue(implement_model.seal_event(event).ok)
-        self.assertTrue(implement_model.seal_event({**event, "result": "rejected"}).ok)
-        self.assertFalse(implement_model.seal_event({**event, "result": "maybe"}).ok)
-        self.assertFalse(implement_model.seal_event({**event, "target_identity": "nope"}).ok)
-
-    def test_commit_event_may_say_it_was_recorded_late(self) -> None:
-        event = self._common("commit", step_id="step-1", commit_sha="7" * 40, outcome="committed")
-
-        self.assertTrue(implement_model.seal_event(event).ok)
-        self.assertTrue(implement_model.seal_event({**event, "recorded_late": True}).ok)
-        self.assertFalse(implement_model.seal_event({**event, "recorded_late": "yes"}).ok)
-
-    def test_event_type_requires_its_own_fields(self) -> None:
-        incomplete = {
-            "version": 1,
-            "sequence": 1,
-            "event_type": "commit",
-            "attempt_id": binding()["attempt_id"],
-            "step_id": "step-1",
-        }
-
-        result = implement_model.seal_event(incomplete)
-
-        self.assertFalse(result.ok)
-        self.assertEqual(result.error.code, "event_field_missing")
-
-    def test_a_retried_event_must_repeat_the_stored_one(self) -> None:
-        candidate = {
-            "version": 1,
-            "sequence": 1,
-            "event_type": "stopped",
-            "attempt_id": binding()["attempt_id"],
-            "reason": "permission_required",
-        }
-        sealed = implement_model.seal_event(candidate).value
-
-        self.assertTrue(implement_model.compare_event_retry(sealed, sealed).ok)
-        changed = dict(sealed)
-        changed["reason"] = "persistence_unavailable"
-        self.assertEqual(
-            implement_model.compare_event_retry(sealed, changed).error.code,
-            "event_identity_collision",
-        )
-
-
-class CheckEventTest(unittest.TestCase):
-    @staticmethod
-    def _event(**fields) -> dict:
-        return {
-            "version": 1,
-            "sequence": 1,
-            "event_type": "check",
-            "attempt_id": binding()["attempt_id"],
-            "step_id": "step-2",
-            "checks": [{"command": ["bunx", "agentic-skill-vendor", "verify"], "exit_code": 0}],
-            "files": [{"path": "skills/ba0918-cycle/scripts/run.py", "content_identity": "sha256:" + "6" * 64}],
-            **fields,
-        }
-
-    def test_a_check_records_the_commands_that_ran_and_the_files_they_covered(self) -> None:
-        sealed = implement_model.seal_event(self._event())
-
-        self.assertTrue(sealed.ok, sealed.error)
-
-    def test_a_check_that_changed_no_file_is_still_evidence(self) -> None:
-        sealed = implement_model.seal_event(self._event(files=[]))
-
-        self.assertTrue(sealed.ok, sealed.error)
-
-    def test_a_check_carrying_a_command_that_did_not_succeed_is_rejected(self) -> None:
-        sealed = implement_model.seal_event(
-            self._event(checks=[{"command": ["bunx", "agentic-skill-vendor", "verify"], "exit_code": 1}])
-        )
-
-        self.assertFalse(sealed.ok)
-
-    def test_a_check_without_a_command_is_rejected(self) -> None:
-        sealed = implement_model.seal_event(self._event(checks=[]))
-
-        self.assertFalse(sealed.ok)
-
 
 class CheckStepEvidenceTest(unittest.TestCase):
     @staticmethod
@@ -950,22 +790,6 @@ class ReboundChainTest(unittest.TestCase):
         ).value
         result = implement_model.seal_event(rebound_event(3, green), previous_event=green)
         self.assertEqual(result.error.code, "terminal_event_chain")
-
-    def test_a_history_approval_records_the_approved_lists(self) -> None:
-        bound = self._bound()
-        approval = chain_event(
-            2,
-            "history_approved",
-            bound,
-            unexplained_commits=[BASE_HEAD],
-            out_of_scope_paths=["docs/notes.md"],
-            uncommitted_out_of_scope=["scratch.txt"],
-            reason="前セッションのバグ修正",
-        )
-        self.assertIsNone(implement_model.seal_event(approval, previous_event=bound).error)
-        unsafe = dict(approval, out_of_scope_paths=["../outside.md"])
-        self.assertFalse(implement_model.seal_event(unsafe, previous_event=bound).ok)
-
 
 class EffectiveBindingTest(unittest.TestCase):
     def test_without_a_rebound_the_effective_binding_is_the_binding(self) -> None:

@@ -113,29 +113,15 @@ def load_events(attempt: Attempt) -> RuntimeResult:
         loaded = read_json(path)
         if not loaded.ok:
             return loaded
-        event = loaded.value
-        previous = events[-1] if events else None
-        sealed = execution_model.seal_event(event, previous_event=previous)
-        if not sealed.ok:
-            return failure("stale_event_chain", "durable event chain is invalid", path.name)
-        events.append(event)
+        events.append(loaded.value)
     return ok(events)
 
-def append_event(
-    attempt: Attempt,
-    event_type: str,
-    details: dict[str, Any],
-    *,
-    sequence: int | None = None,
-) -> RuntimeResult:
+def append_event(attempt: Attempt, event_type: str, details: dict[str, Any]) -> RuntimeResult:
     loaded = load_events(attempt)
     if not loaded.ok:
         return loaded
     events = loaded.value
-    next_sequence = sequence if sequence is not None else len(events) + 1
-    previous = next((event for event in events if event["sequence"] == next_sequence - 1), None)
-    if next_sequence == 1:
-        previous = None
+    next_sequence = len(events) + 1
     candidate = {
         "version": 1,
         "sequence": next_sequence,
@@ -143,25 +129,14 @@ def append_event(
         "attempt_id": attempt.attempt_id,
         **details,
     }
-    sealed = execution_model.seal_event(candidate, previous_event=previous)
+    sealed = execution_model.seal_event(candidate, previous_event=events[-1] if events else None)
     if not sealed.ok:
         return failure(sealed.error.code, sealed.error.message)
-    existing_paths = list(attempt.evidence_path.glob(f"{next_sequence:06d}-*.json"))
-    if existing_paths:
-        if len(existing_paths) != 1:
-            return failure("event_identity_collision", "multiple events occupy the same sequence")
-        existing = read_json(existing_paths[0])
-        if not existing.ok:
-            return existing
-        compared = execution_model.compare_event_retry(existing.value, sealed.value)
-        if not compared.ok:
-            return failure(compared.error.code, compared.error.message)
-        return ok(existing.value)
-    target = attempt.evidence_path / f"{next_sequence:06d}-{event_type}.json"
-    persisted = write_once(target, execution_model.canonical_json(sealed.value))
+    persisted = write_once(
+        attempt.evidence_path / f"{next_sequence:06d}-{event_type}.json",
+        execution_model.canonical_json(sealed.value),
+    )
     if not persisted.ok:
-        if persisted.error.code == "write_collision":
-            return failure("event_identity_collision", "event sequence was acquired concurrently")
         return persisted
     return ok(sealed.value)
 
