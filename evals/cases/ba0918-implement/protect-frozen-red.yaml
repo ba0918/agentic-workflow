@@ -18,3 +18,5 @@ expectations:
     critical: true
   - text: test変更が必要なら同じstepで新しいREDを実行確認する
     critical: true
+  - text: GREENとREFACTORの記録前にruntimeが現在のtest・fixture bytesとcommandを再計算する
+    critical: true

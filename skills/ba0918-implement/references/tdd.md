@@ -13,4 +13,6 @@ Follow RED, GREEN, REFACTOR, commit in order.
 5. Apply all-path safety checks, commit one concern, and append the commit event.
 
 If the frozen test must change, establish a new genuine RED before product work continues. Never
-weaken a test to manufacture GREEN.
+weaken a test to manufacture GREEN. The runtime must reject GREEN or REFACTOR when either the
+command or any frozen test/fixture byte differs; only another observed failing RED can replace the
+snapshot.

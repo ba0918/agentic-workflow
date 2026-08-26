@@ -27,8 +27,9 @@ Implement does not review, merge, publish, complete the plan, or delete executio
   agent's semantic decision; wording-only specification drift is not an automatic rejection.
 - Treat Scope as expected paths. A safe ordinary omission is recorded with its reason and included;
   it is not a human gate.
-- Apply secret, dangerous-path, temporary, log, generated-output, and sensitive-target checks to
-  every commit, expected or not.
+- Derive changed paths from Git's actual staged diff and each recorded commit, then apply secret,
+  dangerous-path, temporary, log, generated-output, and sensitive-target checks to every path,
+  expected or not. Never accept a caller's claim that a safety check passed.
 - During a cycle delegation, implement is the only evidence writer. Cycle records the delegation
   boundaries.
 - New or changed external dependencies and missing product, persistence, architecture, permission,
@@ -39,7 +40,9 @@ Implement does not review, merge, publish, complete the plan, or delete executio
 
 ## Completion
 
-Complete when every plan step has its required evidence and commit, all safety checks pass, and an
+Complete when every plan step has its required evidence and, when that completion kind requires
+one, a commit; `check` and `external` need no commit when Git reports no changed paths. All Git-
+derived safety checks must pass, and an
 `implementation_green` event has been derived by the runtime from valid step transitions, recorded
 commits, the bound branch/worktree, and a clean worktree. Every append also updates `current-status`
 in the same operation. Hand the branch, commits, plan approval commit, evidence path,

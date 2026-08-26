@@ -24,5 +24,9 @@ expectations:
     critical: true
   - text: 全commitへ秘密・危険path・一時file・log・生成物の検査を行う
     critical: true
+  - text: safetyの自己申告を使わず実staged diffとcommit objectの全pathからruntimeが判定する
+    critical: true
+  - text: 変更のないcheckまたはexternalはcommitを要求せず、testとartifactはcommitを要求する
+    critical: true
   - text: 全step evidence・commit・安全検査・clean worktreeが揃ったときだけimplementation_greenをruntimeに導出させる
     critical: true

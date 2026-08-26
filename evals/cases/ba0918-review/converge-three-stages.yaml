@@ -28,5 +28,9 @@ expectations:
     critical: true
   - text: final reviewの新規warnをtargeted reviewで閉じ、full reviewを繰り返さない
     critical: true
+  - text: findingは対応targeted開始後にfix commitとoracle結果を一つのtargeted resultへ束ねてcloseする
+    critical: true
+  - text: progress tupleとfinal completionをevent列からruntimeが導出し、caller値やcompletion eventを受け取らない
+    critical: true
   - text: reviewer自身は修正しない
     critical: true
