@@ -90,6 +90,25 @@ class ReviewRuntimeTest(unittest.TestCase):
         self.assertEqual(branch.value["input"]["base"], base)
         self.assertEqual(branch.value["input"]["head"], head)
 
+    def test_review_selectors_and_bindings_cannot_escape_the_evidence_store(self) -> None:
+        root, base, head = self.repository()
+        outside = root.parent / f"{root.name}-outside" / "review"
+        outside.mkdir(parents=True)
+        traversal = f"../../../../{outside.parent.name}/review"
+        crafted = {
+            "version": 2, "kind": "standalone", "review_id": traversal,
+            "input": {"kind": "commits", "branch": None, "base": base, "head": head},
+            "spec_paths": ["docs/spec/"], "spec_commit": head,
+        }
+        (outside / "binding.json").write_text(json.dumps(crafted), encoding="utf-8")
+        before = sorted(path.name for path in outside.iterdir())
+        loaded = runtime.load_review_binding(root, review_id=traversal)
+        self.assertFalse(loaded.ok)
+        self.assertEqual(loaded.error.code, "review_selector_invalid")
+        bound = runtime.bind_review(root, crafted, model="model-x")
+        self.assertFalse(bound.ok)
+        self.assertEqual(sorted(path.name for path in outside.iterdir()), before)
+
     def test_execution_input_accepts_wording_recovery_and_rebound_revision_tips(self) -> None:
         for boundary in ("recovering", "rebound"):
             root, base, implementation = self.execution_fixture()
@@ -226,6 +245,35 @@ class ReviewRuntimeTest(unittest.TestCase):
         self.assertTrue(completed.ok, completed.error)
         self.assertEqual(completed.value["event_type"], "review-complete")
         self.assertNotIn("review-completed", [event["event_type"] for event in runtime.load_events(root, binding).value])
+
+    def test_loader_rejects_malformed_findings_and_final_without_initial_review(self) -> None:
+        root, _, _ = self.repository()
+        binding = runtime.resolve_input(root, review_id="forged", branch="feature", base="main").value
+        runtime.bind_review(root, binding, model="model-x")
+        directory = runtime.review_directory(root, binding)
+        forged = [
+            {"version": 2, "sequence": 2, "event_type": "final-full-review-started", "reviewer_context": "final"},
+            {"version": 2, "sequence": 3, "event_type": "final-findings-recorded", "findings": [],
+             "safety": safety(), "reviewer_context": "final", "actual_model": "model-x"},
+        ]
+        for event in forged:
+            (directory / f"{event['sequence']:06d}-{event['event_type']}.json").write_text(json.dumps(event), encoding="utf-8")
+        loaded = runtime.load_events(root, binding)
+        self.assertEqual(loaded.error.code, "review_transition_invalid")
+        self.assertFalse(runtime.complete_review(root, binding).ok)
+
+        other, _, _ = self.repository()
+        other_binding = runtime.resolve_input(other, review_id="malformed", branch="feature", base="main").value
+        runtime.bind_review(other, other_binding, model="model-x")
+        directory = runtime.review_directory(other, other_binding)
+        started = {"version": 2, "sequence": 2, "event_type": "initial-full-review-started", "reviewer_context": "initial"}
+        malformed = {"version": 2, "sequence": 3, "event_type": "initial-findings-recorded", "findings": [{}],
+                     "safety": safety(), "reviewer_context": "initial", "actual_model": "model-x"}
+        for event in (started, malformed):
+            (directory / f"{event['sequence']:06d}-{event['event_type']}.json").write_text(json.dumps(event), encoding="utf-8")
+        loaded = runtime.load_events(other, other_binding)
+        self.assertFalse(loaded.ok)
+        self.assertEqual(loaded.error.code, "review_event_invalid")
 
     def test_targeted_close_requires_trailer_and_progress_then_stale_can_rebound(self) -> None:
         root, _, _ = self.repository()
@@ -416,6 +464,32 @@ class ReviewRuntimeTest(unittest.TestCase):
         )
         self.assertTrue(recorded.ok, recorded.error)
         self.assertEqual(recorded.value["actual_model"], "actual-model")
+
+    def test_finding_text_and_binding_fields_are_validated_before_any_write(self) -> None:
+        root, _, _ = self.repository()
+        binding = runtime.resolve_input(root, review_id="finding-boundary", branch="feature", base="main").value
+        runtime.bind_review(root, binding, model="model-x", profiles=["default"])
+        runtime.begin_stage(root, binding, reviewer_context="initial")
+        directory = runtime.review_directory(root, binding)
+        before = sorted(path.name for path in directory.iterdir())
+        secret = "API_TOKEN=fake-finding-secret-value"
+        secret_item = finding(
+            evidence={"path": "app.txt", "observation": secret}, spec_commit=binding["spec_commit"],
+        )
+        rejected = runtime.record_findings(
+            root, binding, stage="initial", findings=[secret_item], safety=safety(),
+            reviewer_context="initial", actual_model="model-x",
+        )
+        self.assertEqual(rejected.error.code, "finding_content_invalid")
+        self.assertNotIn(secret, str(rejected))
+        self.assertEqual(sorted(path.name for path in directory.iterdir()), before)
+        mismatched = finding(profile="skill", spec_commit="f" * 40)
+        rejected = runtime.record_findings(
+            root, binding, stage="initial", findings=[mismatched], safety=safety(),
+            reviewer_context="initial", actual_model="model-x",
+        )
+        self.assertEqual(rejected.error.code, "finding_binding_invalid")
+        self.assertEqual(sorted(path.name for path in directory.iterdir()), before)
 
     def test_second_review_and_human_decision_do_not_persist_secret_shaped_text(self) -> None:
         root, _, _ = self.repository()

@@ -84,10 +84,16 @@ class ReviewModelTest(unittest.TestCase):
         self.assertEqual(model.next_review_stage(events, [closed]), "ready-to-complete")
 
     def test_review_completion_is_derived_from_final_results_and_closed_findings(self) -> None:
-        findings = [{**finding(), "state": "closed"}]
-        final_results = [{"event_type": "final-full-review-started"}, {"event_type": "final-findings-recorded"}]
-        self.assertTrue(model.review_complete(final_results, findings))
-        self.assertFalse(model.review_complete(final_results, [{**finding(), "state": "open"}]))
+        safety = {"completed": True, "summary": "safe", "unresolved": []}
+        complete = [
+            {"version": 2, "sequence": 1, "event_type": "review-bound", "model": "m"},
+            {"version": 2, "sequence": 2, "event_type": "initial-full-review-started", "reviewer_context": "initial"},
+            {"version": 2, "sequence": 3, "event_type": "initial-findings-recorded", "findings": [], "safety": safety, "reviewer_context": "initial", "actual_model": "m"},
+            {"version": 2, "sequence": 4, "event_type": "final-full-review-started", "reviewer_context": "final"},
+            {"version": 2, "sequence": 5, "event_type": "final-findings-recorded", "findings": [], "safety": safety, "reviewer_context": "final", "actual_model": "m"},
+        ]
+        self.assertTrue(model.review_complete(complete, []))
+        self.assertFalse(model.review_complete(complete[:-2], []))
 
     def test_unrelated_minor_findings_are_observations_but_serious_regressions_join_review(self) -> None:
         warn = finding(severity="warn")
