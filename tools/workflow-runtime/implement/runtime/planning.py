@@ -52,36 +52,82 @@ def validate_relative_path(relative_path: object) -> RuntimeResult:
 def raw_identity(text: str) -> str:
     return plan_artifact.content_identity(text)
 
+def read_plan_file(project_root: Path, relative_path: str) -> RuntimeResult:
+    """Read the plan the agent named, straight from the working tree.
+
+    The path is checked for safety; the bytes are taken as they are. Their identity is what the
+    execution binds to — the plan is a document a human approved and may go on correcting, so
+    nothing here asks whether it still matches some earlier copy of itself.
+    """
+    if not validate_relative_path(relative_path).ok:
+        return failure("unsafe_path", "plan path must be repository-relative without traversal")
+    # A draft lives in the machine's scratch directory and is not a plan a human approved
+    # (docs/spec/plan.md, "草稿と承認"); binding an execution to one would bind it to nothing.
+    if PurePosixPath(relative_path).parts[:2] == (".agents", "tmp"):
+        return failure("plan_registration_missing", f"{relative_path} is a draft, not an approved plan")
+    path = project_root.joinpath(*PurePosixPath(relative_path).parts)
+    if path.is_symlink() or not path.is_file():
+        return failure("plan_registration_missing", f"no plan exists at {relative_path}")
+    return ok(path.read_text(encoding="utf-8"))
+
 def resolve_plan(
     project_root: Path,
     *,
-    explicit_path: str | None = None,
+    plan_path: str | None = None,
+    plan_id: str | None = None,
+    revision: int | None = None,
     receipt: dict[str, str] | None = None,
 ) -> RuntimeResult:
-    if receipt is not None and explicit_path is not None and receipt.get("path") != explicit_path:
-        return failure("plan_candidate_conflict", "explicit path and publication receipt disagree")
-    selected_path = explicit_path
-    if selected_path is None and receipt is not None:
-        selected_path = receipt.get("path")
-    try:
-        registered = plan_artifact.read_registered_plan(project_root, selected_path)
-    except plan_artifact.PlanRegistrationMissing as error:
-        return failure("plan_registration_missing", str(error))
-    except plan_artifact.RegisteredPlanMismatch as error:
-        return failure("plan_identity_drift", str(error))
-    except plan_artifact.UnsafePlanPath as error:
-        return failure("unsafe_path", str(error))
-    except plan_artifact.PlanArtifactError as error:
-        return failure("plan_locator_invalid", str(error))
+    """The plan the agent named, read for the two parts a machine reads.
 
-    if receipt is not None:
-        if receipt.get("content_identity") != registered.content_identity:
-            if explicit_path is not None:
-                return failure(
-                    "plan_candidate_conflict",
-                    "explicit path and publication receipt disagree",
-                )
+    Its id and revision come from the agent that read the document, not from a parser or a
+    locator (docs/spec/plan.md, "機械が決まった書き方で読む箇所は 2 つだけ").
+    """
+    if receipt is not None and plan_path is not None and receipt.get("path") != plan_path:
+        return failure("plan_candidate_conflict", "explicit path and publication receipt disagree")
+    if plan_path is not None:
+        if not isinstance(plan_id, str) or not plan_id.strip():
+            return failure("plan_declaration_missing", "name the plan id you read out of the plan")
+        if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
+            return failure("plan_declaration_missing", "name the plan revision you read out of the plan")
+        loaded = read_plan_file(project_root, plan_path)
+        if not loaded.ok:
+            return loaded
+        text = loaded.value
+        identity = raw_identity(text)
+        if receipt is not None and receipt.get("content_identity") != identity:
+            return failure("plan_candidate_conflict", "explicit path and publication receipt disagree")
+        registered = ResolvedPlan(
+            plan_id=plan_id,
+            path=plan_path,
+            revision=revision,
+            content_identity=identity,
+            text=text,
+            specs=(),
+            write_scope=(),
+        )
+    else:
+        try:
+            located = plan_artifact.read_registered_plan(project_root, receipt.get("path") if receipt else None)
+        except plan_artifact.PlanRegistrationMissing as error:
+            return failure("plan_registration_missing", str(error))
+        except plan_artifact.RegisteredPlanMismatch as error:
+            return failure("plan_identity_drift", str(error))
+        except plan_artifact.UnsafePlanPath as error:
+            return failure("unsafe_path", str(error))
+        except plan_artifact.PlanArtifactError as error:
+            return failure("plan_locator_invalid", str(error))
+        if receipt is not None and receipt.get("content_identity") != located.content_identity:
             return failure("plan_identity_drift", "publication receipt differs from the locator")
+        registered = ResolvedPlan(
+            plan_id=plan_id or located.plan_id,
+            path=located.path,
+            revision=revision if isinstance(revision, int) and not isinstance(revision, bool) else located.revision,
+            content_identity=located.content_identity,
+            text=located.text,
+            specs=(),
+            write_scope=(),
+        )
     parsed = parse_plan(registered.text)
     if not parsed.ok:
         return parsed
@@ -101,17 +147,7 @@ def resolve_plan(
         if committed.returncode != 0 or raw_identity(committed.stdout) != expected_identity:
             return failure("spec_identity_drift", f"approved spec is not present at base HEAD: {spec_path}")
 
-    return ok(
-        ResolvedPlan(
-            plan_id=registered.plan_id,
-            path=registered.path,
-            revision=registered.revision,
-            content_identity=registered.content_identity,
-            text=registered.text,
-            specs=specs,
-            write_scope=write_scope,
-        )
-    )
+    return ok(registered._replace(specs=specs, write_scope=write_scope))
 
 def declared_steps(attempt: Attempt) -> RuntimeResult:
     """The steps the agent declared when the execution was bound, after any rebound.

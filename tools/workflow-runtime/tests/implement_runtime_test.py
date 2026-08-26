@@ -359,6 +359,71 @@ def reregister(root: Path, text: str) -> None:
 
 
 class PlanResolutionTest(unittest.TestCase):
+    def test_an_execution_binds_to_the_id_and_revision_the_agent_declared(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root, plan_id, _ = create_repository(parent)
+            text = (root / f".agents/artifacts/plans/{plan_id}_fixture.md").read_text(encoding="utf-8")
+            unregistered = root / "docs/plans/20260826170000_second.md"
+            unregistered.parent.mkdir(parents=True, exist_ok=True)
+            unregistered.write_text(text, encoding="utf-8")
+            resolved = implement_runtime.resolve_plan(
+                root,
+                plan_path="docs/plans/20260826170000_second.md",
+                plan_id="20260826170000",
+                revision=3,
+            )
+            self.assertTrue(resolved.ok, resolved.error)
+
+            bound = implement_runtime.bootstrap_attempt(
+                root,
+                resolved.value,
+                worktree_path=parent / "linked-worktree",
+                attempt_id_factory=lambda: "20260826t170000-aabbccdd",
+                steps=DECLARED_TEST_STEP,
+                executor={"executor": "codex", "backend": "unavailable", "session_id": "unavailable"},
+            )
+
+            self.assertTrue(bound.ok, bound.error)
+            binding = json.loads(bound.value.binding_path.read_text(encoding="utf-8"))
+            self.assertEqual(binding["plan"]["id"], "20260826170000")
+            self.assertEqual(binding["plan"]["revision"], 3)
+            self.assertEqual(binding["plan"]["path"], "docs/plans/20260826170000_second.md")
+            self.assertEqual(binding["plan"]["content_identity"], plan_artifact.content_identity(text))
+
+    def test_a_plan_id_or_revision_the_agent_did_not_name_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, plan_id, _ = create_repository(Path(directory))
+            path = f".agents/artifacts/plans/{plan_id}_fixture.md"
+
+            missing_id = implement_runtime.resolve_plan(root, plan_path=path, revision=1)
+            missing_revision = implement_runtime.resolve_plan(root, plan_path=path, plan_id=plan_id)
+
+            self.assertEqual(missing_id.error.code, "plan_declaration_missing")
+            self.assertEqual(missing_revision.error.code, "plan_declaration_missing")
+
+    def test_a_plan_the_locator_does_not_know_resolves_from_its_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, plan_id, spec_identity = create_repository(Path(directory))
+            unregistered = root / "docs/plans/20260826170000_second.md"
+            unregistered.parent.mkdir(parents=True, exist_ok=True)
+            text = (root / f".agents/artifacts/plans/{plan_id}_fixture.md").read_text(encoding="utf-8")
+            unregistered.write_text(text, encoding="utf-8")
+
+            result = implement_runtime.resolve_plan(
+                root,
+                plan_path="docs/plans/20260826170000_second.md",
+                plan_id="20260826170000",
+                revision=2,
+            )
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value.plan_id, "20260826170000")
+            self.assertEqual(result.value.revision, 2)
+            self.assertEqual(result.value.path, "docs/plans/20260826170000_second.md")
+            self.assertEqual(result.value.content_identity, plan_artifact.content_identity(text))
+            self.assertEqual(result.value.specs, (("docs/spec/feature.md", spec_identity),))
+
     def test_a_plan_whose_steps_are_written_freely_still_resolves(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, plan_id, spec_identity = create_repository(Path(directory))
@@ -464,7 +529,10 @@ class PlanResolutionTest(unittest.TestCase):
             )
 
             result = implement_runtime.resolve_plan(
-                root, explicit_path=draft.path.relative_to(root).as_posix()
+                root,
+                plan_path=draft.path.relative_to(root).as_posix(),
+                plan_id="20260822150001",
+                revision=1,
             )
 
             self.assertFalse(result.ok)
@@ -482,7 +550,9 @@ class PlanResolutionTest(unittest.TestCase):
 
             result = implement_runtime.resolve_plan(
                 root,
-                explicit_path=".agents/artifacts/plans/20260822150001_missing.md",
+                plan_path=".agents/artifacts/plans/20260822150001_missing.md",
+                plan_id="20260822150001",
+                revision=1,
             )
 
             self.assertFalse(result.ok)
@@ -516,7 +586,9 @@ class PlanResolutionTest(unittest.TestCase):
 
             result = implement_runtime.resolve_plan(
                 root,
-                explicit_path=path,
+                plan_path=path,
+                plan_id=plan_id,
+                revision=1,
                 receipt={
                     "path": path,
                     "content_identity": "sha256:" + "0" * 64,
