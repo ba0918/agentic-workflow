@@ -1,7 +1,7 @@
 # plan_artifact の縮小 — 索引を捨て、機械が読む 2 箇所だけを残す
 
 **Plan ID:** `20260826170000`
-**Plan revision:** `1`
+**Plan revision:** `2`
 
 **Target specifications:**
 
@@ -20,6 +20,22 @@
 検査、検査コマンドの抽出、人が判断する場面の JSON 検証、そして `open-plans.json` という
 索引の読み書きを持っています。この手順書は、そこに書かれた振る舞いをコードに移すだけで、
 新しい意味を決めません。
+
+## 版 2 で直したこと
+
+版 1 は、手順 2 を読み込んで初めて分かる欠陥を持っていました。**作る物、禁止、人が判断
+する場面は版 1 のままです。**直したのは、変更してよいファイルの取りこぼしだけです。
+
+- 手順 2 の変更してよいファイルに `repository.py` がありませんでした。束ねの記録
+  （`binding.json`）を組み立てているのはこのモジュールで、起点のコミットとの照合結果を
+  事実として書く場所もここです。「Scope」には最初から挙がっていました
+- 手順 2 の変更してよいファイルに `cli.py` がありませんでした。束ね直しの相手を索引では
+  なくパスで探すと、その手順書の版を AI が宣言して渡す必要があります。`resolve` と
+  `bootstrap` は手順 1 で `--plan-revision` を得ましたが、`rebind` は同じ引数を
+  持っていません
+- 索引を読んでいる呼び出し元を数え直しました。`resume.py` に 4 箇所、`context.py` に
+  1 箇所あります。この 2 つは手順 3 以降のどの手順にも挙がっていないので、索引を消す
+  手順 4 までにそれらを外せるのは手順 2 だけです
 
 ## この計画で採る方針
 
@@ -121,6 +137,8 @@ vendor-lock.json
 **変更してよいファイル:** `tools/workflow-runtime/implement/runtime/planning.py`、
 `tools/workflow-runtime/implement/runtime/context.py`、
 `tools/workflow-runtime/implement/runtime/resume.py`、
+`tools/workflow-runtime/implement/runtime/repository.py`、
+`tools/workflow-runtime/implement/runtime/cli.py`、
 `tools/workflow-runtime/tests/implement_runtime_test.py`。
 
 **Completion:** test
