@@ -314,20 +314,61 @@ class ImplementDistributionTest(unittest.TestCase):
                 root, plan, run_id="run-1", delegated=False,
                 steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
             ).value
-            fake_value = "fake_test_credential_123456789"
-            (root / "config.py").write_text(f"API_KEY={fake_value}\n", encoding="utf-8")
+            for name in ("api_token", "TOKEN", "Secret", "CREDENTIAL"):
+                with self.subTest(name=name):
+                    fake_value = f"fake_{name.lower()}_value_123456789"
+                    (root / "config.py").write_text(f"{name}={fake_value}\n", encoding="utf-8")
+                    subprocess.run(["git", "-C", str(root), "add", "config.py"], check=True)
+                    rejected = context.append_event(run, "check", {
+                        "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": ["config.py"],
+                    })
+                    self.assertFalse(rejected.ok)
+                    self.assertEqual(rejected.error.code, "secret_content")
+                    self.assertNotIn(fake_value, str(rejected.error))
+
+    def test_secret_detector_covers_credentials_and_private_key_headers(self) -> None:
+        for assignment in (
+            b"Api-Token=fake_api_token_value",
+            b"TOKEN: fake_standalone_token",
+            b"secret = fake_secret_value",
+            b"CREDENTIAL=fake_credential_value",
+            b"password=fake_password_value",
+        ):
+            with self.subTest(assignment=assignment.split(b"=", 1)[0]):
+                self.assertTrue(secret_detect.contains_secret(assignment))
+        self.assertTrue(secret_detect.contains_secret(b"-----BEGIN FAKE PRIVATE KEY-----\nnot-a-key"))
+        self.assertFalse(secret_detect.contains_secret(b"password = os.environ['PASSWORD']"))
+
+    def test_secret_content_in_commit_object_is_rejected_without_value_exposure(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+            approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("config.py",))
+            run = repository.bind_run(
+                root, plan, run_id="run-1", delegated=False,
+                steps=[{"id": "1", "completion": "check"}], branch="main", worktree=str(root),
+            ).value
+            self.assertTrue(context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            }).ok)
+            fake_value = "fake_commit_token_123456789"
+            (root / "config.py").write_text(f"TOKEN={fake_value}\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "config.py"], check=True)
-            rejected = context.append_event(run, "check", {
-                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": ["config.py"],
-            })
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "candidate"], check=True)
+            commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            rejected = context.record_commit(run, "1", commit)
             self.assertFalse(rejected.ok)
             self.assertEqual(rejected.error.code, "secret_content")
             self.assertNotIn(fake_value, str(rejected.error))
-
-    def test_secret_detector_covers_credentials_and_private_key_headers(self) -> None:
-        self.assertTrue(secret_detect.contains_secret(b"password=fake_password_value"))
-        self.assertTrue(secret_detect.contains_secret(b"-----BEGIN FAKE PRIVATE KEY-----\nnot-a-key"))
-        self.assertFalse(secret_detect.contains_secret(b"password = os.environ['PASSWORD']"))
+            evidence = "".join(path.read_text(encoding="utf-8") for path in run.evidence_path.glob("*.json"))
+            self.assertNotIn(fake_value, evidence)
 
     def test_record_commit_rejects_side_branch_and_duplicate_step_assignment(self) -> None:
         import tempfile
