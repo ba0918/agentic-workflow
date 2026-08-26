@@ -3,6 +3,7 @@ import json
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/workflow-runtime/implement"))
@@ -27,6 +28,42 @@ class ImplementDistributionTest(unittest.TestCase):
             binding = storage.read_json(run.binding_path)
             self.assertEqual(binding.value["approval_commit"], "a" * 40)
             self.assertNotIn("identity", str(binding.value))
+
+    def test_bind_validates_every_contract_before_creation_and_cleans_failed_initial_event(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+            branch = subprocess.run(
+                ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True
+            ).stdout.strip()
+            approval = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True
+            ).stdout.strip()
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+            invalid = repository.bind_run(
+                root, plan, run_id="run-1", delegated=False,
+                steps=[{"id": "1", "completion": "unknown"}], branch=branch, worktree=str(root),
+            )
+            self.assertFalse(invalid.ok)
+            self.assertFalse((root / ".agents/evidence/plan-a/run-1").exists())
+            with mock.patch("runtime.context.append_event", return_value=context.failure("write_failed", "failed")):
+                failed = repository.bind_run(
+                    root, plan, run_id="run-1", delegated=False,
+                    steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+                )
+            self.assertFalse(failed.ok)
+            self.assertFalse((root / ".agents/evidence/plan-a/run-1").exists())
+            retried = repository.bind_run(
+                root, plan, run_id="run-1", delegated=False,
+                steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+            )
+            self.assertTrue(retried.ok, retried.error)
 
     def test_events_are_numbered_append_only_without_a_hash_chain(self) -> None:
         import tempfile
@@ -101,7 +138,7 @@ class ImplementDistributionTest(unittest.TestCase):
             plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "test"}], branch="feature", worktree=str(root),
+                steps=[{"id": "1", "completion": "test"}],
             ).value
             result = context.append_event(run, "implementation_green", {}, actor="implement")
             self.assertFalse(result.ok)
@@ -115,17 +152,22 @@ class ImplementDistributionTest(unittest.TestCase):
             root = Path(directory)
             plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
             empty = repository.bind_run(
-                root, plan, run_id="empty", delegated=False, steps=[], branch="feature", worktree=str(root),
+                root, plan, run_id="empty", delegated=False, steps=[],
             ).value
-            self.assertTrue(context.record_safety_check(empty, passed=True, summary="safe").ok)
             self.assertEqual(context.complete_run(empty).error.code, "completion_invalid")
+            (root / "tests").mkdir()
+            (root / "tests/example_test.py").write_text("test bytes\n", encoding="utf-8")
             run = repository.bind_run(
                 root, plan, run_id="ordered", delegated=False,
-                steps=[{"id": "1", "completion": "test"}], branch="feature", worktree=str(root),
+                steps=[{"id": "1", "completion": "test"}],
             ).value
-            self.assertTrue(context.record_stage(run, "1", "red", command="test", exit_code=1).ok)
+            self.assertTrue(context.record_stage(
+                run, "1", "red", command="test", exit_code=1, test_paths=["tests/example_test.py"],
+            ).ok)
             self.assertTrue(context.record_stage(run, "1", "green", command="test", exit_code=0).ok)
-            self.assertTrue(context.record_stage(run, "1", "red", command="new test", exit_code=1).ok)
+            self.assertTrue(context.record_stage(
+                run, "1", "red", command="new test", exit_code=1, test_paths=["tests/example_test.py"],
+            ).ok)
             invalid = context.record_stage(run, "1", "refactor", command="new test", exit_code=0)
             self.assertFalse(invalid.ok)
             self.assertEqual(invalid.error.code, "transition_invalid")
@@ -137,7 +179,7 @@ class ImplementDistributionTest(unittest.TestCase):
             plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "check"}], branch="feature", worktree=str(root),
+                steps=[{"id": "1", "completion": "check"}],
             ).value
             self.assertTrue(context.stop_run(run, "important decision").ok)
             blocked = context.append_event(
@@ -158,7 +200,10 @@ class ImplementDistributionTest(unittest.TestCase):
             subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
             (root / "README.md").write_text("fixture\n", encoding="utf-8")
             (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
-            subprocess.run(["git", "-C", str(root), "add", "README.md", ".gitignore"], check=True)
+            (root / "tests").mkdir()
+            test_path = root / "tests/example_test.py"
+            test_path.write_text("test bytes\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "README.md", ".gitignore", "tests/example_test.py"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
             branch = subprocess.run(
                 ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True
@@ -166,22 +211,85 @@ class ImplementDistributionTest(unittest.TestCase):
             commit = subprocess.run(
                 ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True
             ).stdout.strip()
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", commit, "text", (), ())
+            plan = ResolvedPlan(
+                "plan-a", "docs/plans/plan-a.md", commit, "text", (),
+                ("README.md", ".gitignore", "tests/example_test.py"),
+            )
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
                 steps=[{"id": "1", "completion": "test"}], branch=branch, worktree=str(root),
             ).value
-            self.assertTrue(context.record_stage(run, "1", "red", command="test cmd", exit_code=1).ok)
+            self.assertTrue(context.record_stage(
+                run, "1", "red", command="test cmd", exit_code=1, test_paths=["tests/example_test.py"],
+            ).ok)
+            command_drift = context.record_stage(run, "1", "green", command="other cmd", exit_code=0)
+            self.assertEqual(command_drift.error.code, "frozen_red_mismatch")
+            test_path.write_text("changed fixture\n", encoding="utf-8")
+            fixture_drift = context.record_stage(run, "1", "green", command="test cmd", exit_code=0)
+            self.assertEqual(fixture_drift.error.code, "frozen_red_mismatch")
+            test_path.write_text("test bytes\n", encoding="utf-8")
             self.assertTrue(context.record_stage(run, "1", "green", command="test cmd", exit_code=0).ok)
             self.assertTrue(context.record_stage(run, "1", "refactor", command="test cmd", exit_code=0).ok)
             self.assertTrue(context.record_commit(run, "1", commit).ok)
-            self.assertTrue(context.record_safety_check(run, passed=True, summary="safe paths checked").ok)
             completed = context.complete_run(run)
             self.assertTrue(completed.ok, completed.error)
             self.assertEqual(completed.value["event_type"], "implementation_green")
             status = json.loads((run.evidence_path / "current-status").read_text(encoding="utf-8"))
             self.assertEqual(status["completed_steps"], ["1"])
             self.assertEqual(status["last_event"]["event_type"], "implementation_green")
+
+    def test_check_without_changed_paths_needs_no_commit(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+            commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            branch = subprocess.run(["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True).stdout.strip()
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", commit, "text", (), ())
+            run = repository.bind_run(
+                root, plan, run_id="run-1", delegated=False,
+                steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+            ).value
+            checked = context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            })
+            self.assertTrue(checked.ok, checked.error)
+            self.assertEqual(checked.value["changed_paths"], [])
+            self.assertTrue(context.complete_run(run).ok)
+
+    def test_dangerous_commit_path_cannot_be_recorded_or_completed(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+            approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            branch = subprocess.run(["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True).stdout.strip()
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), (".env.production",))
+            run = repository.bind_run(
+                root, plan, run_id="run-1", delegated=False,
+                steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+            ).value
+            (root / ".env.production").write_text("SECRET=value\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "-f", ".env.production"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "dangerous"], check=True)
+            dangerous = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [".env.production"],
+            })
+            recorded = context.record_commit(run, "1", dangerous)
+            self.assertFalse(recorded.ok)
+            self.assertEqual(recorded.error.code, "dangerous_path")
+            self.assertFalse(context.complete_run(run).ok)
 
     def test_red_test_snapshot_freezes_files_and_command(self) -> None:
         snapshot = tdd.freeze_test(

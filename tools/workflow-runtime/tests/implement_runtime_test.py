@@ -206,8 +206,6 @@ class ImplementPlanBindingTest(unittest.TestCase):
         context.append_event(run, "check", {
             "step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": [],
         })
-        context.record_commit(run, "1", commit)
-        context.record_safety_check(run, passed=True, summary="safe")
         self.assertTrue(context.complete_run(run).ok)
         self.assertEqual(resume.discover_unfinished(root, "plan-a").value, [])
 
@@ -234,8 +232,23 @@ class ImplementPlanBindingTest(unittest.TestCase):
         commands = [
             ["bind", "--repo", str(root), "--plan-path", "docs/plans/example.md", "--run-id", "run-1",
              "--branch", branch, "--worktree", str(root), "--step", "1:check"],
-            ["stage", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
-             "--step", "1", "--phase", "check", "--command", "lint", "--exit-code", "0"],
+        ]
+        for command in commands:
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.main(command), 0)
+        (root / "src").mkdir()
+        (root / "src/app.py").write_text("value = 1\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "src/app.py"], check=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main(
+                ["stage", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
+                 "--step", "1", "--phase", "check", "--command", "lint", "--exit-code", "0"]
+            ), 0)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "implement"], check=True)
+        commit = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True
+        ).stdout.strip()
+        commands = [
             ["record-commit", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
              "--step", "1", "--commit", commit],
             ["stop", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1", "--reason", "permission"],

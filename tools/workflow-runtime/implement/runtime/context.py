@@ -8,12 +8,14 @@ from pathlib import Path
 import subprocess
 
 from runtime.storage import canonical_json, read_json, write_atomic, write_once
+from runtime import tdd
+from runtime.staging import assess_paths
 from runtime.types import COMMIT_SHA, Run, RuntimeResult, failure, ok
 
 EVENT_TYPES = {
     "worktree-bound", "red", "green", "refactor", "check", "artifact", "external",
     "commit", "human_gate", "delegated", "returned", "resumed", "rebound", "recovering",
-    "stopped", "safety-check", "implementation_green",
+    "stopped", "implementation_green",
 }
 
 def document_context(binding: dict, current_commit: str, changed_documents: list[str]) -> RuntimeResult:
@@ -115,8 +117,6 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
             required = "refactor" if completion == "test" else completion
             if not prior or prior[-1].get("event_type") != required:
                 return failure("transition_invalid", "commit needs completed step evidence")
-    if event_type == "safety-check" and (fields.get("passed") is not True or not str(fields.get("summary", "")).strip()):
-        return failure("safety_check_invalid", "safety check needs a passing bounded summary")
     return ok()
 
 def _status(binding: dict, events: list[dict], event: dict) -> dict:
@@ -172,16 +172,76 @@ def _append_event(
         return ok({**event, "path": path})
 
 def append_event(run: Run, event_type: str, fields: dict, *, actor: str | None = None) -> RuntimeResult:
-    return _append_event(run, event_type, fields, actor=actor)
+    prepared = dict(fields)
+    if event_type in {"red", "green", "refactor", "check", "artifact", "external"}:
+        binding = read_json(run.binding_path)
+        if not binding.ok:
+            return binding
+        if binding.value.get("worktree"):
+            staged = _staged_paths(_worktree(binding.value, run))
+            if not staged.ok:
+                return staged
+            assessed = _safety(binding.value, staged.value, prepared.get("unplanned_reasons"))
+            if not assessed.ok:
+                return assessed
+            prepared["changed_paths"] = assessed.value["paths"]
+            prepared["safety"] = assessed.value
+        else:
+            prepared["changed_paths"] = []
+            prepared["safety"] = {"paths": [], "unplanned": []}
+    return _append_event(run, event_type, prepared, actor=actor)
 
-def record_stage(run: Run, step: str, phase: str, *, command: str, exit_code: int) -> RuntimeResult:
-    return append_event(run, phase, {"step": step, "command": command, "exit_code": exit_code})
+def record_stage(
+    run: Run, step: str, phase: str, *, command: str, exit_code: int,
+    test_paths: list[str] | None = None,
+) -> RuntimeResult:
+    binding = read_json(run.binding_path)
+    events = load_events(run)
+    if not binding.ok or not events.ok:
+        return binding if not binding.ok else events
+    worktree = _worktree(binding.value, run)
+    if phase == "red":
+        paths = sorted(set(test_paths or []))
+        if not paths:
+            return failure("frozen_red_unavailable", "RED needs test and fixture paths")
+        current = _test_bytes(worktree, paths)
+        if not current.ok:
+            return current
+        snapshot = tdd.freeze_test(current.value, command=command)
+    else:
+        red = next((event for event in reversed(events.value) if event.get("step") == step and event.get("event_type") == "red"), None)
+        if red is None:
+            return failure("transition_invalid", f"{phase.upper()} needs a prior RED")
+        current = _test_bytes(worktree, list(red["snapshot"]["files"]))
+        if not current.ok:
+            return current
+        snapshot = tdd.freeze_test(current.value, command=command)
+        if snapshot != red["snapshot"]:
+            return failure("frozen_red_mismatch", "test, fixture, or command differs from the accepted RED")
+    return append_event(run, phase, {
+        "step": step, "command": command, "exit_code": exit_code, "snapshot": snapshot,
+    })
 
-def record_commit(run: Run, step: str, commit: str, *, recorded_late: bool = False) -> RuntimeResult:
-    return append_event(run, "commit", {"step": step, "commit": commit, "recorded_late": recorded_late})
-
-def record_safety_check(run: Run, *, passed: bool, summary: str) -> RuntimeResult:
-    return append_event(run, "safety-check", {"passed": passed, "summary": summary})
+def record_commit(
+    run: Run, step: str, commit: str, *, recorded_late: bool = False,
+    unplanned_reasons: dict[str, str] | None = None,
+) -> RuntimeResult:
+    binding = read_json(run.binding_path)
+    if not binding.ok:
+        return binding
+    if binding.value.get("worktree"):
+        paths = _commit_paths(_worktree(binding.value, run), commit)
+        if not paths.ok:
+            return paths
+        assessed = _safety(binding.value, paths.value, unplanned_reasons)
+        if not assessed.ok:
+            return assessed
+        safety = assessed.value
+    else:
+        safety = {"paths": [], "unplanned": []}
+    return append_event(run, "commit", {
+        "step": step, "commit": commit, "recorded_late": recorded_late, "safety": safety,
+    })
 
 def stop_run(run: Run, reason: str) -> RuntimeResult:
     return append_event(run, "stopped", {"reason": reason})
@@ -191,6 +251,44 @@ def rebound_run(run: Run, approval_commit: str, reason: str) -> RuntimeResult:
 
 def _git(worktree: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", "-C", str(worktree), *args], text=True, capture_output=True, check=False)
+
+def _worktree(binding: dict, run: Run) -> Path:
+    return Path(binding.get("worktree") or run.root)
+
+def _staged_paths(worktree: Path) -> RuntimeResult:
+    result = _git(worktree, "diff", "--cached", "--name-only", "--diff-filter=ACMR")
+    if result.returncode != 0:
+        return failure("git_inspection_failed", "staged paths could not be inspected")
+    return ok(sorted(filter(None, result.stdout.splitlines())))
+
+def _commit_paths(worktree: Path, commit: str) -> RuntimeResult:
+    if _git(worktree, "cat-file", "-e", f"{commit}^{{commit}}").returncode != 0:
+        return failure("commit_invalid", "commit evidence names a missing Git commit")
+    result = _git(worktree, "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", commit)
+    if result.returncode != 0:
+        return failure("git_inspection_failed", "commit paths could not be inspected")
+    return ok(sorted(filter(None, result.stdout.splitlines())))
+
+def _commits_after(worktree: Path, approval_commit: str) -> RuntimeResult:
+    result = _git(worktree, "rev-list", "--reverse", f"{approval_commit}..HEAD")
+    if result.returncode != 0:
+        return failure("git_inspection_failed", "implementation commit range could not be inspected")
+    return ok(list(filter(None, result.stdout.splitlines())))
+
+def _safety(binding: dict, paths: list[str], reasons: dict[str, str] | None = None) -> RuntimeResult:
+    assessed = assess_paths(paths, expected_paths=binding.get("expected_paths", []), reasons=reasons or {})
+    if not assessed.ok:
+        return assessed
+    return ok({"paths": assessed.value["paths"], "unplanned": assessed.value["unplanned"]})
+
+def _test_bytes(worktree: Path, paths: list[str]) -> RuntimeResult:
+    values: dict[str, bytes] = {}
+    for relative in paths:
+        target = worktree / relative
+        if target.is_symlink() or not target.is_file():
+            return failure("frozen_red_unavailable", f"test or fixture is unavailable: {relative}")
+        values[relative] = target.read_bytes()
+    return ok(values)
 
 def complete_run(run: Run) -> RuntimeResult:
     binding = read_json(run.binding_path)
@@ -204,12 +302,15 @@ def complete_run(run: Run) -> RuntimeResult:
     for step in binding.value.get("steps", []):
         step_events = _events_for_step(events.value, step["id"])
         required = "refactor" if step["completion"] == "test" else step["completion"]
-        if not any(event.get("event_type") == required for event in step_events) or not any(
-            event.get("event_type") == "commit" for event in step_events
-        ):
+        evidence = next((event for event in reversed(step_events) if event.get("event_type") == required), None)
+        if evidence is None or not isinstance(evidence.get("safety"), dict):
             return failure("completion_invalid", f"step is incomplete: {step['id']}")
-    if not any(event.get("event_type") == "safety-check" and event.get("passed") is True for event in events.value):
-        return failure("completion_invalid", "passing safety evidence is missing")
+        commit_required = step["completion"] in {"test", "artifact"} or bool(evidence.get("changed_paths"))
+        commits = [event for event in step_events if event.get("event_type") == "commit"]
+        if commit_required and not commits:
+            return failure("completion_invalid", f"step commit is missing: {step['id']}")
+        if any(not isinstance(event.get("safety"), dict) for event in commits):
+            return failure("completion_invalid", f"commit safety is missing: {step['id']}")
     if events.value[-1].get("event_type") == "stopped":
         return failure("completion_invalid", "stopped run must be resumed or rebound")
     worktree = Path(binding.value.get("worktree") or "")
@@ -222,6 +323,13 @@ def complete_run(run: Run) -> RuntimeResult:
     for event in events.value:
         if event.get("event_type") == "commit" and _git(worktree, "cat-file", "-e", f"{event['commit']}^{{commit}}").returncode != 0:
             return failure("commit_invalid", f"recorded commit does not exist: {event['commit']}")
+    history = _commits_after(worktree, binding.value["approval_commit"])
+    if not history.ok:
+        return history
+    recorded = {event["commit"] for event in events.value if event.get("event_type") == "commit"}
+    unexplained = [commit for commit in history.value if commit not in recorded]
+    if unexplained:
+        return failure("commit_unexplained", "implementation history contains an unrecorded commit", unexplained[0])
     return _append_event(
         run, "implementation_green",
         {"completed_steps": [step["id"] for step in binding.value.get("steps", [])]}, derived=True,
