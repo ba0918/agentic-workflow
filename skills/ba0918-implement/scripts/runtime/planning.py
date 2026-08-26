@@ -49,4 +49,5 @@ def resolve_plan(project_root: Path, *, plan_path: str | None = None) -> Runtime
         approved.text,
         approved.specifications,
         approved.scope,
+        approved.specification_changes,
     ))

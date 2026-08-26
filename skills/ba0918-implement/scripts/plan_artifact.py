@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path, PurePosixPath
+import difflib
 import os
 import re
 import subprocess
@@ -38,9 +39,20 @@ class ApprovedPlan(NamedTuple):
     approval_commit: str
     specifications: tuple[TargetSpecification, ...]
     scope: tuple[str, ...]
+    specification_changes: tuple["SpecificationChange", ...]
+
+class SpecificationChange(NamedTuple):
+    path: str
+    approved_text: str
+    current_text: str
+    diff: str
+    current_commit: str
 
 def _run_git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", "-C", str(root), *args], text=True, capture_output=True, check=False)
+
+def _run_git_bytes(root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=False)
 
 def _target_specification_block(text: str) -> str:
     match = re.search(r"^\*\*Target specifications:\*\*[ \t]*\n+(.*?)(?=\n\s*\n|\Z)", text, re.MULTILINE | re.DOTALL)
@@ -129,6 +141,33 @@ def validate_plan(project_root: Path, text: str, *, approval_commit: str) -> Non
             if not _heading_exists(committed.stdout, section):
                 raise TargetSpecificationMismatch(f"target section is missing: {specification.path}#{section}")
 
+def _approved_specifications(
+    project_root: Path, approval_commit: str, specifications: tuple[TargetSpecification, ...]
+) -> tuple[SpecificationChange, ...]:
+    head = _run_git(project_root, "rev-parse", "HEAD")
+    current_commit = head.stdout.strip() if head.returncode == 0 else ""
+    changes: list[SpecificationChange] = []
+    for specification in specifications:
+        approved = _run_git(project_root, "show", f"{approval_commit}:{specification.path}")
+        if approved.returncode != 0:
+            raise TargetSpecificationMismatch(f"target specification is not committed: {specification.path}")
+        for section in specification.sections:
+            if not _heading_exists(approved.stdout, section):
+                raise TargetSpecificationMismatch(f"target section is missing: {specification.path}#{section}")
+        current = _run_git(project_root, "show", f"HEAD:{specification.path}")
+        current_text = current.stdout if current.returncode == 0 else ""
+        if current_text != approved.stdout:
+            difference = "".join(difflib.unified_diff(
+                approved.stdout.splitlines(keepends=True),
+                current_text.splitlines(keepends=True),
+                fromfile=f"{approval_commit}:{specification.path}",
+                tofile=f"{current_commit}:{specification.path}",
+            ))
+            changes.append(SpecificationChange(
+                specification.path, approved.stdout, current_text, difference, current_commit
+            ))
+    return tuple(changes)
+
 def read_plan(project_root: Path, relative_path: str) -> ApprovedPlan:
     target = _safe_plan_path(project_root, relative_path)
     if not target.is_file():
@@ -137,11 +176,16 @@ def read_plan(project_root: Path, relative_path: str) -> ApprovedPlan:
     commit = approval.stdout.strip()
     if approval.returncode != 0 or not commit:
         raise PlanArtifactError("plan has not been approved in Git")
-    committed = _run_git(project_root, "show", f"{commit}:{relative_path}")
+    committed = _run_git_bytes(project_root, "show", f"{commit}:{relative_path}")
     if committed.returncode != 0:
         raise PlanArtifactError("approved plan cannot be read from Git")
-    text = target.read_text(encoding="utf-8")
+    if target.read_bytes() != committed.stdout:
+        raise PlanArtifactError("working plan bytes differ from the approval commit")
+    try:
+        text = committed.stdout.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise PlanArtifactError("approved plan is not UTF-8") from error
     header = read_plan_header(text)
     scope = read_plan_scope(text)
-    validate_plan(project_root, text, approval_commit=commit)
-    return ApprovedPlan(relative_path, text, commit, header.specifications, scope)
+    changes = _approved_specifications(project_root, commit, header.specifications)
+    return ApprovedPlan(relative_path, text, commit, header.specifications, scope, changes)

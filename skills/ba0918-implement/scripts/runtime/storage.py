@@ -26,6 +26,22 @@ def write_once(path: Path, data: bytes) -> Path:
         temporary.unlink(missing_ok=True)
     return path
 
+def write_atomic(path: Path, data: bytes) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if path.is_symlink():
+            raise OSError(f"refusing to replace symlink: {path}")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return path
+
 def read_json(path: Path) -> RuntimeResult:
     if path.is_symlink() or not path.is_file():
         return failure("evidence_unavailable", f"evidence is unavailable: {path.name}")

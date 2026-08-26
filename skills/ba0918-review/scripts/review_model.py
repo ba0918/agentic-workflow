@@ -1,6 +1,7 @@
 """Pure review-finding rules."""
 import hashlib
 import json
+import re
 from typing import Any, NamedTuple
 
 SEVERITIES = {"security", "critical", "warn", "info"}
@@ -48,6 +49,20 @@ def validate_finding(finding: object) -> Result:
         return failure("finding_action_invalid", "finding action is invalid")
     if finding.get("state") not in STATES:
         return failure("finding_state_invalid", "finding state must be open or closed")
+    specification = finding.get("specification")
+    evidence = finding.get("evidence")
+    required_text = ("root_cause", "profile")
+    if (
+        not isinstance(specification, dict)
+        or not str(specification.get("path", "")).strip()
+        or not str(specification.get("section", "")).strip()
+        or not isinstance(evidence, dict)
+        or not str(evidence.get("path", "")).strip()
+        or not str(evidence.get("observation", "")).strip()
+        or any(not str(finding.get(field, "")).strip() for field in required_text)
+        or re.fullmatch(r"[0-9a-f]{40,64}", str(finding.get("spec_commit", ""))) is None
+    ):
+        return failure("finding_field_missing", "finding needs specification, evidence, root cause, specification version, and profile")
     if finding.get("severity") == "info" and finding.get("action") != "record_only":
         return failure("finding_action_invalid", "info findings are record-only")
     if finding.get("action") == "human_judgment":
@@ -55,6 +70,8 @@ def validate_finding(finding: object) -> Result:
             return failure("finding_oracle_missing", "human judgment needs an unavailable-oracle reason")
     elif finding.get("severity") != "info" and not str(finding.get("oracle", "")).strip():
         return failure("finding_oracle_missing", "fixable finding needs an oracle")
+    elif finding.get("severity") != "info" and finding.get("oracle_status") != "failing":
+        return failure("finding_oracle_not_failing", "fixable finding oracle must be observed failing before admission")
     if finding.get("id") != finding_id(finding):
         return failure("finding_id_invalid", "finding id does not match its verification contract")
     return ok(dict(finding))
