@@ -178,6 +178,30 @@ class ReviewRuntimeTest(unittest.TestCase):
             actions.append(runtime.record_progress(root, binding).value["next_action"])
         self.assertEqual(actions, ["diagnose", "change_method", "human_judgment"])
 
+    def test_human_decision_closes_an_open_finding_without_oracle_or_commit(self) -> None:
+        root, _, _ = self.repository()
+        binding = runtime.resolve_input(root, review_id="review-1", branch="feature", base="main").value
+        runtime.bind_review(root, binding, model="model-x")
+        runtime.begin_stage(root, binding, reviewer_context="reviewer-initial")
+        item = finding(action="human_judgment", oracle="", oracle_status="unavailable",
+                       oracle_unavailable_reason="scope decision", spec_commit=binding["spec_commit"])
+        self.assertTrue(runtime.record_findings(
+            root, binding, stage="initial", findings=[item], safety_check=True,
+            reviewer_context="reviewer-initial",
+        ).ok)
+        missing_reason = runtime.record_human_decision(
+            root, binding, item["id"], decision="do_not_fix", reason="",
+        )
+        self.assertEqual(missing_reason.error.code, "human_decision_invalid")
+        decided = runtime.record_human_decision(
+            root, binding, item["id"], decision="do_not_fix", reason="accepted risk",
+        )
+        self.assertTrue(decided.ok, decided.error)
+        self.assertEqual(decided.value["event_type"], "human-finding-decided")
+        self.assertEqual(runtime.current_findings(runtime.load_events(root, binding).value)[0]["state"], "closed")
+        later = runtime.record_targeted_result(root, binding, item["id"], oracle_exit_code=0, fix_commits=[])
+        self.assertEqual(later.error.code, "finding_not_open")
+
     def test_cli_binds_real_branch_and_starts_initial_review(self) -> None:
         root, _, _ = self.repository()
         output = io.StringIO()

@@ -316,6 +316,8 @@ def current_findings(events: list[dict]) -> list[dict]:
             and event.get("finding_id") in findings
         ):
             findings[event["finding_id"]]["state"] = "closed"
+        elif event.get("event_type") == "human-finding-decided" and event.get("finding_id") in findings:
+            findings[event["finding_id"]]["state"] = "closed"
     return list(findings.values())
 
 def begin_stage(root: Path, binding: dict, *, reviewer_context: str) -> RuntimeResult:
@@ -437,6 +439,21 @@ def close_finding(
         return failure("fix_commit_unlinked", "every fix commit must exist and carry the finding trailer")
     return append_event(root, binding, "targeted-review-result", {
         "finding_id": finding_id, "oracle_exit_code": oracle_exit_code, "fix_commits": fix_commits,
+    })
+
+def record_human_decision(
+    root: Path, binding: dict, finding_id: str, *, decision: str, reason: str,
+) -> RuntimeResult:
+    events = load_events(root, binding)
+    if not events.ok:
+        return events
+    item = next((candidate for candidate in current_findings(events.value) if candidate["id"] == finding_id), None)
+    if item is None or item.get("state") != "open":
+        return failure("finding_not_open", "only an open admitted finding can receive a human decision")
+    if not decision.strip() or not reason.strip():
+        return failure("human_decision_invalid", "human decision and reason must be non-empty")
+    return append_event(root, binding, "human-finding-decided", {
+        "finding_id": finding_id, "decision": decision.strip(), "reason": reason.strip(),
     })
 
 def record_targeted_result(
@@ -603,6 +620,11 @@ def main(argv: list[str] | None = None) -> int:
     close.add_argument("--finding-id", required=True)
     close.add_argument("--oracle-exit-code", type=int, required=True)
     close.add_argument("--fix-commit", action="append", default=[])
+    human = commands.add_parser("human-decision")
+    _selector(human)
+    human.add_argument("--finding-id", required=True)
+    human.add_argument("--decision", required=True)
+    human.add_argument("--reason", required=True)
     progress = commands.add_parser("progress")
     _selector(progress)
     stale = commands.add_parser("stale")
@@ -655,6 +677,10 @@ def main(argv: list[str] | None = None) -> int:
         result = close_finding(
             root, binding.value, args.finding_id,
             oracle_exit_code=args.oracle_exit_code, fix_commits=args.fix_commit,
+        )
+    elif args.command == "human-decision":
+        result = record_human_decision(
+            root, binding.value, args.finding_id, decision=args.decision, reason=args.reason,
         )
     elif args.command == "progress":
         result = record_progress(root, binding.value)
