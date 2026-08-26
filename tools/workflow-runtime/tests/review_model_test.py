@@ -83,11 +83,11 @@ class ReviewModelTest(unittest.TestCase):
         self.assertEqual(model.next_review_stage(events, [open_finding]), "targeted")
         self.assertEqual(model.next_review_stage(events, [closed]), "ready-to-complete")
 
-    def test_review_is_complete_only_after_distinct_completion_event(self) -> None:
+    def test_review_completion_is_derived_from_final_results_and_closed_findings(self) -> None:
         findings = [{**finding(), "state": "closed"}]
         final_results = [{"event_type": "final-full-review-started"}, {"event_type": "final-findings-recorded"}]
-        self.assertFalse(model.review_complete(final_results, findings))
-        self.assertTrue(model.review_complete(final_results + [{"event_type": "review-completed"}], findings))
+        self.assertTrue(model.review_complete(final_results, findings))
+        self.assertFalse(model.review_complete(final_results, [{**finding(), "state": "open"}]))
 
     def test_unrelated_minor_findings_are_observations_but_serious_regressions_join_review(self) -> None:
         warn = finding(severity="warn")

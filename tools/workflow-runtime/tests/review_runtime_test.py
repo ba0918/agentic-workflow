@@ -65,10 +65,11 @@ class ReviewRuntimeTest(unittest.TestCase):
         (store / "binding.json").write_text(json.dumps(binding), encoding="utf-8")
         events = [
             {"sequence": 1, "event_type": "worktree-bound", "branch": "feature", "worktree": str(root)},
-            {"sequence": 2, "event_type": "check", "step": "1", "checks": [{"command": "lint", "exit_code": 0}]},
-            {"sequence": 3, "event_type": "commit", "step": "1", "commit": head},
-            {"sequence": 4, "event_type": "safety-check", "passed": True, "summary": "safe"},
-            {"sequence": 5, "event_type": "implementation_green", "completed_steps": ["1"]},
+            {"sequence": 2, "event_type": "check", "step": "1", "checks": [{"command": "lint", "exit_code": 0}],
+             "changed_paths": ["app.txt"], "safety": {"paths": ["app.txt"], "unplanned": []}},
+            {"sequence": 3, "event_type": "commit", "step": "1", "commit": head,
+             "safety": {"paths": ["app.txt"], "unplanned": []}},
+            {"sequence": 4, "event_type": "implementation_green", "completed_steps": ["1"]},
         ]
         for event in events:
             (store / f"{event['sequence']:06d}-{event['event_type']}.json").write_text(json.dumps(event), encoding="utf-8")
@@ -88,7 +89,7 @@ class ReviewRuntimeTest(unittest.TestCase):
         root, base, head = self.execution_fixture()
         self.assertEqual(runtime.resolve_input(root, review_id="bad", branch="missing", base="main").error.code, "branch_not_found")
         self.assertEqual(runtime.resolve_input(root, review_id="bad", base="f" * 40, head=head).error.code, "commit_not_found")
-        green = root / ".agents/evidence/plan-a/run-1/000005-implementation_green.json"
+        green = root / ".agents/evidence/plan-a/run-1/000004-implementation_green.json"
         green.unlink()
         self.assertEqual(
             runtime.resolve_input(root, review_id="bad", plan_key="plan-a", run_id="run-1").error.code,
@@ -120,7 +121,8 @@ class ReviewRuntimeTest(unittest.TestCase):
         ).ok)
         completed = runtime.complete_review(root, binding)
         self.assertTrue(completed.ok, completed.error)
-        self.assertEqual(completed.value["event_type"], "review-completed")
+        self.assertEqual(completed.value["event_type"], "review-complete")
+        self.assertNotIn("review-completed", [event["event_type"] for event in runtime.load_events(root, binding).value])
 
     def test_targeted_close_requires_trailer_and_progress_then_stale_can_rebound(self) -> None:
         root, _, _ = self.repository()
@@ -131,6 +133,8 @@ class ReviewRuntimeTest(unittest.TestCase):
         self.assertTrue(runtime.record_findings(
             root, binding, stage="initial", findings=[item], safety_check=True, reviewer_context="reviewer-initial",
         ).ok)
+        bypass = runtime.close_finding(root, binding, item["id"], oracle_exit_code=0, fix_commits=[])
+        self.assertEqual(bypass.error.code, "targeted_review_required")
         self.assertEqual(runtime.begin_stage(root, binding, reviewer_context="reviewer-targeted").value["event_type"], "targeted-review-started")
         (root / "fixed").write_text("fixed\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(root), "add", "fixed"], check=True)
@@ -138,7 +142,11 @@ class ReviewRuntimeTest(unittest.TestCase):
         fix_commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
         closed = runtime.close_finding(root, binding, item["id"], oracle_exit_code=0, fix_commits=[fix_commit])
         self.assertTrue(closed.ok, closed.error)
-        self.assertTrue(runtime.record_progress(root, binding, before=[item], after=[{**item, "state": "closed"}]).ok)
+        self.assertEqual(closed.value["event_type"], "targeted-review-result")
+        progress = runtime.record_progress(root, binding)
+        self.assertTrue(progress.ok, progress.error)
+        self.assertEqual(progress.value["before"], (0, 1, 0))
+        self.assertEqual(progress.value["after"], (0, 0, 0))
         self.assertTrue(runtime.mark_stale(root, binding, reason="important spec change").ok)
         self.assertEqual(runtime.begin_stage(root, binding, reviewer_context="blocked").error.code, "findings_stale")
         self.assertTrue(runtime.rebound_findings(root, binding, spec_commit=fix_commit, reason="human approved revision").ok)
@@ -158,10 +166,16 @@ class ReviewRuntimeTest(unittest.TestCase):
         added = runtime.add_findings(root, binding, candidates=[related, unrelated], related_ids={related["id"]})
         self.assertEqual([item["id"] for item in added.value["findings"]], [related["id"]])
         self.assertEqual([item["id"] for item in added.value["terminal_observations"]], [unrelated["id"]])
-        actions = [
-            runtime.record_progress(root, binding, before=[original], after=[original]).value["next_action"]
-            for _ in range(3)
-        ]
+        actions = []
+        for index in range(3):
+            self.assertTrue(runtime.begin_stage(root, binding, reviewer_context=f"targeted-{index}").ok)
+            self.assertTrue(runtime.record_targeted_result(
+                root, binding, original["id"], oracle_exit_code=1, fix_commits=[],
+            ).ok)
+            self.assertTrue(runtime.record_targeted_result(
+                root, binding, related["id"], oracle_exit_code=1, fix_commits=[],
+            ).ok)
+            actions.append(runtime.record_progress(root, binding).value["next_action"])
         self.assertEqual(actions, ["diagnose", "change_method", "human_judgment"])
 
     def test_cli_binds_real_branch_and_starts_initial_review(self) -> None:

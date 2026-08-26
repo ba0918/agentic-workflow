@@ -144,12 +144,15 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
     for step in binding["steps"]:
         step_events = [event for event in events if event.get("step") == step["id"]]
         required = "refactor" if step.get("completion") == "test" else step.get("completion")
-        if not any(event.get("event_type") == required for event in step_events) or not any(
-            event.get("event_type") == "commit" for event in step_events
-        ):
+        evidence = next((event for event in reversed(step_events) if event.get("event_type") == required), None)
+        if evidence is None or not isinstance(evidence.get("safety"), dict):
             return failure("execution_input_invalid", f"implementation step evidence is incomplete: {step['id']}")
-    if not any(event.get("event_type") == "safety-check" and event.get("passed") is True for event in events):
-        return failure("execution_input_invalid", "implementation safety check is missing")
+        commit_required = step.get("completion") in {"test", "artifact"} or bool(evidence.get("changed_paths"))
+        step_commits = [event for event in step_events if event.get("event_type") == "commit"]
+        if commit_required and not step_commits:
+            return failure("execution_input_invalid", f"implementation step commit is missing: {step['id']}")
+        if any(not isinstance(event.get("safety"), dict) for event in step_commits):
+            return failure("execution_input_invalid", f"implementation commit safety is missing: {step['id']}")
     worktree = Path(str(binding.get("worktree", "")))
     branch = binding.get("branch")
     if not worktree.is_dir() or _git(worktree, "branch", "--show-current").stdout.strip() != branch:
@@ -268,7 +271,7 @@ def append_event(root: Path, binding: dict, event_type: str, fields: dict) -> Ru
     loaded = load_events(root, binding)
     if not loaded.ok:
         return loaded
-    if loaded.value and loaded.value[-1].get("event_type") == "review-completed":
+    if review_model.review_complete(loaded.value, current_findings(loaded.value)):
         return failure("review_already_completed", "completed review cannot be extended")
     sequence = len(loaded.value) + 1
     event = {"version": 1, "sequence": sequence, "event_type": event_type, **fields}
@@ -310,7 +313,11 @@ def current_findings(events: list[dict]) -> list[dict]:
         if event.get("event_type") in {"initial-findings-recorded", "final-findings-recorded", "findings-added"}:
             for item in event.get("findings", []):
                 findings[item["id"]] = dict(item)
-        elif event.get("event_type") == "finding-closed" and event.get("finding_id") in findings:
+        elif (
+            event.get("event_type") == "targeted-review-result"
+            and event.get("oracle_exit_code") == 0
+            and event.get("finding_id") in findings
+        ):
             findings[event["finding_id"]]["state"] = "closed"
     return list(findings.values())
 
@@ -333,9 +340,22 @@ def begin_stage(root: Path, binding: dict, *, reviewer_context: str) -> RuntimeR
         return failure("stage_results_required", "initial full review results must be recorded")
     findings = current_findings(events)
     if any(item.get("state") == "open" for item in findings):
-        if events[-1].get("event_type") == "targeted-review-started":
+        targeted_positions = [index for index, event in enumerate(events) if event.get("event_type") == "targeted-review-started"]
+        if targeted_positions:
+            latest = targeted_positions[-1]
+            required_ids = set(events[latest].get("finding_ids", []))
+            result_ids = {
+                event.get("finding_id") for event in events[latest + 1:]
+                if event.get("event_type") == "targeted-review-result"
+            }
+        else:
+            required_ids = result_ids = set()
+        if required_ids - result_ids:
             return failure("stage_results_required", "targeted review must update findings before another stage")
-        return append_event(root, binding, "targeted-review-started", {"reviewer_context": reviewer_context})
+        return append_event(root, binding, "targeted-review-started", {
+            "reviewer_context": reviewer_context,
+            "finding_ids": sorted(item["id"] for item in findings if item.get("state") == "open"),
+        })
     if final_started is None:
         targeted_positions = [index for index, event in enumerate(events) if event.get("event_type") == "targeted-review-started"]
         if targeted_positions and not any(
@@ -348,7 +368,10 @@ def begin_stage(root: Path, binding: dict, *, reviewer_context: str) -> RuntimeR
     if not final_results:
         return failure("stage_results_required", "final full review results must be recorded")
     if any(item.get("state") == "open" for item in current_findings(events)):
-        return append_event(root, binding, "targeted-review-started", {"reviewer_context": reviewer_context})
+        return append_event(root, binding, "targeted-review-started", {
+            "reviewer_context": reviewer_context,
+            "finding_ids": sorted(item["id"] for item in current_findings(events) if item.get("state") == "open"),
+        })
     return ok({"event_type": "ready-to-complete"})
 
 def record_findings(
@@ -399,11 +422,51 @@ def close_finding(
     item = next((candidate for candidate in current_findings(events.value) if candidate["id"] == finding_id), None)
     if item is None or item.get("state") != "open":
         return failure("finding_not_open", "only an open admitted finding can close")
+    targeted = [
+        (index, event) for index, event in enumerate(events.value)
+        if event.get("event_type") == "targeted-review-started" and finding_id in event.get("finding_ids", [])
+    ]
+    if not targeted:
+        return failure("targeted_review_required", "finding can close only after its targeted review starts")
+    latest_index, _ = targeted[-1]
+    if any(
+        event.get("event_type") == "targeted-review-result" and event.get("finding_id") == finding_id
+        for event in events.value[latest_index + 1:]
+    ):
+        return failure("targeted_result_exists", "targeted review already recorded this finding result")
     if oracle_exit_code != 0:
         return failure("finding_oracle_failed", "finding oracle still fails")
     if not fix_commits or any(not _commit_has_trailer(root, commit, finding_id) for commit in fix_commits):
         return failure("fix_commit_unlinked", "every fix commit must exist and carry the finding trailer")
-    return append_event(root, binding, "finding-closed", {
+    return append_event(root, binding, "targeted-review-result", {
+        "finding_id": finding_id, "oracle_exit_code": oracle_exit_code, "fix_commits": fix_commits,
+    })
+
+def record_targeted_result(
+    root: Path, binding: dict, finding_id: str, *, oracle_exit_code: int, fix_commits: list[str],
+) -> RuntimeResult:
+    if oracle_exit_code == 0:
+        return close_finding(
+            root, binding, finding_id, oracle_exit_code=oracle_exit_code, fix_commits=fix_commits,
+        )
+    events = load_events(root, binding)
+    if not events.ok:
+        return events
+    targeted = [
+        (index, event) for index, event in enumerate(events.value)
+        if event.get("event_type") == "targeted-review-started" and finding_id in event.get("finding_ids", [])
+    ]
+    if not targeted:
+        return failure("targeted_review_required", "finding result needs a corresponding targeted review")
+    latest_index, _ = targeted[-1]
+    if any(
+        event.get("event_type") == "targeted-review-result" and event.get("finding_id") == finding_id
+        for event in events.value[latest_index + 1:]
+    ):
+        return failure("targeted_result_exists", "targeted review already recorded this finding result")
+    if any(not _commit_has_trailer(root, commit, finding_id) for commit in fix_commits):
+        return failure("fix_commit_unlinked", "every fix commit must exist and carry the finding trailer")
+    return append_event(root, binding, "targeted-review-result", {
         "finding_id": finding_id, "oracle_exit_code": oracle_exit_code, "fix_commits": fix_commits,
     })
 
@@ -423,16 +486,30 @@ def add_findings(root: Path, binding: dict, *, candidates: list[dict], related_i
         "findings": admitted, "terminal_observations": observations,
     })
 
-def record_progress(root: Path, binding: dict, *, before: list[dict], after: list[dict]) -> RuntimeResult:
-    progressed = review_model.made_progress(before, after)
+def record_progress(root: Path, binding: dict) -> RuntimeResult:
     events = load_events(root, binding)
     if not events.ok:
         return events
+    positions = [index for index, event in enumerate(events.value) if event.get("event_type") == "targeted-review-started"]
+    if not positions:
+        return failure("targeted_review_required", "progress needs a targeted review event range")
+    latest = positions[-1]
+    finding_ids = set(events.value[latest].get("finding_ids", []))
+    result_ids = {
+        event.get("finding_id") for event in events.value[latest + 1:]
+        if event.get("event_type") == "targeted-review-result"
+    }
+    if finding_ids - result_ids:
+        return failure("targeted_results_required", "progress needs every targeted finding result")
+    before = current_findings(events.value[:latest])
+    after = current_findings(events.value)
+    progressed = review_model.made_progress(before, after)
     stalled = 0
     for event in reversed(events.value):
-        if event.get("event_type") != "progress-assessed" or event.get("progressed") is True:
-            break
-        stalled += 1
+        if event.get("event_type") == "progress-assessed":
+            if event.get("progressed") is True:
+                break
+            stalled += 1
     actions = ("diagnose", "change_method", "human_judgment")
     next_action = "continue" if progressed else actions[min(stalled, len(actions) - 1)]
     return append_event(root, binding, "progress-assessed", {
@@ -471,7 +548,7 @@ def complete_review(root: Path, binding: dict) -> RuntimeResult:
         return failure("progress_assessment_required", "targeted convergence needs lexicographic progress evidence")
     if events.value[-1].get("event_type") == "findings_stale":
         return failure("findings_stale", "stale findings cannot complete")
-    return append_event(root, binding, "review-completed", {"verdict": "pass"})
+    return ok({"event_type": "review-complete", "verdict": "pass"})
 
 def load_review_binding(
     root: Path, *, review_id: str | None = None, plan_key: str | None = None, run_id: str | None = None,
@@ -531,8 +608,6 @@ def main(argv: list[str] | None = None) -> int:
     close.add_argument("--fix-commit", action="append", default=[])
     progress = commands.add_parser("progress")
     _selector(progress)
-    progress.add_argument("--before-file", required=True)
-    progress.add_argument("--after-file", required=True)
     stale = commands.add_parser("stale")
     _selector(stale)
     stale.add_argument("--reason", required=True)
@@ -585,11 +660,7 @@ def main(argv: list[str] | None = None) -> int:
             oracle_exit_code=args.oracle_exit_code, fix_commits=args.fix_commit,
         )
     elif args.command == "progress":
-        result = record_progress(
-            root, binding.value,
-            before=json.loads(Path(args.before_file).read_text(encoding="utf-8")),
-            after=json.loads(Path(args.after_file).read_text(encoding="utf-8")),
-        )
+        result = record_progress(root, binding.value)
     elif args.command == "stale":
         result = mark_stale(root, binding.value, reason=args.reason)
     elif args.command == "rebound":
