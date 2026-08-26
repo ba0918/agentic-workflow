@@ -25,11 +25,11 @@ class ImplementationEvidenceTest(unittest.TestCase):
             {"id": "artifact", "completion": "artifact"}, {"id": "external", "completion": "external"},
         ]
         events = [
-            self.event(1, "refactor", step="test", exit_code=0),
-            self.event(2, "commit", step="test", commit="b" * 40),
+            self.event(1, "refactor", step="test", command="tests", exit_code=0),
+            self.event(2, "commit", step="test", commit="b" * 40, safety={"paths": [], "unplanned": []}),
             self.event(3, "check", step="check", checks=[{"exit_code": 0}], changed_paths=[]),
             self.event(4, "artifact", step="artifact", checks=[{"exit_code": 0}], changed_paths=["a"]),
-            self.event(5, "commit", step="artifact", commit="c" * 40),
+            self.event(5, "commit", step="artifact", commit="c" * 40, safety={"paths": ["a"], "unplanned": []}),
             self.event(6, "external", step="external", condition_met=True, changed_paths=[]),
         ]
         result = self.model.derive_implementation(self.binding(steps), events)
@@ -61,7 +61,7 @@ class ImplementationEvidenceTest(unittest.TestCase):
             self.event(2, "check", step="changed", checks=[{"exit_code": 0}], changed_paths=[]),
             self.event(3, "rebound", approval_commit="b" * 40,
                        steps=[{"id": "same", "completion": "check"}, {"id": "new", "completion": "external"}],
-                       mappings=[{"old": "old", "new": "same"}]),
+                       mappings=[{"old": "old", "new": "same"}], reason="approved"),
         ]
         result = self.model.derive_implementation(binding, events)
         self.assertTrue(result.ok, result.error)
@@ -76,8 +76,47 @@ class ImplementationEvidenceTest(unittest.TestCase):
              [{"id": "one", "completion": "check"}, {"id": "two", "completion": "check"}]),
             ([{"old": "old", "new": "one"}], [{"id": "one", "completion": "external"}]),
         ):
-            event = self.event(1, "rebound", approval_commit="b" * 40, steps=steps, mappings=mappings)
+            event = self.event(1, "rebound", approval_commit="b" * 40, steps=steps, mappings=mappings, reason="approved")
             self.assertEqual(self.model.derive_implementation(binding, [event]).error.code, "rebound_mapping_invalid")
+
+    def test_malformed_version_two_events_are_rejected_without_crashing(self) -> None:
+        binding = self.binding([{"id": "1", "completion": "check"}])
+        malformed = self.event(1, "check", step="1", checks=[1], changed_paths=[])
+        result = self.model.derive_implementation(binding, [malformed])
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "evidence_invalid")
+
+    def test_recovering_changes_the_effective_revision_boundary(self) -> None:
+        binding = self.binding([{"id": "1", "completion": "check"}])
+        events = [
+            self.event(1, "recovering", current_commit="b" * 40,
+                       changed_documents=["docs/spec/a.md"], reason="wording only"),
+            self.event(2, "check", step="1", checks=[{"exit_code": 0}], changed_paths=[]),
+        ]
+        result = self.model.derive_implementation(binding, events)
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.value["approval_commit"], "b" * 40)
+        self.assertEqual(result.value["segments"], [
+            {"approval_commit": "a" * 40, "commits": []},
+            {"approval_commit": "b" * 40, "commits": []},
+        ])
+
+    def test_rebound_keeps_commit_evidence_in_its_revision_segment(self) -> None:
+        binding = self.binding([{"id": "old", "completion": "artifact"}])
+        events = [
+            self.event(1, "artifact", step="old", checks=[{"exit_code": 0}], changed_paths=["old"]),
+            self.event(2, "commit", step="old", commit="c" * 40,
+                       safety={"paths": ["old"], "unplanned": []}),
+            self.event(3, "rebound", approval_commit="d" * 40,
+                       steps=[{"id": "same", "completion": "artifact"}],
+                       mappings=[{"old": "old", "new": "same"}], reason="approved"),
+        ]
+        result = self.model.derive_implementation(binding, events)
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.value["segments"], [
+            {"approval_commit": "a" * 40, "commits": ["c" * 40]},
+            {"approval_commit": "d" * 40, "commits": []},
+        ])
 
 if __name__ == "__main__":
     unittest.main()

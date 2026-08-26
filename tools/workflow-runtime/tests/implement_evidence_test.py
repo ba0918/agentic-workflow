@@ -161,6 +161,19 @@ class ImplementDistributionTest(unittest.TestCase):
             with self.assertRaises(TypeError):
                 context.append_event(run, "implementation_green", {}, actor="implement", _derived=True)
 
+    def test_generic_append_cannot_record_commit_evidence(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            run = repository.bind_run(
+                root, plan, run_id="run-1", delegated=False,
+                steps=[{"id": "1", "completion": "check"}],
+            ).value
+            result = context.append_event(run, "commit", {"step": "1", "commit": "b" * 40})
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "event_not_recordable")
+
     def test_empty_run_and_invalid_test_transition_cannot_complete(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
@@ -300,6 +313,49 @@ class ImplementDistributionTest(unittest.TestCase):
             self.assertTrue(checked.ok, checked.error)
             self.assertEqual(checked.value["changed_paths"], [])
             self.assertTrue(context.complete_run(run).ok)
+
+    def test_rebound_completion_matches_commits_with_their_revision_segments(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+            (root / "docs/spec").mkdir(parents=True)
+            (root / "docs/plans").mkdir(parents=True)
+            (root / "docs/spec/a.md").write_text("# Contract\n", encoding="utf-8")
+            (root / "docs/plans/plan-a.md").write_text(
+                "# Plan\n\n**Target specifications:**\n\n- `docs/spec/a.md`\n  - sections: `Contract`\n",
+                encoding="utf-8",
+            )
+            (root / "app.txt").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", ".gitignore", "docs", "app.txt"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "approval"], check=True)
+            approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("app.txt",))
+            run = repository.bind_run(
+                root, plan, run_id="run-1", delegated=False,
+                steps=[{"id": "old", "completion": "check"}], branch="main", worktree=str(root),
+            ).value
+            (root / "app.txt").write_text("done\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
+            self.assertTrue(context.append_event(run, "check", {
+                "step": "old", "checks": [{"command": "lint", "exit_code": 0}],
+            }).ok)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "implementation"], check=True)
+            implementation = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            self.assertTrue(context.record_commit(run, "old", implementation).ok)
+            (root / "docs/spec/a.md").write_text("# Contract\n\nClarified.\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "docs/spec/a.md"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "approved revision"], check=True)
+            revised = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            self.assertTrue(context.rebound_run(
+                run, revised, "approved revision", steps=[{"id": "same", "completion": "check"}],
+                mappings=[{"old": "old", "new": "same"}],
+            ).ok)
+            completed = context.complete_run(run)
+            self.assertTrue(completed.ok, completed.error)
 
     def test_dangerous_commit_path_cannot_be_recorded_or_completed(self) -> None:
         import tempfile
