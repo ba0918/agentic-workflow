@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import fcntl
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -15,6 +16,7 @@ import implementation_evidence
 
 from runtime.storage import canonical_json, read_json, write_atomic, write_once
 from runtime import tdd
+from runtime.deps import plan_artifact
 from runtime.secret_detect import contains_secret
 from runtime.staging import assess_paths
 from runtime.types import COMMIT_SHA, Run, RuntimeResult, failure, ok
@@ -40,7 +42,7 @@ def document_decision(
     if important:
         return failure("rebound_or_new_run_required", reason, ", ".join(sorted(changed_documents)))
     return ok({
-        "event_type": "documents-followed", "current_commit": current_commit,
+        "event_type": "recovering", "current_commit": current_commit,
         "changed_documents": sorted(changed_documents), "reason": reason,
     })
 
@@ -89,6 +91,15 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
         return failure("event_field_missing", f"{event_type} needs a reason")
     if event_type == "rebound" and COMMIT_SHA.fullmatch(str(fields.get("approval_commit", ""))) is None:
         return failure("event_field_invalid", "rebound needs an approval commit")
+    if event_type == "recovering" and "current_commit" in fields and (
+        COMMIT_SHA.fullmatch(str(fields.get("current_commit", ""))) is None
+        or not fields.get("changed_documents")
+    ):
+        return failure("event_field_invalid", "document recovery needs a commit and changed documents")
+    if event_type == "rebound" and (
+        _steps_value(fields.get("steps")) is None or not isinstance(fields.get("mappings"), list)
+    ):
+        return failure("event_field_invalid", "rebound needs new steps and mappings")
     if event_type in {"red", "green", "refactor", "check", "artifact", "external", "commit"}:
         step_id = fields.get("step")
         contract = _step_contract(binding, step_id)
@@ -163,7 +174,12 @@ def _append_event(
         loaded = load_events(run)
         if not loaded.ok:
             return loaded
-        checked = _validate_event(binding.value, loaded.value, event_type, fields, actor, derived)
+        effective = implementation_evidence.derive_implementation(binding.value, loaded.value)
+        effective_binding = binding.value if not effective.ok else {
+            **binding.value, "steps": effective.value["steps"],
+            "approval_commit": effective.value["approval_commit"],
+        }
+        checked = _validate_event(effective_binding, loaded.value, event_type, fields, actor, derived)
         if not checked.ok:
             return checked
         sequence = len(loaded.value) + 1
@@ -269,8 +285,63 @@ def record_commit(
 def stop_run(run: Run, reason: str) -> RuntimeResult:
     return append_event(run, "stopped", {"reason": reason})
 
-def rebound_run(run: Run, approval_commit: str, reason: str) -> RuntimeResult:
-    return append_event(run, "rebound", {"approval_commit": approval_commit, "reason": reason})
+def follow_documents(
+    run: Run, current_commit: str, changed_documents: list[str], reason: str,
+) -> RuntimeResult:
+    binding = read_json(run.binding_path)
+    if not binding.ok:
+        return binding
+    checked = _validate_document_commit(run, binding.value, current_commit)
+    if not checked.ok:
+        return checked
+    return append_event(run, "recovering", {
+        "current_commit": current_commit, "changed_documents": sorted(changed_documents), "reason": reason,
+    })
+
+def rebound_run(
+    run: Run, approval_commit: str, reason: str, *, steps: list[dict], mappings: list[dict],
+) -> RuntimeResult:
+    binding = read_json(run.binding_path)
+    events = load_events(run)
+    if not binding.ok or not events.ok:
+        return binding if not binding.ok else events
+    checked = _validate_document_commit(run, binding.value, approval_commit)
+    if not checked.ok:
+        return checked
+    candidate = {
+        "version": 2, "sequence": len(events.value) + 1, "event_type": "rebound",
+        "approval_commit": approval_commit, "steps": steps, "mappings": mappings, "reason": reason,
+    }
+    derived = implementation_evidence.derive_implementation(binding.value, events.value + [candidate])
+    if not derived.ok:
+        return failure(derived.error.code, derived.error.message)
+    return append_event(run, "rebound", {
+        "approval_commit": approval_commit, "steps": steps, "mappings": mappings, "reason": reason,
+    })
+
+def _steps_value(value: object) -> list[dict] | None:
+    if not isinstance(value, list) or not value:
+        return None
+    return value if all(isinstance(step, dict) for step in value) else None
+
+def _validate_document_commit(run: Run, binding: dict, commit: str) -> RuntimeResult:
+    if COMMIT_SHA.fullmatch(commit) is None or _git(run.root, "cat-file", "-e", f"{commit}^{{commit}}").returncode != 0:
+        return failure("document_commit_invalid", "document commit does not exist")
+    plan = _git(run.root, "show", f"{commit}:{binding['plan_path']}")
+    if plan.returncode != 0:
+        return failure("document_commit_invalid", "plan is unavailable in the document commit")
+    try:
+        header = plan_artifact.read_plan_header(plan.stdout)
+    except plan_artifact.PlanArtifactError:
+        return failure("document_commit_invalid", "plan cannot be read from the document commit")
+    for specification in header.specifications:
+        content = _git(run.root, "show", f"{commit}:{specification.path}")
+        if content.returncode != 0 or any(
+            not re.search(rf"^#+\s+{re.escape(section)}\s*$", content.stdout, re.MULTILINE)
+            for section in specification.sections
+        ):
+            return failure("document_commit_invalid", "target specification is unavailable in the document commit")
+    return ok()
 
 def _git(worktree: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", "-C", str(worktree), *args], text=True, capture_output=True, check=False)

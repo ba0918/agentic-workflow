@@ -54,5 +54,30 @@ class ImplementationEvidenceTest(unittest.TestCase):
         event = {"version": 1, "sequence": 1, "event_type": "check", "step": "1", "checks": [{"exit_code": 0}], "changed_paths": []}
         self.assertEqual(self.model.derive_implementation(binding, [event]).error.code, "legacy_evidence_unsupported")
 
+    def test_rebound_carries_only_one_to_one_equivalent_completed_steps(self) -> None:
+        binding = self.binding([{"id": "old", "completion": "check"}, {"id": "changed", "completion": "check"}])
+        events = [
+            self.event(1, "check", step="old", checks=[{"exit_code": 0}], changed_paths=[]),
+            self.event(2, "check", step="changed", checks=[{"exit_code": 0}], changed_paths=[]),
+            self.event(3, "rebound", approval_commit="b" * 40,
+                       steps=[{"id": "same", "completion": "check"}, {"id": "new", "completion": "external"}],
+                       mappings=[{"old": "old", "new": "same"}]),
+        ]
+        result = self.model.derive_implementation(binding, events)
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.value["approval_commit"], "b" * 40)
+        self.assertEqual(result.value["completed_steps"], ["same"])
+        self.assertEqual(result.value["resume_step"], "new")
+
+    def test_rebound_rejects_ambiguous_or_completion_changing_mapping(self) -> None:
+        binding = self.binding([{"id": "old", "completion": "check"}])
+        for mappings, steps in (
+            ([{"old": "old", "new": "one"}, {"old": "old", "new": "two"}],
+             [{"id": "one", "completion": "check"}, {"id": "two", "completion": "check"}]),
+            ([{"old": "old", "new": "one"}], [{"id": "one", "completion": "external"}]),
+        ):
+            event = self.event(1, "rebound", approval_commit="b" * 40, steps=steps, mappings=mappings)
+            self.assertEqual(self.model.derive_implementation(binding, [event]).error.code, "rebound_mapping_invalid")
+
 if __name__ == "__main__":
     unittest.main()

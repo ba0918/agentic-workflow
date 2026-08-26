@@ -69,7 +69,22 @@ class ImplementDistributionTest(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            (root / "docs/spec").mkdir(parents=True)
+            (root / "docs/plans").mkdir(parents=True)
+            (root / "docs/spec/a.md").write_text("# Contract\n", encoding="utf-8")
+            (root / "docs/plans/plan-a.md").write_text(
+                "# Plan\n\n**Target specifications:**\n\n- `docs/spec/a.md`\n  - sections: `Contract`\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(root), "add", "docs/spec/a.md", "docs/plans/plan-a.md"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "documents"], check=True)
+            approval = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+            ).stdout.strip()
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
             run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
             first = context.append_event(run, "delegated", {"role": "implementer"})
             second = context.append_event(run, "returned", {"outcome": "completed"})
@@ -176,7 +191,22 @@ class ImplementDistributionTest(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            (root / "docs/spec").mkdir(parents=True)
+            (root / "docs/plans").mkdir(parents=True)
+            (root / "docs/spec/a.md").write_text("# Contract\n", encoding="utf-8")
+            (root / "docs/plans/plan-a.md").write_text(
+                "# Plan\n\n**Target specifications:**\n\n- `docs/spec/a.md`\n  - sections: `Contract`\n",
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(root), "add", "docs/spec/a.md", "docs/plans/plan-a.md"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "documents"], check=True)
+            approval = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+            ).stdout.strip()
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
                 steps=[{"id": "1", "completion": "check"}],
@@ -186,10 +216,13 @@ class ImplementDistributionTest(unittest.TestCase):
                 run, "check", {"step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": []}
             )
             self.assertFalse(blocked.ok)
-            rebound = context.rebound_run(run, "b" * 40, "approved revision")
+            rebound = context.rebound_run(
+                run, approval, "approved revision",
+                steps=[{"id": "1", "completion": "check"}], mappings=[{"old": "1", "new": "1"}],
+            )
             self.assertTrue(rebound.ok, rebound.error)
             status = json.loads((run.evidence_path / "current-status").read_text(encoding="utf-8"))
-            self.assertEqual(status["plan"]["approval_commit"], "b" * 40)
+            self.assertEqual(status["plan"]["approval_commit"], approval)
 
     def test_completion_is_derived_from_step_commit_safety_and_clean_worktree(self) -> None:
         import tempfile

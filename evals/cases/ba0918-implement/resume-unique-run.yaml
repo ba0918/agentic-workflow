@@ -22,3 +22,7 @@ expectations:
     critical: true
   - text: 複数候補では更新時刻や名前で選ばず人へ返す
     critical: true
+  - text: version 2証拠の完了方法から再開点を導き、version 1は推測せず拒否する
+    critical: true
+  - text: 文書への自動追従はrecovering、承認済み束ね直しは新stepと一対一mappingを持つreboundとして追記する
+    critical: true

@@ -17,6 +17,10 @@ staging area and commit objects, and derives
 `current-status` with the plan Git version, committed steps, last event/reason, and bound
 branch/worktree.
 
+Bindings and events use version 2. Reject legacy version 1 rather than guessing its completion
+state. Binding stays append-only: `recovering` records harmless document following, while
+`rebound` supplies the effective approval commit, new steps, and validated one-to-one mapping.
+
 Keep only bounded facts required for verification and hand-off: steps, commands and exit codes,
 safe summaries, commit SHAs, delegation boundaries, document-meaning decisions, recovery, stops,
 and unplanned paths with reasons. A RED event stores the frozen test/fixture bytes and command;

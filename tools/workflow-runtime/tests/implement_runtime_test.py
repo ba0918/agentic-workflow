@@ -150,7 +150,7 @@ class ImplementPlanBindingTest(unittest.TestCase):
             reason="wording only",
         )
         self.assertTrue(result.ok)
-        self.assertEqual(result.value["event_type"], "documents-followed")
+        self.assertEqual(result.value["event_type"], "recovering")
         self.assertEqual(result.value["current_commit"], "b" * 40)
 
     def test_important_document_change_returns_to_the_human(self) -> None:
@@ -260,7 +260,8 @@ class ImplementPlanBindingTest(unittest.TestCase):
              "--step", "1", "--commit", commit],
             ["stop", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1", "--reason", "permission"],
             ["rebound", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
-             "--approval-commit", commit, "--reason", "approved wording update"],
+             "--approval-commit", commit, "--reason", "approved wording update",
+             "--step", "1:check", "--map", "1=1"],
         ]
         for command in commands:
             with contextlib.redirect_stdout(io.StringIO()):
