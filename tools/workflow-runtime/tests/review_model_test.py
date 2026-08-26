@@ -43,5 +43,30 @@ class ReviewModelTest(unittest.TestCase):
         self.assertFalse(model.review_complete(events, []))
         self.assertTrue(model.can_append_after(events[-1]))
 
+    def test_open_counts_progress_lexicographically(self) -> None:
+        before = [finding(severity="security"), finding(severity="warn")]
+        after = [finding(severity="critical"), finding(severity="warn"), finding(severity="warn", oracle="other")]
+        self.assertEqual(model.open_counts(before), (1, 0, 1))
+        self.assertEqual(model.open_counts(after), (0, 1, 2))
+        self.assertTrue(model.made_progress(before, after))
+        self.assertFalse(model.made_progress(after, after))
+
+    def test_review_stage_is_initial_targeted_final_then_targeted_only(self) -> None:
+        self.assertEqual(model.next_review_stage([], []), "initial-full")
+        open_finding = finding()
+        self.assertEqual(model.next_review_stage([{"event_type": "initial-full-review"}], [open_finding]), "targeted")
+        closed = {**open_finding, "state": "closed"}
+        self.assertEqual(model.next_review_stage([{"event_type": "initial-full-review"}], [closed]), "final-full")
+        events = [{"event_type": "initial-full-review"}, {"event_type": "final-full-review"}]
+        self.assertEqual(model.next_review_stage(events, [open_finding]), "targeted")
+        self.assertEqual(model.next_review_stage(events, [closed]), "complete")
+
+    def test_unrelated_minor_findings_are_observations_but_serious_regressions_join_review(self) -> None:
+        warn = finding(severity="warn")
+        critical = finding(severity="critical", oracle="critical oracle")
+        admitted, observations = model.admit_new_findings([warn, critical], related_ids=set())
+        self.assertEqual([item["severity"] for item in admitted], ["critical"])
+        self.assertEqual([item["severity"] for item in observations], ["warn"])
+
 if __name__ == "__main__":
     unittest.main()

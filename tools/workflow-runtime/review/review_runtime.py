@@ -67,6 +67,24 @@ def standalone_binding(
         "spec_commit": head,
     }
 
+def input_kind(binding: dict) -> str:
+    if binding.get("kind") == "execution":
+        return "execution"
+    return binding.get("input", {}).get("kind", "unknown")
+
+def choose_comparison_base(
+    *, explicit: str | None, pull_request_target: str | None, default_branch: str | None
+) -> RuntimeResult:
+    for candidate in (explicit, pull_request_target, default_branch):
+        if candidate:
+            return ok(candidate)
+    return failure("comparison_base_required", "branch comparison base cannot be determined uniquely")
+
+def requires_full_review(changed_dimensions: set[str]) -> bool:
+    return bool(changed_dimensions & {
+        "structure", "assumptions", "order", "dependencies", "completion", "specification"
+    })
+
 def review_directory(root: Path, binding: dict) -> Path:
     repository = root.resolve()
     if binding["kind"] == "execution":

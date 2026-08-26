@@ -68,3 +68,32 @@ def review_complete(events: list[dict], findings: list[dict]) -> bool:
     return any(event.get("event_type") == "final-full-review" for event in events) and all(
         finding.get("state") == "closed" for finding in findings
     )
+
+def open_counts(findings: list[dict]) -> tuple[int, int, int]:
+    return tuple(
+        sum(finding.get("state") == "open" and finding.get("severity") == severity for finding in findings)
+        for severity in ("security", "critical", "warn")
+    )
+
+def made_progress(before: list[dict], after: list[dict]) -> bool:
+    return open_counts(after) < open_counts(before)
+
+def next_review_stage(events: list[dict], findings: list[dict]) -> str:
+    kinds = {event.get("event_type") for event in events}
+    if "initial-full-review" not in kinds:
+        return "initial-full"
+    if any(finding.get("state") == "open" for finding in findings):
+        return "targeted"
+    if "final-full-review" not in kinds:
+        return "final-full"
+    return "complete"
+
+def admit_new_findings(candidates: list[dict], related_ids: set[str]) -> tuple[list[dict], list[dict]]:
+    admitted: list[dict] = []
+    observations: list[dict] = []
+    for finding in candidates:
+        if finding.get("id") in related_ids or finding.get("severity") in {"security", "critical"}:
+            admitted.append(finding)
+        else:
+            observations.append(finding)
+    return admitted, observations

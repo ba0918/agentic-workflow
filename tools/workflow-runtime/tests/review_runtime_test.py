@@ -47,5 +47,22 @@ class ReviewRuntimeTest(unittest.TestCase):
                 "000001-review-bound.json", "000002-findings_stale.json"
             ])
 
+    def test_comparison_base_uses_explicit_then_pull_request_then_default(self) -> None:
+        self.assertEqual(runtime.choose_comparison_base(explicit="release", pull_request_target="main", default_branch="trunk").value, "release")
+        self.assertEqual(runtime.choose_comparison_base(explicit=None, pull_request_target="main", default_branch="trunk").value, "main")
+        self.assertEqual(runtime.choose_comparison_base(explicit=None, pull_request_target=None, default_branch="trunk").value, "trunk")
+        self.assertEqual(runtime.choose_comparison_base(explicit=None, pull_request_target=None, default_branch=None).error.code, "comparison_base_required")
+
+    def test_all_three_input_forms_enter_the_same_binding_contract(self) -> None:
+        execution = runtime.execution_binding("plan-a", "run-1", "a" * 40, implement_sequence=7)
+        branch = runtime.standalone_binding("review-1", branch="feature", base="a" * 40, head="b" * 40, spec_paths=["docs/spec/"])
+        commits = runtime.standalone_binding("review-2", base="a" * 40, head="b" * 40, spec_paths=["docs/spec/review.md"])
+        self.assertEqual({runtime.input_kind(value) for value in (execution, branch, commits)}, {"execution", "branch", "commits"})
+
+    def test_full_review_is_repeated_only_when_review_topology_changes(self) -> None:
+        self.assertFalse(runtime.requires_full_review({"paths"}))
+        self.assertTrue(runtime.requires_full_review({"structure"}))
+        self.assertTrue(runtime.requires_full_review({"specification"}))
+
 if __name__ == "__main__":
     unittest.main()
