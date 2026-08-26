@@ -168,5 +168,5 @@ python3 <implement-runtime> implementation-green --repo <main-checkout>
 python3 <implement-runtime> result --repo <main-checkout>
 ```
 
-Return `implementation_green` as a review hand-off. Do not call it completed, merge it, update the
-Plan or locator, start review, or clean the worktree.
+Return `implementation_green` as a review hand-off. Do not call it completed, merge it, edit the
+plan, start review, or clean the worktree.

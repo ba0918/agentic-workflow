@@ -1,6 +1,6 @@
 ---
 name: ba0918-implement
-description: Use when an approved, registered implementation plan must be executed step by step in a dedicated branch and linked worktree, leaving durable evidence for review. Reads the plan as prose — only the target specifications and the write scope have a fixed shape, and the steps, completion kinds and declared decisions come from the agent that read it. Asks the human only where a human decides. Detects unfinished executions of the same plan and lets the human continue, rebind the execution to a revised plan, or start over. Returns to the human only for a decision the plan does not carry, a difference from what was approved, a rejected deliverable, a permission or record it cannot obtain, or a step that resisted three recoveries; everything else it records and puts right itself. Hands implementation_green evidence to review, after the human approves any commit or change the evidence does not explain, without completing or merging the plan.
+description: Use when an approved implementation plan committed to the repository must be executed step by step in a dedicated branch and linked worktree, leaving durable evidence for review. Reads the plan as prose — only the target specifications and the write scope have a fixed shape, and the steps, completion kinds and declared decisions come from the agent that read it. Asks the human only where a human decides. Detects unfinished executions of the same plan and lets the human continue, rebind the execution to a revised plan, or start over. Returns to the human only for a decision the plan does not carry, a difference from what was approved, a rejected deliverable, a permission or record it cannot obtain, or a step that resisted three recoveries; everything else it records and puts right itself. Hands implementation_green evidence to review, after the human approves any commit or change the evidence does not explain, without completing or merging the plan.
 metadata:
   contracts:
     - implement-runtime
@@ -28,7 +28,7 @@ evidence directory under `.agents/artifacts/executions/<plan-id>/<execution-id>/
 
 ## Boundary
 
-- Own registered-plan resolution, detection of unfinished executions, linked-worktree isolation,
+- Own resolution of the plan to run, detection of unfinished executions, linked-worktree isolation,
   executable oracle binding, direct TDD, scoped staging, commit verification, immutable evidence,
   continuation of an execution the human chose to continue, rebinding an execution to a revised
   plan the human approved, the human's approval of commits and changes the evidence does not

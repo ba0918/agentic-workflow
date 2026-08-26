@@ -210,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Bind and verify one implement execution")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    resolve = commands.add_parser("resolve", help="resolve and validate a registered plan")
+    resolve = commands.add_parser("resolve", help="resolve and validate the plan to run")
     resolve.add_argument("--repo", required=True)
     resolve.add_argument("--plan-path")
     resolve.add_argument("--plan-id", help="the plan id you read out of the plan")

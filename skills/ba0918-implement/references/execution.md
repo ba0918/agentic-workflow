@@ -9,24 +9,34 @@ Use candidates in this order:
 
 1. a path explicitly supplied in the current invocation;
 2. the path and content identity from the immediately preceding plan publication receipt;
-3. the single `current` entry in a valid `open-plans.json`.
+3. the one plan the working tree holds, when it holds exactly one.
+
+A plan stays in the working tree until its work is finished, so what is there is the unfinished
+list. Nothing indexes it and nothing marks one plan as the one in progress.
 
 Conversation context may identify a candidate, but it is never execution evidence. Run the
-helper's `resolve` command before any write. It verifies the registered path, the plan bytes,
-the target specification bytes, the same bytes at base HEAD, and the scope tree — the two parts
-of a plan that are compared against the world outside it. It reads nothing else out of the prose.
+helper's `resolve` command before any write. It verifies the plan bytes, the target specification
+bytes, the same bytes at base HEAD, and the scope tree — the two parts of a plan that are
+compared against the world outside it. It reads nothing else out of the prose.
 
-Ask the human only when no candidate is available, evidence is ambiguous, or candidate evidence
-conflicts. Never select by modification time, filename order, or directory scanning. A plan that
-is not registered is `plan_registration_missing`; do not repair its locator or accept a legacy
-path. A plan whose target specifications or scope tree cannot be read is `plan_format_invalid`;
-report which of the two and stop. Nothing else about the plan's wording can produce that.
+Read the plan's id and revision out of its prose and pass them: they are your declaration, and
+`resolve` refuses without them (`plan_declaration_missing`). Nothing matches them against the
+document, so read them carefully — no later check will notice a wrong one.
 
 ```text
-python3 <implement-runtime> resolve --repo <main-checkout> [--plan-path <repo-relative-plan>]
+python3 <implement-runtime> resolve --repo <main-checkout> \
+  --plan-id <the id you read> --plan-revision <the revision you read> \
+  [--plan-path <repo-relative-plan>]
 ```
 
 When using a publication receipt, provide both `--receipt-path` and `--receipt-identity`.
+
+Ask the human only when no candidate is available, evidence is ambiguous, or candidate evidence
+conflicts. Never select by modification time, filename order, or directory scanning. An empty
+working tree is `plan_candidate_missing` and several plans is `plan_candidate_ambiguous`, which
+lists them — ask which one rather than choosing. A plan whose target specifications or scope tree
+cannot be read is `plan_format_invalid`; report which of the two and stop. Nothing else about the
+plan's wording can produce that.
 
 ## Check for unfinished executions
 
@@ -46,9 +56,8 @@ that no commit event explains — wherever they sit between the base and the hea
 the worktree exists, is registered, and which files it has changed without a commit. `resumable.ok`
 is false only when the plan or specification identities the execution currently stands on (its
 binding, as the last rebound left it) no longer match the repository; that execution cannot be
-continued as it is. `rebindable.ok` then says whether it can be rebound instead: the current
-registered plan must be a revision of the same plan, and the plan revision the execution was
-bound to must still be readable. An execution whose `current-status` or `binding.json` is missing
+continued as it is. `rebindable.ok` then says whether it can be rebound instead: a plan must still
+be readable at the path the execution was bound to. An execution whose `current-status` or `binding.json` is missing
 or unreadable is listed with its id and `resumable.ok: false` alone — one more fact for the
 human, not a failure of the listing.
 
@@ -69,13 +78,14 @@ facts alone.
 Before bootstrap, ensure the approved spec identities are committed at the selected base HEAD.
 Do not copy dirty main-checkout files into the execution.
 
-Choose a dedicated worktree path and run, passing the same plan selection you gave `resolve`
-(`--plan-path`, or `--receipt-path` with `--receipt-identity`; without them the `current` plan is
-taken):
+Choose a dedicated worktree path and run, passing the same plan selection and the same
+declaration you gave `resolve` (`--plan-path`, or `--receipt-path` with `--receipt-identity`;
+without either, the one plan in the working tree is taken):
 
 ```text
 python3 <implement-runtime> bootstrap \
   --repo <main-checkout> \
+  --plan-id <the id you read> --plan-revision <the revision you read> \
   [--plan-path <repo-relative-plan> | --receipt-path <path> --receipt-identity <identity>] \
   --worktree <dedicated-path> \
   --executor <safe-executor-name> \
@@ -135,8 +145,8 @@ approved scope, and changes outside it are listed at the terminal for the human'
 
 ## Rebind an execution to a revised plan
 
-When the plan was revised (a new revision is registered as current) while an execution of it is
-unfinished, the execution stands on the old revision and every forward command reports
+When the plan was revised while an execution of it is unfinished, the execution stands on the
+old revision and every forward command reports
 `plan_identity_drift`. The human need not start over. First show them how the revision maps onto
 the execution; this writes nothing:
 
@@ -171,22 +181,28 @@ Only after the human confirmed:
 ```text
 python3 <implement-runtime> rebind \
   --repo <main-checkout> --plan-id <plan-id> --execution-id <execution-id> \
+  --plan-revision <the revision you read out of the revised plan> \
   [--plan-path <repo-relative-revised-plan>] \
   --steps '<same as the preview>' --step-map '<same as the preview>' --confirm \
   --expect-plan-identity <the identity the preview printed>
 ```
 
+`--plan-revision` is your declaration for the revised plan, the same way `resolve` takes one, and
+the preview needs it too.
+
 `--expect-plan-identity` is required, and it is the `plan.content_identity` of the table the
-human actually read. Another revision may be registered between reading and confirming, and
+human actually read. Another revision may be published between reading and confirming, and
 recording a rebound onto a revision nobody read would make the record and the decision two
 different things; the helper refuses with `rebind_target_moved` and the preview is shown again.
 
 This appends a `rebound` event carrying the revised plan (id, path, revision, identity), its
 specification identities, write scope, human gates, declared steps, the step map, the branch
 head, the extra commits, and whether uncommitted changes exist. From then on every command checks against the
-revised plan, and step ids are the revised numbering. The rebind target is the registered current
-plan (or the registered plan at `--plan-path`) and must be the same plan id; when the bound
-revision's file is no longer readable the rebind is refused and only starting over remains.
+revised plan, and step ids are the revised numbering. The rebind target is the plan at the path
+the execution was bound to, or the plan at `--plan-path` when the revision was written elsewhere;
+a target that cannot be read is refused with `rebind_target_invalid`. Nothing checks that the
+target is the same plan — the id is prose now — so `--expect-plan-identity`, which the human
+read, is what stands between a rebound and the wrong document.
 
 The review skill reads the binding of an execution as the last rebound left it, so a rebound
 execution is handed to review like any other.
@@ -200,9 +216,9 @@ python3 <implement-runtime> load --repo <main-checkout> \
   [--plan-id <plan-id> --execution-id <execution-id>]
 ```
 
-Without ids the helper accepts only the single unfinished execution of the current plan (or its
-single execution when none is unfinished); with several candidates it stops with
-`execution_ambiguous` and lists them. It reads nothing but the evidence directory and
+Without ids the helper accepts only a single unfinished execution across every plan the evidence
+store holds (or a single execution when none is unfinished); with several candidates it stops
+with `execution_ambiguous` and lists them. It reads nothing but the evidence directory and
 `binding.json`, and checks that the branch and the linked worktree exist. It does not require the
 plan or spec identities to match: reading an execution and stopping it never depend on that, so a
 revised plan is reported by `context`, not by `load`. Every later command accepts the same two
@@ -216,8 +232,8 @@ python3 <implement-runtime> context --repo <main-checkout> --step step-<n>
 ```
 
 The context check compares the effective binding — the immutable `binding.json` as the last
-`rebound` event left it — with the current locator, plan, specs, Git common directory, linked
-worktree, branch, base ancestry, and current step. Uncommitted changes inside the write scope are
+`rebound` event left it — with the plan file at the bound path, the specs, the Git common
+directory, the linked worktree, the branch, the base ancestry, and the current step. Uncommitted changes inside the write scope are
 work in progress; changes outside it are returned as `out_of_scope_changes`, a fact for the
 human, never a stop — the staging boundary keeps them out of commits and the terminal lists them.
 Run the check again at every RED, GREEN, REFACTOR, and commit boundary.
@@ -295,9 +311,8 @@ python3 <implement-runtime> stop \
 A decision the plan does not make — a new input class, an error case, a product choice — is a
 stop of this kind: do not fill the gap; report it so the human can return it to brainstorm. Do
 not analyze later steps for independence. Preserve already committed steps, evidence, branch, and
-worktree. Never write progress or completion into the plan text, `open-plans.json`,
-`status.md`, `session-history.md`, or `plans/progress`; the durable events are the only
-record. Return the derived result, including the execution id, stop reason, step, last
+worktree. Never write progress or completion into the plan text, a `status.md`, a
+`session-history.md`, or `plans/progress`; the durable events are the only record. Return the derived result, including the execution id, stop reason, step, last
 sequence, branch, worktree, commits, and evidence path. The next invocation for the same plan
 finds this execution through the unfinished-execution check and lets the human decide.
 

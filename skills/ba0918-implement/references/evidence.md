@@ -13,7 +13,8 @@ do not create anything under `.agents/runtime/`: there is no repository-wide mar
 .agents/tmp/executions/<execution-id>/                      disposable execution scratch
 ```
 
-`binding.json` is immutable. It binds the execution, registered plan, spec identities,
+`binding.json` is immutable. It binds the execution, the plan and whether the commit it starts
+from carried that plan, the spec identities,
 repository, base HEAD, branch, worktree path, write scope, the steps and human decisions the
 agent declared out of the plan, and safe executor provenance before the worktree exists. It is the only thing a fresh session needs, together with the event files,
 to reconstruct the execution. When the human rebinds the execution to a revised plan, the
