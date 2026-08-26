@@ -10,8 +10,10 @@ never implement, review, or fix the work in this context.
 
 ## Boundary
 
-- Accept exactly one committed plan under `docs/plans/`. Pass its path and approval commit to
-  implement without interpreting its steps.
+- Accept exactly one plan under `docs/plans/`. Before creating or resuming a run, read the plan
+  bytes from its approval commit and require the working-tree bytes to match exactly. Reject an
+  uncommitted plan and a plan edited after approval. Pass its path and approval commit to implement
+  without interpreting its steps.
 - Create or resume one run id and `.agents/evidence/<plan-key>/<run-id>/` before delegation.
 - Delegate synchronously. While a delegate is active it is the only evidence writer; outside a
   delegation cycle records the delegation start and finish.
@@ -37,8 +39,9 @@ After every implementation delegate returns, read the evidence regardless of the
    human.
 
 Do not use a retry count. A safe file omitted from the plan's expected Scope is ordinary completion:
-record its path and reason and continue. Stop before adding a dependency or choosing missing product
-or architecture meaning.
+record its path and reason and continue. A dependency explicitly selected by the approved plan may
+be used. Stop before adding a new external dependency, changing the approved dependency choice, or
+choosing missing product or architecture meaning.
 
 ## Review convergence
 
