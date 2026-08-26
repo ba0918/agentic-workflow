@@ -92,9 +92,9 @@ def bootstrap_attempt(
         "human_gates": list(resolved_plan.human_gates),
         "executor": executor,
     }
-    binding_validation = execution_model.validate_binding(binding)
-    if not binding_validation.ok:
-        return failure(binding_validation.error.code, binding_validation.error.message)
+    secret = execution_model.first_secret_field(binding)
+    if secret is not None:
+        return failure("secret_value_forbidden", "secret values are not durable evidence", secret)
     binding_path = evidence_path / "binding.json"
     binding_result = write_once(binding_path, execution_model.canonical_json(binding))
     if not binding_result.ok:

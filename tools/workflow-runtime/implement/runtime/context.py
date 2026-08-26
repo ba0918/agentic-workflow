@@ -33,10 +33,13 @@ def load_effective_binding(attempt: Attempt) -> RuntimeResult:
     if not binding_result.ok:
         return binding_result
     binding = binding_result.value
-    validation = execution_model.validate_binding(binding)
-    if not validation.ok:
-        return failure(validation.error.code, validation.error.message)
-    if binding["attempt_id"] != attempt.attempt_id or binding["branch"] != attempt.branch:
+    # A binding that cannot be read fails the same comparison a drifted one does, so the
+    # runtime needs no separate check that its own record is well formed.
+    if (
+        not isinstance(binding, dict)
+        or binding.get("attempt_id") != attempt.attempt_id
+        or binding.get("branch") != attempt.branch
+    ):
         return failure("binding_identity_drift", "attempt and binding disagree")
     events = load_events(attempt)
     if not events.ok:

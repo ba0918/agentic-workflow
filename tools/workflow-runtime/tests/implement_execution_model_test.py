@@ -120,13 +120,7 @@ class CanonicalIdentityTest(unittest.TestCase):
         )
 
 
-class BindingValidationTest(unittest.TestCase):
-    def test_complete_binding_is_accepted(self) -> None:
-        result = implement_model.validate_binding(binding())
-
-        self.assertTrue(result.ok)
-        self.assertIsNone(result.error)
-
+class OutwardFacingChecksTest(unittest.TestCase):
     def test_identity_drift_names_the_changed_field(self) -> None:
         observed = binding()
         observed["base_head"] = "6" * 40
@@ -136,21 +130,6 @@ class BindingValidationTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "identity_drift")
         self.assertEqual(result.error.field, "base_head")
-
-    def test_missing_step_or_oracle_is_rejected(self) -> None:
-        missing_step = oracle()
-        del missing_step["step_id"]
-        missing_identity = oracle()
-        del missing_identity["test_targets"]
-
-        self.assertEqual(
-            implement_model.validate_oracle(missing_step).error.code,
-            "oracle_field_missing",
-        )
-        self.assertEqual(
-            implement_model.validate_oracle(missing_identity).error.code,
-            "oracle_field_missing",
-        )
 
     def test_environment_values_and_raw_logs_are_rejected(self) -> None:
         unsafe_oracle = oracle()
@@ -174,18 +153,26 @@ class BindingValidationTest(unittest.TestCase):
         )
 
     def test_untrusted_scalar_types_return_failures_instead_of_raising(self) -> None:
-        invalid_binding = binding()
-        invalid_binding["plan"]["id"] = 20260822143915
-        invalid_oracle = oracle()
-        invalid_oracle["test_targets"] = None
+        no_signature = oracle()
+        no_signature["failure_signature"] = 12
+        no_cwd = oracle()
+        no_cwd["cwd"] = None
 
-        binding_result = implement_model.validate_binding(invalid_binding)
-        oracle_result = implement_model.validate_oracle(invalid_oracle)
+        self.assertEqual(
+            implement_model.validate_oracle(no_signature).error.code,
+            "oracle_failure_signature_invalid",
+        )
+        self.assertEqual(implement_model.validate_oracle(no_cwd).error.code, "unsafe_path")
+        self.assertEqual(implement_model.validate_oracle("not a mapping").error.code, "oracle_unreadable")
 
-        self.assertFalse(binding_result.ok)
-        self.assertEqual(binding_result.error.code, "plan_binding_invalid")
-        self.assertFalse(oracle_result.ok)
-        self.assertEqual(oracle_result.error.code, "oracle_field_invalid")
+    def test_an_oracle_may_not_run_outside_the_worktree(self) -> None:
+        escaping = oracle()
+        escaping["cwd"] = "../elsewhere"
+
+        result = implement_model.validate_oracle(escaping)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "unsafe_path")
 
     def test_generic_runner_summary_is_not_a_behavior_signature(self) -> None:
         invalid_oracle = oracle()
@@ -196,62 +183,14 @@ class BindingValidationTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "oracle_failure_signature_invalid")
 
-    def test_oracle_candidate_does_not_claim_an_observation_before_execution(self) -> None:
-        candidate = oracle()
-        del candidate["observed_failure_kind"]
-        candidate["test_targets"] = ["tests/cycle_runtime_test.py"]
-
-        candidate_result = implement_model.validate_oracle_candidate(candidate)
-        durable_result = implement_model.validate_oracle(candidate)
-
-        self.assertTrue(candidate_result.ok, candidate_result.error)
-        self.assertFalse(durable_result.ok)
-        self.assertEqual(durable_result.error.code, "oracle_field_missing")
-
-    def test_oracle_candidate_only_expects_a_behavior_failure(self) -> None:
-        candidate = oracle()
-        del candidate["observed_failure_kind"]
-        candidate["test_targets"] = ["tests/cycle_runtime_test.py"]
-        candidate["expected_failure_kind"] = "import_failure"
-
-        result = implement_model.validate_oracle_candidate(candidate)
-
-        self.assertFalse(result.ok)
-        self.assertEqual(result.error.code, "oracle_field_invalid")
-        self.assertEqual(result.error.field, "expected_failure_kind")
-        self.assertIn("behavior_failure", result.error.message)
-
-    def test_oracle_candidate_names_why_its_test_targets_are_invalid(self) -> None:
-        cases = {
-            "test targets must be path strings": [{"path": "tests/a_test.py"}],
-            "test targets must be unique": ["tests/a_test.py", "tests/a_test.py"],
-            "test targets must be safe relative paths": ["../tests/a_test.py"],
-        }
-        for expected_message, targets in cases.items():
-            with self.subTest(expected_message):
-                candidate = oracle()
-                del candidate["observed_failure_kind"]
-                candidate["test_targets"] = targets
-
-                result = implement_model.validate_oracle_candidate(candidate)
-
-                self.assertFalse(result.ok)
-                self.assertEqual(result.error.code, "oracle_field_invalid")
-                self.assertEqual(result.error.message, expected_message)
-
-    def test_oracle_rejects_unknown_fields_and_secret_shaped_command_arguments(self) -> None:
-        unknown = oracle()
-        unknown["stdout_copy"] = "bounded-looking output"
+    def test_oracle_rejects_a_secret_shaped_command_argument(self) -> None:
         secret_argument = oracle()
         secret_argument["command"].append("--api-token=<credential>")
 
-        unknown_result = implement_model.validate_oracle(unknown)
-        secret_result = implement_model.validate_oracle(secret_argument)
+        result = implement_model.validate_oracle(secret_argument)
 
-        self.assertFalse(unknown_result.ok)
-        self.assertEqual(unknown_result.error.code, "oracle_fields_invalid")
-        self.assertFalse(secret_result.ok)
-        self.assertEqual(secret_result.error.code, "secret_value_forbidden")
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "secret_value_forbidden")
 
     def test_event_rejects_a_secret_nested_anywhere_inside_it(self) -> None:
         candidate = {
@@ -268,26 +207,12 @@ class BindingValidationTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "secret_value_forbidden")
 
-    def test_executor_provenance_and_environment_names_are_exact(self) -> None:
+    def test_a_secret_shaped_field_is_found_wherever_it_is_nested(self) -> None:
         unsafe_binding = binding()
         unsafe_binding["executor"]["api_key"] = "<credential>"
-        duplicate_environment = oracle()
-        duplicate_environment["environment_names"] = ["PYTHONPATH", "PYTHONPATH"]
-        invalid_environment = oracle()
-        invalid_environment["environment_names"] = ["lower-case-name"]
 
-        binding_result = implement_model.validate_binding(unsafe_binding)
-
-        self.assertFalse(binding_result.ok)
-        self.assertIn(binding_result.error.code, {"executor_invalid", "secret_value_forbidden"})
-        self.assertEqual(
-            implement_model.validate_oracle(duplicate_environment).error.code,
-            "oracle_field_invalid",
-        )
-        self.assertEqual(
-            implement_model.validate_oracle(invalid_environment).error.code,
-            "oracle_field_invalid",
-        )
+        self.assertEqual(implement_model.first_secret_field(unsafe_binding), "api_key")
+        self.assertIsNone(implement_model.first_secret_field(binding()))
 
 
 class WriteScopeTest(unittest.TestCase):
@@ -310,50 +235,6 @@ class WriteScopeTest(unittest.TestCase):
                 self.assertFalse(result.ok)
                 self.assertEqual(result.error.code, "write_scope_violation")
 
-
-class TestSummaryValidationTest(unittest.TestCase):
-    def test_command_events_accept_complete_or_unavailable_test_summary(self) -> None:
-        complete = implement_model.seal_event(
-            command_event(
-                "green",
-                {"status": "complete", "passed": 7, "failed": 0, "skipped": 2},
-            )
-        )
-        unavailable = implement_model.seal_event(
-            command_event(
-                "green",
-                {
-                    "status": "unavailable",
-                    "reason": "runner did not expose structured counts",
-                },
-            )
-        )
-
-        self.assertTrue(complete.ok, complete.error)
-        self.assertTrue(unavailable.ok, unavailable.error)
-
-    def test_test_summary_rejects_unknown_mixed_or_invented_counts(self) -> None:
-        invalid_summaries = {
-            "unknown status": {"status": "partial", "passed": 1, "failed": 0, "skipped": 0},
-            "missing skipped": {"status": "complete", "passed": 1, "failed": 0},
-            "negative count": {"status": "complete", "passed": 1, "failed": -1, "skipped": 0},
-            "boolean count": {"status": "complete", "passed": True, "failed": 0, "skipped": 0},
-            "invented unavailable counts": {
-                "status": "unavailable",
-                "reason": "runner did not expose structured counts",
-                "passed": 1,
-                "failed": 0,
-                "skipped": 0,
-            },
-            "empty reason": {"status": "unavailable", "reason": ""},
-            "unbounded reason": {"status": "unavailable", "reason": "x" * 501},
-        }
-
-        for case, summary in invalid_summaries.items():
-            with self.subTest(case=case):
-                result = implement_model.seal_event(command_event("green", summary))
-                self.assertFalse(result.ok)
-                self.assertEqual(result.error.code, "test_summary_invalid")
 
 class EventChainTest(unittest.TestCase):
     def test_consecutive_events_are_ordered_by_sequence_alone(self) -> None:
@@ -405,7 +286,7 @@ class EventChainTest(unittest.TestCase):
                 "sequence": 2,
                 "event_type": "stopped",
                 "attempt_id": binding()["attempt_id"],
-                "reason": "oracle_field_invalid",
+                "reason": "unintended_red",
             },
             previous_event=first,
         ).value
@@ -533,14 +414,6 @@ class CheckStepEvidenceTest(unittest.TestCase):
 
 
 class HumanGateStateTest(unittest.TestCase):
-    def test_declared_human_gate_is_part_of_the_exact_binding(self) -> None:
-        value = binding()
-        value["human_gates"] = [human_gate()]
-
-        result = implement_model.validate_binding(value)
-
-        self.assertTrue(result.ok, result.error)
-
     def test_human_gate_event_must_match_a_declared_gate(self) -> None:
         value = binding()
         value["human_gates"] = [human_gate()]

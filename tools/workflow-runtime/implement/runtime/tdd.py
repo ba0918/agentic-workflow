@@ -188,7 +188,7 @@ def validate_step_test_targets_at(attempt: Attempt, step_id: str, commit_sha: st
 
 
 def accept_red(attempt: Attempt, oracle: dict) -> RuntimeResult:
-    validation = execution_model.validate_oracle_candidate(oracle)
+    validation = execution_model.validate_oracle(oracle)
     if not validation.ok:
         return stop_attempt(
             attempt,

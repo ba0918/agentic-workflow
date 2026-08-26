@@ -137,33 +137,37 @@ def residual_executions(project_root: Path, *, plan_id: str) -> RuntimeResult:
         if last is not None and last.get("event_type") == "implementation_green":
             continue
         binding_result = read_json(evidence_path / "binding.json")
-        if not binding_result.ok or not execution_model.validate_binding(binding_result.value).ok:
+        unreadable = {
+            "execution_id": evidence_path.name,
+            "started_at": _started_at(evidence_path.name),
+            "resumable": {"ok": False, "reason": "binding.json is missing or unreadable"},
+        }
+        if not binding_result.ok:
+            facts.append(unreadable)
+            continue
+        # This path shows a human what is lying around, so a binding nobody can read is one more
+        # fact to show, not a reason to fail the listing. Its fields are read, never validated.
+        try:
+            binding = execution_model.effective_binding(binding_result.value, events)
+            commits = [event for event in execution_model.effective_events(events) if event.get("event_type") == "commit"]
+            mismatch = _binding_fingerprints_match(main_checkout, binding)
             facts.append(
                 {
                     "execution_id": evidence_path.name,
                     "started_at": _started_at(evidence_path.name),
-                    "resumable": {"ok": False, "reason": "binding.json is missing or invalid"},
+                    "completed_steps": len({event.get("step_id") for event in commits}),
+                    "last_event": {
+                        "event_type": last.get("event_type") if last else None,
+                        "reason": last.get("reason") if last else None,
+                    },
+                    "branch": _branch_facts(main_checkout, binding["branch"], binding["base_head"], _recorded_commits(events)),
+                    "worktree": _worktree_facts(main_checkout, repository.value.common_directory, Path(binding["worktree"])),
+                    "resumable": {"ok": mismatch is None, "reason": mismatch},
+                    "rebindable": _rebind_target(main_checkout, binding),
                 }
             )
-            continue
-        binding = execution_model.effective_binding(binding_result.value, events)
-        commits = [event for event in execution_model.effective_events(events) if event.get("event_type") == "commit"]
-        mismatch = _binding_fingerprints_match(main_checkout, binding)
-        facts.append(
-            {
-                "execution_id": evidence_path.name,
-                "started_at": _started_at(evidence_path.name),
-                "completed_steps": len({event.get("step_id") for event in commits}),
-                "last_event": {
-                    "event_type": last.get("event_type") if last else None,
-                    "reason": last.get("reason") if last else None,
-                },
-                "branch": _branch_facts(main_checkout, binding["branch"], binding["base_head"], _recorded_commits(events)),
-                "worktree": _worktree_facts(main_checkout, repository.value.common_directory, Path(binding["worktree"])),
-                "resumable": {"ok": mismatch is None, "reason": mismatch},
-                "rebindable": _rebind_target(main_checkout, binding),
-            }
-        )
+        except (AttributeError, KeyError, TypeError):
+            facts.append(unreadable)
     return ok(facts)
 
 def _next_step_after_evidence(events: list[dict], step_ids: list[str]) -> tuple[str | None, bool, list[str]]:
@@ -414,11 +418,13 @@ def load_current_attempt(
     binding_result = read_json(binding_path)
     if not binding_result.ok:
         return failure("binding_invalid", "binding.json cannot be read", binding_result.error.message)
-    validation = execution_model.validate_binding(binding_result.value)
-    if not validation.ok:
-        return failure(validation.error.code, validation.error.message)
     binding = binding_result.value
-    if binding["attempt_id"] != attempt_id or binding["plan"]["id"] != plan_id:
+    if (
+        not isinstance(binding, dict)
+        or binding.get("attempt_id") != attempt_id
+        or not isinstance(binding.get("plan"), dict)
+        or binding["plan"].get("id") != plan_id
+    ):
         return failure("binding_identity_drift", "binding.json does not describe this execution")
 
     # Reading an execution never depends on the plan or specs still matching: a revised plan

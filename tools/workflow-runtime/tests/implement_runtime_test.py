@@ -541,17 +541,6 @@ class BootstrapTest(unittest.TestCase):
             self.assertTrue((parent / "first-worktree").is_dir())
             self.assertTrue((parent / "second-worktree").is_dir())
 
-    def test_binding_requires_the_worktree_path(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            _, attempt = bootstrap_fixture(Path(directory))
-            binding = json.loads(attempt.binding_path.read_text(encoding="utf-8"))
-            del binding["worktree"]
-
-            result = implement_runtime.execution_model.validate_binding(binding)
-
-            self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "binding_fields_invalid")
-
     def test_attempt_id_collision_is_not_overwritten(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)
