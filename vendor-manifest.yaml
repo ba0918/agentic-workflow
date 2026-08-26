@@ -6,6 +6,7 @@ contracts:
     files:
       tools/workflow-runtime/implement/implement_runtime.py: scripts/implement_runtime.py
       tools/workflow-runtime/implement/runtime/: scripts/runtime/
+      tools/workflow-runtime/plan/plan_artifact.py: scripts/plan_artifact.py
   plan-runtime:
     source: local
     files:

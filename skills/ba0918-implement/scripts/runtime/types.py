@@ -1,20 +1,10 @@
-"""Result tuples, identity shapes and the vocabulary every runtime module speaks in."""
-import re
+"""Shared runtime values."""
 from pathlib import Path
+import re
 from typing import Any, NamedTuple
 
-IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")
-ATTEMPT_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,95}")
+RUN_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,95}")
 COMMIT_SHA = re.compile(r"[0-9a-f]{40,64}")
-# Only a behavior failure is an approved missing behavior; import, fixture, permission and
-# network failures are never an expected RED, so the candidate may not predict them.
-APPROVAL_RESULTS = ["approved", "rejected"]
-
-
-def matches(pattern: re.Pattern[str], value: object) -> bool:
-    return isinstance(value, str) and pattern.fullmatch(value) is not None
-
-
 
 class RuntimeFailure(NamedTuple):
     code: str
@@ -24,36 +14,24 @@ class RuntimeFailure(NamedTuple):
 class RuntimeResult(NamedTuple):
     value: Any | None
     error: RuntimeFailure | None
-
     @property
     def ok(self) -> bool:
         return self.error is None
 
 class ResolvedPlan(NamedTuple):
-    plan_id: str
+    plan_key: str
     path: str
-    revision: int
-    content_identity: str
+    approval_commit: str
     text: str
-    specs: tuple[tuple[str, str], ...]
-    write_scope: tuple[str, ...]
+    specifications: tuple[Any, ...]
+    expected_paths: tuple[str, ...]
 
-class RepositoryInfo(NamedTuple):
-    main_checkout: Path
-    common_directory: Path
-    checkout: Path
-    base_head: str
-    repository_identity: str
-
-class Attempt(NamedTuple):
-    attempt_id: str
-    plan_id: str
-    branch: str
-    worktree: Path
-    binding_path: Path
+class Run(NamedTuple):
+    run_id: str
+    plan_key: str
+    root: Path
     evidence_path: Path
-    tmp_path: Path
-    main_checkout: Path
+    binding_path: Path
 
 def ok(value: Any = None) -> RuntimeResult:
     return RuntimeResult(value, None)

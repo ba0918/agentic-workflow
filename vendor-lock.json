@@ -17,62 +17,67 @@
     "ba0918-brainstorm": {
       "scripts/draft.py": {
         "contract": "brainstorm-runtime",
-        "digest": "sha256:df625d5ea4b9ab7348c7508578c74be82691c21782eadd915e5af4f45b1026f4",
+        "digest": "sha256:817c1d9c5c489a211e2f6e9dfa58087c64ca420b11143fe4d1f2627900ea156c",
         "src": "tools/workflow-runtime/brainstorm/draft.py"
       },
       "scripts/state.py": {
         "contract": "brainstorm-runtime",
-        "digest": "sha256:b3160c43daa4a756c1304ac7dace2018353f62fe85c888852e4095f7f00ca68d",
+        "digest": "sha256:f9240f2f7f193b9d160c27f334128e1fa20e8b50c356b6545831fa663d41c213",
         "src": "tools/workflow-runtime/brainstorm/state.py"
       }
     },
     "ba0918-implement": {
       "scripts/implement_runtime.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:5f0cddf88385f3bc9d2072c9b13744a5a9e7d4abf4a8f17efe14ac02e9881fda",
+        "digest": "sha256:8031823625b2cb62862e91ed5087a6e3fab8fed723acf6e17f6c3695b53e4e3a",
         "src": "tools/workflow-runtime/implement/implement_runtime.py"
+      },
+      "scripts/plan_artifact.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:76ce0112d2a1d67c6c6a96356e2684882ab9a5fc77774e38348274f608de2f17",
+        "src": "tools/workflow-runtime/plan/plan_artifact.py"
       },
       "scripts/runtime/": {
         "contract": "implement-runtime",
-        "digest": "sha256:afa2b48796628f9fe4d38e3f4a36b27a009fc773a6585773c441b013070f0c74",
+        "digest": "sha256:ac2d5f5f9c7bb143f4d72c2886f9d8c958df052513e4817da3910559efd2c9a9",
         "src": "tools/workflow-runtime/implement/runtime/"
       }
     },
     "ba0918-plan": {
       "scripts/plan_artifact.py": {
         "contract": "plan-runtime",
-        "digest": "sha256:565f020974eafbdcbd7726baeb2f9ece46ffc6e11a9cd884704102ab1a0091b9",
+        "digest": "sha256:76ce0112d2a1d67c6c6a96356e2684882ab9a5fc77774e38348274f608de2f17",
         "src": "tools/workflow-runtime/plan/plan_artifact.py"
       }
     },
     "ba0918-review": {
       "scripts/review_model.py": {
         "contract": "review-runtime",
-        "digest": "sha256:aae1e99e5cefebbbc74ae3b173191fabf3fb6da3f697a83378f3a38f0680be21",
+        "digest": "sha256:966ba920a3e7827ec8746176bb419e0673d7535a4a42606e0c04ba57b5e9d5e7",
         "src": "tools/workflow-runtime/review/review_model.py"
       },
       "scripts/review_runtime.py": {
         "contract": "review-runtime",
-        "digest": "sha256:480b63df7230ccbb34629b0a2eaae9a134904dc0224148d67fe3a4e5a250f3d6",
+        "digest": "sha256:fc14d40a9debbadca1b89f216367f7d035123904e7183e78b57b5123f6a6e3bd",
         "src": "tools/workflow-runtime/review/review_runtime.py"
       }
     }
   },
   "resolutions": {
     "brainstorm-runtime": {
-      "digest": "sha256:91edb78f21b01e456486b634d511ecf44e6628ff9742368e77e37edf06da1a9e",
+      "digest": "sha256:f3acb53225d567f942fc1a9556f7292cfd912e577f2de30f6529eae0daa3da7f",
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:86eecd5cf3cfacb99066681b113cac4014016a78a39efbc81462ffeafd7e69b4",
+      "digest": "sha256:6196880cb361f29ca9e55862a7406ce37cdeb0c725af804cbfe9ade5f0c7d0f9",
       "kind": "raw"
     },
     "plan-runtime": {
-      "digest": "sha256:1bdcc86cd7e3327e0f649e3692be6bb2e3672160bde5330b10c58acaf66851ed",
+      "digest": "sha256:bb0b34f73ac3eb5237c77804cb7154a194b595bf77fd420753eedf856030f705",
       "kind": "raw"
     },
     "review-runtime": {
-      "digest": "sha256:4533377cff4b10f599abe028dd07041458fc54c8560705895fb4ca3a9612efd6",
+      "digest": "sha256:7856f1f5b42eaffa234777e1e29816e0366277c3cbd41bcc127640c78653be99",
       "kind": "raw"
     }
   }
