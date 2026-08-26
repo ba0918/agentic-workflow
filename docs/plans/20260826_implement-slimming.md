@@ -1,7 +1,7 @@
 # implement の減量 — 自己検証を落とし、状態の写しと委譲を足す
 
 **Plan ID:** `20260826050000`
-**Plan revision:** `2`
+**Plan revision:** `3`
 
 **Target specifications:**
 
@@ -17,6 +17,13 @@
 止まり方を 2 種類に割ることを求めています。`workflow.md` は、その検査の線引きと、状態の
 写しに何を書き何を書かないかを定めています。この手順書は、そこに書かれた振る舞いを
 コードに移すだけで、新しい意味を決めません。
+
+## 版 3 で足したこと
+
+状態の写しを**読む**側が、どの手順にも入っていませんでした。`implement.md` は、残って
+いる実行を見せるときの「終わった手順の数と、最後の出来事の種類と理由」を状態の写しから
+読むと決めていますが、`resume.py` は出来事の列を全部読んで数えています。手順 4 は書く側
+しか挙げていなかったので、読む側を同じ手順に足しました。
 
 ## 版 2 で直したこと
 
@@ -200,6 +207,7 @@ oracle のうち「失敗の内容が何も言っていない物を弾く」検�
 
 **変更してよいファイル:** `tools/workflow-runtime/implement/runtime/context.py`、
 `tools/workflow-runtime/implement/runtime/storage.py`、
+`tools/workflow-runtime/implement/runtime/resume.py`、
 `tools/workflow-runtime/tests/implement_runtime_test.py`。
 
 **Completion:** test
@@ -212,6 +220,8 @@ oracle のうち「失敗の内容が何も言っていない物を弾く」検�
   ブランチと作業ディレクトリ）
 - 「次にすべきこと」に相当する項目が無い
 - 実行が終わっても消えない
+- 残っている実行を見せるとき、終わった手順の数と最後の出来事とその理由は、状態の写しを
+  1 つ読んで得られる。出来事の列を全部読まない
 
 **実装側に任せてよい選択:** ファイルの書式（Markdown か JSON か）。
 
