@@ -1,7 +1,7 @@
 # plan_artifact の縮小 — 索引を捨て、機械が読む 2 箇所だけを残す
 
 **Plan ID:** `20260826170000`
-**Plan revision:** `2`
+**Plan revision:** `3`
 
 **Target specifications:**
 
@@ -20,6 +20,14 @@
 検査、検査コマンドの抽出、人が判断する場面の JSON 検証、そして `open-plans.json` という
 索引の読み書きを持っています。この手順書は、そこに書かれた振る舞いをコードに移すだけで、
 新しい意味を決めません。
+
+## 版 3 で直したこと
+
+手順 8 の変更してよいファイルに `skills/ba0918-implement/scripts/` がありませんでした。
+`bunx agentic-skill-vendor gen` は登録された全 skill の複製を作り直します。この計画は
+手順 1〜3 で implement の正本を変えているので、その複製もこの手順で書き換わります。
+
+**作る物、禁止、人が判断する場面は版 1 のままです。**
 
 ## 版 2 で直したこと
 
@@ -279,7 +287,8 @@ vendor-lock.json
 
 **前提:** 手順 7。
 
-**変更してよいファイル:** `skills/ba0918-plan/scripts/`、`vendor-lock.json`。
+**変更してよいファイル:** `skills/ba0918-plan/scripts/`、
+`skills/ba0918-implement/scripts/`、`vendor-lock.json`。
 
 **Completion:** check
 
