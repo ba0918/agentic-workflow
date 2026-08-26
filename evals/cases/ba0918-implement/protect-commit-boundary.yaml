@@ -12,7 +12,7 @@ prompt: |
 expected_output: |
   secret-shaped contentとside-branch commitと不正な理由集合を拒否し、値を露出させず、正当なGit証拠だけを記録する。
 expectations:
-  - text: staged diffとcommit objectの内容をruntime自身が読みsecret-shaped assignmentを拒否する
+  - text: staged diffとcommit objectの内容をruntime自身が読みAPI_TOKEN、TOKEN、SECRET、CREDENTIALを大文字小文字や一般的区切りによらず拒否する
     critical: true
   - text: 秘密らしい値をevent・error・logへ含めずpathと分類だけを返す
     critical: true
