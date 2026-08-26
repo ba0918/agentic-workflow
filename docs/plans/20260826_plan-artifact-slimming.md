@@ -1,7 +1,7 @@
 # plan_artifact の縮小 — 索引を捨て、機械が読む 2 箇所だけを残す
 
 **Plan ID:** `20260826170000`
-**Plan revision:** `3`
+**Plan revision:** `4`
 
 **Target specifications:**
 
@@ -20,6 +20,23 @@
 検査、検査コマンドの抽出、人が判断する場面の JSON 検証、そして `open-plans.json` という
 索引の読み書きを持っています。この手順書は、そこに書かれた振る舞いをコードに移すだけで、
 新しい意味を決めません。
+
+## 版 4 で直したこと
+
+手順 6 の検査コマンドが `tools/workflow-runtime/implement/` を走査対象に含んでいて、
+絶対に通らない状態でした。消したい名前のうち 2 つが、implement 側で別の役目のまま
+生きているためです。
+
+- `COMPLETION_KINDS` は `repository.py` にあり、AI が宣言した完了の示し方が、この
+  runtime が扱える 4 種類のどれかであることを見ています。手順書の本文を読む処理では
+  ありません
+- `HUMAN_GATE_TIMINGS` は `gates.py` にあり、人が判断する場面をどの境界で見るかの
+  順序を持っています。こちらも宣言を扱う側です
+
+検査対象を `tools/workflow-runtime/plan/` と、この計画が触る試験 2 本に絞りました。
+これは手順書 A の版 2 で直したのと同じ種類の書き損じです。
+
+**作る物、禁止、人が判断する場面は版 1 のままです。**
 
 ## 版 3 で直したこと
 
@@ -252,7 +269,7 @@ vendor-lock.json
 
 **Checks:**
 
-- `test -z "$(rg -l 'read_plan_steps|read_plan_human_gates|_step_check_commands|InvalidHumanGateDeclaration|COMPLETION_KINDS|CHECK_COMMAND|HUMAN_GATE_TIMINGS|HUMAN_GATE_RESULTS' tools/workflow-runtime/plan/ tools/workflow-runtime/implement/ tools/workflow-runtime/tests/plan_artifact_test.py tools/workflow-runtime/tests/implement_runtime_test.py)"`
+- `test -z "$(rg -l 'read_plan_steps|read_plan_human_gates|_step_check_commands|InvalidHumanGateDeclaration|COMPLETION_KINDS|CHECK_COMMAND|HUMAN_GATE_TIMINGS|HUMAN_GATE_RESULTS' tools/workflow-runtime/plan/ tools/workflow-runtime/tests/plan_artifact_test.py tools/workflow-runtime/tests/implement_runtime_test.py)"`
 - `rg -q 'read_plan_header' tools/workflow-runtime/plan/plan_artifact.py`
 - `python3 -m unittest discover -s tools/workflow-runtime/tests -p '*_test.py'`
 
