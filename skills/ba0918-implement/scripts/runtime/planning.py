@@ -1,4 +1,4 @@
-"""Reading the registered plan: identity, gates, steps, completion kinds."""
+"""Reading the plan to run: which one, its identity, and the steps declared for it."""
 from runtime.gitio import run_git, discover_repository
 from runtime.types import Attempt
 from pathlib import Path, PurePosixPath
@@ -150,8 +150,8 @@ def resolve_plan(
 ) -> RuntimeResult:
     """The plan to run, read for the two parts a machine reads.
 
-    Its id and revision come from the agent that read the document, not from a parser or a
-    locator (docs/spec/plan.md, "機械が決まった書き方で読む箇所は 2 つだけ").
+    Its id and revision come from the agent that read the document, never from a parser
+    (docs/spec/plan.md, "機械が決まった書き方で読む箇所は 2 つだけ").
     """
     located = locate_plan(project_root, plan_path=plan_path, receipt=receipt)
     if not located.ok:
