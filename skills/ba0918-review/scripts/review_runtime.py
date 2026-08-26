@@ -132,6 +132,19 @@ def _implementation_events(store: Path) -> RuntimeResult:
         events.append(event)
     return ok(events)
 
+def _validate_implementation_segments(root: Path, segments: list[dict], branch_head: str) -> RuntimeResult:
+    for index, segment in enumerate(segments):
+        end = segments[index + 1]["approval_commit"] if index + 1 < len(segments) else branch_head
+        history = _git(root, "rev-list", "--reverse", f"{segment['approval_commit']}..{end}")
+        if history.returncode != 0:
+            return failure("execution_input_invalid", "implementation revision range is unavailable")
+        commits = list(filter(None, history.stdout.splitlines()))
+        if index + 1 < len(segments) and commits and commits[-1] == end:
+            commits.pop()
+        if commits != segment.get("commits"):
+            return failure("execution_input_invalid", "implementation revision range and evidence differ")
+    return ok()
+
 def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> RuntimeResult:
     if SAFE_ID.fullmatch(plan_key) is None or SAFE_ID.fullmatch(run_id) is None:
         return failure("execution_input_invalid", "implementation identifiers are unsafe")
@@ -176,11 +189,13 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
     if root_common_path != worktree_common_path:
         return failure("execution_input_invalid", "implementation worktree belongs to another repository")
     branch_head = _commit(root, branch)
-    last_commit = commits[-1].get("commit") if commits else None
     if any(not _commit(root, event.get("commit")).ok for event in commits):
         return failure("execution_input_invalid", "implementation evidence names a missing commit")
-    if not branch_head.ok or branch_head.value != last_commit:
-        return failure("execution_input_invalid", "implementation branch tip and commit evidence differ")
+    if not branch_head.ok:
+        return failure("execution_input_invalid", "implementation branch tip is unavailable")
+    segment_check = _validate_implementation_segments(root, derived.value["segments"], branch_head.value)
+    if not segment_check.ok:
+        return segment_check
     try:
         return ok(execution_binding(
             plan_key, run_id, approval.value, implement_sequence=events[-1]["sequence"],
@@ -471,8 +486,9 @@ def record_findings(
     root: Path, binding: dict, *, stage: str, findings: list[dict], safety: dict,
     reviewer_context: str, actual_model: str | None = None,
 ) -> RuntimeResult:
-    model = actual_model or binding.get("review_options", {}).get("model")
-    checked_model = _bounded_text(model)
+    if actual_model is None:
+        return failure("actual_model_required", "review stage result needs the actual reviewer model")
+    checked_model = _bounded_text(actual_model)
     checked_summary = _bounded_text(safety.get("summary") if isinstance(safety, dict) else None)
     if (
         stage not in {"initial", "final"} or not isinstance(safety, dict)
@@ -518,12 +534,23 @@ def _commit_has_trailer(root: Path, commit: str, finding_id: str) -> bool:
     message = _git(root, "show", "-s", "--format=%B", resolved.value).stdout
     return re.search(rf"(?m)^Finding:\s*{re.escape(finding_id)}\s*$", message) is not None
 
-def _bound_trailer_commits(root: Path, binding: dict, finding_id: str) -> RuntimeResult:
+def _bound_trailer_commits(
+    root: Path, binding: dict, finding_id: str, *, selected_fix_head: str | None = None,
+) -> RuntimeResult:
     base = binding.get("input", {}).get("base") or binding.get("approval_commit")
     branch = binding.get("input", {}).get("branch") or binding.get("branch")
-    head = f"refs/heads/{branch}" if branch else binding.get("input", {}).get("head") or binding.get("head")
+    original_head = binding.get("input", {}).get("head") or binding.get("head")
+    head = f"refs/heads/{branch}" if branch else selected_fix_head or original_head
     if not base or not head:
         return failure("fix_commit_unlinked", "review input has no bounded commit range")
+    if not branch and selected_fix_head:
+        resolved = _commit(root, selected_fix_head)
+        if not resolved.ok or not original_head or _git(
+            root, "merge-base", "--is-ancestor", original_head, resolved.value,
+        ).returncode != 0:
+            return failure("fix_commit_unlinked", "selected fix head must descend from the reviewed head")
+        base = original_head
+        head = resolved.value
     history = _git(root, "rev-list", "--reverse", f"{base}..{head}")
     if history.returncode != 0:
         return failure("fix_commit_unlinked", "review commit range is unavailable")
@@ -552,7 +579,9 @@ def close_finding(
         return failure("targeted_result_exists", "targeted review already recorded this finding result")
     if oracle_exit_code != 0:
         return failure("finding_oracle_failed", "finding oracle still fails")
-    linked = _bound_trailer_commits(root, binding, finding_id)
+    linked = _bound_trailer_commits(
+        root, binding, finding_id, selected_fix_head=fix_commits[-1] if fix_commits else None,
+    )
     if not linked.ok or not fix_commits or linked.value != fix_commits:
         return failure("fix_commit_unlinked", "every fix commit must exist and carry the finding trailer")
     return append_event(root, binding, "targeted-review-result", {
@@ -742,7 +771,7 @@ def main(argv: list[str] | None = None) -> int:
     _selector(findings)
     findings.add_argument("--stage", choices=("initial", "final"), required=True)
     findings.add_argument("--reviewer-context", required=True)
-    findings.add_argument("--actual-model")
+    findings.add_argument("--actual-model", required=True)
     findings.add_argument("--findings-file", required=True)
     findings.add_argument("--safety-file", required=True)
     second = commands.add_parser("record-second-review")
