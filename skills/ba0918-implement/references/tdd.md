@@ -1,7 +1,7 @@
 # Direct TDD execution
 
 Read this reference only after bootstrap has produced `worktree-bound` (or `resume` has named
-the step to continue from), and only for steps whose `**Completion:**` is `test`. Work inside the
+the step to continue from), and only for steps you declared as `test`. Work inside the
 linked worktree. The current agent performs every action directly.
 
 ## Resolve an executable oracle
@@ -27,7 +27,7 @@ ten fields and nothing else; an unknown field is rejected as `oracle_fields_inva
 | Field | Value |
 |---|---|
 | `version` | `1` |
-| `step_id` | `step-<n>`, where `<n>` is the number of the `### <n>.` heading under the plan's `## Steps` section |
+| `step_id` | the step id you declared when the execution was bound |
 | `sections` | non-empty list of the specification section names this step implements, as listed under the plan's `**Target specifications:**` |
 | `test_targets` | non-empty list of unique, repository-relative path strings: the test, fixture, and inspection-config files the RED depends on. Strings only; the helper reads their bytes and adds each content identity when it freezes the oracle |
 | `command` | the test command as a string array, e.g. `["python3", "-m", "unittest", "tests/greeting_test.py"]` |

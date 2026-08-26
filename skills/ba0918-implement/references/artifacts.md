@@ -1,6 +1,6 @@
 # Check, artifact and external steps
 
-Read this reference for steps whose `**Completion:**` is `check`, `artifact`, or `external`. None
+Read this reference for steps you declared as `check`, `artifact`, or `external`. None
 of them can be shown by a test written first. A `check` step is decided by the commands the plan
 names; the other two produce something only a person can judge — prose an AI will read, a
 configuration file, a check on a running system — so their completion rests on recorded evidence
@@ -24,7 +24,7 @@ with nothing to read teaches the human to answer without looking.
    The helper reads the commands from the step's `**Checks:**` declaration and runs them in the
    order the plan writes them, inside the worktree. It appends a `check` event holding each
    command with its exit code, and every in-scope file that changed with its content identity.
-   It passes no command of its own and takes none from the agent: what the plan named is what
+   It passes no command of its own and takes none at call time: what was declared is what
    runs.
 3. A command that does not succeed records nothing and does not stop the execution
    (`check_failed` names the command). Fix what the command reports and run `record-check` again.

@@ -1,7 +1,7 @@
 # Execution boundary
 
 Read this reference before plan resolution, the unfinished-execution check, bootstrap,
-fresh-session entry, context validation, or a blocking stop.
+fresh-session entry, context validation, delegation, or a stop.
 
 ## Resolve the plan
 
@@ -12,14 +12,15 @@ Use candidates in this order:
 3. the single `current` entry in a valid `open-plans.json`.
 
 Conversation context may identify a candidate, but it is never execution evidence. Run the
-helper's `resolve` command before any write. It reads the plan through the plan skill's reader
-and verifies the registered path, plan bytes, plan id, revision, target specification bytes,
-base-HEAD spec bytes, scope tree, steps, and human gates.
+helper's `resolve` command before any write. It verifies the registered path, the plan bytes,
+the target specification bytes, the same bytes at base HEAD, and the scope tree — the two parts
+of a plan that are compared against the world outside it. It reads nothing else out of the prose.
 
 Ask the human only when no candidate is available, evidence is ambiguous, or candidate evidence
 conflicts. Never select by modification time, filename order, or directory scanning. A plan that
 is not registered is `plan_registration_missing`; do not repair its locator or accept a legacy
-path. A plan the reader cannot parse is `plan_format_invalid`; report which part and stop.
+path. A plan whose target specifications or scope tree cannot be read is `plan_format_invalid`;
+report which of the two and stop. Nothing else about the plan's wording can produce that.
 
 ```text
 python3 <implement-runtime> resolve --repo <main-checkout> [--plan-path <repo-relative-plan>]
@@ -38,16 +39,18 @@ python3 <implement-runtime> residual --repo <main-checkout> --plan-id <plan-id>
 
 It reads only the evidence directories under `.agents/artifacts/executions/<plan-id>/` — never
 the branch list, so a branch someone created by hand is not mistaken for an execution — and
-returns, per unfinished execution: when it started, how many steps were committed, the last
-event and its reason, whether the branch exists and which commits (SHA and subject) it holds
+returns, per unfinished execution: when it started, how many steps were committed and the last
+event with its reason (both read from that execution's `current-status`, not by replaying its
+events), whether the branch exists and which commits (SHA and subject) it holds
 that no commit event explains — wherever they sit between the base and the head — and whether
 the worktree exists, is registered, and which files it has changed without a commit. `resumable.ok`
 is false only when the plan or specification identities the execution currently stands on (its
 binding, as the last rebound left it) no longer match the repository; that execution cannot be
 continued as it is. `rebindable.ok` then says whether it can be rebound instead: the current
 registered plan must be a revision of the same plan, and the plan revision the execution was
-bound to must still be readable. An execution whose `binding.json` is missing or unreadable is
-listed with its id and `resumable.ok: false` alone.
+bound to must still be readable. An execution whose `current-status` or `binding.json` is missing
+or unreadable is listed with its id and `resumable.ok: false` alone — one more fact for the
+human, not a failure of the listing.
 
 When the list is empty, bootstrap a new execution. Otherwise present the facts to the human in
 plain language and let them choose between continuing one execution, rebinding it to the revised
@@ -76,15 +79,31 @@ python3 <implement-runtime> bootstrap \
   [--plan-path <repo-relative-plan> | --receipt-path <path> --receipt-identity <identity>] \
   --worktree <dedicated-path> \
   --executor <safe-executor-name> \
+  --steps '<the steps you read out of the plan, as JSON>' \
+  [--human-gates '<the decisions the plan declares, as JSON>'] \
   [--backend <safe-backend-name>] \
   [--session-id <safe-session-or-unavailable>]
 ```
 
+`--steps` is how the plan's steps reach the execution. Read them out of the prose and pass, in
+the plan's order:
+
+```json
+[{"step_id": "step-1", "completion": "test", "checks": []},
+ {"step_id": "step-2", "completion": "check", "checks": ["bunx agentic-skill-vendor verify"]}]
+```
+
+`completion` is one of `test`, `check`, `artifact`, `external`. A `check` step names the commands
+it is judged by and nothing else does; those commands are fixed here, and the check step runs
+exactly them. Declare the whole plan, not the step you are about to do: the execution runs on
+this declaration from here on, and the terminal walks it.
+
 The helper performs a real write preflight, generates a path-safe execution id (a timestamp
 plus random hex, which is also how the start time of an execution is read back later), writes immutable
-`binding.json` (including the worktree path), creates the branch `implement/<execution-id>` and
-the linked worktree from base HEAD, verifies Git identity, and writes `worktree-bound`. Test
-editing is forbidden until this succeeds.
+`binding.json` (including the worktree path and your declaration), creates the branch
+`implement/<execution-id>` and the linked worktree from base HEAD, verifies Git identity, writes
+`worktree-bound`, and writes the first `current-status`. Test editing is forbidden until this
+succeeds.
 
 Never use an in-place fallback, delete a partial worktree, or reuse an execution id.
 
@@ -124,25 +143,36 @@ the execution; this writes nothing:
 ```text
 python3 <implement-runtime> rebind \
   --repo <main-checkout> --plan-id <plan-id> --execution-id <execution-id> \
-  [--plan-path <repo-relative-revised-plan>]
+  [--plan-path <repo-relative-revised-plan>] \
+  --steps '<the revised plan\'s steps, as JSON>' \
+  --step-map '<how they match the previous ones, as JSON>' \
+  [--human-gates '<the revised plan\'s declared decisions, as JSON>']
 ```
 
-The helper matches the steps of the bound revision and the revised plan by the identity of
-their wording (heading and body, never the number), and returns a `step_map`: for each revised
-step, `carry` (same wording, already committed — its evidence and commit are kept), `continue`
-(same wording, not yet committed — resumed from its evidence), or `new` (no step with that
-wording existed). Previous steps no revised step matches are `superseded_steps`: their evidence
-no longer counts and they are done again, while their commits stay on the branch and are listed
-at the terminal. It also names `next_step`, the first revised step that is not carried, and the
-commits the evidence does not explain. Present the table in plain language and let the human
-decide; a narrowed write scope does not block the rebind (the terminal lists what falls outside).
+Matching the two revisions is reading, so it is yours. Compare the steps by their wording —
+heading and body, never their number — and pass one entry per revised step:
+
+```json
+[{"step_id": "step-1", "previous_step_id": "step-1", "disposition": "carry"},
+ {"step_id": "step-2", "previous_step_id": null, "disposition": "new"}]
+```
+
+`carry` is the same wording already committed (its evidence and commit are kept), `continue` the
+same wording not yet committed (resumed from its evidence), `new` a step no previous wording
+matches. Previous steps your map names nowhere become `superseded_steps`: their evidence no
+longer counts and they are done again, while their commits stay on the branch and are listed at
+the terminal. The helper derives that list from your map and the record, and names `next_step`,
+the first revised step that is not carried, and the commits the evidence does not explain.
+Present the table in plain language and let the human decide; a narrowed write scope does not
+block the rebind (the terminal lists what falls outside).
 
 Only after the human confirmed:
 
 ```text
 python3 <implement-runtime> rebind \
   --repo <main-checkout> --plan-id <plan-id> --execution-id <execution-id> \
-  [--plan-path <repo-relative-revised-plan>] --confirm \
+  [--plan-path <repo-relative-revised-plan>] \
+  --steps '<same as the preview>' --step-map '<same as the preview>' --confirm \
   --expect-plan-identity <the identity the preview printed>
 ```
 
@@ -152,8 +182,8 @@ recording a rebound onto a revision nobody read would make the record and the de
 different things; the helper refuses with `rebind_target_moved` and the preview is shown again.
 
 This appends a `rebound` event carrying the revised plan (id, path, revision, identity), its
-specification identities, write scope, human gates, the step map, the branch head, the extra
-commits, and whether uncommitted changes exist. From then on every command checks against the
+specification identities, write scope, human gates, declared steps, the step map, the branch
+head, the extra commits, and whether uncommitted changes exist. From then on every command checks against the
 revised plan, and step ids are the revised numbering. The rebind target is the registered current
 plan (or the registered plan at `--plan-path`) and must be the same plan id; when the bound
 revision's file is no longer readable the rebind is refused and only starting over remains.
@@ -179,7 +209,7 @@ revised plan is reported by `context`, not by `load`. Every later command accept
 ids.
 
 Then revalidate the current plan step before reading or editing implementation files. Step ids
-are `step-<n>`, taken from the `### <n>.` headings under the plan's `## Steps` section:
+are the ones you declared at bootstrap (or at the last rebind):
 
 ```text
 python3 <implement-runtime> context --repo <main-checkout> --step step-<n>
@@ -192,9 +222,34 @@ work in progress; changes outside it are returned as `out_of_scope_changes`, a f
 human, never a stop — the staging boundary keeps them out of commits and the terminal lists them.
 Run the check again at every RED, GREEN, REFACTOR, and commit boundary.
 
-Each step's `**Completion:**` line decides how it is executed: `test` follows [tdd.md](tdd.md);
-`artifact` and `external` follow [artifacts.md](artifacts.md). Evidence of the wrong kind for a
-step is `completion_kind_mismatch` and a blocking stop.
+The completion kind you declared for the step decides how it is executed: `test` follows
+[tdd.md](tdd.md); `check`, `artifact` and `external` follow [artifacts.md](artifacts.md).
+Recording evidence of another kind is `completion_kind_mismatch` — a recovery, not a stop: record
+the right kind and go on.
+
+## The state of the execution
+
+Every event rewrites `current-status` beside it, in the same operation. It holds four things and
+nothing else: the plan's path and revision, the steps that reached a commit, the last event with
+its reason, and the branch and worktree. It carries no "what to do next" — that is a judgement,
+and a judgement written by appending code goes stale. Read it to know where an execution stands
+without walking its events; it survives the execution's end and is never deleted.
+
+## Delegation
+
+When cycle hands the implementation to an executor, the fact is recorded here — the handing over
+itself is cycle's, never this skill's:
+
+```text
+python3 <implement-runtime> record-delegation \
+  --repo <main-checkout> --executor <name> --model <full-model-id>
+
+python3 <implement-runtime> record-return \
+  --repo <main-checkout> --step step-<n> --reason <short-reason>
+```
+
+A delegated conversation that runs out of context or quota leaves the evidence and the status at
+its high-water mark, so the next delegation starts from there. Nothing else is needed to clean up.
 
 ## Planned human gates
 
@@ -216,16 +271,19 @@ python3 <implement-runtime> check-gates \
 
 The staging helper enforces `before_commit`; the terminal helper enforces
 `before_implementation_green`. A missing, rejected, malformed, undeclared, or stale decision is a
-blocking stop. Do not substitute permission approval for a plan-declared human gate.
+stop that returns to the human. Do not substitute permission approval for a plan-declared
+human gate.
 
 Compaction is not itself a stop condition. Stop without additional edits when the canonical
 artifacts cannot reconstruct the current meaning or any identity differs.
 
-## Blocking stop
+## Two ways to stop
 
-On a blocking failure, freeze edits and commits first. Record the reason when durable evidence
-is writable — this works even when the plan or specs no longer match the binding, so a revised
-plan never leaves an execution unable to say that it stopped:
+Only five things go back to the human: a decision the plan does not carry, a difference from what
+the human approved, a deliverable they rejected, a permission or a record that cannot be
+obtained, and a step that took three recoveries in a row without moving. For those, freeze edits
+and commits and record the reason — this works even when the plan or specs no longer match the
+binding, so a revised plan never leaves an execution unable to say that it stopped:
 
 ```text
 python3 <implement-runtime> stop \
@@ -235,9 +293,9 @@ python3 <implement-runtime> stop \
 ```
 
 A decision the plan does not make — a new input class, an error case, a product choice — is a
-blocking stop of this kind: do not fill the gap; report it so the human can return it to
-brainstorm. Do not analyze later steps for independence. Preserve already committed steps,
-evidence, branch, and worktree. Never write progress or completion into the plan text, `open-plans.json`,
+stop of this kind: do not fill the gap; report it so the human can return it to brainstorm. Do
+not analyze later steps for independence. Preserve already committed steps, evidence, branch, and
+worktree. Never write progress or completion into the plan text, `open-plans.json`,
 `status.md`, `session-history.md`, or `plans/progress`; the durable events are the only
 record. Return the derived result, including the execution id, stop reason, step, last
 sequence, branch, worktree, commits, and evidence path. The next invocation for the same plan
@@ -246,12 +304,24 @@ finds this execution through the unfinished-execution check and lets the human d
 If evidence itself is unavailable, report an unverified stop from the observable runtime and Git
 state. Never use that exception to assert progress or success.
 
-Not every unplanned fact is a blocking stop. Uncommitted changes outside the write scope, commits
-no event explains, a defect in the helper itself (the helper is not part of the bound identities,
-so repairing it mid-execution invalidates nothing), a frozen test that changed (accept a new RED
-for the same step), a check command that failed (fix what it reports and record again), and a
-record that failed to be written (record it late) are facts to show the human. A decision the plan does not make about the deliverable is
-the only reason to return to brainstorm.
+Everything else you put right yourself, without asking. A RED that failed for another reason
+(write the test again and take a new RED), a frozen test that changed (take a new RED for the
+same step), evidence recorded for the wrong completion kind, a check command that failed (fix
+what it reports and record again), a commit or hook that failed (fix the cause and commit again;
+never swallow it), a record that failed to be written (record it late), a plan written in a shape
+you had to read twice, a defect in the helper itself (the helper is not part of the bound
+identities, so repairing it mid-execution invalidates nothing) — each of these is written down as
+a recovery and the execution goes on. Do not stop and ask whether to continue: what the human
+chooses is what to do with an execution left over from an earlier session, not what to do about
+something that went wrong thirty seconds ago.
+
+The record counts. Three recoveries in a row on one step, with nothing else happening in between,
+go back to the human as `recovery_exhausted` — at that point the trouble is no longer the kind
+the next attempt fixes. Any real progress on the step clears the count.
+
+Some facts are not even a recovery. Uncommitted changes outside the write scope and commits no
+event explains are recorded and shown to the human at the terminal, and nothing about them stops
+the execution on the way there.
 
 ## Terminal hand-off and the history approval
 
