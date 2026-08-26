@@ -21,3 +21,13 @@ Binding and review events also preserve level, selected profiles, selection sour
 models, explicitly supplied actual models, and the one optional second-review result or unavailable
 warning. Initial and final results are incomplete when their actual model is missing; never copy the
 requested model into that field.
+
+Validate review IDs before constructing paths, keep resolved stores below `.agents/evidence`, and
+reject symlinks in every parent. On every read, reduce the complete version 2 event stream through
+the same schema and stage-order rules used for writing. A final result cannot exist before a valid
+initial start/result and convergence.
+
+Before writing or reading a finding, scan every nested string without returning matched values.
+Repository paths must be relative, specification paths and Git versions must match the active
+binding, and the profile must be one selected by that review. Apply the same safe bounded-text rule
+to added findings, terminal observations, reviewer contexts, decisions, and summaries.

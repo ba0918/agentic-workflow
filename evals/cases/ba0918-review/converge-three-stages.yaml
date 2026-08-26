@@ -14,6 +14,8 @@ expected_output: |
 expectations:
   - text: initial/finalの開始eventと安全検査済みfinding結果eventを分け、結果なしの空集合でcompleteしない
     critical: true
+  - text: 読み込み時もcanonical reducerでschemaとinitial-targeted-final順序を検証し、初回無しの偽finalやmalformed findingを拒否する
+    critical: true
   - text: fixable findingの必須fieldと事前に失敗したoracleを固定し、Finding trailer付きcommitだけでcloseする
     critical: true
   - text: 初回は対象全体、修正中はopen findingとtrailer付き差分と持込みriskだけを見る

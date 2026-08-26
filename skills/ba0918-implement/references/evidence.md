@@ -24,7 +24,15 @@ state. Binding stays append-only: `recovering` records harmless document followi
 Keep only bounded facts required for verification and hand-off: steps, commands and exit codes,
 safe summaries, commit SHAs, delegation boundaries, document-meaning decisions, recovery, stops,
 and unplanned paths with reasons. A RED event stores the frozen test/fixture bytes and command;
-GREEN and REFACTOR recompute and compare that snapshot before they may be recorded.
+GREEN and REFACTOR recompute and compare that exact snapshot before they may be recorded or read
+as complete. A later genuine RED is the only event that replaces the accepted snapshot. `check`
+needs at least one successful command; `artifact` may have no format checker, but still needs its
+artifact path, commit, and independently reviewable result. External evidence records what was
+checked, a bounded result summary, and whether the condition was met.
+
+Discovery validates the version 2 binding and complete event stream before choosing a run. Derive
+the resume point before appending the single `resumed` event; a legacy or malformed run must return
+an error without changing its events or `current-status`.
 
 Safety reads both path names and file content from Git itself. Report only the offending path and
 category when credential-shaped assignments or private-key headers are found; never copy the

@@ -18,7 +18,7 @@ expectations:
     critical: true
   - text: resumedにbranch先端、説明不能commit、未commit変更を記録する
     critical: true
-  - text: resumed eventを追記してからevidence上の最後の未完了stepを再開点として導出する
+  - text: binding versionと全eventを検証して再開点を完全導出してからresumed eventを1回だけ追記し、拒否時は何も増やさない
     critical: true
   - text: 複数候補では更新時刻や名前で選ばず人へ返す
     critical: true

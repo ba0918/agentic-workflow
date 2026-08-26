@@ -22,6 +22,8 @@ expectations:
     critical: true
   - text: standalone入力では指定specまたはdocs/specを根拠としてGit commitを記録する
     critical: true
+  - text: review selectorとbinding IDをpath使用前に検証し、正規evidence store外やsymlink親へ一切書き込まない
+    critical: true
   - text: 重要判断を変えないspec変更は新Git版へ追従する
     critical: true
   - text: persistence変更はfindings_staleとして止め、open findingを保持してrebound可能にする
@@ -33,6 +35,8 @@ expectations:
   - text: second reviewerとsecond modelは組として検証し、片方だけなら拒否する
     critical: true
   - text: 同じreviewerの安全確認結果が未完了または未解決ならfinding集合を成功記録しない
+    critical: true
+  - text: finding全nested文字列をsecret scanし、profile・相対spec path・実在spec commitをactive bindingへ束縛して拒否時はeventを増やさない
     critical: true
   - text: second reviewerはskillがplanとdiffだけをsecret scan後に一度渡し、利用不能なら警告して単独reviewを続ける
     critical: true

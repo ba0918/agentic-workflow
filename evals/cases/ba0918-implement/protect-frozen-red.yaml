@@ -20,3 +20,5 @@ expectations:
     critical: true
   - text: GREENとREFACTORの記録前にruntimeが現在のtest・fixture bytesとcommandを再計算する
     critical: true
+  - text: 読み込んだevent列でも受理REDとGREEN/REFACTORのsnapshot完全一致を検証し、再REDだけが基準を更新する
+    critical: true
