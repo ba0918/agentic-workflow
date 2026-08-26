@@ -4,7 +4,14 @@ from pathlib import Path
 from runtime.storage import canonical_json, write_once
 from runtime.types import RUN_ID, ResolvedPlan, Run, RuntimeResult, failure, ok
 
-def bind_run(root: Path, plan: ResolvedPlan, *, run_id: str, delegated: bool) -> RuntimeResult:
+def bind_run(
+    root: Path,
+    plan: ResolvedPlan,
+    *,
+    run_id: str,
+    delegated: bool,
+    steps: list[str] | None = None,
+) -> RuntimeResult:
     if RUN_ID.fullmatch(run_id) is None:
         return failure("run_id_invalid", "run id is not path-safe")
     repository = root.resolve()
@@ -24,6 +31,7 @@ def bind_run(root: Path, plan: ResolvedPlan, *, run_id: str, delegated: bool) ->
         "approval_commit": plan.approval_commit,
         "expected_paths": list(plan.expected_paths),
         "delegated": delegated,
+        "steps": list(steps or []),
         "state": "active",
     }
     write_once(binding_path, canonical_json(binding))

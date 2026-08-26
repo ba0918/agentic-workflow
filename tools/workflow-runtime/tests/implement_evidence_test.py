@@ -41,19 +41,40 @@ class ImplementDistributionTest(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 storage.write_once(first.value["path"], b"replacement")
 
-    def test_only_delegated_implementations_can_append_evidence(self) -> None:
+    def test_direct_implementations_can_append_evidence(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
             run = repository.bind_run(root, plan, run_id="run-1", delegated=False).value
-            result = context.append_event(run, "step-completed", {"step": "1"})
-            self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "delegation_required")
+            result = context.append_event(run, "step-completed", {"step": "1"}, actor="implement")
+            self.assertTrue(result.ok, result.error)
 
-    def test_red_test_snapshot_keeps_its_own_hash(self) -> None:
-        snapshot = tdd.freeze_test({"tests/example_test.py": b"test bytes"})
-        self.assertRegex(snapshot["tests/example_test.py"], r"^sha256:[0-9a-f]{64}$")
+    def test_cycle_cannot_write_implementation_evidence_during_delegation(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
+            self.assertTrue(context.append_event(run, "delegation-started", {"role": "implementer"}, actor="cycle").ok)
+            blocked = context.append_event(run, "step-completed", {"step": "1"}, actor="cycle")
+            self.assertFalse(blocked.ok)
+            self.assertEqual(blocked.error.code, "writer_not_allowed")
+            self.assertTrue(context.append_event(run, "step-completed", {"step": "1"}, actor="implement").ok)
+            self.assertTrue(context.append_event(run, "delegation-finished", {"outcome": "returned"}, actor="cycle").ok)
+
+    def test_red_test_snapshot_freezes_files_and_command(self) -> None:
+        snapshot = tdd.freeze_test(
+            {"tests/example_test.py": b"test bytes"},
+            command="python3 -m unittest tests.example_test",
+        )
+        self.assertRegex(snapshot["files"]["tests/example_test.py"], r"^sha256:[0-9a-f]{64}$")
+        self.assertRegex(snapshot["command"], r"^sha256:[0-9a-f]{64}$")
+        self.assertFalse(tdd.frozen_test_matches(
+            snapshot,
+            {"tests/example_test.py": b"test bytes"},
+            command="python3 -m unittest discover",
+        ))
 
     def test_artifact_and_external_results_are_evidence_not_human_approvals(self) -> None:
         artifact = deliverables.artifact_event("2", ["docs/guide.md"], [{"command": "lint", "exit_code": 0}])

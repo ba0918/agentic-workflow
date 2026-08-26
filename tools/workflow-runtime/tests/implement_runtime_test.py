@@ -1,4 +1,7 @@
 import importlib
+import contextlib
+import io
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -12,6 +15,7 @@ planning = importlib.import_module("runtime.planning")
 staging = importlib.import_module("runtime.staging")
 context = importlib.import_module("runtime.context")
 resume = importlib.import_module("runtime.resume")
+cli = importlib.import_module("runtime.cli")
 
 PLAN = """# Plan
 
@@ -146,6 +150,47 @@ class ImplementPlanBindingTest(unittest.TestCase):
         multiple = resume.select_unfinished([{"run_id": "one", "state": "active"}, {"run_id": "two", "state": "stopped"}])
         self.assertFalse(multiple.ok)
         self.assertEqual(multiple.error.code, "run_candidate_ambiguous")
+
+    def test_discovers_and_resumes_the_unique_run_from_evidence(self) -> None:
+        from runtime import repository
+        from runtime.types import ResolvedPlan
+        root = Path(tempfile.mkdtemp())
+        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+        run = repository.bind_run(root, plan, run_id="run-1", delegated=False, steps=["1", "2"]).value
+        context.append_event(run, "commit", {"step": "1", "commit": "b" * 40}, actor="implement")
+        resumed = resume.resume_unique(
+            root,
+            plan_key="plan-a",
+            branch_head="b" * 40,
+            unexplained_commits=[],
+            uncommitted_paths=[],
+            consequential_change=False,
+        )
+        self.assertTrue(resumed.ok, resumed.error)
+        self.assertEqual(resumed.value["run"].run_id, "run-1")
+        self.assertEqual(resumed.value["resume_step"], "2")
+        self.assertEqual(context.load_events(resumed.value["run"]).value[-1]["event_type"], "resumed")
+
+    def test_completed_run_is_not_discovered_as_unfinished(self) -> None:
+        from runtime import repository
+        from runtime.types import ResolvedPlan
+        root = Path(tempfile.mkdtemp())
+        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+        run = repository.bind_run(root, plan, run_id="run-1", delegated=False).value
+        context.append_event(run, "all-steps-complete", {}, actor="implement")
+        self.assertEqual(resume.discover_unfinished(root, "plan-a").value, [])
+
+    def test_resume_cli_discovers_records_and_reports_the_resume_point(self) -> None:
+        from runtime import repository
+        from runtime.types import ResolvedPlan
+        root = Path(tempfile.mkdtemp())
+        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+        repository.bind_run(root, plan, run_id="run-1", delegated=False, steps=["1"]).value
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = cli.main(["resume", "--repo", str(root), "--plan-key", "plan-a", "--branch-head", "b" * 40])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(output.getvalue())["resume_step"], "1")
 
 if __name__ == "__main__":
     unittest.main()
