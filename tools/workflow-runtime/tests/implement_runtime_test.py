@@ -1290,7 +1290,88 @@ class CompletionByKindTest(unittest.TestCase):
             root, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
             self.assertFalse(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
 
-            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["reason"], "completion_kind_mismatch")
+            events = implement_runtime._load_events(attempt).value
+
+            self.assertEqual(events[-1]["event_type"], "recovering")
+            self.assertEqual(events[-1]["reason"], "completion_kind_mismatch")
+            self.assertEqual(implement_runtime.derive_attempt_result(attempt)["reason"], "terminal_event_missing")
+
+
+class StoppingTest(unittest.TestCase):
+    """A durable stop is written only for what a human has to answer."""
+
+    def test_a_frozen_test_that_drifted_is_left_to_the_agent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
+            target = attempt.worktree / "tests/greeting_test.py"
+            target.write_text(target.read_text(encoding="utf-8") + "# drifted\n", encoding="utf-8")
+
+            result = implement_runtime.run_frozen_oracle(attempt, step_id="step-1", phase="green")
+
+            self.assertFalse(result.ok)
+            recorded = [event["event_type"] for event in implement_runtime._load_events(attempt).value]
+            self.assertNotIn("stopped", recorded)
+            self.assertEqual(recorded[-1], "recovering")
+
+    def test_staging_outside_the_scope_is_refused_without_stopping(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+            outside = attempt.worktree / "README.md"
+            outside.write_text("outside the scope\n", encoding="utf-8")
+
+            result = implement_runtime.stage_paths(attempt, ["README.md"], step_id="step-1")
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "write_scope_violation")
+            recorded = [event["event_type"] for event in implement_runtime._load_events(attempt).value]
+            self.assertEqual(recorded, ["worktree-bound"])
+
+    def test_a_difference_from_what_the_human_approved_returns_to_the_human(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            spec = attempt.worktree / "docs/spec/feature.md"
+            spec.write_text(spec.read_text(encoding="utf-8") + "\n改訂。\n", encoding="utf-8")
+
+            result = implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND))
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "spec_identity_drift")
+            events = implement_runtime._load_events(attempt).value
+            self.assertEqual(events[-1]["event_type"], "stopped")
+            self.assertEqual(events[-1]["reason"], "spec_identity_drift")
+
+    def test_a_rejected_deliverable_returns_to_the_human(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            guide = attempt.worktree / "docs/guide.md"
+            guide.parent.mkdir(parents=True, exist_ok=True)
+            guide.write_text("# guide\n", encoding="utf-8")
+            self.assertTrue(
+                implement_runtime.record_artifact(attempt, step_id="step-1", paths=["docs/guide.md"], checks=[]).ok
+            )
+
+            result = implement_runtime.record_approval(attempt, step_id="step-1", result="rejected")
+
+            self.assertFalse(result.ok)
+            events = implement_runtime._load_events(attempt).value
+            self.assertEqual(events[-1]["event_type"], "stopped")
+            self.assertEqual(events[-1]["reason"], "approval_rejected")
+
+    def test_a_step_that_does_not_move_returns_to_the_human_on_the_third_try(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory), step_kinds=("artifact",))
+            wrong = red_oracle(GREETING_ORACLE_COMMAND)
+
+            first = implement_runtime.accept_red(attempt, wrong)
+            second = implement_runtime.accept_red(attempt, wrong)
+            third = implement_runtime.accept_red(attempt, wrong)
+
+            self.assertEqual(first.error.code, "completion_kind_mismatch")
+            self.assertEqual(second.error.code, "completion_kind_mismatch")
+            self.assertEqual(third.error.code, "recovery_exhausted")
+            recorded = [event["event_type"] for event in implement_runtime._load_events(attempt).value]
+            self.assertEqual(recorded, ["worktree-bound", "recovering", "recovering", "stopped"])
 
 
 class ResidualWorkTest(unittest.TestCase):
@@ -2062,7 +2143,7 @@ class FreezeRedoTest(unittest.TestCase):
             recorded = [event["event_type"] for event in implement_runtime._load_events(attempt).value]
             self.assertEqual(recorded, ["worktree-bound", "red", "red"])
 
-    def test_a_redone_red_that_fails_for_another_reason_still_stops(self) -> None:
+    def test_a_redone_red_that_fails_for_another_reason_is_left_to_the_agent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
             self.assertTrue(implement_runtime.accept_red(attempt, red_oracle(GREETING_ORACLE_COMMAND)).ok)
@@ -2075,7 +2156,8 @@ class FreezeRedoTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "unintended_red")
             recorded = [event["event_type"] for event in implement_runtime._load_events(attempt).value]
-            self.assertIn("stopped", recorded)
+            self.assertNotIn("stopped", recorded)
+            self.assertEqual(recorded[-1], "recovering")
 
 
 class CheckStepCommitBoundaryTest(unittest.TestCase):

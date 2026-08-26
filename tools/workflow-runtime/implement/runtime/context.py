@@ -237,12 +237,64 @@ def derive_attempt_result(attempt: Attempt) -> dict:
         result["commits"] = commits
     return result
 
+# What only a human can settle (docs/spec/implement.md「止まり方」): a decision the plan does not
+# carry, a difference from what the human approved, a rejected deliverable, and a permission or a
+# record that cannot be obtained. Everything else the agent puts right itself.
+HUMAN_RETURNING = frozenset(
+    {
+        "steps_undeclared",
+        "check_declaration_missing",
+        "plan_identity_drift",
+        "plan_registration_missing",
+        "spec_identity_drift",
+        "worktree_identity_drift",
+        "binding_identity_drift",
+        "approval_rejected",
+        "human_gate_rejected",
+        "human_gate_missing",
+        "human_gate_undeclared",
+        "human_gate_target_changed",
+        "permission_required",
+        "persistence_unavailable",
+        "unsafe_path",
+        "recovery_exhausted",
+    }
+)
+RECOVERY_LIMIT = 3
+
+
+def _recoveries_in_a_row(events: list[dict], step_id: str) -> int:
+    """Recoveries the step has taken with nothing else happening in between."""
+    count = 0
+    for event in reversed([event for event in events if event.get("step_id") == step_id]):
+        if event.get("event_type") != "recovering":
+            break
+        count += 1
+    return count
+
 def stop_attempt(attempt: Attempt, error: RuntimeFailure, step_id: str) -> RuntimeResult:
-    append_event(
-        attempt,
-        "stopped",
-        {"reason": error.code, "step_id": step_id},
-    )
+    """A durable stop is written only for what a human has to answer.
+
+    Anything the agent can put right is recorded as a recovery and left to it. A step that takes
+    the limit of recoveries without moving goes back to the human anyway: at that point the
+    trouble is no longer something the next attempt will fix.
+    """
+    if error.code in HUMAN_RETURNING:
+        append_event(attempt, "stopped", {"reason": error.code, "step_id": step_id})
+        return RuntimeResult(None, error)
+    loaded = load_events(attempt)
+    taken = _recoveries_in_a_row(loaded.value, step_id) if loaded.ok else 0
+    if taken + 1 >= RECOVERY_LIMIT:
+        append_event(attempt, "stopped", {"reason": "recovery_exhausted", "step_id": step_id})
+        return RuntimeResult(
+            None,
+            RuntimeFailure(
+                "recovery_exhausted",
+                f"{step_id} did not move after {RECOVERY_LIMIT} recoveries",
+                error.code,
+            ),
+        )
+    append_event(attempt, "recovering", {"reason": error.code, "step_id": step_id})
     return RuntimeResult(None, error)
 
 def permission_required(

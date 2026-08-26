@@ -284,8 +284,9 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
     target_validation = _validate_frozen_test_targets(attempt, oracle)
     if not target_validation.ok:
         # A frozen test that changed does not end the execution: the step takes a new RED,
-        # which shows the changed test failing before it is allowed to pass.
-        return target_validation
+        # which shows the changed test failing before it is allowed to pass. It is recorded all
+        # the same, so a step that keeps drifting reaches the recovery limit like any other.
+        return stop_attempt(attempt, target_validation.error, step_id)
     events_result = load_events(attempt)
     if not events_result.ok:
         return RuntimeResult(None, events_result.error)
@@ -315,7 +316,7 @@ def run_frozen_oracle(attempt: Attempt, step_id: str, phase: str) -> RuntimeResu
         return stop_attempt(attempt, after.error, step_id)
     target_validation = _validate_frozen_test_targets(attempt, oracle)
     if not target_validation.ok:
-        return target_validation
+        return stop_attempt(attempt, target_validation.error, step_id)
     if executed.value["exit_code"] != 0:
         return stop_attempt(
             attempt,
