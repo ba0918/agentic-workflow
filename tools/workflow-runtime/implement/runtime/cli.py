@@ -136,6 +136,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "stage":
         reasons = _reasons(parser, args.unplanned_reason)
         if args.phase in {"red", "green", "refactor"}:
+            if args.oracle_command is None or args.exit_code is None:
+                parser.error("test stage needs --command and --exit-code")
             result = record_stage(
                 run.value, args.step, args.phase, command=args.oracle_command,
                 exit_code=args.exit_code, test_paths=args.test_path,
@@ -149,8 +151,8 @@ def main(argv: list[str] | None = None) -> int:
                 "paths": sorted(args.path), "unplanned_reasons": reasons,
             })
         else:
-            if args.condition_met is None:
-                parser.error("external stage needs --condition-met=true|false")
+            if args.condition_met is None or args.oracle_command is None or not args.summary:
+                parser.error("external stage needs --command, --summary, and --condition-met=true|false")
             result = append_event(run.value, "external", {
                 "step": args.step, "checked": args.oracle_command, "summary": args.summary or "",
                 "condition_met": args.condition_met == "true",
