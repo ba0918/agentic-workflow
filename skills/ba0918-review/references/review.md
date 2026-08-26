@@ -2,7 +2,10 @@
 
 Bind one Git-resolved input and its specification Git commit before reading the change. A branch
 and both ends of a commit range must exist. An implementation run must have contiguous evidence,
-a valid final `implementation_green`, and matching branch/worktree/commit facts. The initial reviewer
+a valid final `implementation_green`, and matching branch/worktree/revision-segment facts. A
+wording-only `recovering` commit or approved `rebound` commit may be the branch tip after the last
+implementation commit; validate each segment against its effective approval boundary instead of
+requiring the last implementation commit itself to equal the tip. The initial reviewer
 reads the complete diff, selected profiles, relevant specification sections, and direct callers
 needed to judge security or critical candidates. Record `initial-full-review-started`, then one
 initial findings event; these are separate transitions.
@@ -25,7 +28,9 @@ reason for human judgment.
 After fixes, read only open findings, trailer-linked fix commits, their affected evidence, and new
 risk introduced by those fixes. An open finding can close only after its corresponding
 `targeted-review-started`; record its fix commits and oracle result together in one
-`targeted-review-result`. Run each oracle yourself. Derive and compare open counts
+`targeted-review-result`. For a two-commit input, select a fix head that descends from the original
+head and derive the exact trailer-linked set from that range; reject side/non-descendant commits.
+Run each oracle yourself. Derive and compare open counts
 `(security, critical, warn)` lexicographically. On no decrease, diagnose the finding,
 implementation, specification, and tooling, change the method once, and return to the human only
 if it still does not decrease.

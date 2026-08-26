@@ -30,6 +30,8 @@ expectations:
     critical: true
   - text: findingは対応targeted開始後にfix commitとoracle結果を一つのtargeted resultへ束ねてcloseする
     critical: true
+  - text: two-commit入力のfix headはoriginal headの子孫に限定し、その選択rangeからexact trailer commit集合を導出してside branchを拒否する
+    critical: true
   - text: progress tupleとfinal completionをevent列からruntimeが導出し、caller値やcompletion eventを受け取らない
     critical: true
   - text: reviewer自身は修正しない

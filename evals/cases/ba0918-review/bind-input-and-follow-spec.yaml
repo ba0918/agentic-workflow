@@ -18,7 +18,7 @@ expectations:
     critical: true
   - text: branchとcommitをGitで解決して架空refを拒否し、branch tipから選択targetへのmerge-baseを束ねる
     critical: true
-  - text: implement runはbinding・連番event・最後のimplementation_green・branch/worktree・commitの一致を検証する
+  - text: implement runはbinding・連番event・最後のimplementation_green・branch/worktree・共有revision segmentを検証し、recovering/reboundの正当な文書改訂tipを許可する
     critical: true
   - text: standalone入力では指定specまたはdocs/specを根拠としてGit commitを記録する
     critical: true
