@@ -140,6 +140,41 @@ docs/
     return root, plan_id, spec_identity
 
 
+DECLARED_TEST_STEP = [{"step_id": "step-1", "completion": "test", "checks": []}]
+
+
+def declare_from_plan(text: str) -> tuple[list[dict], list[dict]]:
+    """Stand in for the agent: read the plan and declare what it says, since the runtime no
+    longer parses steps or human gates out of it."""
+    steps = [
+        {
+            "step_id": f"step-{step.number}",
+            "completion": step.completion_kind,
+            "checks": list(step.checks),
+        }
+        for step in plan_artifact.read_plan_steps(text)
+    ]
+    gates = []
+    for gate in plan_artifact.read_plan_human_gates(text):
+        target = {"kind": gate.target.kind}
+        if gate.target.kind == "files":
+            target["paths"] = list(gate.target.paths)
+        else:
+            target["content_identity"] = gate.target.content_identity
+        gates.append(
+            {
+                "gate_id": gate.gate_id,
+                "step_id": gate.step_id,
+                "sections": list(gate.sections),
+                "criterion": gate.criterion,
+                "target": target,
+                "timing": gate.timing,
+                "allowed_results": list(gate.allowed_results),
+            }
+        )
+    return steps, gates
+
+
 def bootstrap_fixture(
     parent: Path,
     *,
@@ -156,11 +191,14 @@ def bootstrap_fixture(
         check_commands=check_commands,
     )
     resolved = implement_runtime.resolve_plan(root).value
+    declared_steps, declared_gates = declare_from_plan(resolved.text)
     result = implement_runtime.bootstrap_attempt(
         root,
         resolved,
         worktree_path=parent / "linked-worktree",
         attempt_id_factory=lambda: "20260822t152244-a1b2c3d4",
+        steps=declared_steps,
+        human_gates=declared_gates,
         executor={
             "executor": "codex",
             "backend": "unavailable",
@@ -236,6 +274,64 @@ def publish_text(root: Path, **kwargs):
     return plan_artifact.publish_plan(root, source=draft.path, **kwargs)
 
 
+def _step_wording_identity(step) -> str:
+    lines = [line.rstrip() for line in f"{step.title}\n{step.text}".strip().splitlines()]
+    return plan_artifact.content_identity("\n".join(lines))
+
+
+def rebind_declarations(root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None = None) -> dict:
+    """Stand in for the agent: read both revisions and declare the revised steps and how they
+    match the previous ones. The runtime no longer reads either out of the prose."""
+    try:
+        revised = plan_artifact.read_registered_plan(root, plan_path)
+    except plan_artifact.PlanArtifactError:
+        return {"steps": [], "human_gates": [], "step_map": []}
+    steps, gates = declare_from_plan(revised.text)
+    binding_path = root / ".agents/artifacts/executions" / plan_id / attempt_id / "binding.json"
+    previous_steps: tuple = ()
+    if binding_path.is_file():
+        previous_file = root / json.loads(binding_path.read_text(encoding="utf-8"))["plan"]["path"]
+        if previous_file.is_file():
+            try:
+                previous_steps = plan_artifact.read_plan_steps(previous_file.read_text(encoding="utf-8"))
+            except plan_artifact.InvalidPlanFormat:
+                previous_steps = ()
+    unmatched = {f"step-{step.number}": _step_wording_identity(step) for step in previous_steps}
+    step_map = []
+    for step in plan_artifact.read_plan_steps(revised.text):
+        identity = _step_wording_identity(step)
+        previous_id = next((key for key, other in unmatched.items() if other == identity), None)
+        if previous_id is None:
+            step_map.append({"step_id": f"step-{step.number}", "previous_step_id": None, "disposition": "new"})
+            continue
+        del unmatched[previous_id]
+        step_map.append(
+            {"step_id": f"step-{step.number}", "previous_step_id": previous_id, "disposition": "carry"}
+        )
+    return {"steps": steps, "human_gates": gates, "step_map": step_map}
+
+
+def rebind_preview(root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None = None):
+    return implement_runtime.resume.rebind_preview(
+        root,
+        plan_id=plan_id,
+        attempt_id=attempt_id,
+        plan_path=plan_path,
+        **rebind_declarations(root, plan_id=plan_id, attempt_id=attempt_id, plan_path=plan_path),
+    )
+
+
+def rebind_execution(root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None = None, expected_plan_identity=None):
+    return implement_runtime.resume.rebind_execution(
+        root,
+        plan_id=plan_id,
+        attempt_id=attempt_id,
+        plan_path=plan_path,
+        expected_plan_identity=expected_plan_identity,
+        **rebind_declarations(root, plan_id=plan_id, attempt_id=attempt_id, plan_path=plan_path),
+    )
+
+
 def revise_fixture_plan(root: Path, plan_id: str, *, extra_step_kind: str = "test", relative_path: str | None = None):
     """Publish revision 2 of the fixture plan: step 1 kept verbatim, one step appended."""
     current = plan_artifact.read_registered_plan(root, None)
@@ -254,7 +350,35 @@ def revise_fixture_plan(root: Path, plan_id: str, *, extra_step_kind: str = "tes
     return plan_artifact.read_registered_plan(root, None)
 
 
+def reregister(root: Path, text: str) -> None:
+    """Point the locator at the plan text as it now stands, without the plan skill's checks."""
+    index_path = root / ".agents/artifacts/plans/open-plans.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    index["plans"][0]["content_identity"] = plan_artifact.content_identity(text)
+    index_path.write_text(json.dumps(index), encoding="utf-8")
+
+
 class PlanResolutionTest(unittest.TestCase):
+    def test_a_plan_whose_steps_are_written_freely_still_resolves(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, plan_id, spec_identity = create_repository(Path(directory))
+            plan_path = root / f".agents/artifacts/plans/{plan_id}_fixture.md"
+            free_form = plan_path.read_text(encoding="utf-8").replace(
+                "### 1. Greetingを実装する\n\n**Completion:** test",
+                "### 手順その一 — Greetingを実装する\n\nテストで示します。",
+            )
+            plan_path.write_text(free_form, encoding="utf-8")
+            reregister(root, free_form)
+
+            result = implement_runtime.resolve_plan(root)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value.specs, (("docs/spec/feature.md", spec_identity),))
+            self.assertEqual(
+                result.value.write_scope,
+                ("src/greeting.py", "tests/greeting_test.py", "docs/guide.md"),
+            )
+
     def test_legacy_plan_format_is_rejected_as_unreadable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, plan_id, _ = create_repository(Path(directory))
@@ -272,24 +396,41 @@ class PlanResolutionTest(unittest.TestCase):
             self.assertEqual(result.error.code, "plan_format_invalid")
             self.assertIn("Target specifications", result.error.message)
 
-    def test_resolved_plan_exposes_steps_with_their_completion_kind(self) -> None:
+    def test_the_steps_the_agent_declared_are_what_the_execution_runs_on(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root, _, _ = create_repository(Path(directory))
+            _, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "check"))
 
-            result = implement_runtime.resolve_plan(root)
+            kinds = implement_runtime.step_completion_kinds(attempt)
 
-            self.assertTrue(result.ok, result.error)
-            self.assertEqual([(step.number, step.completion_kind) for step in result.value.steps], [(1, "test")])
+            self.assertTrue(kinds.ok, kinds.error)
+            self.assertEqual(kinds.value, {"step-1": "test", "step-2": "check"})
 
-    def test_declared_human_gate_sections_are_bound(self) -> None:
+    def test_the_human_decisions_the_agent_declared_are_bound(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root, _, _ = create_repository(Path(directory), human_gate=True)
+            _, attempt = bootstrap_fixture(Path(directory), human_gate=True)
 
-            result = implement_runtime.resolve_plan(root)
+            binding = json.loads(attempt.binding_path.read_text(encoding="utf-8"))
 
-            self.assertTrue(result.ok, result.error)
-            self.assertEqual(result.value.human_gates[0]["sections"], ["Greeting"])
-            self.assertNotIn("clauses", result.value.human_gates[0])
+            self.assertEqual(binding["human_gates"][0]["sections"], ["Greeting"])
+            self.assertNotIn("clauses", binding["human_gates"][0])
+
+    def test_an_execution_bound_without_a_step_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root, _, _ = create_repository(parent)
+            resolved = implement_runtime.resolve_plan(root).value
+
+            result = implement_runtime.bootstrap_attempt(
+                root,
+                resolved,
+                worktree_path=parent / "linked-worktree",
+                attempt_id_factory=lambda: "20260822t152244-a1b2c3d4",
+                steps=[],
+                executor={"executor": "codex", "backend": "unavailable", "session_id": "unavailable"},
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "steps_undeclared")
 
     def test_current_plan_metadata_and_specs_are_verified(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -385,26 +526,6 @@ class PlanResolutionTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "plan_candidate_conflict")
 
-    def test_plan_header_revision_must_match_the_locator(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root, plan_id, _ = create_repository(Path(directory))
-            plan_path = root / f".agents/artifacts/plans/{plan_id}_fixture.md"
-            index_path = plan_path.parent / "open-plans.json"
-            changed = plan_path.read_text(encoding="utf-8").replace(
-                "**Plan revision:** `1`",
-                "**Plan revision:** `2`",
-            )
-            plan_path.write_text(changed, encoding="utf-8")
-            index = json.loads(index_path.read_text(encoding="utf-8"))
-            index["plans"][0]["content_identity"] = plan_artifact.content_identity(changed)
-            index_path.write_text(json.dumps(index), encoding="utf-8")
-
-            result = implement_runtime.resolve_plan(root)
-
-            self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "plan_revision_drift")
-
-
 class RepositoryDiscoveryTest(unittest.TestCase):
     def test_bare_repository_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -483,6 +604,7 @@ class BootstrapTest(unittest.TestCase):
                 resolved,
                 worktree_path=worktree,
                 attempt_id_factory=lambda: "20260822t152244-a1b2c3d4",
+                steps=DECLARED_TEST_STEP,
                 executor={
                     "executor": "codex",
                     "backend": "unavailable",
@@ -524,6 +646,7 @@ class BootstrapTest(unittest.TestCase):
                 resolved,
                 worktree_path=parent / "first-worktree",
                 attempt_id_factory=lambda: "20260822t152244-a1b2c3d4",
+                steps=DECLARED_TEST_STEP,
                 executor=executor,
             )
             self.assertTrue(first.ok, first.error)
@@ -533,6 +656,7 @@ class BootstrapTest(unittest.TestCase):
                 resolved,
                 worktree_path=parent / "second-worktree",
                 attempt_id_factory=lambda: "20260822t160000-b2c3d4e5",
+                steps=DECLARED_TEST_STEP,
                 executor=executor,
             )
 
@@ -557,6 +681,7 @@ class BootstrapTest(unittest.TestCase):
                 resolved,
                 worktree_path=parent / "should-not-exist",
                 attempt_id_factory=lambda: attempt_id,
+                steps=DECLARED_TEST_STEP,
                 executor={"executor": "codex", "backend": "unavailable", "session_id": "unavailable"},
             )
 
@@ -587,6 +712,7 @@ class BootstrapTest(unittest.TestCase):
                 None,
                 worktree_path=parent / "should-not-exist",
                 attempt_id_factory=lambda: "20260822t152244-a1b2c3d4",
+                steps=DECLARED_TEST_STEP,
                 executor={"executor": "codex", "backend": "unavailable", "session_id": "unavailable"},
             )
 
@@ -803,6 +929,7 @@ class FreshSessionTest(unittest.TestCase):
                 resolved,
                 worktree_path=parent / "second-worktree",
                 attempt_id_factory=lambda: "20260822t160000-b2c3d4e5",
+                steps=DECLARED_TEST_STEP,
                 executor={
                     "executor": "codex",
                     "backend": "unavailable",
@@ -2367,6 +2494,7 @@ class MultiStepFreezeTest(unittest.TestCase):
                 resolved,
                 worktree_path=Path(directory) / "linked-worktree",
                 attempt_id_factory=lambda: "20260824t210000-c3d4e5f6",
+                steps=declare_from_plan(resolved.text)[0],
                 executor={
                     "executor": "codex",
                     "backend": "unavailable",
@@ -2601,6 +2729,8 @@ class CommandLineTest(unittest.TestCase):
                     str(worktree),
                     "--executor",
                     "codex",
+                    "--steps",
+                    json.dumps(DECLARED_TEST_STEP),
                 ]
             )
             self.assertEqual(bootstrap_code, 0, bootstrap)
@@ -2732,6 +2862,10 @@ class RevisedPlanTest(unittest.TestCase):
                     "specs": binding["specs"],
                     "write_scope": ["src"],
                     "human_gates": [],
+                    "steps": [
+                        {"step_id": "step-1", "completion": "test", "checks": []},
+                        {"step_id": "step-2", "completion": "test", "checks": []},
+                    ],
                     "step_map": [
                         {"step_id": "step-1", "previous_step_id": "step-1", "disposition": "continue"},
                         {"step_id": "step-2", "previous_step_id": None, "disposition": "new"},
@@ -2770,6 +2904,10 @@ class RevisedPlanTest(unittest.TestCase):
                     "specs": binding["specs"],
                     "write_scope": binding["write_scope"],
                     "human_gates": [],
+                    "steps": [
+                        {"step_id": "step-1", "completion": "test", "checks": []},
+                        {"step_id": "step-2", "completion": "test", "checks": []},
+                    ],
                     "step_map": [
                         {"step_id": "step-1", "previous_step_id": "step-1", "disposition": "continue"},
                         {"step_id": "step-2", "previous_step_id": None, "disposition": "new"},
@@ -2845,7 +2983,7 @@ class CheckStepTest(unittest.TestCase):
             complete_step_one(attempt)
             append_check_step(root, attempt.plan_id)
             self.assertTrue(
-                implement_runtime.resume.rebind_execution(
+                rebind_execution(
                     root,
                     plan_id=attempt.plan_id,
                     attempt_id=attempt.attempt_id,
@@ -2916,39 +3054,13 @@ def revise_three_step_plan(root: Path, plan_id: str):
 
 
 class RebindTest(unittest.TestCase):
-    def test_rebind_preview_matches_steps_by_their_text_not_their_number(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
-            complete_step_one(attempt)
-            revise_three_step_plan(root, attempt.plan_id)
-            preview = getattr(implement_runtime.resume, "rebind_preview", None)
-            self.assertIsNotNone(preview)
-
-            result = preview(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id)
-
-            self.assertTrue(result.ok, result.error)
-            table = result.value
-            self.assertEqual(
-                [(row["step_id"], row["disposition"], row["previous_step_id"]) for row in table["step_map"]],
-                [
-                    ("step-1", "carry", "step-1"),
-                    ("step-2", "new", None),
-                    ("step-3", "new", None),
-                    ("step-4", "continue", "step-3"),
-                    ("step-5", "new", None),
-                ],
-            )
-            self.assertEqual(table["superseded_steps"], ["step-2"])
-            self.assertEqual(table["next_step"], "step-2")
-            self.assertEqual(table["plan"]["revision"], 2)
-
     def test_rebind_preview_writes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
             revise_three_step_plan(root, attempt.plan_id)
             before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
 
-            self.assertTrue(implement_runtime.resume.rebind_preview(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id).ok)
+            self.assertTrue(rebind_preview(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id).ok)
 
             self.assertEqual(sorted(path.name for path in attempt.evidence_path.glob("0*.json")), before)
 
@@ -2963,7 +3075,7 @@ class RebindTest(unittest.TestCase):
             revised = revise_three_step_plan(root, attempt.plan_id)
 
             shown = plan_artifact.read_registered_plan(root, None).content_identity
-            result = implement_runtime.resume.rebind_execution(
+            result = rebind_execution(
                 root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, expected_plan_identity=shown
             )
 
@@ -2999,13 +3111,13 @@ class RebindTest(unittest.TestCase):
             before = sorted(path.name for path in attempt.evidence_path.glob("0*.json"))
 
             unread = "sha256:" + "0" * 64
-            other = implement_runtime.resume.rebind_execution(
+            other = rebind_execution(
                 root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, expected_plan_identity=unread
             )
             self.assertFalse(other.ok)
             self.assertEqual(other.error.code, "rebind_target_invalid")
 
-            unregistered = implement_runtime.resume.rebind_execution(
+            unregistered = rebind_execution(
                 root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/nowhere.md",
                 expected_plan_identity=unread,
             )
@@ -3013,7 +3125,7 @@ class RebindTest(unittest.TestCase):
             self.assertEqual(unregistered.error.code, "rebind_target_invalid")
 
             (root / f".agents/artifacts/plans/{attempt.plan_id}_fixture.md").unlink()
-            missing = implement_runtime.resume.rebind_execution(
+            missing = rebind_execution(
                 root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, plan_path=".agents/artifacts/plans/20260822150001_other.md",
                 expected_plan_identity=unread,
             )
@@ -3026,7 +3138,7 @@ class RebindTest(unittest.TestCase):
             complete_step_one(attempt)
             revise_three_step_plan(root, attempt.plan_id)
 
-            result = implement_runtime.resume.rebind_execution(
+            result = rebind_execution(
                 root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
             )
 
@@ -3038,12 +3150,12 @@ class RebindTest(unittest.TestCase):
             root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
             complete_step_one(attempt)
             revise_three_step_plan(root, attempt.plan_id)
-            shown = implement_runtime.resume.rebind_preview(
+            shown = rebind_preview(
                 root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
             ).value["plan"]["content_identity"]
             revise_again(root, attempt.plan_id)
 
-            result = implement_runtime.resume.rebind_execution(
+            result = rebind_execution(
                 root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, expected_plan_identity=shown
             )
 
@@ -3055,11 +3167,11 @@ class RebindTest(unittest.TestCase):
             root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
             complete_step_one(attempt)
             revise_three_step_plan(root, attempt.plan_id)
-            shown = implement_runtime.resume.rebind_preview(
+            shown = rebind_preview(
                 root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id
             ).value["plan"]["content_identity"]
 
-            result = implement_runtime.resume.rebind_execution(
+            result = rebind_execution(
                 root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id, expected_plan_identity=shown
             )
 
@@ -3069,7 +3181,20 @@ class RebindTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root, attempt = bootstrap_fixture(Path(directory), step_kinds=("test", "test", "test"))
             revise_three_step_plan(root, attempt.plan_id)
-            common = ["rebind", "--repo", str(root), "--plan-id", attempt.plan_id, "--execution-id", attempt.attempt_id]
+            declarations = rebind_declarations(root, plan_id=attempt.plan_id, attempt_id=attempt.attempt_id)
+            common = [
+                "rebind",
+                "--repo",
+                str(root),
+                "--plan-id",
+                attempt.plan_id,
+                "--execution-id",
+                attempt.attempt_id,
+                "--steps",
+                json.dumps(declarations["steps"]),
+                "--step-map",
+                json.dumps(declarations["step_map"]),
+            ]
 
             with contextlib.redirect_stdout(io.StringIO()) as preview:
                 self.assertEqual(implement_runtime.main(common), 0)

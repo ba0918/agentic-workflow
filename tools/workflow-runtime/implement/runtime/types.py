@@ -24,8 +24,6 @@ class ResolvedPlan(NamedTuple):
     text: str
     specs: tuple[tuple[str, str], ...]
     write_scope: tuple[str, ...]
-    human_gates: tuple[dict[str, Any], ...]
-    steps: tuple[Any, ...]
 
 class RepositoryInfo(NamedTuple):
     main_checkout: Path

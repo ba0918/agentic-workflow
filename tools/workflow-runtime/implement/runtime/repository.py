@@ -1,7 +1,7 @@
 """Repository discovery and the bound branch-plus-worktree bootstrap."""
 from pathlib import Path
 
-from typing import Callable
+from typing import Any, Callable
 
 from runtime.deps import execution_model
 from runtime.types import RuntimeResult, ResolvedPlan, Attempt, ok, failure
@@ -26,6 +26,41 @@ def preflight(main_checkout: Path, common_directory: Path) -> RuntimeResult:
 def execution_branch(execution_id: str) -> str:
     return f"implement/{execution_id}"
 
+COMPLETION_KINDS = ("test", "check", "artifact", "external")
+
+
+def declared_steps(steps: object) -> RuntimeResult:
+    """The one thing checked about the agent's declaration: that this runtime can act on it.
+
+    Every field here is consumed by a branch of the runtime, so an unusable value would surface
+    as a crash later instead of a refusal now. Nothing about the plan's wording is checked.
+    """
+    if not isinstance(steps, list) or not steps:
+        return failure("steps_undeclared", "at least one step must be declared")
+    declared: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for step in steps:
+        if not isinstance(step, dict):
+            return failure("steps_undeclared", "each declared step must be an object")
+        step_id = step.get("step_id")
+        completion = step.get("completion")
+        checks = [str(check) for check in (step.get("checks") or [])]
+        if not isinstance(step_id, str) or not step_id or step_id in seen:
+            return failure("steps_undeclared", "each declared step needs its own step_id")
+        if completion not in COMPLETION_KINDS:
+            return failure(
+                "steps_undeclared",
+                f"{step_id} must be shown by one of {', '.join(COMPLETION_KINDS)}",
+            )
+        if (completion == "check") != bool(checks):
+            return failure(
+                "steps_undeclared",
+                f"{step_id} declares check commands only if it is shown by check",
+            )
+        seen.add(step_id)
+        declared.append({"step_id": step_id, "completion": completion, "checks": checks})
+    return ok(declared)
+
 def bootstrap_attempt(
     project_root: Path,
     resolved_plan: ResolvedPlan | None,
@@ -33,7 +68,15 @@ def bootstrap_attempt(
     worktree_path: Path,
     attempt_id_factory: Callable[[], str],
     executor: dict[str, str],
+    steps: list[dict[str, Any]],
+    human_gates: list[dict[str, Any]] | None = None,
 ) -> RuntimeResult:
+    """Bind an execution to a plan. The steps and the human decisions come from the agent that
+    read the plan, not from a parser: only the specifications and the write scope are machine-read
+    (docs/spec/plan.md)."""
+    declared = declared_steps(steps)
+    if not declared.ok:
+        return declared
     safe_roots = safe_agent_roots(project_root)
     if not safe_roots.ok:
         return safe_roots
@@ -89,7 +132,8 @@ def bootstrap_attempt(
         "branch": branch,
         "worktree": str(worktree_path.resolve(strict=False)),
         "write_scope": list(resolved_plan.write_scope),
-        "human_gates": list(resolved_plan.human_gates),
+        "human_gates": list(human_gates or []),
+        "steps": declared.value,
         "executor": executor,
     }
     secret = execution_model.first_secret_field(binding)

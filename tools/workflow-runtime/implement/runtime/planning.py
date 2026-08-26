@@ -10,35 +10,19 @@ from runtime.storage import read_json
 
 
 def parse_plan(text: str) -> RuntimeResult:
-    """Read the machine-read parts through the plan skill's reader; implement keeps no parser."""
+    """The two parts of a plan a machine reads: the specifications it stands on, and the files it
+    may touch. Both are compared against the world outside the document, so both need a fixed
+    shape. The steps, their completion kinds and the human decisions are read by the agent."""
     try:
         header = plan_artifact.read_plan_header(text)
         write_scope = plan_artifact.read_plan_scope(text)
-        steps = plan_artifact.read_plan_steps(text)
-        human_gates = tuple(human_gate_value(gate) for gate in plan_artifact.read_plan_human_gates(text))
     except plan_artifact.InvalidPlanFormat as error:
         return failure("plan_format_invalid", str(error))
     specs = tuple((spec.path, spec.content_identity) for spec in header.specifications)
-    return ok((header.plan_id, header.revision, specs, write_scope, steps, human_gates))
+    return ok((specs, write_scope))
 
 def raw_identity(text: str) -> str:
     return plan_artifact.content_identity(text)
-
-def human_gate_value(gate: Any) -> dict[str, Any]:
-    target = {"kind": gate.target.kind}
-    if gate.target.kind == "files":
-        target["paths"] = list(gate.target.paths)
-    else:
-        target["content_identity"] = gate.target.content_identity
-    return {
-        "gate_id": gate.gate_id,
-        "step_id": gate.step_id,
-        "sections": list(gate.sections),
-        "criterion": gate.criterion,
-        "target": target,
-        "timing": gate.timing,
-        "allowed_results": list(gate.allowed_results),
-    }
 
 def resolve_plan(
     project_root: Path,
@@ -73,11 +57,7 @@ def resolve_plan(
     parsed = parse_plan(registered.text)
     if not parsed.ok:
         return parsed
-    header_id, header_revision, specs, write_scope, steps, human_gates = parsed.value
-    if header_id != registered.plan_id:
-        return failure("plan_id_drift", "plan header and locator disagree")
-    if header_revision != registered.revision:
-        return failure("plan_revision_drift", "plan revision header and locator disagree")
+    specs, write_scope = parsed.value
 
     repository = discover_repository(project_root)
     if not repository.ok:
@@ -102,13 +82,15 @@ def resolve_plan(
             text=registered.text,
             specs=specs,
             write_scope=write_scope,
-            human_gates=human_gates,
-            steps=steps,
         )
     )
 
-def effective_plan_steps(attempt: Attempt) -> RuntimeResult:
-    """The steps of the plan revision the execution is bound to now, after any rebound."""
+def declared_steps(attempt: Attempt) -> RuntimeResult:
+    """The steps the agent declared when the execution was bound, after any rebound.
+
+    Declared once and read from the record ever after: reading them from the plan text on every
+    call would put a parser back where this design removed one.
+    """
     # context imports this module, so the effective binding is fetched at call time rather than
     # at module load: importing it at the top would close an import cycle.
     from runtime.context import load_effective_binding
@@ -116,24 +98,29 @@ def effective_plan_steps(attempt: Attempt) -> RuntimeResult:
     binding = load_effective_binding(attempt)
     if not binding.ok:
         return binding
-    try:
-        registered = plan_artifact.read_registered_plan(attempt.main_checkout, binding.value["plan"]["path"])
-        return ok(plan_artifact.read_plan_steps(registered.text))
-    except plan_artifact.PlanArtifactError as error:
-        return failure("plan_format_invalid", str(error))
+    steps = binding.value.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return failure("steps_undeclared", "the execution was bound without any declared step")
+    return ok(steps)
 
 def step_completion_kinds(attempt: Attempt) -> RuntimeResult:
-    steps = effective_plan_steps(attempt)
+    steps = declared_steps(attempt)
     if not steps.ok:
         return steps
-    return ok({f"step-{step.number}": step.completion_kind for step in steps.value})
+    return ok({step["step_id"]: step["completion"] for step in steps.value})
+
+def step_ids(attempt: Attempt) -> RuntimeResult:
+    steps = declared_steps(attempt)
+    if not steps.ok:
+        return steps
+    return ok([step["step_id"] for step in steps.value])
 
 def step_checks(attempt: Attempt, step_id: str) -> RuntimeResult:
-    """The check commands the plan declared for the step, in the order it names them."""
-    steps = effective_plan_steps(attempt)
+    """The check commands declared for the step, in the order they were named."""
+    steps = declared_steps(attempt)
     if not steps.ok:
         return steps
-    declared = {f"step-{step.number}": step.checks for step in steps.value}
+    declared = {step["step_id"]: list(step.get("checks") or []) for step in steps.value}
     if step_id not in declared:
         return failure("step_unknown", f"the plan has no step {step_id}")
     return ok(declared[step_id])

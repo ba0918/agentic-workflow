@@ -1,5 +1,4 @@
 """Evidence chain: context validation, event append, stop and permission records."""
-import re
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -65,11 +64,8 @@ def validate_context(attempt: Attempt, *, step_id: str) -> RuntimeResult:
         or registered.content_identity != binding["plan"]["content_identity"]
     ):
         return failure("plan_identity_drift", "registered plan differs from the binding")
-    step_number = step_id.removeprefix("step-")
-    if not step_number.isdigit() or re.search(
-        rf"^### {re.escape(step_number)}\.", registered.text, re.MULTILINE
-    ) is None:
-        return failure("step_missing", "current step does not exist in the bound plan")
+    if step_id not in {step.get("step_id") for step in (binding.get("steps") or [])}:
+        return failure("step_missing", "current step is not one the execution was bound to")
 
     repository = discover_repository(attempt.worktree)
     if not repository.ok:

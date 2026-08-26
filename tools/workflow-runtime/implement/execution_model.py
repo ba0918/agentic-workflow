@@ -357,7 +357,9 @@ def effective_binding(binding: dict, events: list[dict]) -> dict:
     if rebound is None:
         return dict(binding)
     effective = dict(binding)
-    for field in ("plan", "specs", "write_scope", "human_gates"):
+    for field in ("plan", "specs", "write_scope", "human_gates", "steps"):
+        if field not in rebound:
+            continue
         effective[field] = rebound[field]
     return effective
 

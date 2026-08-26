@@ -23,7 +23,7 @@ from runtime.types import (
 )
 from runtime.gitio import discover_repository, run_git as _git
 from runtime.storage import read_json as _read_json, write_once
-from runtime.planning import resolve_plan
+from runtime.planning import declared_steps, resolve_plan, step_completion_kinds, step_ids
 from runtime.repository import bootstrap_attempt, execution_branch
 from runtime.context import (
     append_event,
