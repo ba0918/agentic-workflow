@@ -457,130 +457,6 @@ class RegisteredPlanConsumerTest(unittest.TestCase):
         self.assertEqual(gates[0].target.paths, ())
         self.assertEqual(gates[0].target.content_identity, "sha256:" + "1" * 64)
 
-    def test_current_registered_plan_is_returned_without_writing(self) -> None:
-        with plan_root() as directory:
-            root = Path(directory)
-            identity = plan_artifact.content_identity(PLAN_TEXT)
-            publish_text(
-                root,
-                plan_id="20260822022624",
-                revision=1,
-                relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
-                text=PLAN_TEXT,
-                approved_identity=identity,
-                switch_confirmed=False,
-            )
-            before = {
-                path.relative_to(root).as_posix(): path.read_bytes()
-                for path in root.rglob("*")
-                if path.is_file()
-            }
-
-            registered = plan_artifact.read_registered_plan(root)
-
-            self.assertEqual(registered.plan_id, "20260822022624")
-            self.assertEqual(registered.revision, 1)
-            self.assertEqual(registered.content_identity, identity)
-            self.assertEqual(registered.state, "current")
-            self.assertEqual(registered.text, PLAN_TEXT)
-            after = {
-                path.relative_to(root).as_posix(): path.read_bytes()
-                for path in root.rglob("*")
-                if path.is_file()
-            }
-            self.assertEqual(after, before)
-
-    def test_explicit_registered_plan_may_be_held(self) -> None:
-        with plan_root() as directory:
-            root = Path(directory)
-            first_identity = plan_artifact.content_identity(PLAN_TEXT)
-            publish_text(
-                root,
-                plan_id="20260822022624",
-                revision=1,
-                relative_path=".agents/artifacts/plans/20260822022624_first.md",
-                text=PLAN_TEXT,
-                approved_identity=first_identity,
-                switch_confirmed=False,
-            )
-            second = PLAN_TEXT.replace("20260822022624", "20260822022625")
-            publish_text(
-                root,
-                plan_id="20260822022625",
-                revision=1,
-                relative_path=".agents/artifacts/plans/20260822022625_second.md",
-                text=second,
-                approved_identity=plan_artifact.content_identity(second),
-                switch_confirmed=True,
-            )
-
-            registered = plan_artifact.read_registered_plan(
-                root,
-                ".agents/artifacts/plans/20260822022624_first.md",
-            )
-
-            self.assertEqual(registered.plan_id, "20260822022624")
-            self.assertEqual(registered.state, "held")
-
-    def test_missing_registration_is_distinct_from_an_empty_publication_index(self) -> None:
-        with plan_root() as directory:
-            root = Path(directory)
-
-            with self.assertRaises(plan_artifact.PlanRegistrationMissing):
-                plan_artifact.read_registered_plan(root)
-
-            self.assertFalse((root / ".agents").exists())
-
-    def test_registered_plan_identity_mismatch_is_rejected_without_repair(self) -> None:
-        with plan_root() as directory:
-            root = Path(directory)
-            identity = plan_artifact.content_identity(PLAN_TEXT)
-            target = publish_text(
-                root,
-                plan_id="20260822022624",
-                revision=1,
-                relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
-                text=PLAN_TEXT,
-                approved_identity=identity,
-                switch_confirmed=False,
-            )
-            target.write_text(PLAN_TEXT + "changed\n", encoding="utf-8")
-            index_before = (target.parent / "open-plans.json").read_bytes()
-
-            with self.assertRaises(plan_artifact.RegisteredPlanMismatch):
-                plan_artifact.read_registered_plan(root)
-
-            self.assertEqual((target.parent / "open-plans.json").read_bytes(), index_before)
-            self.assertEqual(target.read_text(encoding="utf-8"), PLAN_TEXT + "changed\n")
-
-    def test_unsafe_registered_path_is_rejected(self) -> None:
-        with plan_root() as directory:
-            root = Path(directory)
-            plans = root / ".agents/artifacts/plans"
-            plans.mkdir(parents=True)
-            (plans / "open-plans.json").write_text(
-                json.dumps(
-                    {
-                        "version": 1,
-                        "current": "20260822022624",
-                        "plans": [
-                            {
-                                "id": "20260822022624",
-                                "path": "../outside.md",
-                                "revision": 1,
-                                "content_identity": "sha256:" + "0" * 64,
-                                "state": "current",
-                            }
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
-
-            with self.assertRaises(plan_artifact.UnsafePlanPath):
-                plan_artifact.read_registered_plan(root)
-
-
 class SaveDraftTest(unittest.TestCase):
     def test_draft_is_saved_under_the_temporary_plan_store_with_identical_bytes(self) -> None:
         with plan_root() as directory:
@@ -728,7 +604,6 @@ class DraftValidationTest(unittest.TestCase):
                     relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
                     source=draft.path,
                     approved_identity=draft.content_identity,
-                    switch_confirmed=False,
                 )
 
             self.assertTrue(draft.path.is_file())
@@ -750,15 +625,11 @@ class PublishPlanTest(unittest.TestCase):
                 relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
                 source=draft.path,
                 approved_identity=draft.content_identity,
-                switch_confirmed=False,
             )
 
             self.assertEqual(result.read_text(encoding="utf-8"), PLAN_TEXT)
+            self.assertEqual(plan_artifact.content_identity(result.read_text(encoding="utf-8")), draft.content_identity)
             self.assertFalse(draft.path.exists())
-            index = json.loads(
-                (root / ".agents/artifacts/plans/open-plans.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(index["plans"][0]["content_identity"], draft.content_identity)
 
     def test_an_edited_draft_is_rejected_and_kept_for_the_dialogue(self) -> None:
         with plan_root() as directory:
@@ -777,7 +648,6 @@ class PublishPlanTest(unittest.TestCase):
                     relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
                     source=draft.path,
                     approved_identity=draft.content_identity,
-                    switch_confirmed=False,
                 )
 
             self.assertEqual(draft.path.read_text(encoding="utf-8"), edited)
@@ -797,62 +667,10 @@ class PublishPlanTest(unittest.TestCase):
                     relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
                     source=elsewhere,
                     approved_identity=plan_artifact.content_identity(PLAN_TEXT),
-                    switch_confirmed=False,
                 )
 
             self.assertTrue(elsewhere.exists())
             self.assertFalse((root / ".agents/artifacts").exists())
-
-    def test_a_failed_index_write_restores_the_draft(self) -> None:
-        with plan_root() as directory:
-            root = Path(directory)
-            draft = plan_artifact.save_draft(
-                root, plan_id="20260822022624", revision=1, slug="small-change", text=PLAN_TEXT
-            )
-            original_write = plan_artifact._atomic_write
-
-            def failing_index_write(path: Path, text: str) -> None:
-                if path.name == plan_artifact.INDEX_NAME:
-                    raise OSError("disk full")
-                original_write(path, text)
-
-            with mock.patch.object(plan_artifact, "_atomic_write", failing_index_write):
-                with self.assertRaises(OSError):
-                    plan_artifact.publish_plan(
-                        root,
-                        plan_id="20260822022624",
-                        revision=1,
-                        relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
-                        source=draft.path,
-                        approved_identity=draft.content_identity,
-                        switch_confirmed=False,
-                    )
-
-            self.assertEqual(draft.path.read_text(encoding="utf-8"), PLAN_TEXT)
-            self.assertFalse((root / ".agents/artifacts/plans/20260822022624_small-change.md").exists())
-
-    def test_confirmed_draft_is_written_and_registered_as_current(self) -> None:
-        with plan_root() as directory:
-            root = Path(directory)
-            identity = plan_artifact.content_identity(PLAN_TEXT)
-
-            result = publish_text(
-                root,
-                plan_id="20260822022624",
-                revision=1,
-                relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
-                text=PLAN_TEXT,
-                approved_identity=identity,
-                switch_confirmed=False,
-            )
-
-            self.assertEqual(result.read_text(encoding="utf-8"), PLAN_TEXT)
-            index = json.loads(
-                (root / ".agents/artifacts/plans/open-plans.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(index["current"], "20260822022624")
-            self.assertEqual(index["plans"][0]["content_identity"], identity)
-            self.assertEqual(index["plans"][0]["state"], "current")
 
     def test_identity_mismatch_writes_nothing(self) -> None:
         with plan_root() as directory:
@@ -866,46 +684,14 @@ class PublishPlanTest(unittest.TestCase):
                     relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
                     text=PLAN_TEXT,
                     approved_identity="sha256:" + "0" * 64,
-                    switch_confirmed=False,
                 )
 
             self.assertFalse((root / ".agents/artifacts").exists())
 
-    def test_existing_current_plan_requires_confirmed_switch(self) -> None:
-        with plan_root() as directory:
-            root = Path(directory)
-            first_identity = plan_artifact.content_identity(PLAN_TEXT)
-            publish_text(
-                root,
-                plan_id="20260822022624",
-                revision=1,
-                relative_path=".agents/artifacts/plans/20260822022624_first.md",
-                text=PLAN_TEXT,
-                approved_identity=first_identity,
-                switch_confirmed=False,
-            )
-
-            with self.assertRaises(plan_artifact.CurrentPlanConflict):
-                publish_text(
-                    root,
-                    plan_id="20260822022625",
-                    revision=1,
-                    relative_path=".agents/artifacts/plans/20260822022625_second.md",
-                    text=PLAN_TEXT.replace("20260822022624", "20260822022625"),
-                    approved_identity=plan_artifact.content_identity(
-                        PLAN_TEXT.replace("20260822022624", "20260822022625")
-                    ),
-                    switch_confirmed=False,
-                )
-
-            index = json.loads(
-                (root / ".agents/artifacts/plans/open-plans.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(index["current"], "20260822022624")
-            self.assertEqual(len(index["plans"]), 1)
-
-    def test_a_dirty_worktree_is_not_a_reason_to_refuse_a_confirmed_switch(self) -> None:
+    def test_a_second_plan_is_published_alongside_the_first_without_a_confirmation(self) -> None:
+        """Nothing is "current", so a second unfinished plan is not a switch to confirm."""
         self.assertNotIn("worktree_dirty", inspect.signature(plan_artifact.publish_plan).parameters)
+        self.assertNotIn("switch_confirmed", inspect.signature(plan_artifact.publish_plan).parameters)
         with plan_root() as directory:
             root = Path(directory)
             publish_text(
@@ -915,7 +701,6 @@ class PublishPlanTest(unittest.TestCase):
                 relative_path=".agents/artifacts/plans/20260822022624_first.md",
                 text=PLAN_TEXT,
                 approved_identity=plan_artifact.content_identity(PLAN_TEXT),
-                switch_confirmed=False,
             )
             (root / "scratch.txt").write_text("uncommitted\n", encoding="utf-8")
             second = PLAN_TEXT.replace("20260822022624", "20260822022625")
@@ -927,42 +712,10 @@ class PublishPlanTest(unittest.TestCase):
                 relative_path=".agents/artifacts/plans/20260822022625_second.md",
                 text=second,
                 approved_identity=plan_artifact.content_identity(second),
-                switch_confirmed=True,
             )
 
+            self.assertTrue((root / ".agents/artifacts/plans/20260822022624_first.md").exists())
             self.assertTrue((root / ".agents/artifacts/plans/20260822022625_second.md").exists())
-            self.assertEqual(plan_artifact.read_registered_plan(root, None).plan_id, "20260822022625")
-
-    def test_confirmed_switch_holds_the_previous_plan(self) -> None:
-        with plan_root() as directory:
-            root = Path(directory)
-            publish_text(
-                root,
-                plan_id="20260822022624",
-                revision=1,
-                relative_path=".agents/artifacts/plans/20260822022624_first.md",
-                text=PLAN_TEXT,
-                approved_identity=plan_artifact.content_identity(PLAN_TEXT),
-                switch_confirmed=False,
-            )
-            second = PLAN_TEXT.replace("20260822022624", "20260822022625")
-            publish_text(
-                root,
-                plan_id="20260822022625",
-                revision=1,
-                relative_path=".agents/artifacts/plans/20260822022625_second.md",
-                text=second,
-                approved_identity=plan_artifact.content_identity(second),
-                switch_confirmed=True,
-            )
-
-            index = json.loads(
-                (root / ".agents/artifacts/plans/open-plans.json").read_text(encoding="utf-8")
-            )
-            states = {item["id"]: item["state"] for item in index["plans"]}
-            self.assertEqual(index["current"], "20260822022625")
-            self.assertEqual(states["20260822022624"], "held")
-            self.assertEqual(states["20260822022625"], "current")
 
     def test_paths_outside_the_plan_store_and_symlinks_are_rejected(self) -> None:
         with plan_root() as directory:
@@ -977,7 +730,6 @@ class PublishPlanTest(unittest.TestCase):
                     relative_path="../outside.md",
                     text=PLAN_TEXT,
                     approved_identity=identity,
-                    switch_confirmed=False,
                 )
 
             plans = root / ".agents/artifacts/plans"
@@ -993,7 +745,6 @@ class PublishPlanTest(unittest.TestCase):
                     relative_path=".agents/artifacts/plans/20260822022624_link.md",
                     text=PLAN_TEXT,
                     approved_identity=identity,
-                    switch_confirmed=False,
                 )
             self.assertEqual(outside.read_text(encoding="utf-8"), "untouched")
 
@@ -1007,7 +758,6 @@ class PublishPlanTest(unittest.TestCase):
                 relative_path=".agents/artifacts/plans/20260822022624_small-change.md",
                 text=PLAN_TEXT,
                 approved_identity=plan_artifact.content_identity(PLAN_TEXT),
-                switch_confirmed=False,
             )
             revised = PLAN_TEXT.replace("revision:** `1`", "revision:** `2`") + "\n手順を修正する。\n"
 
@@ -1018,19 +768,12 @@ class PublishPlanTest(unittest.TestCase):
                 relative_path=".agents/artifacts/plans/20260822022624_small-change-r2.md",
                 text=revised,
                 approved_identity=plan_artifact.content_identity(revised),
-                switch_confirmed=False,
             )
 
             self.assertEqual(result.read_text(encoding="utf-8"), revised)
             self.assertTrue(
                 (root / ".agents/artifacts/plans/20260822022624_small-change.md").is_file()
             )
-            index = json.loads(
-                (root / ".agents/artifacts/plans/open-plans.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(len(index["plans"]), 1)
-            self.assertEqual(index["plans"][0]["revision"], 2)
-            self.assertEqual(index["plans"][0]["path"], result.relative_to(root).as_posix())
 
 
 if __name__ == "__main__":

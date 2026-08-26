@@ -149,7 +149,6 @@ docs/
         relative_path=f".agents/artifacts/plans/{plan_id}_fixture.md",
         text=plan_text,
         approved_identity=plan_artifact.content_identity(plan_text),
-        switch_confirmed=False,
     )
     commit_plans(root, "chore: approve the fixture plan")
     return root, plan_id, spec_identity
