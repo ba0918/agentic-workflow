@@ -132,6 +132,19 @@ def _implementation_events(store: Path) -> RuntimeResult:
         events.append(event)
     return ok(events)
 
+def _validate_implementation_segments(root: Path, segments: list[dict], branch_head: str) -> RuntimeResult:
+    for index, segment in enumerate(segments):
+        end = segments[index + 1]["approval_commit"] if index + 1 < len(segments) else branch_head
+        history = _git(root, "rev-list", "--reverse", f"{segment['approval_commit']}..{end}")
+        if history.returncode != 0:
+            return failure("execution_input_invalid", "implementation revision range is unavailable")
+        commits = list(filter(None, history.stdout.splitlines()))
+        if index + 1 < len(segments) and commits and commits[-1] == end:
+            commits.pop()
+        if commits != segment.get("commits"):
+            return failure("execution_input_invalid", "implementation revision range and evidence differ")
+    return ok()
+
 def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> RuntimeResult:
     if SAFE_ID.fullmatch(plan_key) is None or SAFE_ID.fullmatch(run_id) is None:
         return failure("execution_input_invalid", "implementation identifiers are unsafe")
@@ -176,11 +189,13 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
     if root_common_path != worktree_common_path:
         return failure("execution_input_invalid", "implementation worktree belongs to another repository")
     branch_head = _commit(root, branch)
-    last_commit = commits[-1].get("commit") if commits else None
     if any(not _commit(root, event.get("commit")).ok for event in commits):
         return failure("execution_input_invalid", "implementation evidence names a missing commit")
-    if not branch_head.ok or branch_head.value != last_commit:
-        return failure("execution_input_invalid", "implementation branch tip and commit evidence differ")
+    if not branch_head.ok:
+        return failure("execution_input_invalid", "implementation branch tip is unavailable")
+    segment_check = _validate_implementation_segments(root, derived.value["segments"], branch_head.value)
+    if not segment_check.ok:
+        return segment_check
     try:
         return ok(execution_binding(
             plan_key, run_id, approval.value, implement_sequence=events[-1]["sequence"],

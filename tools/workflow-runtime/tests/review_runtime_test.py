@@ -90,6 +90,40 @@ class ReviewRuntimeTest(unittest.TestCase):
         self.assertEqual(branch.value["input"]["base"], base)
         self.assertEqual(branch.value["input"]["head"], head)
 
+    def test_execution_input_accepts_wording_recovery_and_rebound_revision_tips(self) -> None:
+        for boundary in ("recovering", "rebound"):
+            root, base, implementation = self.execution_fixture()
+            (root / "docs/spec/review.md").write_text("# Review\n\nClarified wording.\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "docs/spec/review.md"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "approved wording"], check=True)
+            revised = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            store = root / ".agents/evidence/plan-a/run-1"
+            green = store / "000004-implementation_green.json"
+            green.unlink()
+            if boundary == "recovering":
+                event = {
+                    "version": 2, "sequence": 4, "event_type": "recovering",
+                    "current_commit": revised, "changed_documents": ["docs/spec/review.md"],
+                    "reason": "wording only",
+                }
+                completed = ["1"]
+            else:
+                event = {
+                    "version": 2, "sequence": 4, "event_type": "rebound",
+                    "approval_commit": revised, "steps": [{"id": "same", "completion": "check"}],
+                    "mappings": [{"old": "1", "new": "same"}], "reason": "approved revision",
+                }
+                completed = ["same"]
+            (store / f"000004-{boundary}.json").write_text(json.dumps(event), encoding="utf-8")
+            (store / "000005-implementation_green.json").write_text(json.dumps({
+                "version": 2, "sequence": 5, "event_type": "implementation_green",
+                "completed_steps": completed,
+            }), encoding="utf-8")
+            resolved = runtime.resolve_input(root, review_id=boundary, plan_key="plan-a", run_id="run-1")
+            self.assertTrue(resolved.ok, resolved.error)
+            self.assertEqual(resolved.value["approval_commit"], revised)
+            self.assertEqual(resolved.value["head"], revised)
+
     def test_rejects_imaginary_branch_sha_and_incomplete_implementation_evidence(self) -> None:
         root, base, head = self.execution_fixture()
         self.assertEqual(runtime.resolve_input(root, review_id="bad", branch="missing", base="main").error.code, "branch_not_found")

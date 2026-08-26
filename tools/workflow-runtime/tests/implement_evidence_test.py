@@ -338,18 +338,35 @@ class ImplementDistributionTest(unittest.TestCase):
                 root, plan, run_id="run-1", delegated=False,
                 steps=[{"id": "old", "completion": "check"}], branch="main", worktree=str(root),
             ).value
+            wording_run = repository.bind_run(
+                root, plan, run_id="wording", delegated=False,
+                steps=[{"id": "old", "completion": "check"}], branch="main", worktree=str(root),
+            ).value
             (root / "app.txt").write_text("done\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
             self.assertTrue(context.append_event(run, "check", {
                 "step": "old", "checks": [{"command": "lint", "exit_code": 0}],
             }).ok)
+            self.assertTrue(context.append_event(wording_run, "check", {
+                "step": "old", "checks": [{"command": "lint", "exit_code": 0}],
+            }).ok)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "implementation"], check=True)
             implementation = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
             self.assertTrue(context.record_commit(run, "old", implementation).ok)
+            self.assertTrue(context.record_commit(wording_run, "old", implementation).ok)
             (root / "docs/spec/a.md").write_text("# Contract\n\nClarified.\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "docs/spec/a.md"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "approved revision"], check=True)
             revised = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            self.assertTrue(context.follow_documents(
+                run, revised, ["docs/spec/a.md"], "wording-only revision",
+            ).ok)
+            self.assertTrue(context.follow_documents(
+                wording_run, revised, ["docs/spec/a.md"], "wording-only revision",
+            ).ok)
+            status = json.loads((run.evidence_path / "current-status").read_text(encoding="utf-8"))
+            self.assertEqual(status["plan"]["approval_commit"], revised)
+            self.assertTrue(context.complete_run(wording_run).ok)
             self.assertTrue(context.rebound_run(
                 run, revised, "approved revision", steps=[{"id": "same", "completion": "check"}],
                 mappings=[{"old": "old", "new": "same"}],

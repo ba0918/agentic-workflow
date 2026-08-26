@@ -148,10 +148,7 @@ def _status(binding: dict, events: list[dict], event: dict) -> dict:
     derived = implementation_evidence.derive_implementation(binding, events + [event])
     completed = derived.value["completed_steps"] if derived.ok else []
     reason = event.get("reason") or event.get("summary") or event.get("outcome")
-    approval_commit = binding["approval_commit"]
-    for existing in events + [event]:
-        if existing.get("event_type") == "rebound":
-            approval_commit = existing["approval_commit"]
+    approval_commit = derived.value["approval_commit"] if derived.ok else binding["approval_commit"]
     return {
         "plan": {"path": binding["plan_path"], "approval_commit": approval_commit},
         "completed_steps": completed,
