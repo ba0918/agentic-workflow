@@ -28,7 +28,7 @@ expectations:
     critical: true
   - text: level、profileと選択元、modelと選択元、明示されたsecond reviewer/modelをbindingへ記録する
     critical: true
-  - text: unknown profileを拒否し、eval fixtureをskill profileへ分類し、各stage結果へfirst reviewerのactual modelを記録する
+  - text: unknown profileを拒否し、eval fixtureをskill profileへ分類し、各stage結果へfirst reviewerのactual model明示入力を必須化してrequested modelで代用しない
     critical: true
   - text: second reviewerとsecond modelは組として検証し、片方だけなら拒否する
     critical: true

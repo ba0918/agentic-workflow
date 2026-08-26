@@ -486,8 +486,9 @@ def record_findings(
     root: Path, binding: dict, *, stage: str, findings: list[dict], safety: dict,
     reviewer_context: str, actual_model: str | None = None,
 ) -> RuntimeResult:
-    model = actual_model or binding.get("review_options", {}).get("model")
-    checked_model = _bounded_text(model)
+    if actual_model is None:
+        return failure("actual_model_required", "review stage result needs the actual reviewer model")
+    checked_model = _bounded_text(actual_model)
     checked_summary = _bounded_text(safety.get("summary") if isinstance(safety, dict) else None)
     if (
         stage not in {"initial", "final"} or not isinstance(safety, dict)
@@ -757,7 +758,7 @@ def main(argv: list[str] | None = None) -> int:
     _selector(findings)
     findings.add_argument("--stage", choices=("initial", "final"), required=True)
     findings.add_argument("--reviewer-context", required=True)
-    findings.add_argument("--actual-model")
+    findings.add_argument("--actual-model", required=True)
     findings.add_argument("--findings-file", required=True)
     findings.add_argument("--safety-file", required=True)
     second = commands.add_parser("record-second-review")

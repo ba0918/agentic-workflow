@@ -18,4 +18,6 @@ followed by rebound; it is not completion. Never duplicate raw logs or sensitive
 
 Each initial/final findings event includes the same reviewer's explicit bounded safety result.
 Binding and review events also preserve level, selected profiles, selection sources, requested
-models, actual models, and the one optional second-review result or unavailable warning.
+models, explicitly supplied actual models, and the one optional second-review result or unavailable
+warning. Initial and final results are incomplete when their actual model is missing; never copy the
+requested model into that field.
