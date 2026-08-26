@@ -82,8 +82,48 @@ def choose_comparison_base(
 
 def requires_full_review(changed_dimensions: set[str]) -> bool:
     return bool(changed_dimensions & {
-        "structure", "assumptions", "order", "dependencies", "completion", "specification"
+        "structure", "assumptions", "order", "dependencies", "completion", "specification",
+        "scope_topology",
     })
+
+def resolve_input(
+    root: Path,
+    *,
+    review_id: str,
+    plan_key: str | None = None,
+    run_id: str | None = None,
+    branch: str | None = None,
+    base: str | None = None,
+    head: str | None = None,
+    spec_paths: list[str] | None = None,
+) -> RuntimeResult:
+    if plan_key is not None or run_id is not None:
+        if plan_key is None or run_id is None:
+            return failure("execution_input_incomplete", "plan key and run id must be supplied together")
+        store = root.resolve() / ".agents/evidence" / plan_key / run_id
+        binding_path = store / "binding.json"
+        if binding_path.is_symlink() or not binding_path.is_file():
+            return failure("execution_input_unavailable", "implementation binding is unavailable")
+        try:
+            implementation = json.loads(binding_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return failure("execution_input_invalid", "implementation binding is invalid")
+        completed = sorted(store.glob("*-all-steps-complete.json"))
+        if not completed:
+            return failure("implementation_incomplete", "implementation has no all-steps-complete event")
+        sequence = int(completed[-1].name.split("-", 1)[0])
+        try:
+            return ok(execution_binding(plan_key, run_id, implementation["approval_commit"], implement_sequence=sequence))
+        except (KeyError, ValueError):
+            return failure("execution_input_invalid", "implementation binding cannot start review")
+    if base is None or head is None:
+        return failure("commit_input_incomplete", "standalone review needs base and head commits")
+    try:
+        return ok(standalone_binding(
+            review_id, base=base, head=head, branch=branch, spec_paths=spec_paths or ["docs/spec/"]
+        ))
+    except ValueError as error:
+        return failure("standalone_input_invalid", str(error))
 
 def review_directory(root: Path, binding: dict) -> Path:
     repository = root.resolve()
@@ -129,9 +169,48 @@ def append_event(root: Path, binding: dict, event_type: str, fields: dict) -> Ru
         return failure("event_collision", "review event sequence already exists")
     return ok(event)
 
+def load_events(root: Path, binding: dict) -> RuntimeResult:
+    directory = review_directory(root, binding)
+    events: list[dict] = []
+    for path in sorted(directory.glob("[0-9][0-9][0-9][0-9][0-9][0-9]-*.json")) if directory.is_dir() else []:
+        try:
+            events.append(json.loads(path.read_text(encoding="utf-8")))
+        except json.JSONDecodeError:
+            return failure("review_event_invalid", f"invalid review event: {path.name}")
+    return ok(events)
+
+def begin_stage(root: Path, binding: dict, findings: list[dict]) -> RuntimeResult:
+    events = load_events(root, binding)
+    if not events.ok:
+        return events
+    stage = review_model.next_review_stage(events.value, findings)
+    if stage == "complete":
+        return ok({"event_type": "review-complete"})
+    return append_event(root, binding, f"{stage}-review", {"input_kind": input_kind(binding)})
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Review evidence runtime")
-    parser.parse_args(argv)
+    commands = parser.add_subparsers(dest="command", required=True)
+    bind = commands.add_parser("bind")
+    bind.add_argument("--repo", required=True)
+    bind.add_argument("--review-id", required=True)
+    bind.add_argument("--plan-key")
+    bind.add_argument("--run-id")
+    bind.add_argument("--branch")
+    bind.add_argument("--base")
+    bind.add_argument("--head")
+    bind.add_argument("--spec-path", action="append", default=[])
+    args = parser.parse_args(argv)
+    binding = resolve_input(
+        Path(args.repo), review_id=args.review_id, plan_key=args.plan_key, run_id=args.run_id,
+        branch=args.branch, base=args.base, head=args.head, spec_paths=args.spec_path,
+    )
+    if not binding.ok:
+        parser.error(binding.error.message)
+    stage = begin_stage(Path(args.repo), binding.value, [])
+    if not stage.ok:
+        parser.error(stage.error.message)
+    print(json.dumps({"input": binding.value, "stage": stage.value}, ensure_ascii=False))
     return 0
 
 if __name__ == "__main__":

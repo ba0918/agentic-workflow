@@ -2,6 +2,9 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+import contextlib
+import io
+import json
 
 ROOT = Path(__file__).resolve().parents[3]
 MODEL_PATH = ROOT / "tools/workflow-runtime/review/review_model.py"
@@ -63,6 +66,45 @@ class ReviewRuntimeTest(unittest.TestCase):
         self.assertFalse(runtime.requires_full_review({"paths"}))
         self.assertTrue(runtime.requires_full_review({"structure"}))
         self.assertTrue(runtime.requires_full_review({"specification"}))
+        self.assertTrue(runtime.requires_full_review({"scope_topology"}))
+
+    def test_resolves_all_inputs_and_starts_the_same_review_stages(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            execution_store = root / ".agents/evidence/plan-a/run-1"
+            execution_store.mkdir(parents=True)
+            (execution_store / "binding.json").write_text(json.dumps({
+                "plan_key": "plan-a", "run_id": "run-1", "approval_commit": "a" * 40
+            }), encoding="utf-8")
+            (execution_store / "000001-all-steps-complete.json").write_text("{}", encoding="utf-8")
+            bindings = [
+                runtime.resolve_input(root, review_id="exec-review", plan_key="plan-a", run_id="run-1"),
+                runtime.resolve_input(root, review_id="branch-review", branch="feature", base="a" * 40, head="b" * 40, spec_paths=["docs/spec/"]),
+                runtime.resolve_input(root, review_id="commit-review", base="a" * 40, head="b" * 40, spec_paths=["docs/spec/review.md"]),
+            ]
+            self.assertTrue(all(result.ok for result in bindings))
+            self.assertEqual({runtime.input_kind(result.value) for result in bindings}, {"execution", "branch", "commits"})
+            binding = bindings[1].value
+            initial = runtime.begin_stage(root, binding, [])
+            self.assertEqual(initial.value["event_type"], "initial-full-review")
+            open_item = {"state": "open"}
+            targeted = runtime.begin_stage(root, binding, [open_item])
+            self.assertEqual(targeted.value["event_type"], "targeted-review")
+            final = runtime.begin_stage(root, binding, [{"state": "closed"}])
+            self.assertEqual(final.value["event_type"], "final-full-review")
+
+    def test_cli_binds_branch_input_and_starts_initial_review(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = runtime.main([
+                    "bind", "--repo", directory, "--review-id", "review-1", "--branch", "feature",
+                    "--base", "a" * 40, "--head", "b" * 40, "--spec-path", "docs/spec/",
+                ])
+            self.assertEqual(code, 0)
+            payload = json.loads(output.getvalue())
+            self.assertEqual(payload["input"]["input"]["kind"], "branch")
+            self.assertEqual(payload["stage"]["event_type"], "initial-full-review")
 
 if __name__ == "__main__":
     unittest.main()

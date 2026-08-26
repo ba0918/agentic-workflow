@@ -64,8 +64,11 @@ class ReviewModelTest(unittest.TestCase):
     def test_unrelated_minor_findings_are_observations_but_serious_regressions_join_review(self) -> None:
         warn = finding(severity="warn")
         critical = finding(severity="critical", oracle="critical oracle")
-        admitted, observations = model.admit_new_findings([warn, critical], related_ids=set())
-        self.assertEqual([item["severity"] for item in admitted], ["critical"])
+        related_warn = finding(severity="warn", oracle="related oracle")
+        admitted, observations = model.admit_new_findings(
+            [warn, critical, related_warn], related_ids={related_warn["id"]}
+        )
+        self.assertEqual([item["severity"] for item in admitted], ["critical", "warn"])
         self.assertEqual([item["severity"] for item in observations], ["warn"])
 
 if __name__ == "__main__":
