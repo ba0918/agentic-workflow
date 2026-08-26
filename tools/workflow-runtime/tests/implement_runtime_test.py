@@ -2649,7 +2649,11 @@ class InstructionContractTest(unittest.TestCase):
         self.assertIn("before_edit", execution)
         self.assertIn("complete", evidence)
         self.assertIn("unavailable", evidence)
-        self.assertIn("Never start an implementation\n  subagent", skill)
+        self.assertIn("current-status", evidence)
+        self.assertIn("recovering", evidence)
+        self.assertIn("record-delegation", execution)
+        self.assertIn("--step-map", execution)
+        self.assertIn("never call an executor yourself", skill)
 
 
 class CommandLineTest(unittest.TestCase):

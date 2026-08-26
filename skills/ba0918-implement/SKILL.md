@@ -19,7 +19,7 @@ evidence directory under `.agents/artifacts/executions/<plan-id>/<execution-id>/
   [execution.md](references/execution.md).
 - While executing a `test` step through RED, GREEN, REFACTOR, and commit, read
   [tdd.md](references/tdd.md).
-- While executing a `check` step (completion the commands the plan names decide, with no human
+- While executing a `check` step (the commands declared for it decide, with no human
   verdict), or an `artifact` or `external` step (deliverables a test cannot prove, recorded and
   then approved by the human), read [artifacts.md](references/artifacts.md).
 - Before writing or retrying binding, oracle, event, permission, or result evidence, read
