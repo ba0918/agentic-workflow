@@ -98,6 +98,48 @@ def approval_record(
         "unchanged_since_approval": identity == content_identity,
     }
 
+def plan_candidates(project_root: Path) -> list[str]:
+    """Every plan the working tree holds, in path order.
+
+    A plan stays in the working tree until it is finished (docs/spec/plan.md, "未完了の手順書を
+    どう知るか"), so what is there is the unfinished list. The order is for showing a human, not
+    for choosing: neither a modification time nor a name picks one (docs/spec/implement.md).
+    """
+    store = project_root.joinpath(*plan_artifact.PLAN_STORE.parts)
+    if not store.is_dir():
+        return []
+    return sorted(
+        str(plan_artifact.PLAN_STORE / path.name)
+        for path in store.iterdir()
+        if path.is_file() and not path.is_symlink() and path.suffix == ".md"
+    )
+
+def locate_plan(
+    project_root: Path,
+    *,
+    plan_path: str | None,
+    receipt: dict[str, str] | None,
+) -> RuntimeResult:
+    """Which plan to run, in the order docs/spec/implement.md gives: the path the call names, the
+    plan a publication receipt just approved, then the one plan the working tree holds."""
+    receipt_path = receipt.get("path") if receipt else None
+    if plan_path is not None:
+        if receipt_path is not None and receipt_path != plan_path:
+            return failure("plan_candidate_conflict", "explicit path and publication receipt disagree")
+        return ok(plan_path)
+    if receipt_path is not None:
+        return ok(receipt_path)
+    candidates = plan_candidates(project_root)
+    if not candidates:
+        return failure("plan_candidate_missing", "the working tree holds no plan to run")
+    if len(candidates) > 1:
+        return failure(
+            "plan_candidate_ambiguous",
+            "several plans are unfinished; name the one to run with --plan-path",
+            ", ".join(candidates),
+        )
+    return ok(candidates[0])
+
 def resolve_plan(
     project_root: Path,
     *,
@@ -106,56 +148,35 @@ def resolve_plan(
     revision: int | None = None,
     receipt: dict[str, str] | None = None,
 ) -> RuntimeResult:
-    """The plan the agent named, read for the two parts a machine reads.
+    """The plan to run, read for the two parts a machine reads.
 
     Its id and revision come from the agent that read the document, not from a parser or a
     locator (docs/spec/plan.md, "機械が決まった書き方で読む箇所は 2 つだけ").
     """
-    if receipt is not None and plan_path is not None and receipt.get("path") != plan_path:
-        return failure("plan_candidate_conflict", "explicit path and publication receipt disagree")
-    if plan_path is not None:
-        if not isinstance(plan_id, str) or not plan_id.strip():
-            return failure("plan_declaration_missing", "name the plan id you read out of the plan")
-        if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
-            return failure("plan_declaration_missing", "name the plan revision you read out of the plan")
-        loaded = read_plan_file(project_root, plan_path)
-        if not loaded.ok:
-            return loaded
-        text = loaded.value
-        identity = raw_identity(text)
-        if receipt is not None and receipt.get("content_identity") != identity:
-            return failure("plan_candidate_conflict", "explicit path and publication receipt disagree")
-        registered = ResolvedPlan(
-            plan_id=plan_id,
-            path=plan_path,
-            revision=revision,
-            content_identity=identity,
-            text=text,
-            specs=(),
-            write_scope=(),
-        )
-    else:
-        try:
-            located = plan_artifact.read_registered_plan(project_root, receipt.get("path") if receipt else None)
-        except plan_artifact.PlanRegistrationMissing as error:
-            return failure("plan_registration_missing", str(error))
-        except plan_artifact.RegisteredPlanMismatch as error:
-            return failure("plan_identity_drift", str(error))
-        except plan_artifact.UnsafePlanPath as error:
-            return failure("unsafe_path", str(error))
-        except plan_artifact.PlanArtifactError as error:
-            return failure("plan_locator_invalid", str(error))
-        if receipt is not None and receipt.get("content_identity") != located.content_identity:
-            return failure("plan_identity_drift", "publication receipt differs from the locator")
-        registered = ResolvedPlan(
-            plan_id=plan_id or located.plan_id,
-            path=located.path,
-            revision=revision if isinstance(revision, int) and not isinstance(revision, bool) else located.revision,
-            content_identity=located.content_identity,
-            text=located.text,
-            specs=(),
-            write_scope=(),
-        )
+    located = locate_plan(project_root, plan_path=plan_path, receipt=receipt)
+    if not located.ok:
+        return located
+    relative_path = located.value
+    if not isinstance(plan_id, str) or not plan_id.strip():
+        return failure("plan_declaration_missing", "name the plan id you read out of the plan")
+    if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
+        return failure("plan_declaration_missing", "name the plan revision you read out of the plan")
+    loaded = read_plan_file(project_root, relative_path)
+    if not loaded.ok:
+        return loaded
+    text = loaded.value
+    identity = raw_identity(text)
+    if receipt is not None and receipt.get("content_identity") != identity:
+        return failure("plan_candidate_conflict", "the plan differs from the publication receipt")
+    registered = ResolvedPlan(
+        plan_id=plan_id,
+        path=relative_path,
+        revision=revision,
+        content_identity=identity,
+        text=text,
+        specs=(),
+        write_scope=(),
+    )
     parsed = parse_plan(registered.text)
     if not parsed.ok:
         return parsed

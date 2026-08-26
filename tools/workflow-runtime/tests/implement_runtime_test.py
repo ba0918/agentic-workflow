@@ -40,6 +40,14 @@ def git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+FIXTURE_PLAN_ID = "20260822150000"
+
+
+def resolve_fixture_plan(root: Path, *, revision: int = 1):
+    """Stand in for the agent: declare the fixture plan's id and revision, read from its prose."""
+    return implement_runtime.resolve_plan(root, plan_id=FIXTURE_PLAN_ID, revision=revision)
+
+
 PASSING_CHECK = "python3 -c pass"
 FAILING_CHECK = "python3 -c \"import sys; sys.exit(3)\""
 
@@ -79,7 +87,7 @@ def create_repository(
     git(root, "add", ".gitignore", "README.md", "docs/spec/feature.md", "tests/greeting_test.py")
     git(root, "commit", "-m", "fixture baseline")
 
-    plan_id = "20260822150000"
+    plan_id = FIXTURE_PLAN_ID
     spec_identity = plan_artifact.content_identity(spec_text)
     gate_declaration = ""
     if human_gate:
@@ -203,7 +211,7 @@ def bootstrap_fixture(
         step_kinds=step_kinds,
         check_commands=check_commands,
     )
-    resolved = implement_runtime.resolve_plan(root).value
+    resolved = resolve_fixture_plan(root).value
     declared_steps, declared_gates = declare_from_plan(resolved.text)
     result = implement_runtime.bootstrap_attempt(
         root,
@@ -382,14 +390,6 @@ def revise_fixture_plan(root: Path, plan_id: str, *, extra_step_kind: str = "tes
     return write_revision(root, path, revised, 2)
 
 
-def reregister(root: Path, text: str) -> None:
-    """Point the locator at the plan text as it now stands, without the plan skill's checks."""
-    index_path = root / ".agents/artifacts/plans/open-plans.json"
-    index = json.loads(index_path.read_text(encoding="utf-8"))
-    index["plans"][0]["content_identity"] = plan_artifact.content_identity(text)
-    index_path.write_text(json.dumps(index), encoding="utf-8")
-
-
 class PlanResolutionTest(unittest.TestCase):
     def test_an_execution_binds_to_the_id_and_revision_the_agent_declared(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -465,9 +465,8 @@ class PlanResolutionTest(unittest.TestCase):
                 "### 手順その一 — Greetingを実装する\n\nテストで示します。",
             )
             plan_path.write_text(free_form, encoding="utf-8")
-            reregister(root, free_form)
 
-            result = implement_runtime.resolve_plan(root)
+            result = resolve_fixture_plan(root)
 
             self.assertTrue(result.ok, result.error)
             self.assertEqual(result.value.specs, (("docs/spec/feature.md", spec_identity),))
@@ -482,12 +481,8 @@ class PlanResolutionTest(unittest.TestCase):
             plan_path = root / f".agents/artifacts/plans/{plan_id}_fixture.md"
             legacy = plan_path.read_text(encoding="utf-8").replace("**Target specifications:**", "**対象仕様:**")
             plan_path.write_text(legacy, encoding="utf-8")
-            index_path = root / ".agents/artifacts/plans/open-plans.json"
-            index = json.loads(index_path.read_text(encoding="utf-8"))
-            index["plans"][0]["content_identity"] = plan_artifact.content_identity(legacy)
-            index_path.write_text(json.dumps(index), encoding="utf-8")
 
-            result = implement_runtime.resolve_plan(root)
+            result = resolve_fixture_plan(root)
 
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "plan_format_invalid")
@@ -515,7 +510,7 @@ class PlanResolutionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)
             root, _, _ = create_repository(parent)
-            resolved = implement_runtime.resolve_plan(root).value
+            resolved = resolve_fixture_plan(root).value
 
             result = implement_runtime.bootstrap_attempt(
                 root,
@@ -529,11 +524,11 @@ class PlanResolutionTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "steps_undeclared")
 
-    def test_current_plan_metadata_and_specs_are_verified(self) -> None:
+    def test_the_plan_to_run_is_read_for_its_specs_and_write_scope(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, plan_id, spec_identity = create_repository(Path(directory))
 
-            result = implement_runtime.resolve_plan(root)
+            result = resolve_fixture_plan(root)
 
             self.assertTrue(result.ok)
             self.assertEqual(result.value.plan_id, plan_id)
@@ -547,10 +542,10 @@ class PlanResolutionTest(unittest.TestCase):
                 ("src/greeting.py", "tests/greeting_test.py", "docs/guide.md"),
             )
 
-    def test_a_temporary_plan_draft_is_never_resolved_as_the_current_plan(self) -> None:
+    def test_a_temporary_plan_draft_is_never_resolved_as_the_plan_to_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, _, _ = create_repository(Path(directory))
-            registered = implement_runtime.resolve_plan(root)
+            registered = resolve_fixture_plan(root)
             self.assertTrue(registered.ok, registered.error)
             draft = plan_artifact.save_draft(
                 root,
@@ -569,7 +564,7 @@ class PlanResolutionTest(unittest.TestCase):
 
             self.assertFalse(result.ok)
             self.assertIn(result.error.code, {"plan_registration_missing", "unsafe_path"})
-            self.assertEqual(implement_runtime.resolve_plan(root).value.plan_id, registered.value.plan_id)
+            self.assertEqual(resolve_fixture_plan(root).value.plan_id, registered.value.plan_id)
 
     def test_explicit_unregistered_plan_is_rejected_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -596,12 +591,14 @@ class PlanResolutionTest(unittest.TestCase):
             }
             self.assertEqual(after, before)
 
-    def test_receipt_identity_must_match_the_registered_plan(self) -> None:
+    def test_a_receipt_that_disagrees_with_the_plan_on_disk_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, plan_id, _ = create_repository(Path(directory))
 
             result = implement_runtime.resolve_plan(
                 root,
+                plan_id=plan_id,
+                revision=1,
                 receipt={
                     "path": f".agents/artifacts/plans/{plan_id}_fixture.md",
                     "content_identity": "sha256:" + "0" * 64,
@@ -609,7 +606,7 @@ class PlanResolutionTest(unittest.TestCase):
             )
 
             self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "plan_identity_drift")
+            self.assertEqual(result.error.code, "plan_candidate_conflict")
 
     def test_explicit_path_and_receipt_must_not_disagree(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -736,6 +733,75 @@ class PlanApprovalRecordTest(unittest.TestCase):
             )
 
 
+def second_plan(root: Path, plan_id: str, new_id: str) -> tuple[str, str]:
+    """One more approved plan in the working tree, so the store holds two unfinished ones."""
+    text = (root / fixture_plan_path(plan_id)).read_text(encoding="utf-8").replace(plan_id, new_id)
+    path = fixture_plan_path(new_id)
+    (root / path).write_text(text, encoding="utf-8")
+    return path, plan_artifact.content_identity(text)
+
+
+class PlanCandidateTest(unittest.TestCase):
+    """Which plan runs comes from the working tree, never from an index of open plans."""
+
+    def test_the_one_plan_in_the_working_tree_runs_without_being_named(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, plan_id, _ = create_repository(Path(directory))
+            renamed = ".agents/artifacts/plans/20260826170000_renamed.md"
+            (root / fixture_plan_path(plan_id)).rename(root / renamed)
+
+            result = implement_runtime.resolve_plan(root, plan_id=plan_id, revision=1)
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value.path, renamed)
+
+    def test_several_plans_are_offered_to_the_human_rather_than_picked(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, plan_id, _ = create_repository(Path(directory))
+            other_path, _ = second_plan(root, plan_id, "20260826170000")
+
+            result = implement_runtime.resolve_plan(root, plan_id=plan_id, revision=1)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "plan_candidate_ambiguous")
+            self.assertIn(fixture_plan_path(plan_id), result.error.detail)
+            self.assertIn(other_path, result.error.detail)
+
+    def test_a_working_tree_without_a_plan_reports_that_there_is_no_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, plan_id, _ = create_repository(Path(directory))
+            (root / fixture_plan_path(plan_id)).unlink()
+
+            result = implement_runtime.resolve_plan(root, plan_id=plan_id, revision=1)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "plan_candidate_missing")
+
+    def test_the_plan_a_publication_receipt_names_wins_over_the_other_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, plan_id, _ = create_repository(Path(directory))
+            other_path, other_identity = second_plan(root, plan_id, "20260826170000")
+
+            result = implement_runtime.resolve_plan(
+                root,
+                plan_id="20260826170000",
+                revision=1,
+                receipt={"path": other_path, "content_identity": other_identity},
+            )
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(result.value.path, other_path)
+
+    def test_a_plan_found_in_the_working_tree_still_needs_its_id_and_revision_declared(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, _, _ = create_repository(Path(directory))
+
+            result = implement_runtime.resolve_plan(root)
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "plan_declaration_missing")
+
+
 class LocatorFreeExecutionTest(unittest.TestCase):
     """A plan is found by the path it was bound to, never by an index of open plans."""
 
@@ -847,7 +913,7 @@ class BootstrapTest(unittest.TestCase):
             parent = Path(directory)
             root, plan_id, _ = create_repository(parent)
             (root / "dirty-only.txt").write_text("must stay in main\n", encoding="utf-8")
-            resolved = implement_runtime.resolve_plan(root).value
+            resolved = resolve_fixture_plan(root).value
             worktree = parent / "linked-worktree"
 
             result = implement_runtime.bootstrap_attempt(
@@ -885,7 +951,7 @@ class BootstrapTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)
             root, _, _ = create_repository(parent)
-            resolved = implement_runtime.resolve_plan(root).value
+            resolved = resolve_fixture_plan(root).value
             executor = {
                 "executor": "codex",
                 "backend": "unavailable",
@@ -925,7 +991,7 @@ class BootstrapTest(unittest.TestCase):
             existing.mkdir(parents=True)
             marker = existing / "marker"
             marker.write_text("keep\n", encoding="utf-8")
-            resolved = implement_runtime.resolve_plan(root).value
+            resolved = resolve_fixture_plan(root).value
 
             result = implement_runtime.bootstrap_attempt(
                 root,
@@ -1174,7 +1240,7 @@ class FreshSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)
             root, attempt = bootstrap_fixture(parent)
-            resolved = implement_runtime.resolve_plan(root).value
+            resolved = resolve_fixture_plan(root).value
             second = implement_runtime.bootstrap_attempt(
                 root,
                 resolved,
@@ -2821,7 +2887,7 @@ class MultiStepFreezeTest(unittest.TestCase):
     def test_a_later_step_may_evolve_an_earlier_steps_test_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root, _, _ = create_repository(Path(directory), step_kinds=("test", "test"))
-            resolved = implement_runtime.resolve_plan(root).value
+            resolved = resolve_fixture_plan(root).value
             attempt = implement_runtime.bootstrap_attempt(
                 root,
                 resolved,
@@ -2956,7 +3022,9 @@ class CommandLineTest(unittest.TestCase):
             output = io.StringIO()
 
             with contextlib.redirect_stdout(output):
-                exit_code = implement_runtime.main(["resolve", "--repo", str(root)])
+                exit_code = implement_runtime.main(
+                    ["resolve", "--repo", str(root), "--plan-id", plan_id, "--plan-revision", "1"]
+                )
 
             payload = json.loads(output.getvalue())
             self.assertEqual(exit_code, 0)
@@ -3044,12 +3112,14 @@ class CommandLineTest(unittest.TestCase):
             output = io.StringIO()
 
             with contextlib.redirect_stdout(output):
-                exit_code = implement_runtime.main(["resolve", "--repo", str(root)])
+                exit_code = implement_runtime.main(
+                    ["resolve", "--repo", str(root), "--plan-id", FIXTURE_PLAN_ID, "--plan-revision", "1"]
+                )
 
             payload = json.loads(output.getvalue())
             self.assertEqual(exit_code, 2)
             self.assertEqual(payload["state"], "not_started")
-            self.assertEqual(payload["reason"], "plan_registration_missing")
+            self.assertEqual(payload["reason"], "plan_candidate_missing")
 
     def test_cli_routes_a_complete_attempt_without_a_result_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -3066,6 +3136,10 @@ class CommandLineTest(unittest.TestCase):
                     str(worktree),
                     "--executor",
                     "codex",
+                    "--plan-id",
+                    FIXTURE_PLAN_ID,
+                    "--plan-revision",
+                    "1",
                     "--steps",
                     json.dumps(DECLARED_TEST_STEP),
                 ]
