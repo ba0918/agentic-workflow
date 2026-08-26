@@ -16,6 +16,7 @@ def finding(**changes) -> dict:
         "specification": {"path": "docs/spec/review.md", "section": "指摘（finding）"},
         "evidence": {"path": "src/app.py", "observation": "wrong result"},
         "oracle": "python3 -m unittest tests.app_test",
+        "oracle_status": "failing",
         "root_cause": "validation",
         "state": "open",
         "spec_commit": "a" * 40,
@@ -37,6 +38,20 @@ class ReviewModelTest(unittest.TestCase):
             result = model.validate_finding(finding(state=state))
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "finding_state_invalid")
+
+    def test_fixable_finding_requires_a_preverified_failing_oracle(self) -> None:
+        result = model.validate_finding(finding(oracle_status="passing"))
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "finding_oracle_not_failing")
+
+    def test_finding_requires_traceable_spec_evidence_root_cause_version_and_profile(self) -> None:
+        for field in ("specification", "evidence", "root_cause", "spec_commit", "profile"):
+            value = finding()
+            value.pop(field)
+            value["id"] = model.finding_id(value)
+            result = model.validate_finding(value)
+            self.assertFalse(result.ok, field)
+            self.assertEqual(result.error.code, "finding_field_missing")
 
     def test_findings_stale_is_a_resumable_pause(self) -> None:
         events = [{"event_type": "findings-recorded"}, {"event_type": "findings_stale"}]
