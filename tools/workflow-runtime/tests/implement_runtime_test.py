@@ -10,6 +10,8 @@ RUNTIME_HOME = ROOT / "tools/workflow-runtime/implement"
 sys.path.insert(0, str(RUNTIME_HOME))
 planning = importlib.import_module("runtime.planning")
 staging = importlib.import_module("runtime.staging")
+context = importlib.import_module("runtime.context")
+resume = importlib.import_module("runtime.resume")
 
 PLAN = """# Plan
 
@@ -108,6 +110,42 @@ class ImplementPlanBindingTest(unittest.TestCase):
         )
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "human_judgment_required")
+
+    def test_document_context_reports_git_facts_without_classifying_importance(self) -> None:
+        result = context.document_context(
+            {"approval_commit": "a" * 40}, "b" * 40, ["docs/spec/a.md", "docs/plans/p.md"]
+        )
+        self.assertTrue(result.ok)
+        self.assertEqual(result.value["approval_commit"], "a" * 40)
+        self.assertNotIn("important", result.value)
+        self.assertNotIn("verdict", result.value)
+
+    def test_ai_can_follow_a_nonimportant_document_change(self) -> None:
+        result = context.document_decision(
+            current_commit="b" * 40,
+            changed_documents=["docs/spec/a.md"],
+            important=False,
+            reason="wording only",
+        )
+        self.assertTrue(result.ok)
+        self.assertEqual(result.value["event_type"], "documents-followed")
+        self.assertEqual(result.value["current_commit"], "b" * 40)
+
+    def test_important_document_change_returns_to_the_human(self) -> None:
+        result = context.document_decision(
+            current_commit="b" * 40,
+            changed_documents=["docs/spec/a.md"],
+            important=True,
+            reason="persistence choice changed",
+        )
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "rebound_or_new_run_required")
+
+    def test_unique_unfinished_run_resumes_automatically(self) -> None:
+        self.assertEqual(resume.select_unfinished([{"run_id": "one", "state": "active"}]).value["run_id"], "one")
+        multiple = resume.select_unfinished([{"run_id": "one", "state": "active"}, {"run_id": "two", "state": "stopped"}])
+        self.assertFalse(multiple.ok)
+        self.assertEqual(multiple.error.code, "run_candidate_ambiguous")
 
 if __name__ == "__main__":
     unittest.main()

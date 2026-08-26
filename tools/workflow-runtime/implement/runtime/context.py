@@ -9,6 +9,31 @@ def document_context(binding: dict, current_commit: str, changed_documents: list
         "changed_documents": sorted(changed_documents),
     })
 
+def document_decision(
+    *,
+    current_commit: str,
+    changed_documents: list[str],
+    important: bool,
+    reason: str,
+) -> RuntimeResult:
+    if not reason.strip():
+        return failure("document_decision_reason_missing", "document meaning decision needs a reason")
+    if important:
+        return failure("rebound_or_new_run_required", reason, ", ".join(sorted(changed_documents)))
+    return ok({
+        "event_type": "documents-followed",
+        "current_commit": current_commit,
+        "changed_documents": sorted(changed_documents),
+        "reason": reason,
+    })
+
+def stop_event(reason: str, *, changed_documents: list[str] | None = None) -> dict:
+    return {
+        "event_type": "stopped",
+        "reason": reason,
+        "changed_documents": sorted(changed_documents or []),
+    }
+
 def append_event(run: Run, event_type: str, fields: dict) -> RuntimeResult:
     binding = read_json(run.binding_path)
     if not binding.ok:
