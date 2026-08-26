@@ -187,12 +187,28 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertEqual(context.load_events(resumed.value["run"]).value[-1]["event_type"], "resumed")
 
     def test_completed_run_is_not_discovered_as_unfinished(self) -> None:
-        from runtime import repository
         from runtime.types import ResolvedPlan
-        root = Path(tempfile.mkdtemp())
-        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
-        run = repository.bind_run(root, plan, run_id="run-1", delegated=False).value
-        context.append_event(run, "implementation_green", {"completed_steps": []}, actor="implement", _derived=True)
+        root = self.fixture()
+        (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "ignore evidence"], check=True)
+        commit = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True
+        ).stdout.strip()
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True
+        ).stdout.strip()
+        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", commit, "text", (), ())
+        run = repository.bind_run(
+            root, plan, run_id="run-1", delegated=False,
+            steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+        ).value
+        context.append_event(run, "check", {
+            "step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": [],
+        })
+        context.record_commit(run, "1", commit)
+        context.record_safety_check(run, passed=True, summary="safe")
+        self.assertTrue(context.complete_run(run).ok)
         self.assertEqual(resume.discover_unfinished(root, "plan-a").value, [])
 
     def test_resume_cli_discovers_records_and_reports_the_resume_point(self) -> None:

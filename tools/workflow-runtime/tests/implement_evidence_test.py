@@ -106,6 +106,8 @@ class ImplementDistributionTest(unittest.TestCase):
             result = context.append_event(run, "implementation_green", {}, actor="implement")
             self.assertFalse(result.ok)
             self.assertEqual(result.error.code, "event_not_recordable")
+            with self.assertRaises(TypeError):
+                context.append_event(run, "implementation_green", {}, actor="implement", _derived=True)
 
     def test_empty_run_and_invalid_test_transition_cannot_complete(self) -> None:
         import tempfile
