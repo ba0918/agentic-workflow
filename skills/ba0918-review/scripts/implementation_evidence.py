@@ -25,7 +25,7 @@ def _failure(code: str, message: str) -> EvidenceResult:
     return EvidenceResult(None, EvidenceFailure(code, message))
 
 def _steps(value: object) -> list[dict] | None:
-    if not isinstance(value, list) or not value:
+    if not isinstance(value, list):
         return None
     normalized: list[dict] = []
     ids: set[str] = set()
@@ -88,6 +88,16 @@ def _mapping(old_steps: list[dict], new_steps: list[dict], value: object) -> dic
 def _safe_paths(value: object) -> bool:
     return isinstance(value, list) and all(isinstance(path, str) and path for path in value)
 
+def _snapshot(value: object) -> bool:
+    if not isinstance(value, dict) or not isinstance(value.get("files"), dict):
+        return False
+    digest = __import__("re").compile(r"sha256:[0-9a-f]{64}")
+    return (
+        isinstance(value.get("command"), str) and digest.fullmatch(value["command"]) is not None
+        and all(isinstance(path, str) and path and isinstance(item, str) and digest.fullmatch(item) is not None
+                for path, item in value["files"].items())
+    )
+
 def _valid_event(event: dict) -> bool:
     kind = event.get("event_type")
     if not isinstance(kind, str) or not kind:
@@ -97,6 +107,7 @@ def _valid_event(event: dict) -> bool:
             isinstance(event.get("step"), str) and bool(event["step"])
             and isinstance(event.get("command"), str) and bool(event["command"])
             and isinstance(event.get("exit_code"), int)
+            and _snapshot(event.get("snapshot"))
         )
     if kind in {"check", "artifact"}:
         checks = event.get("checks")
@@ -133,7 +144,21 @@ def _valid_event(event: dict) -> bool:
         )
     if kind == "implementation_green":
         return _safe_paths(event.get("completed_steps"))
-    return kind in {"worktree-bound", "human_gate", "delegated", "returned", "resumed", "stopped"}
+    if kind == "worktree-bound":
+        return isinstance(event.get("branch"), str) and bool(event["branch"]) and isinstance(event.get("worktree"), str) and bool(event["worktree"])
+    if kind == "human_gate":
+        return isinstance(event.get("reason"), str) and bool(event["reason"].strip())
+    if kind in {"delegated", "returned"}:
+        field = "role" if kind == "delegated" else "outcome"
+        return field not in event or isinstance(event[field], str)
+    if kind == "resumed":
+        return (
+            isinstance(event.get("branch_head"), str) and SHA.fullmatch(event["branch_head"]) is not None
+            and _safe_paths(event.get("unexplained_commits")) and _safe_paths(event.get("uncommitted_paths"))
+        )
+    if kind == "stopped":
+        return isinstance(event.get("reason"), str) and bool(event["reason"].strip())
+    return False
 
 def derive_implementation(binding: object, events: object) -> EvidenceResult:
     if not isinstance(binding, dict) or not isinstance(events, list):
@@ -155,7 +180,37 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
     completed: set[str] = set()
     segment: list[dict] = []
     segments: list[dict] = []
+    test_stages: dict[str, str] = {}
+    stopped = False
     for event in events:
+        kind = event["event_type"]
+        if stopped and kind not in {"resumed", "rebound"}:
+            return _failure("transition_invalid", "stopped implementation requires resumed or rebound")
+        stopped = kind == "stopped"
+        if kind in {"resumed", "rebound"}:
+            stopped = False
+        if kind in {"red", "green", "refactor", "check", "artifact", "external", "commit"}:
+            contract = next((step for step in active_steps if step["id"] == event.get("step")), None)
+            if contract is None:
+                return _failure("transition_invalid", "implementation event names an unknown active step")
+            if kind in {"red", "green", "refactor"}:
+                if contract["completion"] != "test":
+                    return _failure("transition_invalid", "test stage belongs to a non-test step")
+                previous = test_stages.get(contract["id"])
+                valid = (
+                    (kind == "red" and event["exit_code"] != 0)
+                    or (kind == "green" and event["exit_code"] == 0 and previous == "red")
+                    or (kind == "refactor" and event["exit_code"] == 0 and previous == "green")
+                )
+                if not valid:
+                    return _failure("transition_invalid", "test stages must follow RED, GREEN, REFACTOR")
+                test_stages[contract["id"]] = kind
+            elif kind in {"check", "artifact"} and (
+                kind != contract["completion"] or any(check["exit_code"] != 0 for check in event["checks"])
+            ):
+                return _failure("transition_invalid", "check or artifact evidence does not complete its step")
+            elif kind == "external" and contract["completion"] != "external":
+                return _failure("transition_invalid", "external evidence belongs to a non-external step")
         if event.get("event_type") not in {"recovering", "rebound"}:
             segment.append(event)
             continue
@@ -174,6 +229,7 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
             return _failure("rebound_mapping_invalid", "rebound step mapping is invalid")
         completed = {mapping[step_id] for step_id in completed if step_id in mapping}
         active_steps = new_steps
+        test_stages = {mapping[step]: state for step, state in test_stages.items() if step in mapping}
         approval_commit = event.get("approval_commit")
         segment = []
     completed |= _completed_steps(active_steps, segment)

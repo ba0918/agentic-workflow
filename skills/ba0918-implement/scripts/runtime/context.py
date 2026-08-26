@@ -182,6 +182,8 @@ def _append_event(
         if not loaded.ok:
             return loaded
         effective = implementation_evidence.derive_implementation(binding.value, loaded.value)
+        if loaded.value and not effective.ok:
+            return failure(effective.error.code, effective.error.message)
         effective_binding = binding.value if not effective.ok else {
             **binding.value, "steps": effective.value["steps"],
             "approval_commit": effective.value["approval_commit"],
@@ -452,6 +454,8 @@ def complete_run(run: Run) -> RuntimeResult:
     derived = implementation_evidence.derive_implementation(binding.value, events.value)
     if not derived.ok:
         return failure(derived.error.code, derived.error.message)
+    if not derived.value["steps"]:
+        return failure("completion_invalid", "implementation has no step contracts")
     if derived.value["resume_step"] is not None:
         return failure("completion_invalid", f"step is incomplete: {derived.value['resume_step']}")
     if events.value[-1].get("event_type") == "stopped":
