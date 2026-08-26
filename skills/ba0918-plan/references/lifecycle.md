@@ -13,29 +13,28 @@ normal human gate. Later consumers treat evidence bound to the old identity as s
 When a target specification is revised, every plan citing its old identity is stale: the helper
 refuses to publish such a plan, and a new revision must cite the new identity.
 
-## Open-plan locator
+## Unfinished plans
 
-The locator is a rebuildable internal index, not completion state. It contains only:
+The plans sitting in the working tree are the unfinished ones. Nothing lists them elsewhere, and
+nothing marks one of them as the plan being worked on.
 
-- plan ID;
-- stable path;
-- revision and content identity;
-- `current` or `held`.
+- Approving a plan and committing it are one operation, so the commit that carries a plan is the
+  record of its approval. There is no separate place where approval is written down.
+- A plan whose work is finished and merged is removed from the working tree with `git rm`. What
+  it said stays readable in the repository's history.
+- Never write a `status.md`, a `session-history.md`, or any other file that restates where the
+  work stands. How far an implementation got is answered by the evidence the implement skill
+  leaves behind.
 
-It never contains workflow phase, completion, evidence, findings, or a copied summary. Do not
-create or update `status.md` or `session-history.md`.
+## Several plans at once
 
-## Changing the current plan
+Any number of unfinished plans may sit in the working tree together. Publishing a second one is
+not a switch away from the first and needs no confirmation. Which plan gets implemented is
+decided when cycle or implement is started, not here.
 
-Ordinary execution has at most one current plan, while any number of unfinished plans may be
-held. If another current plan exists, show both plans' purposes and explain that the old plan will
-remain unfinished as held. Require explicit human confirmation; never infer abandonment or
-completion, including in headless execution.
+When a new plan would cover ground an existing one already covers, show the human the existing
+plan and ask whether to revise it or write a separate one. Never leave two similar plans side by
+side without saying so.
 
-A switch rewrites only the locator; it never touches the worktree. Uncommitted changes in the
-worktree are therefore neither a reason to switch nor a reason to refuse one. How they are treated
-belongs to the implement and recovery workflows, which stop on uncommitted changes inside a plan's
-write scope and show the human the rest.
-
-If the locator is malformed, points at different bytes, or contains inconsistent current entries,
-fail closed. Do not repair meaning by choosing a plan automatically.
+Which implementations are live — the branches and working directories they run in — is answered
+by `git worktree list`. This skill reads that and never writes it.

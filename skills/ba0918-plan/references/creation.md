@@ -23,29 +23,53 @@ Every implementation step identifies:
 - its purpose and the specification sections it rests on;
 - prerequisites and judgment dependencies;
 - the files it may change (a subset of the plan's change scope);
-- how its completion is shown (one of the three completion kinds below) and what exactly is
+- how its completion is shown (one of the four completion kinds below) and what exactly is
   checked;
 - choices delegated to implementation, if any;
 - stop conditions.
 
-## Machine-read parts
+## The two machine-read parts
 
-The implement skill reads the plan through `scripts/plan_artifact.py`. The helper refuses to
-save or publish a plan in which any of these parts is unreadable, so a malformed plan never
-reaches the human for approval. Everything outside these parts is free prose.
+Only two parts of a plan are read in a fixed form, by `scripts/plan_artifact.py`. The helper
+refuses to save or publish a plan in which either is unreadable, so a malformed one never
+reaches the human for approval.
+
+| Part | Form | Read for |
+|---|---|---|
+| Target specifications | `**Target specifications:**` followed by one list item per specification (form below) | verifying the specification has not changed |
+| Change scope | `## Scope` containing one `text` code block holding a file tree | refusing edits outside the scope |
+
+These two are fixed because **both are compared against something outside the document**: the
+identity against the file now in the repository, the scope against the paths a commit touches.
+A machine that cannot read them cannot do its job.
+
+Everything else is prose. The steps, how each is shown complete, the decisions reserved for a
+human, and the plan's own id and revision are written for a person; the agent that later runs
+the plan reads them and declares what it found. Nothing refuses a plan over their wording — when
+a wording cannot be read, the agent that reads it is the one who can fix it, and stopping helps
+no one. A correction that changes meaning goes back to this skill instead.
+
+Write these parts anyway, in the forms below. They are what makes a plan legible, and the shapes
+are what the implement skill's declarations expect. They are conventions for the writer, not
+gates the helper enforces.
 
 The markers (headings and bold labels) are fixed English words regardless of the human's
 language; the prose around them, and the section names they cite, are written in the human's
 language. Explanatory text may follow a marker on the next lines.
 
-| Part | Form | Read for |
-|---|---|---|
-| Plan id and revision | At the top: `**Plan ID:** \`<14 digits>\`` and `**Plan revision:** \`<n>\`` on their own lines; they must equal the `--plan-id` and `--revision` given to the helper | binding evidence to a plan |
-| Target specifications | `**Target specifications:**` followed by one list item per specification (form below) | verifying the specification has not changed |
-| Change scope | `## Scope` containing one `text` code block holding a file tree | refusing edits outside the scope |
-| Steps | `## Steps` containing `### 1.`, `### 2.` … counted from 1 without gaps | executing one step at a time |
-| Completion kind | exactly one `**Completion:**` line per step naming one of the four kinds, plus a `**Checks:**` declaration when that kind is `check` | demanding the matching evidence |
-| Human gates | `**Human gates:**` plus a JSON block inside the step that needs one | pausing for a human decision |
+### Plan id and revision
+
+At the top, on their own lines:
+
+```markdown
+**Plan ID:** `20260826170000`
+**Plan revision:** `1`
+```
+
+The id is 14 digits and never changes across revisions; the revision counts up from 1. A person
+reads them here, and so does the agent that binds an execution — it passes them to the implement
+skill as its own declaration. No machine matches them against anything, so they are worth
+getting right: nothing else will notice if they are wrong.
 
 ### Target specifications
 
@@ -61,9 +85,9 @@ The path is repository-relative. The identity is the `sha256:` content identity 
 it is now; the helper compares it against the file in the repository when saving and when
 publishing, and stops when they differ or the file is missing. Section names are the headings
 of the specification in the human's language, each in backquotes and separated by commas; they
-are for the human reader and also define the names a human gate may cite. Add a
-sentence after the list saying what each specification obliges the plan to do — a path alone is
-not an explanation.
+let the reader trace which part of the specification the plan rests on, and they are the names a
+human gate cites. Add a sentence after the list saying what each specification obliges the plan
+to do — a path alone is not an explanation.
 
 ### Change scope
 
@@ -80,7 +104,14 @@ skills/ba0918-implement/
 
 Indentation expresses nesting (any consistent width), directories end with `/`, paths are
 repository-relative, and the block holds nothing but path segments — no comments, annotations,
-or box-drawing characters.
+or box-drawing characters. A block that departs from this stops the helper when the draft is
+saved.
+
+### Steps
+
+`## Steps` holds the steps, written as `### 1.`, `### 2.` and so on. Nothing counts them, so
+the numbering is for the reader; keep it in order and without gaps so a person can follow it and
+so a later revision can be matched against this one step by step.
 
 ### Completion kind
 
@@ -109,8 +140,9 @@ A `check` step declares its commands in the same step, one per line, each comman
 ````
 
 The implement skill runs exactly these, in this order, and nothing else; a command written only in
-the step's prose does not run. A `check` step with no declaration, and a step of another kind that
-carries one, are both refused when the plan is saved.
+the step's prose does not run. Declaring commands and declaring `check` go together: an execution
+bound with commands on a step of another kind, or with a `check` step that names none, is refused
+when it is bound — not when the plan is saved.
 
 **Never make a document a `check` step.** Specifications, skill prose, plans, and anything else a
 person reads to decide whether it is right are `artifact`, even when a format check exists for
@@ -150,10 +182,11 @@ following exact marker and versioned JSON object inside that step:
 ````
 
 Each `gate_id` is unique within the plan. `sections` is a non-empty list of section names that
-appear under `**Target specifications:**` — the bare name, without the backquotes; the helper rejects any
-name that is not listed there. A `files` target contains a non-empty set of safe
-repository-relative paths. An `event` target uses `content_identity` with an immutable
-`sha256:` identity instead of `paths`. `timing` is exactly `before_edit`, `before_commit`, or
+appear under `**Target specifications:**` — the bare name, without the backquotes. Check that
+correspondence while writing: nothing checks it for you, and a name that matches no heading
+leaves the reader unable to find what the decision rests on. A `files` target contains a
+non-empty set of safe repository-relative paths. An `event` target uses `content_identity` with
+an immutable `sha256:` identity instead of `paths`. `timing` is exactly `before_edit`, `before_commit`, or
 `before_implementation_green`; `allowed_results` is exactly `["approved", "rejected"]`.
 
 Omit the declaration when no human gate is required. A choice that changes product meaning is
@@ -168,8 +201,8 @@ Return such a choice to brainstorm instead of placing it in the plan.
 
 ## Saving the draft
 
-Before confirmation, do not create or modify a canonical plan, the open-plan index, a status
-file, or a session history. The only file the draft may touch is its own temporary copy below.
+Before confirmation, do not create or modify a canonical plan, a status file, or a session
+history. The only file the draft may touch is its own temporary copy below.
 
 Save the draft bytes, unchanged and without any header or front matter marking them as a draft,
 with:
@@ -179,10 +212,10 @@ python3 skills/ba0918-plan/scripts/plan_artifact.py draft \
   --repo <repo> --plan-id <plan-id> --revision <n> --slug <lowercase-slug> < draft.md
 ```
 
-The helper first checks every machine-read part and every target specification identity. When a
-check fails it writes nothing, prints which part is unreadable or which specification differs to
-standard error, and exits non-zero; fix the draft and save again before showing it to the human.
-When the checks pass it writes `.agents/tmp/plans/<plan-id>_<slug>_r<n>_draft.md` atomically and
+The helper first checks the two machine-read parts and every target specification identity. When
+a check fails it writes nothing, prints which part is unreadable or which specification differs
+to standard error, and exits non-zero; fix the draft and save again before showing it to the
+human. When the checks pass it writes `.agents/tmp/plans/<plan-id>_<slug>_r<n>_draft.md` atomically and
 prints the path and the SHA-256 content identity of exactly those bytes. When a draft with that
 name already exists (for example after a resumed session), pass
 `--replace-identity <identity-of-the-existing-file>`; the helper refuses to overwrite a draft
@@ -201,22 +234,22 @@ file.
 
 After explicit confirmation:
 
-1. Determine whether an open plan is already current.
-2. If another plan is current, load [lifecycle.md](lifecycle.md) and obtain the required switch
-   decision before publication.
-3. Run `python3 skills/ba0918-plan/scripts/plan_artifact.py publish` with `--source` set to the
-   draft path, `--approved-identity` set to the presented identity, and `--switch-confirmed` when
-   the human confirmed a switch. The helper moves the draft to the canonical path only when the file still has the
-   presented identity and still passes the same checks as at save time (so a specification
-   revised after the draft stops publication), reads the canonical file back, and registers it
-   only when that read-back matches. A draft the human edited after presentation fails the
-   identity check and stays in place for the dialogue to continue.
-4. Read the canonical file and locator back, and confirm that the canonical identity is the
-   approved identity and that the draft path no longer exists.
+1. Run `python3 skills/ba0918-plan/scripts/plan_artifact.py publish` with `--source` set to the
+   draft path and `--approved-identity` set to the presented identity. The helper moves the draft
+   to the canonical path only when the file still has the presented identity and still passes the
+   same checks as at save time (so a specification revised after the draft stops publication),
+   then reads the canonical file back and keeps it only when that read-back matches. A draft the
+   human edited after presentation fails the identity check and stays in place for the dialogue
+   to continue.
+2. Read the canonical file back and confirm that its identity is the approved identity and that
+   the draft path no longer exists.
+3. Stage that one file and commit it. Approving a plan and committing it are one operation: the
+   commit is where the approval is recorded, and nothing else records it. Skipping the commit
+   leaves a plan nothing can show was approved.
 
 If publication or verification fails, report the exact stage and leave no success claim.
 
 ## Completion display
 
-State the plan's purpose in plain language, its stable path, content identity, and whether it is
-current or held. State explicitly that implementation has not started.
+State the plan's purpose in plain language, its stable path, its content identity, and the commit
+that carries it. State explicitly that implementation has not started.
