@@ -62,6 +62,12 @@ class PlanArtifactTest(unittest.TestCase):
         with self.assertRaises(plan_artifact.UnsafePlanPath):
             plan_artifact.read_plan(root, "docs/plans/link.md")
 
+    def test_uncommitted_or_post_approval_plan_bytes_are_rejected(self) -> None:
+        root = self.make_repository()
+        (root / "docs/plans/example.md").write_bytes(PLAN.encode("utf-8") + b"\nUnapproved edit\n")
+        with self.assertRaises(plan_artifact.PlanArtifactError):
+            plan_artifact.read_plan(root, "docs/plans/example.md")
+
     def test_target_sections_must_exist_in_committed_specifications(self) -> None:
         root = self.make_repository()
         plan_artifact.validate_plan(root, PLAN, approval_commit="HEAD")
@@ -73,6 +79,18 @@ class PlanArtifactTest(unittest.TestCase):
         (root / "docs/spec/example.md").write_text("# Contract\n\nChanged\n", encoding="utf-8")
         with self.assertRaises(plan_artifact.TargetSpecificationMismatch):
             plan_artifact.validate_plan(root, PLAN, approval_commit="HEAD")
+
+    def test_approved_plan_can_expose_committed_specification_wording_drift(self) -> None:
+        root = self.make_repository()
+        (root / "docs/spec/example.md").write_text("# Contract\n\nBody clarified\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "docs/spec/example.md"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "clarify spec"], check=True)
+        loaded = plan_artifact.read_plan(root, "docs/plans/example.md")
+        self.assertEqual(len(loaded.specification_changes), 1)
+        change = loaded.specification_changes[0]
+        self.assertIn("Body\n", change.approved_text)
+        self.assertIn("Body clarified", change.current_text)
+        self.assertIn("+Body clarified", change.diff)
 
     def test_old_identity_and_publication_apis_are_absent(self) -> None:
         for name in ("content_identity", "save_draft", "publish_plan"):

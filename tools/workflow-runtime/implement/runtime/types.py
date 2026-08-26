@@ -1,5 +1,6 @@
 """Shared runtime values."""
 from pathlib import Path
+from dataclasses import dataclass
 import re
 from typing import Any, NamedTuple
 
@@ -18,13 +19,15 @@ class RuntimeResult(NamedTuple):
     def ok(self) -> bool:
         return self.error is None
 
-class ResolvedPlan(NamedTuple):
+@dataclass(frozen=True)
+class ResolvedPlan:
     plan_key: str
     path: str
     approval_commit: str
     text: str
     specifications: tuple[Any, ...]
     expected_paths: tuple[str, ...]
+    specification_changes: tuple[Any, ...] = ()
 
 class Run(NamedTuple):
     run_id: str

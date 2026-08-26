@@ -67,6 +67,16 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "plan_candidate_ambiguous")
 
+    def test_resolve_returns_spec_versions_for_ai_meaning_decision(self) -> None:
+        root = self.fixture()
+        (root / "docs/spec/example.md").write_text("# Contract\n\nWording clarified\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "docs/spec/example.md"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "clarify wording"], check=True)
+        result = planning.resolve_plan(root)
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.value.specification_changes[0].path, "docs/spec/example.md")
+        self.assertIn("+Wording clarified", result.value.specification_changes[0].diff)
+
     def test_public_runtime_imports_without_legacy_plan_fields(self) -> None:
         module = importlib.import_module("implement_runtime")
         self.assertTrue(callable(module.resolve_plan))
