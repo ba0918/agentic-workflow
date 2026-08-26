@@ -314,6 +314,46 @@ class ReviewRuntimeTest(unittest.TestCase):
         result = runtime.close_finding(root, binding, item["id"], oracle_exit_code=0, fix_commits=[side])
         self.assertEqual(result.error.code, "fix_commit_unlinked")
 
+    def test_two_commit_review_closes_with_exact_descendant_fix_range(self) -> None:
+        root, base, head = self.repository()
+        binding = runtime.resolve_input(root, review_id="commits-fix", base=base, head=head).value
+        runtime.bind_review(root, binding, model="model-x")
+        runtime.begin_stage(root, binding, reviewer_context="initial")
+        item = finding(spec_commit=binding["spec_commit"])
+        runtime.record_findings(
+            root, binding, stage="initial", findings=[item], safety=safety(),
+            reviewer_context="initial", actual_model="model-x",
+        )
+        runtime.begin_stage(root, binding, reviewer_context="targeted")
+        (root / "fixed").write_text("fixed\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "fixed"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", f"fix\n\nFinding: {item['id']}"], check=True)
+        fix = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+        closed = runtime.close_finding(root, binding, item["id"], oracle_exit_code=0, fix_commits=[fix])
+        self.assertTrue(closed.ok, closed.error)
+
+        other, other_base, other_head = self.repository()
+        other_binding = runtime.resolve_input(
+            other, review_id="commits-side", base=other_base, head=other_head,
+        ).value
+        runtime.bind_review(other, other_binding, model="model-x")
+        runtime.begin_stage(other, other_binding, reviewer_context="initial")
+        other_item = finding(spec_commit=other_binding["spec_commit"])
+        runtime.record_findings(
+            other, other_binding, stage="initial", findings=[other_item], safety=safety(),
+            reviewer_context="initial", actual_model="model-x",
+        )
+        runtime.begin_stage(other, other_binding, reviewer_context="targeted")
+        subprocess.run(["git", "-C", str(other), "switch", "-qc", "side", "main"], check=True)
+        (other / "side-fix").write_text("side\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(other), "add", "side-fix"], check=True)
+        subprocess.run(["git", "-C", str(other), "commit", "-qm", f"side\n\nFinding: {other_item['id']}"], check=True)
+        side = subprocess.run(["git", "-C", str(other), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+        rejected = runtime.close_finding(
+            other, other_binding, other_item["id"], oracle_exit_code=0, fix_commits=[side],
+        )
+        self.assertEqual(rejected.error.code, "fix_commit_unlinked")
+
     def test_review_options_use_known_profiles_and_valid_second_reviewer_pairs(self) -> None:
         root, _, _ = self.repository()
         binding = runtime.resolve_input(root, review_id="options", branch="feature", base="main").value

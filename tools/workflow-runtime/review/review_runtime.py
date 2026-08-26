@@ -534,12 +534,23 @@ def _commit_has_trailer(root: Path, commit: str, finding_id: str) -> bool:
     message = _git(root, "show", "-s", "--format=%B", resolved.value).stdout
     return re.search(rf"(?m)^Finding:\s*{re.escape(finding_id)}\s*$", message) is not None
 
-def _bound_trailer_commits(root: Path, binding: dict, finding_id: str) -> RuntimeResult:
+def _bound_trailer_commits(
+    root: Path, binding: dict, finding_id: str, *, selected_fix_head: str | None = None,
+) -> RuntimeResult:
     base = binding.get("input", {}).get("base") or binding.get("approval_commit")
     branch = binding.get("input", {}).get("branch") or binding.get("branch")
-    head = f"refs/heads/{branch}" if branch else binding.get("input", {}).get("head") or binding.get("head")
+    original_head = binding.get("input", {}).get("head") or binding.get("head")
+    head = f"refs/heads/{branch}" if branch else selected_fix_head or original_head
     if not base or not head:
         return failure("fix_commit_unlinked", "review input has no bounded commit range")
+    if not branch and selected_fix_head:
+        resolved = _commit(root, selected_fix_head)
+        if not resolved.ok or not original_head or _git(
+            root, "merge-base", "--is-ancestor", original_head, resolved.value,
+        ).returncode != 0:
+            return failure("fix_commit_unlinked", "selected fix head must descend from the reviewed head")
+        base = original_head
+        head = resolved.value
     history = _git(root, "rev-list", "--reverse", f"{base}..{head}")
     if history.returncode != 0:
         return failure("fix_commit_unlinked", "review commit range is unavailable")
@@ -568,7 +579,9 @@ def close_finding(
         return failure("targeted_result_exists", "targeted review already recorded this finding result")
     if oracle_exit_code != 0:
         return failure("finding_oracle_failed", "finding oracle still fails")
-    linked = _bound_trailer_commits(root, binding, finding_id)
+    linked = _bound_trailer_commits(
+        root, binding, finding_id, selected_fix_head=fix_commits[-1] if fix_commits else None,
+    )
     if not linked.ok or not fix_commits or linked.value != fix_commits:
         return failure("fix_commit_unlinked", "every fix commit must exist and carry the finding trailer")
     return append_event(root, binding, "targeted-review-result", {
