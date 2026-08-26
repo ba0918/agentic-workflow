@@ -22,5 +22,11 @@ safe summaries, commit SHAs, delegation boundaries, document-meaning decisions, 
 and unplanned paths with reasons. A RED event stores the frozen test/fixture bytes and command;
 GREEN and REFACTOR recompute and compare that snapshot before they may be recorded.
 
+Safety reads both path names and file content from Git itself. Report only the offending path and
+category when credential-shaped assignments or private-key headers are found; never copy the
+matched value into events or errors. A commit event is valid only for a unique commit after the
+approval commit and on the bound branch. At completion the branch's approval-to-HEAD commit set
+and the recorded commit set must match in both directions.
+
 Never store secrets, environment values, personal data, internal hosts, raw output, caches, logs,
 or generated scratch. A stopped event may always be appended even while documents differ.

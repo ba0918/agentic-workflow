@@ -29,7 +29,12 @@ Implement does not review, merge, publish, complete the plan, or delete executio
   it is not a human gate.
 - Derive changed paths from Git's actual staged diff and each recorded commit, then apply secret,
   dangerous-path, temporary, log, generated-output, and sensitive-target checks to every path,
-  expected or not. Never accept a caller's claim that a safety check passed.
+  expected or not. Scan the corresponding staged/commit content for credential assignments and
+  private-key headers without recording matched values. Never accept a caller's claim that a
+  safety check passed.
+- Accept reasons only as unique path-to-reason entries that exactly cover safe paths outside
+  Scope. A recorded commit must follow the approval commit, belong to the bound implementation
+  branch, and belong to exactly one step; completion requires a bijection with that branch history.
 - During a cycle delegation, implement is the only evidence writer. Cycle records the delegation
   boundaries.
 - New or changed external dependencies and missing product, persistence, architecture, permission,
