@@ -213,6 +213,8 @@ def main(argv: list[str] | None = None) -> int:
     resolve = commands.add_parser("resolve", help="resolve and validate a registered plan")
     resolve.add_argument("--repo", required=True)
     resolve.add_argument("--plan-path")
+    resolve.add_argument("--plan-id", help="the plan id you read out of the plan")
+    resolve.add_argument("--plan-revision", type=int, help="the plan revision you read out of the plan")
     resolve.add_argument("--receipt-path")
     resolve.add_argument("--receipt-identity")
 
@@ -225,6 +227,8 @@ def main(argv: list[str] | None = None) -> int:
     bootstrap.add_argument("--human-gates", default="[]", help="JSON list of the decisions the plan declares")
     bootstrap.add_argument("--repo", required=True)
     bootstrap.add_argument("--plan-path")
+    bootstrap.add_argument("--plan-id", help="the plan id you read out of the plan")
+    bootstrap.add_argument("--plan-revision", type=int, help="the plan revision you read out of the plan")
     bootstrap.add_argument("--receipt-path")
     bootstrap.add_argument("--receipt-identity")
     bootstrap.add_argument("--worktree", required=True)
@@ -364,6 +368,7 @@ def main(argv: list[str] | None = None) -> int:
     rebind.add_argument("--plan-id", required=True)
     rebind.add_argument("--execution-id", required=True)
     rebind.add_argument("--plan-path")
+    rebind.add_argument("--plan-revision", type=int, help="the revision you read out of the revised plan")
     rebind.add_argument("--confirm", action="store_true")
     rebind.add_argument("--expect-plan-identity", help="the plan identity the preview showed the human")
 
@@ -390,7 +395,13 @@ def main(argv: list[str] | None = None) -> int:
                 "path": args.receipt_path,
                 "content_identity": args.receipt_identity,
             }
-        resolved = resolve_plan(repo, explicit_path=args.plan_path, receipt=receipt)
+        resolved = resolve_plan(
+            repo,
+            plan_path=args.plan_path,
+            plan_id=args.plan_id,
+            revision=args.plan_revision,
+            receipt=receipt,
+        )
         if not resolved.ok:
             return _print_failure(resolved, state="not_started")
         if args.command == "resolve":
@@ -458,6 +469,7 @@ def main(argv: list[str] | None = None) -> int:
             plan_id=args.plan_id,
             attempt_id=args.execution_id,
             plan_path=args.plan_path,
+            revision=args.plan_revision,
             **declarations.value,
         )
         if not rebound.ok:

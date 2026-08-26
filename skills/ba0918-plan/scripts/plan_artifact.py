@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish an approved plan and maintain the rebuildable open-plan locator."""
+"""Save a plan draft and publish the approved bytes as the plan of record."""
 
 from __future__ import annotations
 
@@ -16,16 +16,10 @@ from typing import NamedTuple
 
 PLAN_ID = re.compile(r"[0-9]{14}")
 IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")
-GATE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 SECTION_NAME = re.compile(r"`([^`]+)`")
 PLAN_STORE = PurePosixPath(".agents/artifacts/plans")
 DRAFT_STORE = PurePosixPath(".agents/tmp/plans")
 DRAFT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
-INDEX_NAME = "open-plans.json"
-HUMAN_GATE_TIMINGS = {"before_edit", "before_commit", "before_implementation_green"}
-HUMAN_GATE_RESULTS = ("approved", "rejected")
-COMPLETION_KINDS = ("test", "check", "artifact", "external")
-CHECK_COMMAND = re.compile(r"^[-*]\s+`([^`]+)`$")
 TREE_ENTRY = re.compile(r"[^\s/#][^\s]*")
 
 
@@ -37,32 +31,12 @@ class IdentityMismatch(PlanArtifactError):
     """The approved bytes differ from the bytes being published."""
 
 
-class CurrentPlanConflict(PlanArtifactError):
-    """Publishing would silently replace the current plan."""
-
-
 class UnsafePlanPath(PlanArtifactError):
     """The requested plan path escapes or aliases the plan store."""
 
 
-class InvalidOpenPlanIndex(PlanArtifactError):
-    """The open-plan locator is malformed or inconsistent."""
-
-
-class PlanRegistrationMissing(PlanArtifactError):
-    """No locator entry identifies the requested plan."""
-
-
-class RegisteredPlanMismatch(PlanArtifactError):
-    """A registered plan no longer matches its locator entry."""
-
-
 class InvalidPlanFormat(PlanArtifactError):
     """A machine-read part of the plan is missing or malformed."""
-
-
-class InvalidHumanGateDeclaration(InvalidPlanFormat):
-    """A plan step contains a malformed human-gate declaration."""
 
 
 class TargetSpecificationMismatch(PlanArtifactError):
@@ -78,15 +52,6 @@ class DraftReceipt(NamedTuple):
     content_identity: str
 
 
-class RegisteredPlan(NamedTuple):
-    plan_id: str
-    path: str
-    revision: int
-    content_identity: str
-    state: str
-    text: str
-
-
 class TargetSpecification(NamedTuple):
     path: str
     content_identity: str
@@ -97,30 +62,6 @@ class PlanHeader(NamedTuple):
     plan_id: str
     revision: int
     specifications: tuple[TargetSpecification, ...]
-
-
-class PlanStep(NamedTuple):
-    number: int
-    title: str
-    completion_kind: str
-    text: str
-    checks: tuple[str, ...]
-
-
-class HumanGateTarget(NamedTuple):
-    kind: str
-    paths: tuple[str, ...]
-    content_identity: str | None
-
-
-class HumanGateDeclaration(NamedTuple):
-    gate_id: str
-    step_id: str
-    sections: tuple[str, ...]
-    criterion: str
-    target: HumanGateTarget
-    timing: str
-    allowed_results: tuple[str, ...]
 
 
 def content_identity(text: str) -> str:
@@ -210,55 +151,6 @@ def read_plan_scope(text: str) -> tuple[str, ...]:
     return tuple(paths)
 
 
-def _step_check_commands(step_text: str, number: int) -> tuple[str, ...]:
-    """The commands a step declares under **Checks:**, in the order they are written."""
-    markers = list(re.finditer(r"^\*\*Checks:\*\*[ \t]*$", step_text, re.MULTILINE))
-    if not markers:
-        return ()
-    if len(markers) > 1:
-        raise InvalidPlanFormat(f"step {number} declares its checks more than once")
-    commands: list[str] = []
-    for line in step_text[markers[0].end() :].splitlines():
-        stripped = line.strip()
-        if not stripped:
-            if commands:
-                break
-            continue
-        match = CHECK_COMMAND.fullmatch(stripped)
-        if match is None:
-            break
-        commands.append(match.group(1).strip())
-    return tuple(commands)
-
-
-def read_plan_steps(text: str) -> tuple[PlanStep, ...]:
-    body = _section_body(text, "Steps")
-    matches = list(re.finditer(r"^### ([0-9]+)\. ?([^\n]*)$", body, re.MULTILINE))
-    if not matches:
-        raise InvalidPlanFormat("## Steps has no ### N. step")
-    steps: list[PlanStep] = []
-    for position, match in enumerate(matches):
-        number = int(match.group(1))
-        if number != position + 1:
-            raise InvalidPlanFormat(f"step headings must count from 1 without gaps: ### {match.group(1)}.")
-        end = matches[position + 1].start() if position + 1 < len(matches) else len(body)
-        step_text = body[match.end() : end]
-        kinds = re.findall(r"^\*\*Completion:\*\*[ \t]*(.*?)[ \t]*$", step_text, re.MULTILINE)
-        if len(kinds) != 1:
-            raise InvalidPlanFormat(f"step {number} needs exactly one **Completion:** line")
-        if kinds[0] not in COMPLETION_KINDS:
-            raise InvalidPlanFormat(
-                f"step {number} completion kind must be one of {', '.join(COMPLETION_KINDS)}: {kinds[0]}"
-            )
-        checks = _step_check_commands(step_text, number)
-        if kinds[0] == "check" and not checks:
-            raise InvalidPlanFormat(f"step {number} is shown by check and declares no check command")
-        if kinds[0] != "check" and checks:
-            raise InvalidPlanFormat(f"step {number} declares check commands but is not shown by check")
-        steps.append(PlanStep(number, match.group(2).strip(), kinds[0], step_text, checks))
-    return tuple(steps)
-
-
 def verify_target_specifications(project_root: Path, header: PlanHeader) -> None:
     root = project_root.resolve()
     for spec in header.specifications:
@@ -270,108 +162,6 @@ def verify_target_specifications(project_root: Path, header: PlanHeader) -> None
             raise TargetSpecificationMismatch(
                 f"target specification content differs from the plan: {spec.path} (now {actual})"
             )
-
-
-def _human_gate_target(value: object) -> HumanGateTarget:
-    if not isinstance(value, dict) or value.get("kind") not in {"files", "event"}:
-        raise InvalidHumanGateDeclaration("human gate target kind is invalid")
-    if value["kind"] == "files":
-        if set(value) != {"kind", "paths"}:
-            raise InvalidHumanGateDeclaration("human gate target has unknown or missing fields")
-        paths = value["paths"]
-        if not isinstance(paths, list) or not paths or len(paths) != len(set(paths)):
-            raise InvalidHumanGateDeclaration("human gate file paths must be a non-empty unique list")
-        for path in paths:
-            if not isinstance(path, str):
-                raise InvalidHumanGateDeclaration("human gate file path must be a string")
-            candidate = PurePosixPath(path)
-            if candidate.is_absolute() or not candidate.parts or ".." in candidate.parts:
-                raise InvalidHumanGateDeclaration("human gate file path must be repository-relative")
-        return HumanGateTarget(kind="files", paths=tuple(paths), content_identity=None)
-
-    if set(value) != {"kind", "content_identity"}:
-        raise InvalidHumanGateDeclaration("human gate target has unknown or missing fields")
-    identity = value["content_identity"]
-    if not isinstance(identity, str) or IDENTITY.fullmatch(identity) is None:
-        raise InvalidHumanGateDeclaration("human gate event identity must be immutable")
-    return HumanGateTarget(kind="event", paths=(), content_identity=identity)
-
-
-def read_plan_human_gates(text: str) -> tuple[HumanGateDeclaration, ...]:
-    declarations: list[HumanGateDeclaration] = []
-    gate_ids: set[str] = set()
-    listed_sections: set[str] | None = None
-    for step in read_plan_steps(text):
-        block = re.search(
-            r"^\*\*Human gates:\*\*\s*\n+```json\n(.*?)\n```",
-            step.text,
-            re.MULTILINE | re.DOTALL,
-        )
-        if block is None:
-            continue
-        try:
-            value = json.loads(block.group(1))
-        except json.JSONDecodeError as error:
-            raise InvalidHumanGateDeclaration("human gate declaration is not valid JSON") from error
-        if not isinstance(value, dict) or set(value) != {"version", "gates"}:
-            raise InvalidHumanGateDeclaration("human gate declaration has unknown or missing fields")
-        if value["version"] != 1 or not isinstance(value["gates"], list) or not value["gates"]:
-            raise InvalidHumanGateDeclaration("human gate declaration has an invalid version or gates")
-
-        step_id = f"step-{step.number}"
-        if listed_sections is None:
-            listed_sections = _target_specification_sections(text)
-        for gate in value["gates"]:
-            if not isinstance(gate, dict) or set(gate) != {
-                "gate_id",
-                "sections",
-                "criterion",
-                "target",
-                "timing",
-                "allowed_results",
-            }:
-                raise InvalidHumanGateDeclaration("human gate has unknown or missing fields")
-            gate_id = gate["gate_id"]
-            if (
-                not isinstance(gate_id, str)
-                or GATE_ID.fullmatch(gate_id) is None
-                or gate_id in gate_ids
-            ):
-                raise InvalidHumanGateDeclaration("human gate ids must be unique safe identifiers")
-            sections = gate["sections"]
-            if (
-                not isinstance(sections, list)
-                or not sections
-                or len(sections) != len(set(sections))
-                or any(not isinstance(section, str) for section in sections)
-            ):
-                raise InvalidHumanGateDeclaration("human gate sections must be a non-empty unique list")
-            unlisted = [section for section in sections if section not in listed_sections]
-            if unlisted:
-                raise InvalidHumanGateDeclaration(
-                    "human gate sections must be listed under the plan's target specifications: "
-                    + ", ".join(unlisted)
-                )
-            criterion = gate["criterion"]
-            if not isinstance(criterion, str) or not criterion.strip() or len(criterion) > 500:
-                raise InvalidHumanGateDeclaration("human gate criterion must be bounded text")
-            if gate["timing"] not in HUMAN_GATE_TIMINGS:
-                raise InvalidHumanGateDeclaration("human gate timing is invalid")
-            if gate["allowed_results"] != list(HUMAN_GATE_RESULTS):
-                raise InvalidHumanGateDeclaration("human gate results are invalid")
-            gate_ids.add(gate_id)
-            declarations.append(
-                HumanGateDeclaration(
-                    gate_id=gate_id,
-                    step_id=step_id,
-                    sections=tuple(sections),
-                    criterion=criterion,
-                    target=_human_gate_target(gate["target"]),
-                    timing=gate["timing"],
-                    allowed_results=tuple(gate["allowed_results"]),
-                )
-            )
-    return tuple(declarations)
 
 
 def _plan_path(project_root: Path, relative_path: str, plan_id: str) -> Path:
@@ -422,18 +212,16 @@ def _draft_path(project_root: Path, plan_id: str, revision: int, slug: str) -> P
     return target
 
 
-def validate_plan(project_root: Path, text: str, *, plan_id: str, revision: int) -> None:
-    """Reject a plan whose machine-read parts are unreadable or whose specifications moved."""
-    header = read_plan_header(text)
-    if header.plan_id != plan_id:
-        raise InvalidPlanFormat(f"**Plan ID:** {header.plan_id} differs from the requested id {plan_id}")
-    if header.revision != revision:
-        raise InvalidPlanFormat(
-            f"**Plan revision:** {header.revision} differs from the requested revision {revision}"
-        )
+def validate_plan(project_root: Path, text: str) -> None:
+    """Reject a plan whose two machine-read parts are unreadable or whose specifications moved.
+
+    The specifications it stands on and the files it may touch are the whole of it
+    (docs/spec/plan.md, "機械が決まった書き方で読む箇所は 2 つだけ"). The steps, the completion
+    kinds, the human decisions, the id and the revision are prose the agent reads and declares,
+    so nothing here compares them with anything.
+    """
     read_plan_scope(text)
-    read_plan_human_gates(text)
-    verify_target_specifications(project_root, header)
+    verify_target_specifications(project_root, read_plan_header(text))
 
 
 def save_draft(
@@ -446,7 +234,7 @@ def save_draft(
     replace_identity: str | None = None,
 ) -> DraftReceipt:
     target = _draft_path(project_root, plan_id, revision, slug)
-    validate_plan(project_root, text, plan_id=plan_id, revision=revision)
+    validate_plan(project_root, text)
     if target.exists():
         existing_identity = content_identity(target.read_text(encoding="utf-8"))
         if replace_identity is None:
@@ -469,111 +257,6 @@ def _approved_draft(project_root: Path, source: Path) -> Path:
     if not resolved.is_file():
         raise PlanArtifactError(f"approved draft does not exist: {candidate}")
     return resolved
-
-
-def _empty_index() -> dict:
-    return {"version": 1, "current": None, "plans": []}
-
-
-def _validate_index(value: object) -> dict:
-    if not isinstance(value, dict) or set(value) != {"version", "current", "plans"}:
-        raise InvalidOpenPlanIndex("open-plan index has unknown or missing fields")
-    if value["version"] != 1:
-        raise InvalidOpenPlanIndex("unsupported open-plan index version")
-    if value["current"] is not None and (
-        not isinstance(value["current"], str) or PLAN_ID.fullmatch(value["current"]) is None
-    ):
-        raise InvalidOpenPlanIndex("current plan id is invalid")
-    if not isinstance(value["plans"], list):
-        raise InvalidOpenPlanIndex("plans must be a list")
-
-    ids: set[str] = set()
-    current_entries = 0
-    for item in value["plans"]:
-        if not isinstance(item, dict) or set(item) != {
-            "id",
-            "path",
-            "revision",
-            "content_identity",
-            "state",
-        }:
-            raise InvalidOpenPlanIndex("plan entry has unknown or missing fields")
-        if PLAN_ID.fullmatch(item["id"]) is None or item["id"] in ids:
-            raise InvalidOpenPlanIndex("plan ids must be unique 14-digit values")
-        ids.add(item["id"])
-        if not isinstance(item["revision"], int) or item["revision"] < 1:
-            raise InvalidOpenPlanIndex("plan revision must be a positive integer")
-        if not isinstance(item["path"], str):
-            raise InvalidOpenPlanIndex("plan path must be a string")
-        if not isinstance(item["content_identity"], str) or IDENTITY.fullmatch(
-            item["content_identity"]
-        ) is None:
-            raise InvalidOpenPlanIndex("plan content identity is invalid")
-        if item["state"] not in {"current", "held"}:
-            raise InvalidOpenPlanIndex("plan state must be current or held")
-        if item["state"] == "current":
-            current_entries += 1
-            if value["current"] != item["id"]:
-                raise InvalidOpenPlanIndex("current pointer and plan entry disagree")
-    if current_entries > 1 or (value["current"] is None) != (current_entries == 0):
-        raise InvalidOpenPlanIndex("open-plan index has an inconsistent current plan")
-    return value
-
-
-def _load_index(path: Path) -> dict:
-    if path.is_symlink():
-        raise UnsafePlanPath(f"symlink is not allowed: {path}")
-    if not path.exists():
-        return _empty_index()
-    try:
-        return _validate_index(json.loads(path.read_text(encoding="utf-8")))
-    except json.JSONDecodeError as error:
-        raise InvalidOpenPlanIndex("open-plan index is not valid JSON") from error
-
-
-def read_registered_plan(
-    project_root: Path,
-    relative_path: str | None = None,
-) -> RegisteredPlan:
-    store = project_root.resolve().joinpath(*PLAN_STORE.parts)
-    index_path = store / INDEX_NAME
-    if not index_path.exists():
-        raise PlanRegistrationMissing("open-plan locator does not exist")
-    index = _load_index(index_path)
-
-    if relative_path is None:
-        current = index["current"]
-        if current is None:
-            raise PlanRegistrationMissing("open-plan locator has no current plan")
-        entry = next(item for item in index["plans"] if item["id"] == current)
-    else:
-        entry = next(
-            (item for item in index["plans"] if item["path"] == relative_path),
-            None,
-        )
-        if entry is None:
-            raise PlanRegistrationMissing("requested plan is not registered")
-
-    target = _plan_path(project_root, entry["path"], entry["id"])
-    if not target.is_file():
-        raise RegisteredPlanMismatch("registered plan file does not exist")
-    text = target.read_text(encoding="utf-8")
-    if content_identity(text) != entry["content_identity"]:
-        raise RegisteredPlanMismatch("registered plan identity does not match its bytes")
-    return RegisteredPlan(
-        plan_id=entry["id"],
-        path=entry["path"],
-        revision=entry["revision"],
-        content_identity=entry["content_identity"],
-        state=entry["state"],
-        text=text,
-    )
-
-
-def _encode_index(value: dict) -> str:
-    ordered = dict(value)
-    ordered["plans"] = sorted(value["plans"], key=lambda item: item["id"])
-    return json.dumps(ordered, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -600,7 +283,6 @@ def publish_plan(
     relative_path: str,
     source: Path,
     approved_identity: str,
-    switch_confirmed: bool,
 ) -> Path:
     _validate_plan_identity(plan_id, revision)
     draft = _approved_draft(project_root, source)
@@ -608,49 +290,17 @@ def publish_plan(
     actual_identity = content_identity(text)
     if IDENTITY.fullmatch(approved_identity) is None or actual_identity != approved_identity:
         raise IdentityMismatch("approved content identity does not match the draft bytes")
-    validate_plan(project_root, text, plan_id=plan_id, revision=revision)
+    validate_plan(project_root, text)
 
     target = _plan_path(project_root, relative_path, plan_id)
     if target.exists():
         raise PlanArtifactError("plan path already exists; revisions are never overwritten")
-    store = target.parent
-    index_path = store / INDEX_NAME
-    index = _load_index(index_path)
-    existing = next((item for item in index["plans"] if item["id"] == plan_id), None)
-    if existing is not None:
-        if revision != existing["revision"] + 1:
-            raise PlanArtifactError("a new plan revision must increment the current revision by one")
-        if relative_path == existing["path"]:
-            raise PlanArtifactError("a plan revision must use a new path")
-
-    current = index["current"]
-    if existing is None and current is not None and current != plan_id:
-        if not switch_confirmed:
-            raise CurrentPlanConflict("switching the current plan requires human confirmation")
-        for item in index["plans"]:
-            if item["id"] == current:
-                item["state"] = "held"
-
-    candidate = {
-        "id": plan_id,
-        "path": relative_path,
-        "revision": revision,
-        "content_identity": actual_identity,
-        "state": existing["state"] if existing is not None else "current",
-    }
-    if existing is None:
-        index["plans"].append(candidate)
-        index["current"] = plan_id
-    else:
-        index["plans"] = [candidate if item["id"] == plan_id else item for item in index["plans"]]
-    _validate_index(index)
 
     target.parent.mkdir(parents=True, exist_ok=True)
     os.replace(draft, target)
     try:
         if content_identity(target.read_text(encoding="utf-8")) != approved_identity:
             raise IdentityMismatch("published plan bytes differ from the approved identity")
-        _atomic_write(index_path, _encode_index(index))
     except Exception:
         os.replace(target, draft)
         raise
@@ -670,14 +320,13 @@ def main(argv: list[str] | None = None) -> int:
     draft.add_argument("--slug", required=True)
     draft.add_argument("--replace-identity")
 
-    publish = commands.add_parser("publish", help="publish approved bytes and update the locator")
+    publish = commands.add_parser("publish", help="publish the approved bytes as the plan of record")
     publish.add_argument("--repo", required=True)
     publish.add_argument("--plan-id", required=True)
     publish.add_argument("--revision", required=True, type=int)
     publish.add_argument("--path", required=True)
     publish.add_argument("--source", required=True)
     publish.add_argument("--approved-identity", required=True)
-    publish.add_argument("--switch-confirmed", action="store_true")
     args = parser.parse_args(argv)
     try:
         return _run(args)
@@ -718,7 +367,6 @@ def _run(args: argparse.Namespace) -> int:
         relative_path=args.path,
         source=Path(args.source),
         approved_identity=args.approved_identity,
-        switch_confirmed=args.switch_confirmed,
     )
     print(published)
     return 0
