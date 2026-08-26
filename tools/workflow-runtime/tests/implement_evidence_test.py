@@ -5,7 +5,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/workflow-runtime/implement"))
 from runtime import deps
-from runtime import context, repository, storage, tdd
+from runtime import context, deliverables, gates, repository, storage, tdd
 from runtime.types import ResolvedPlan
 
 class ImplementDistributionTest(unittest.TestCase):
@@ -54,6 +54,28 @@ class ImplementDistributionTest(unittest.TestCase):
     def test_red_test_snapshot_keeps_its_own_hash(self) -> None:
         snapshot = tdd.freeze_test({"tests/example_test.py": b"test bytes"})
         self.assertRegex(snapshot["tests/example_test.py"], r"^sha256:[0-9a-f]{64}$")
+
+    def test_artifact_and_external_results_are_evidence_not_human_approvals(self) -> None:
+        artifact = deliverables.artifact_event("2", ["docs/guide.md"], [{"command": "lint", "exit_code": 0}])
+        external = deliverables.external_event("3", "device smoke test", "passed")
+        self.assertEqual(artifact["event_type"], "artifact")
+        self.assertEqual(external["event_type"], "external")
+        self.assertNotIn("approval", artifact)
+        self.assertNotIn("approval", external)
+
+    def test_human_gates_accept_only_exception_boundaries(self) -> None:
+        for kind in ("irreversible", "human_permission", "dangerous_target"):
+            self.assertTrue(gates.validate_gate({"kind": kind, "reason": "needed"}).ok)
+        for kind in ("artifact", "external", "step_commit", "history"):
+            result = gates.validate_gate({"kind": kind, "reason": "ritual"})
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "human_gate_not_allowed")
+
+    def test_recovery_escalates_only_after_diagnosis_and_one_changed_method(self) -> None:
+        self.assertEqual(gates.recovery_action(diagnosed=False, method_changed=False, still_stuck=True), "diagnose")
+        self.assertEqual(gates.recovery_action(diagnosed=True, method_changed=False, still_stuck=True), "change_method")
+        self.assertEqual(gates.recovery_action(diagnosed=True, method_changed=True, still_stuck=True), "human_judgment")
+        self.assertEqual(gates.recovery_action(diagnosed=True, method_changed=True, still_stuck=False), "continue")
 
 if __name__ == "__main__":
     unittest.main()
