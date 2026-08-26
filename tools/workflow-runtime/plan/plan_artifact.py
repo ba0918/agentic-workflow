@@ -396,18 +396,16 @@ def _draft_path(project_root: Path, plan_id: str, revision: int, slug: str) -> P
     return target
 
 
-def validate_plan(project_root: Path, text: str, *, plan_id: str, revision: int) -> None:
-    """Reject a plan whose machine-read parts are unreadable or whose specifications moved."""
-    header = read_plan_header(text)
-    if header.plan_id != plan_id:
-        raise InvalidPlanFormat(f"**Plan ID:** {header.plan_id} differs from the requested id {plan_id}")
-    if header.revision != revision:
-        raise InvalidPlanFormat(
-            f"**Plan revision:** {header.revision} differs from the requested revision {revision}"
-        )
+def validate_plan(project_root: Path, text: str) -> None:
+    """Reject a plan whose two machine-read parts are unreadable or whose specifications moved.
+
+    The specifications it stands on and the files it may touch are the whole of it
+    (docs/spec/plan.md, "機械が決まった書き方で読む箇所は 2 つだけ"). The steps, the completion
+    kinds, the human decisions, the id and the revision are prose the agent reads and declares,
+    so nothing here compares them with anything.
+    """
     read_plan_scope(text)
-    read_plan_human_gates(text)
-    verify_target_specifications(project_root, header)
+    verify_target_specifications(project_root, read_plan_header(text))
 
 
 def save_draft(
@@ -420,7 +418,7 @@ def save_draft(
     replace_identity: str | None = None,
 ) -> DraftReceipt:
     target = _draft_path(project_root, plan_id, revision, slug)
-    validate_plan(project_root, text, plan_id=plan_id, revision=revision)
+    validate_plan(project_root, text)
     if target.exists():
         existing_identity = content_identity(target.read_text(encoding="utf-8"))
         if replace_identity is None:
@@ -476,7 +474,7 @@ def publish_plan(
     actual_identity = content_identity(text)
     if IDENTITY.fullmatch(approved_identity) is None or actual_identity != approved_identity:
         raise IdentityMismatch("approved content identity does not match the draft bytes")
-    validate_plan(project_root, text, plan_id=plan_id, revision=revision)
+    validate_plan(project_root, text)
 
     target = _plan_path(project_root, relative_path, plan_id)
     if target.exists():

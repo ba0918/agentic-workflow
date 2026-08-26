@@ -537,17 +537,21 @@ class SaveDraftTest(unittest.TestCase):
 
 
 class DraftValidationTest(unittest.TestCase):
-    def test_unreadable_plan_is_not_saved_as_a_draft_and_the_part_is_named(self) -> None:
-        with plan_root() as directory:
-            root = Path(directory)
-            unreadable = PLAN_TEXT.replace("**Completion:** test\n", "")
+    def test_a_machine_read_part_that_cannot_be_read_is_named_and_the_draft_is_not_saved(self) -> None:
+        cases = {
+            "Scope": PLAN_TEXT.replace("```text", "```"),
+            "Target specifications": PLAN_TEXT.replace("**Target specifications:**", "**対象仕様:**"),
+        }
+        for part, unreadable in cases.items():
+            with self.subTest(part=part), plan_root() as directory:
+                root = Path(directory)
 
-            with self.assertRaisesRegex(plan_artifact.InvalidPlanFormat, "Completion"):
-                plan_artifact.save_draft(
-                    root, plan_id="20260822022624", revision=1, slug="small-change", text=unreadable
-                )
+                with self.assertRaisesRegex(plan_artifact.InvalidPlanFormat, part):
+                    plan_artifact.save_draft(
+                        root, plan_id="20260822022624", revision=1, slug="small-change", text=unreadable
+                    )
 
-            self.assertFalse((root / ".agents/tmp/plans").exists())
+                self.assertFalse((root / ".agents/tmp/plans").exists())
 
     def test_plan_citing_a_changed_specification_is_not_saved_as_a_draft(self) -> None:
         with plan_root() as directory:
@@ -561,16 +565,31 @@ class DraftValidationTest(unittest.TestCase):
 
             self.assertFalse((root / ".agents/tmp/plans").exists())
 
-    def test_draft_plan_id_and_revision_must_match_the_plan_header(self) -> None:
+    def test_a_plan_whose_steps_are_written_freely_is_saved_as_a_draft(self) -> None:
+        """Steps are prose the agent reads, so their wording is not a reason to refuse a draft."""
+        with plan_root() as directory:
+            root = Path(directory)
+            free_form = PLAN_TEXT.replace(
+                "### 1. 配備の入力を整える\n\n**Completion:** test\n",
+                "### 手順その一 — 配備の入力を整える\n\nテストで示します。\n",
+            )
+
+            receipt = plan_artifact.save_draft(
+                root, plan_id="20260822022624", revision=1, slug="small-change", text=free_form
+            )
+
+            self.assertEqual(receipt.path.read_text(encoding="utf-8"), free_form)
+
+    def test_an_id_or_revision_the_prose_does_not_repeat_is_not_a_reason_to_refuse(self) -> None:
+        """The id and revision are read out of the prose by the agent, never matched by machine."""
         with plan_root() as directory:
             root = Path(directory)
             for case, plan_id, revision in (("id", "20260822022625", 1), ("revision", "20260822022624", 2)):
                 with self.subTest(case=case):
-                    with self.assertRaisesRegex(plan_artifact.InvalidPlanFormat, "Plan"):
-                        plan_artifact.save_draft(
-                            root, plan_id=plan_id, revision=revision, slug="small-change", text=PLAN_TEXT
-                        )
-            self.assertFalse((root / ".agents/tmp/plans").exists())
+                    receipt = plan_artifact.save_draft(
+                        root, plan_id=plan_id, revision=revision, slug=f"case-{case}", text=PLAN_TEXT
+                    )
+                    self.assertTrue(receipt.path.is_file())
 
     def test_draft_cli_reports_the_unreadable_part_and_fails(self) -> None:
         with plan_root() as directory:
