@@ -49,6 +49,9 @@ class ImplementDistributionTest(unittest.TestCase):
             run = repository.bind_run(root, plan, run_id="run-1", delegated=False).value
             result = context.append_event(run, "step-completed", {"step": "1"}, actor="implement")
             self.assertTrue(result.ok, result.error)
+            blocked = context.append_event(run, "delegation-started", {}, actor="cycle")
+            self.assertFalse(blocked.ok)
+            self.assertEqual(blocked.error.code, "writer_not_allowed")
 
     def test_cycle_cannot_write_implementation_evidence_during_delegation(self) -> None:
         import tempfile
@@ -61,7 +64,32 @@ class ImplementDistributionTest(unittest.TestCase):
             self.assertFalse(blocked.ok)
             self.assertEqual(blocked.error.code, "writer_not_allowed")
             self.assertTrue(context.append_event(run, "step-completed", {"step": "1"}, actor="implement").ok)
+            wrong_boundary_writer = context.append_event(run, "delegation-finished", {}, actor="implement")
+            self.assertFalse(wrong_boundary_writer.ok)
+            self.assertEqual(wrong_boundary_writer.error.code, "writer_not_allowed")
             self.assertTrue(context.append_event(run, "delegation-finished", {"outcome": "returned"}, actor="cycle").ok)
+
+    def test_delegated_implement_cannot_write_before_delegation_starts(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
+            blocked = context.append_event(run, "step-completed", {"step": "1"}, actor="implement")
+            self.assertFalse(blocked.ok)
+            self.assertEqual(blocked.error.code, "writer_not_allowed")
+
+    def test_delegated_implement_cannot_write_after_delegation_finishes(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
+            self.assertTrue(context.append_event(run, "delegation-started", {}, actor="cycle").ok)
+            self.assertTrue(context.append_event(run, "delegation-finished", {}, actor="cycle").ok)
+            blocked = context.append_event(run, "step-completed", {"step": "1"}, actor="implement")
+            self.assertFalse(blocked.ok)
+            self.assertEqual(blocked.error.code, "writer_not_allowed")
 
     def test_red_test_snapshot_freezes_files_and_command(self) -> None:
         snapshot = tdd.freeze_test(

@@ -50,13 +50,19 @@ def append_event(run: Run, event_type: str, fields: dict, *, actor: str | None =
         elif existing.get("event_type") == "delegation-finished":
             active_delegation = False
     if actor == "cycle":
-        allowed = (event_type == "delegation-started" and not active_delegation) or (
-            event_type == "delegation-finished" and active_delegation
+        allowed = binding.value.get("delegated") and (
+            (event_type == "delegation-started" and not active_delegation) or (
+                event_type == "delegation-finished" and active_delegation
+            )
         )
         if not allowed:
             return failure("writer_not_allowed", "cycle writes only delegation boundaries outside implementation evidence")
     elif actor != "implement":
         return failure("writer_not_allowed", "unknown evidence writer")
+    elif event_type in {"delegation-started", "delegation-finished"}:
+        return failure("writer_not_allowed", "cycle is the only writer of delegation boundaries")
+    elif binding.value.get("delegated") and not active_delegation:
+        return failure("writer_not_allowed", "implement writes delegated evidence only during active delegation")
     sequence = len(list(run.evidence_path.glob("[0-9][0-9][0-9][0-9][0-9][0-9]-*.json"))) + 1
     event = {"version": 1, "sequence": sequence, "event_type": event_type, "run_id": run.run_id, "writer": actor, **fields}
     if any("identity" in key.lower() for key in event):
