@@ -3,7 +3,8 @@ import re
 
 # This is the repository's existing brainstorm detector contract, extended for private-key files.
 CREDENTIAL_ASSIGNMENT = re.compile(
-    rb"(?im)(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)\s*[:=]\s*[\"']?"
+    rb"(?im)\b(?:api[_-]?(?:key|token)|access[_-]?token|client[_-]?secret|"
+    rb"token|secret|credential|password)\b\s*[:=]\s*[\"']?"
     rb"(?!(?:os\.)?environ\b)[^\s\"'#]{8,}"
 )
 PRIVATE_KEY_HEADER = re.compile(rb"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----")
