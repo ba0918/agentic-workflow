@@ -77,14 +77,15 @@ def validate_finding(finding: object) -> Result:
     return ok(dict(finding))
 
 def can_append_after(event: dict) -> bool:
-    return event.get("event_type") != "review-completed"
+    return True
 
 def review_complete(events: list[dict], findings: list[dict]) -> bool:
     if events and events[-1].get("event_type") == "findings_stale":
         return False
-    return bool(events) and events[-1].get("event_type") == "review-completed" and all(
-        finding.get("state") == "closed" for finding in findings
-    )
+    kinds = {event.get("event_type") for event in events}
+    return {
+        "final-full-review-started", "final-findings-recorded",
+    }.issubset(kinds) and all(finding.get("state") == "closed" for finding in findings)
 
 def open_counts(findings: list[dict]) -> tuple[int, int, int]:
     return tuple(

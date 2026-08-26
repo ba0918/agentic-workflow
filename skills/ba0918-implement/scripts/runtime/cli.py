@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from runtime.context import (
-    append_event, complete_run, rebound_run, record_commit, record_safety_check, record_stage, stop_run,
+    append_event, complete_run, rebound_run, record_commit, record_stage, stop_run,
 )
 from runtime.planning import resolve_plan
 from runtime.repository import bind_run, load_run
@@ -52,15 +52,13 @@ def main(argv: list[str] | None = None) -> int:
     stage.add_argument("--command", dest="oracle_command", required=True)
     stage.add_argument("--exit-code", type=int, required=True)
     stage.add_argument("--path", action="append", default=[])
+    stage.add_argument("--test-path", action="append", default=[])
     stage.add_argument("--summary")
     commit = commands.add_parser("record-commit")
     _run_arguments(commit)
     commit.add_argument("--step", required=True)
     commit.add_argument("--commit", required=True)
     commit.add_argument("--recorded-late", action="store_true")
-    safety = commands.add_parser("safety-check")
-    _run_arguments(safety)
-    safety.add_argument("--summary", required=True)
     stop = commands.add_parser("stop")
     _run_arguments(stop)
     stop.add_argument("--reason", required=True)
@@ -118,7 +116,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(run.error.message)
     if args.command == "stage":
         if args.phase in {"red", "green", "refactor"}:
-            result = record_stage(run.value, args.step, args.phase, command=args.oracle_command, exit_code=args.exit_code)
+            result = record_stage(
+                run.value, args.step, args.phase, command=args.oracle_command,
+                exit_code=args.exit_code, test_paths=args.test_path,
+            )
         elif args.phase in {"check", "artifact"}:
             result = append_event(run.value, args.phase, {
                 "step": args.step, "checks": [{"command": args.oracle_command, "exit_code": args.exit_code}],
@@ -130,8 +131,6 @@ def main(argv: list[str] | None = None) -> int:
             })
     elif args.command == "record-commit":
         result = record_commit(run.value, args.step, args.commit, recorded_late=args.recorded_late)
-    elif args.command == "safety-check":
-        result = record_safety_check(run.value, passed=True, summary=args.summary)
     elif args.command == "stop":
         result = stop_run(run.value, args.reason)
     elif args.command == "rebound":
