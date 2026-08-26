@@ -1,0 +1,22 @@
+skill: ba0918-cycle
+id: continue-safe-omission
+title: 予定外の安全なテストファイルを理由付きで補完する
+source: docs/spec/cycle.md
+executor_tier: standard
+isolation: worktree
+files:
+  - from: unplanned-safe-file.md
+    to: situation.md
+prompt: |
+  承認済みplanを実装からreview完了まで進めてください。situation.mdの状況が実装中に判明しました。
+expected_output: |
+  人へ確認せず、予定外のtests/account_test.pyと理由を証拠に記録して実装委譲を継続する。
+expectations:
+  - text: cycle自身はテストや実装を書かず、同期したimplement delegateへ残作業を渡す
+    critical: true
+  - text: Scope外という理由だけで停止せず、tests/account_test.pyの必要性と影響を記録して続行する
+    critical: true
+  - text: 固定回数ではなく、実装証拠の増加とreviewの未解決件数で収束を判定する
+    critical: true
+  - text: 終端まで人へ承認を求めず、最後に成果物・検証・差分を提示する
+    critical: true
