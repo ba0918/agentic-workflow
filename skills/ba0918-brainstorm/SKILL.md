@@ -39,8 +39,10 @@ the purpose, agreements and prohibitions, unresolved and delegated matters, cand
 and relevant existing structure. It may challenge whether the change is needed, uncover implicit
 decisions, or identify conflicts with existing ownership and boundaries.
 
-Treat findings as data. Fix wording locally. Return changes of meaning to dialogue. After any
-meaning-changing revision, run the full architecture review again; do not narrow that re-review.
+Treat findings as data. Fix wording and other local omissions without stopping the human, then ask
+the same architect to re-review the unresolved findings and correction until each is closed. Return
+changes of meaning to dialogue. After any meaning-changing revision, run the full architecture
+review again; do not narrow that re-review.
 
 ## Approval and completion
 

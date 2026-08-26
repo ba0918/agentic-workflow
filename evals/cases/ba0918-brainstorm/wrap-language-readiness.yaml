@@ -16,17 +16,11 @@ exercises:
 prompt: |
   wrap-language-readiness.mdの依頼を処理し、wrapまたは継続の判断を返してください。
 expected_output: |
-  正本候補を所定の場所へ直接書き、独立アーキテクトreviewで設計漏れを確認し、readiness不足ならplanへ進まず対話を続ける。
+  成功観測・反例・verificationが未決定なので正本候補を書かず、次の一問で対話を続ける。
 expectations:
   - text: persistence、外部service、権限、新規dependencyを決定・委任・該当なしのいずれかへ確定する
     critical: true
-  - text: 別文脈のarchitectが目的、暗黙の未決定、既存構造との衝突を全体reviewする
+  - text: 成功観測、反例、verificationが未決定なのでcanonical spec、ROADMAP、planを書かない
     critical: true
-  - text: 意味が変わる修正後は全体reviewを再実行する
-    critical: true
-  - text: 承認前の別draft置き場やcontent identityを作らずcanonical pathへ直接書く
-    critical: true
-  - text: review収束後のstage済み差分を人の承認対象にし、承認commitを記録にする
-    critical: true
-  - text: 成功観測と反例が未決定なのでplanを作らずprogressを保持する
+  - text: 不足を示して次の重要な一問へ戻り、progressを保持する
     critical: true

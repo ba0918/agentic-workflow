@@ -1,0 +1,26 @@
+skill: ba0918-plan
+id: route-review-corrections
+title: 局所修正は限定review、構造変更は全体reviewへ戻す
+source: docs/spec/plan.md
+executor_tier: standard
+isolation: worktree
+files:
+  - from: review-routing.md
+    to: situation.md
+prompt: |
+  situation.mdに挙げた各plan修正後のreview範囲を判断してください。
+expected_output: |
+  typo・予定test file・check command漏れは自走修正して限定再reviewし、依存・順序・completion・Scope topology・参照spec変更は全体reviewを再実行する。
+expectations:
+  - text: typo、予定file漏れ、check command漏れを人へ止めず修正する
+    critical: true
+  - text: 局所修正後は未解決finding、修正差分、影響する後続stepだけをtargeted reviewする
+    critical: true
+  - text: dependency変更でfull reviewを再実行する
+    critical: true
+  - text: step orderまたはcompletion変更でfull reviewを再実行する
+    critical: true
+  - text: Scope topologyまたはreferenced specification変更でfull reviewを再実行する
+    critical: true
+  - text: 重要な仕様不足が無い限り人へ確認しない
+    critical: true
