@@ -16,15 +16,10 @@ from typing import NamedTuple
 
 PLAN_ID = re.compile(r"[0-9]{14}")
 IDENTITY = re.compile(r"sha256:[0-9a-f]{64}")
-GATE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 SECTION_NAME = re.compile(r"`([^`]+)`")
 PLAN_STORE = PurePosixPath(".agents/artifacts/plans")
 DRAFT_STORE = PurePosixPath(".agents/tmp/plans")
 DRAFT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
-HUMAN_GATE_TIMINGS = {"before_edit", "before_commit", "before_implementation_green"}
-HUMAN_GATE_RESULTS = ("approved", "rejected")
-COMPLETION_KINDS = ("test", "check", "artifact", "external")
-CHECK_COMMAND = re.compile(r"^[-*]\s+`([^`]+)`$")
 TREE_ENTRY = re.compile(r"[^\s/#][^\s]*")
 
 
@@ -42,10 +37,6 @@ class UnsafePlanPath(PlanArtifactError):
 
 class InvalidPlanFormat(PlanArtifactError):
     """A machine-read part of the plan is missing or malformed."""
-
-
-class InvalidHumanGateDeclaration(InvalidPlanFormat):
-    """A plan step contains a malformed human-gate declaration."""
 
 
 class TargetSpecificationMismatch(PlanArtifactError):
@@ -71,30 +62,6 @@ class PlanHeader(NamedTuple):
     plan_id: str
     revision: int
     specifications: tuple[TargetSpecification, ...]
-
-
-class PlanStep(NamedTuple):
-    number: int
-    title: str
-    completion_kind: str
-    text: str
-    checks: tuple[str, ...]
-
-
-class HumanGateTarget(NamedTuple):
-    kind: str
-    paths: tuple[str, ...]
-    content_identity: str | None
-
-
-class HumanGateDeclaration(NamedTuple):
-    gate_id: str
-    step_id: str
-    sections: tuple[str, ...]
-    criterion: str
-    target: HumanGateTarget
-    timing: str
-    allowed_results: tuple[str, ...]
 
 
 def content_identity(text: str) -> str:
@@ -184,55 +151,6 @@ def read_plan_scope(text: str) -> tuple[str, ...]:
     return tuple(paths)
 
 
-def _step_check_commands(step_text: str, number: int) -> tuple[str, ...]:
-    """The commands a step declares under **Checks:**, in the order they are written."""
-    markers = list(re.finditer(r"^\*\*Checks:\*\*[ \t]*$", step_text, re.MULTILINE))
-    if not markers:
-        return ()
-    if len(markers) > 1:
-        raise InvalidPlanFormat(f"step {number} declares its checks more than once")
-    commands: list[str] = []
-    for line in step_text[markers[0].end() :].splitlines():
-        stripped = line.strip()
-        if not stripped:
-            if commands:
-                break
-            continue
-        match = CHECK_COMMAND.fullmatch(stripped)
-        if match is None:
-            break
-        commands.append(match.group(1).strip())
-    return tuple(commands)
-
-
-def read_plan_steps(text: str) -> tuple[PlanStep, ...]:
-    body = _section_body(text, "Steps")
-    matches = list(re.finditer(r"^### ([0-9]+)\. ?([^\n]*)$", body, re.MULTILINE))
-    if not matches:
-        raise InvalidPlanFormat("## Steps has no ### N. step")
-    steps: list[PlanStep] = []
-    for position, match in enumerate(matches):
-        number = int(match.group(1))
-        if number != position + 1:
-            raise InvalidPlanFormat(f"step headings must count from 1 without gaps: ### {match.group(1)}.")
-        end = matches[position + 1].start() if position + 1 < len(matches) else len(body)
-        step_text = body[match.end() : end]
-        kinds = re.findall(r"^\*\*Completion:\*\*[ \t]*(.*?)[ \t]*$", step_text, re.MULTILINE)
-        if len(kinds) != 1:
-            raise InvalidPlanFormat(f"step {number} needs exactly one **Completion:** line")
-        if kinds[0] not in COMPLETION_KINDS:
-            raise InvalidPlanFormat(
-                f"step {number} completion kind must be one of {', '.join(COMPLETION_KINDS)}: {kinds[0]}"
-            )
-        checks = _step_check_commands(step_text, number)
-        if kinds[0] == "check" and not checks:
-            raise InvalidPlanFormat(f"step {number} is shown by check and declares no check command")
-        if kinds[0] != "check" and checks:
-            raise InvalidPlanFormat(f"step {number} declares check commands but is not shown by check")
-        steps.append(PlanStep(number, match.group(2).strip(), kinds[0], step_text, checks))
-    return tuple(steps)
-
-
 def verify_target_specifications(project_root: Path, header: PlanHeader) -> None:
     root = project_root.resolve()
     for spec in header.specifications:
@@ -244,108 +162,6 @@ def verify_target_specifications(project_root: Path, header: PlanHeader) -> None
             raise TargetSpecificationMismatch(
                 f"target specification content differs from the plan: {spec.path} (now {actual})"
             )
-
-
-def _human_gate_target(value: object) -> HumanGateTarget:
-    if not isinstance(value, dict) or value.get("kind") not in {"files", "event"}:
-        raise InvalidHumanGateDeclaration("human gate target kind is invalid")
-    if value["kind"] == "files":
-        if set(value) != {"kind", "paths"}:
-            raise InvalidHumanGateDeclaration("human gate target has unknown or missing fields")
-        paths = value["paths"]
-        if not isinstance(paths, list) or not paths or len(paths) != len(set(paths)):
-            raise InvalidHumanGateDeclaration("human gate file paths must be a non-empty unique list")
-        for path in paths:
-            if not isinstance(path, str):
-                raise InvalidHumanGateDeclaration("human gate file path must be a string")
-            candidate = PurePosixPath(path)
-            if candidate.is_absolute() or not candidate.parts or ".." in candidate.parts:
-                raise InvalidHumanGateDeclaration("human gate file path must be repository-relative")
-        return HumanGateTarget(kind="files", paths=tuple(paths), content_identity=None)
-
-    if set(value) != {"kind", "content_identity"}:
-        raise InvalidHumanGateDeclaration("human gate target has unknown or missing fields")
-    identity = value["content_identity"]
-    if not isinstance(identity, str) or IDENTITY.fullmatch(identity) is None:
-        raise InvalidHumanGateDeclaration("human gate event identity must be immutable")
-    return HumanGateTarget(kind="event", paths=(), content_identity=identity)
-
-
-def read_plan_human_gates(text: str) -> tuple[HumanGateDeclaration, ...]:
-    declarations: list[HumanGateDeclaration] = []
-    gate_ids: set[str] = set()
-    listed_sections: set[str] | None = None
-    for step in read_plan_steps(text):
-        block = re.search(
-            r"^\*\*Human gates:\*\*\s*\n+```json\n(.*?)\n```",
-            step.text,
-            re.MULTILINE | re.DOTALL,
-        )
-        if block is None:
-            continue
-        try:
-            value = json.loads(block.group(1))
-        except json.JSONDecodeError as error:
-            raise InvalidHumanGateDeclaration("human gate declaration is not valid JSON") from error
-        if not isinstance(value, dict) or set(value) != {"version", "gates"}:
-            raise InvalidHumanGateDeclaration("human gate declaration has unknown or missing fields")
-        if value["version"] != 1 or not isinstance(value["gates"], list) or not value["gates"]:
-            raise InvalidHumanGateDeclaration("human gate declaration has an invalid version or gates")
-
-        step_id = f"step-{step.number}"
-        if listed_sections is None:
-            listed_sections = _target_specification_sections(text)
-        for gate in value["gates"]:
-            if not isinstance(gate, dict) or set(gate) != {
-                "gate_id",
-                "sections",
-                "criterion",
-                "target",
-                "timing",
-                "allowed_results",
-            }:
-                raise InvalidHumanGateDeclaration("human gate has unknown or missing fields")
-            gate_id = gate["gate_id"]
-            if (
-                not isinstance(gate_id, str)
-                or GATE_ID.fullmatch(gate_id) is None
-                or gate_id in gate_ids
-            ):
-                raise InvalidHumanGateDeclaration("human gate ids must be unique safe identifiers")
-            sections = gate["sections"]
-            if (
-                not isinstance(sections, list)
-                or not sections
-                or len(sections) != len(set(sections))
-                or any(not isinstance(section, str) for section in sections)
-            ):
-                raise InvalidHumanGateDeclaration("human gate sections must be a non-empty unique list")
-            unlisted = [section for section in sections if section not in listed_sections]
-            if unlisted:
-                raise InvalidHumanGateDeclaration(
-                    "human gate sections must be listed under the plan's target specifications: "
-                    + ", ".join(unlisted)
-                )
-            criterion = gate["criterion"]
-            if not isinstance(criterion, str) or not criterion.strip() or len(criterion) > 500:
-                raise InvalidHumanGateDeclaration("human gate criterion must be bounded text")
-            if gate["timing"] not in HUMAN_GATE_TIMINGS:
-                raise InvalidHumanGateDeclaration("human gate timing is invalid")
-            if gate["allowed_results"] != list(HUMAN_GATE_RESULTS):
-                raise InvalidHumanGateDeclaration("human gate results are invalid")
-            gate_ids.add(gate_id)
-            declarations.append(
-                HumanGateDeclaration(
-                    gate_id=gate_id,
-                    step_id=step_id,
-                    sections=tuple(sections),
-                    criterion=criterion,
-                    target=_human_gate_target(gate["target"]),
-                    timing=gate["timing"],
-                    allowed_results=tuple(gate["allowed_results"]),
-                )
-            )
-    return tuple(declarations)
 
 
 def _plan_path(project_root: Path, relative_path: str, plan_id: str) -> Path:

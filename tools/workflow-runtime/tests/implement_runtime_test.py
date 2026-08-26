@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -163,36 +164,74 @@ def commit_plans(root: Path, message: str) -> None:
 DECLARED_TEST_STEP = [{"step_id": "step-1", "completion": "test", "checks": []}]
 
 
-def declare_from_plan(text: str) -> tuple[list[dict], list[dict]]:
-    """Stand in for the agent: read the plan and declare what it says, since the runtime no
-    longer parses steps or human gates out of it."""
-    steps = [
-        {
-            "step_id": f"step-{step.number}",
-            "completion": step.completion_kind,
-            "checks": list(step.checks),
-        }
-        for step in plan_artifact.read_plan_steps(text)
-    ]
-    gates = []
-    for gate in plan_artifact.read_plan_human_gates(text):
-        target = {"kind": gate.target.kind}
-        if gate.target.kind == "files":
-            target["paths"] = list(gate.target.paths)
-        else:
-            target["content_identity"] = gate.target.content_identity
-        gates.append(
+STEP_HEADING = re.compile(r"^### (\d+)\.[ \t]*(.*)$", re.MULTILINE)
+HUMAN_GATE_BLOCK = re.compile(r"\*\*Human gates:\*\*\s*\n+```json\n(.*?)\n```", re.DOTALL)
+
+
+def read_steps_as_the_agent_does(text: str) -> list[dict]:
+    """Stand in for the agent reading the plan's prose.
+
+    Nothing parses a plan any more — the agent reads it and declares what it found — so the
+    fixtures do that reading themselves. Each step carries the identity of its wording, which is
+    how a rebound says which revised step continues which previous one.
+    """
+    headings = list(STEP_HEADING.finditer(text))
+    steps = []
+    for index, heading in enumerate(headings):
+        stop = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        body = text[heading.end() : stop]
+        completion = re.search(r"^\*\*Completion:\*\* (\w+)", body, re.MULTILINE)
+        checks: list[str] = []
+        declaration = re.search(r"^\*\*Checks:\*\*[ \t]*$", body, re.MULTILINE)
+        if declaration is not None:
+            for line in body[declaration.end() :].splitlines():
+                command = re.fullmatch(r"[-*]\s+`([^`]+)`", line.strip())
+                if command is not None:
+                    checks.append(command.group(1))
+                elif line.strip() and checks:
+                    break
+        wording = "\n".join(
+            line.rstrip() for line in f"{heading.group(2)}\n{body}".strip().splitlines()
+        )
+        steps.append(
             {
-                "gate_id": gate.gate_id,
-                "step_id": gate.step_id,
-                "sections": list(gate.sections),
-                "criterion": gate.criterion,
-                "target": target,
-                "timing": gate.timing,
-                "allowed_results": list(gate.allowed_results),
+                "step_id": f"step-{heading.group(1)}",
+                "completion": completion.group(1) if completion else "test",
+                "checks": checks,
+                "wording": plan_artifact.content_identity(wording),
             }
         )
-    return steps, gates
+    return steps
+
+
+def read_gates_as_the_agent_does(text: str) -> list[dict]:
+    """Stand in for the agent reading the decisions a plan reserves for a human."""
+    block = HUMAN_GATE_BLOCK.search(text)
+    if block is None:
+        return []
+    preceding = [heading for heading in STEP_HEADING.finditer(text) if heading.start() < block.start()]
+    step_id = f"step-{preceding[-1].group(1)}" if preceding else "step-1"
+    return [
+        {
+            "gate_id": gate["gate_id"],
+            "step_id": step_id,
+            "sections": list(gate["sections"]),
+            "criterion": gate["criterion"],
+            "target": dict(gate["target"]),
+            "timing": gate["timing"],
+            "allowed_results": list(gate["allowed_results"]),
+        }
+        for gate in json.loads(block.group(1))["gates"]
+    ]
+
+
+def declare_from_plan(text: str) -> tuple[list[dict], list[dict]]:
+    """Stand in for the agent: read the plan and declare what it says."""
+    steps = [
+        {"step_id": step["step_id"], "completion": step["completion"], "checks": step["checks"]}
+        for step in read_steps_as_the_agent_does(text)
+    ]
+    return steps, read_gates_as_the_agent_does(text)
 
 
 def bootstrap_fixture(
@@ -294,41 +333,32 @@ def publish_text(root: Path, **kwargs):
     return plan_artifact.publish_plan(root, source=draft.path, **kwargs)
 
 
-def _step_wording_identity(step) -> str:
-    lines = [line.rstrip() for line in f"{step.title}\n{step.text}".strip().splitlines()]
-    return plan_artifact.content_identity("\n".join(lines))
-
-
 def rebind_declarations(root: Path, *, plan_id: str, attempt_id: str, plan_path: str | None = None) -> dict:
     """Stand in for the agent: read both revisions and declare the revised steps and how they
     match the previous ones. The runtime no longer reads either out of the prose."""
     binding_path = root / ".agents/artifacts/executions" / plan_id / attempt_id / "binding.json"
     bound_path = None
-    previous_steps: tuple = ()
+    previous_steps: list[dict] = []
     if binding_path.is_file():
         bound_path = json.loads(binding_path.read_text(encoding="utf-8"))["plan"]["path"]
         previous_file = root / bound_path
         if previous_file.is_file():
-            try:
-                previous_steps = plan_artifact.read_plan_steps(previous_file.read_text(encoding="utf-8"))
-            except plan_artifact.InvalidPlanFormat:
-                previous_steps = ()
+            previous_steps = read_steps_as_the_agent_does(previous_file.read_text(encoding="utf-8"))
     target = root / (plan_path or bound_path) if (plan_path or bound_path) else None
     if target is None or not target.is_file():
         return {"steps": [], "human_gates": [], "step_map": []}
     revised_text = target.read_text(encoding="utf-8")
     steps, gates = declare_from_plan(revised_text)
-    unmatched = {f"step-{step.number}": _step_wording_identity(step) for step in previous_steps}
+    unmatched = {step["step_id"]: step["wording"] for step in previous_steps}
     step_map = []
-    for step in plan_artifact.read_plan_steps(revised_text):
-        identity = _step_wording_identity(step)
-        previous_id = next((key for key, other in unmatched.items() if other == identity), None)
+    for step in read_steps_as_the_agent_does(revised_text):
+        previous_id = next((key for key, other in unmatched.items() if other == step["wording"]), None)
         if previous_id is None:
-            step_map.append({"step_id": f"step-{step.number}", "previous_step_id": None, "disposition": "new"})
+            step_map.append({"step_id": step["step_id"], "previous_step_id": None, "disposition": "new"})
             continue
         del unmatched[previous_id]
         step_map.append(
-            {"step_id": f"step-{step.number}", "previous_step_id": previous_id, "disposition": "carry"}
+            {"step_id": step["step_id"], "previous_step_id": previous_id, "disposition": "carry"}
         )
     return {"steps": steps, "human_gates": gates, "step_map": step_map}
 
@@ -385,7 +415,7 @@ def revise_fixture_plan(root: Path, plan_id: str, *, extra_step_kind: str = "tes
     path = relative_path or fixture_plan_path(plan_id)
     current = (root / path).read_text(encoding="utf-8")
     revised = current.replace("**Plan revision:** `1`", "**Plan revision:** `2`")
-    revised += f"\n### {len(plan_artifact.read_plan_steps(current)) + 1}. 追加の手順\n\n**Completion:** {extra_step_kind}\n"
+    revised += f"\n### {len(read_steps_as_the_agent_does(current)) + 1}. 追加の手順\n\n**Completion:** {extra_step_kind}\n"
     return write_revision(root, path, revised, 2)
 
 
