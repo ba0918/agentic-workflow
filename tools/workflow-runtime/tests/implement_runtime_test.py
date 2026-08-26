@@ -216,6 +216,26 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertTrue(context.complete_run(run).ok)
         self.assertEqual(resume.discover_unfinished(root, "plan-a").value, [])
 
+    def test_legacy_resume_is_rejected_without_writing_an_event_or_status(self) -> None:
+        from runtime import repository, storage
+        from runtime.types import ResolvedPlan
+        root = Path(tempfile.mkdtemp())
+        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+        run = repository.bind_run(
+            root, plan, run_id="run-1", delegated=False,
+            steps=[{"id": "1", "completion": "check"}],
+        ).value
+        binding = storage.read_json(run.binding_path).value
+        binding["version"] = 1
+        run.binding_path.write_text(json.dumps(binding), encoding="utf-8")
+        before = sorted(path.name for path in run.evidence_path.iterdir())
+        result = resume.resume_unique(
+            root, plan_key="plan-a", branch_head="b" * 40,
+            unexplained_commits=[], uncommitted_paths=[], consequential_change=False,
+        )
+        self.assertEqual(result.error.code, "legacy_evidence_unsupported")
+        self.assertEqual(sorted(path.name for path in run.evidence_path.iterdir()), before)
+
     def test_resume_cli_discovers_records_and_reports_the_resume_point(self) -> None:
         from runtime import repository
         from runtime.types import ResolvedPlan

@@ -28,11 +28,14 @@ def discover_unfinished(root: Path, plan_key: str) -> RuntimeResult:
         binding_path = directory / "binding.json"
         binding = read_json(binding_path)
         if not binding.ok or not isinstance(binding.value, dict):
-            continue
+            return binding if not binding.ok else failure("evidence_invalid", "implementation binding is invalid")
         run = Run(directory.name, plan_key, root.resolve(), directory, binding_path)
         events = load_events(run)
         if not events.ok:
-            continue
+            return events
+        derived = implementation_evidence.derive_implementation(binding.value, events.value)
+        if not derived.ok:
+            return failure(derived.error.code, derived.error.message)
         if not any(event.get("event_type") == "implementation_green" for event in events.value):
             runs.append(run)
     return ok(runs)
@@ -64,6 +67,9 @@ def resume_unique(
     if consequential_change:
         return failure("rebound_or_new_run_required", "consequential document meaning changed")
     run = discovered.value[0]
+    point = _resume_step(run)
+    if not point.ok:
+        return point
     resumed = append_event(run, "resumed", {
         "branch_head": branch_head,
         "unexplained_commits": list(unexplained_commits),
@@ -71,7 +77,4 @@ def resume_unique(
     }, actor="implement")
     if not resumed.ok:
         return resumed
-    point = _resume_step(run)
-    if not point.ok:
-        return point
     return ok({"run": run, "resume_step": point.value, "event": resumed.value})

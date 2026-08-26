@@ -58,8 +58,8 @@ def main(argv: list[str] | None = None) -> int:
     _run_arguments(stage)
     stage.add_argument("--step", required=True)
     stage.add_argument("--phase", choices=("red", "green", "refactor", "check", "artifact", "external"), required=True)
-    stage.add_argument("--command", dest="oracle_command", required=True)
-    stage.add_argument("--exit-code", type=int, required=True)
+    stage.add_argument("--command", dest="oracle_command")
+    stage.add_argument("--exit-code", type=int)
     stage.add_argument("--path", action="append", default=[])
     stage.add_argument("--test-path", action="append", default=[])
     stage.add_argument("--summary")
@@ -141,8 +141,11 @@ def main(argv: list[str] | None = None) -> int:
                 exit_code=args.exit_code, test_paths=args.test_path,
             )
         elif args.phase in {"check", "artifact"}:
+            if args.phase == "check" and (args.oracle_command is None or args.exit_code is None):
+                parser.error("check stage needs --command and --exit-code")
+            checks = [] if args.oracle_command is None else [{"command": args.oracle_command, "exit_code": args.exit_code}]
             result = append_event(run.value, args.phase, {
-                "step": args.step, "checks": [{"command": args.oracle_command, "exit_code": args.exit_code}],
+                "step": args.step, "checks": checks,
                 "paths": sorted(args.path), "unplanned_reasons": reasons,
             })
         else:

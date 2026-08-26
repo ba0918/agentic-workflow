@@ -154,6 +154,30 @@ class ReviewRuntimeTest(unittest.TestCase):
         event.write_text(json.dumps(payload), encoding="utf-8")
         self.assertEqual(runtime.load_events(root, binding).error.code, "review_event_invalid")
 
+    def test_execution_input_rejects_changed_frozen_red_snapshot(self) -> None:
+        root, _, head = self.execution_fixture()
+        store = root / ".agents/evidence/plan-a/run-1"
+        binding_path = store / "binding.json"
+        binding = json.loads(binding_path.read_text(encoding="utf-8"))
+        binding["steps"] = [{"id": "1", "completion": "test"}]
+        binding_path.write_text(json.dumps(binding), encoding="utf-8")
+        for path in store.glob("[0-9]*.json"):
+            path.unlink()
+        snapshot_a = {"files": {"tests/a.py": "sha256:" + "0" * 64}, "command": "sha256:" + "1" * 64}
+        snapshot_b = {"files": {"tests/b.py": "sha256:" + "2" * 64}, "command": "sha256:" + "3" * 64}
+        events = [
+            {"version": 2, "sequence": 1, "event_type": "worktree-bound", "branch": "feature", "worktree": str(root)},
+            {"version": 2, "sequence": 2, "event_type": "red", "step": "1", "command": "tests", "exit_code": 1, "snapshot": snapshot_a},
+            {"version": 2, "sequence": 3, "event_type": "green", "step": "1", "command": "tests", "exit_code": 0, "snapshot": snapshot_b},
+            {"version": 2, "sequence": 4, "event_type": "refactor", "step": "1", "command": "tests", "exit_code": 0, "snapshot": snapshot_b},
+            {"version": 2, "sequence": 5, "event_type": "commit", "step": "1", "commit": head, "safety": {"paths": ["app.txt"], "unplanned": []}},
+            {"version": 2, "sequence": 6, "event_type": "implementation_green", "completed_steps": ["1"]},
+        ]
+        for event in events:
+            (store / f"{event['sequence']:06d}-{event['event_type']}.json").write_text(json.dumps(event), encoding="utf-8")
+        result = runtime.resolve_input(root, review_id="bad-red", plan_key="plan-a", run_id="run-1")
+        self.assertEqual(result.error.code, "frozen_red_mismatch")
+
     def test_branch_base_uses_explicit_then_pr_then_unique_default(self) -> None:
         root, base, _ = self.repository()
         explicit = runtime.resolve_input(root, review_id="one", branch="feature", base="main")

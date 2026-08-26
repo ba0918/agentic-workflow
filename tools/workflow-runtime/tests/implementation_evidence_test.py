@@ -35,7 +35,7 @@ class ImplementationEvidenceTest(unittest.TestCase):
             self.event(5, "check", step="check", checks=[{"exit_code": 0}], changed_paths=[]),
             self.event(6, "artifact", step="artifact", checks=[{"exit_code": 0}], changed_paths=["a"]),
             self.event(7, "commit", step="artifact", commit="c" * 40, safety={"paths": ["a"], "unplanned": []}),
-            self.event(8, "external", step="external", condition_met=True, changed_paths=[]),
+            self.event(8, "external", step="external", checked="deployment", summary="available", condition_met=True, changed_paths=[]),
         ]
         result = self.model.derive_implementation(self.binding(steps), events)
         self.assertTrue(result.ok, result.error)
@@ -46,7 +46,7 @@ class ImplementationEvidenceTest(unittest.TestCase):
         steps = [{"id": "check", "completion": "check"}, {"id": "external", "completion": "external"}]
         events = [
             self.event(1, "check", step="check", checks=[{"exit_code": 0}], changed_paths=["x"]),
-            self.event(2, "external", step="external", condition_met=False, changed_paths=[]),
+            self.event(2, "external", step="external", checked="deployment", summary="not ready", condition_met=False, changed_paths=[]),
         ]
         result = self.model.derive_implementation(self.binding(steps), events)
         self.assertTrue(result.ok, result.error)
@@ -136,6 +136,33 @@ class ImplementationEvidenceTest(unittest.TestCase):
             {"approval_commit": "a" * 40, "commits": ["c" * 40]},
             {"approval_commit": "d" * 40, "commits": []},
         ])
+
+    def test_frozen_red_snapshot_must_match_green_and_refactor(self) -> None:
+        binding = self.binding([{"id": "1", "completion": "test"}])
+        other = {"files": {"tests/b.py": "sha256:" + "2" * 64}, "command": "sha256:" + "3" * 64}
+        events = [
+            self.event(1, "red", step="1", command="tests", exit_code=1, snapshot=self.snapshot()),
+            self.event(2, "green", step="1", command="tests", exit_code=0, snapshot=other),
+            self.event(3, "refactor", step="1", command="tests", exit_code=0, snapshot=other),
+            self.event(4, "commit", step="1", commit="b" * 40, safety={"paths": [], "unplanned": []}),
+        ]
+        result = self.model.derive_implementation(binding, events)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "frozen_red_mismatch")
+
+    def test_external_requires_checked_summary_and_artifact_checks_are_optional(self) -> None:
+        external = self.binding([{"id": "1", "completion": "external"}])
+        missing = self.event(1, "external", step="1", condition_met=True, changed_paths=[])
+        self.assertEqual(self.model.derive_implementation(external, [missing]).error.code, "evidence_invalid")
+        artifact = self.binding([{"id": "1", "completion": "artifact"}])
+        events = [
+            self.event(1, "artifact", step="1", checks=[], changed_paths=["report.md"]),
+            self.event(2, "commit", step="1", commit="b" * 40,
+                       safety={"paths": ["report.md"], "unplanned": []}),
+        ]
+        result = self.model.derive_implementation(artifact, events)
+        self.assertTrue(result.ok, result.error)
+        self.assertIsNone(result.value["resume_step"])
 
 if __name__ == "__main__":
     unittest.main()
