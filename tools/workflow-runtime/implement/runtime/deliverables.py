@@ -142,7 +142,7 @@ def record_approval(attempt: Attempt, *, step_id: str, result: str) -> RuntimeRe
     recorded = append_event(
         attempt,
         "approval",
-        {"step_id": step_id, "target_identity": target["content_identity"], "result": result},
+        {"step_id": step_id, "target_identity": execution_model.content_identity(target), "result": result},
     )
     if not recorded.ok:
         return recorded

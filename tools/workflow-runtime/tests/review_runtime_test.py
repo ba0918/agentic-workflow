@@ -156,20 +156,13 @@ class Scenario:
 
     def append_event(self, event_type: str, details: dict) -> dict:
         sequence = len(self.events) + 1
-        previous = self.events[-1]["content_identity"] if self.events else None
         event = {
             "version": 1,
             "sequence": sequence,
             "event_type": event_type,
             "attempt_id": ATTEMPT_ID,
-            "plan_identity": self.binding["plan"]["content_identity"],
-            "spec_identities": {
-                spec["path"]: spec["content_identity"] for spec in self.binding["specs"]
-            },
-            "previous_identity": previous,
             **details,
         }
-        event["content_identity"] = identity_of(event)
         self.write_json(self.evidence / f"{sequence:06d}-{event_type}.json", event)
         self.events.append(event)
         return event
@@ -253,7 +246,7 @@ class BindTest(RuntimeCase):
         self.assertEqual(code, 0, payload)
         events = scenario.review_events()
         self.assertEqual([e["event_type"] for e in events], ["review-bound", "model-selected"])
-        self.assertEqual(events[0]["implement_event_identity"], scenario.events[-1]["content_identity"])
+        self.assertEqual(events[0]["implement_event_identity"], identity_of(scenario.events[-1]))
         self.assertEqual(events[1]["model"], "claude-fable-5")
         self.assertEqual(events[1]["model_source"], "explicit")
         self.assertEqual(payload["review_id"], events[0]["review_id"])

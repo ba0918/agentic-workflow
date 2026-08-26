@@ -65,9 +65,6 @@ def human_gate_event(result: str = "approved", target_identity: str | None = Non
         "sequence": 1,
         "event_type": "human_gate",
         "attempt_id": binding()["attempt_id"],
-        "plan_identity": PLAN_IDENTITY,
-        "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-        "previous_identity": None,
         "gate_id": "approve-cycle-files",
         "step_id": "step-1",
         "target_identity": target_identity or "sha256:" + "8" * 64,
@@ -102,9 +99,6 @@ def command_event(event_type: str, test_summary: dict) -> dict:
         "sequence": 1,
         "event_type": event_type,
         "attempt_id": binding()["attempt_id"],
-        "plan_identity": PLAN_IDENTITY,
-        "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-        "previous_identity": None,
         "step_id": "step-1",
         "oracle_identity": implement_model.content_identity(oracle()),
         "outcome": "passed",
@@ -166,9 +160,6 @@ class BindingValidationTest(unittest.TestCase):
             "sequence": 1,
             "event_type": "stopped",
             "attempt_id": binding()["attempt_id"],
-            "plan_identity": PLAN_IDENTITY,
-            "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-            "previous_identity": None,
             "reason": "failure",
             "stdout": "full process output",
         }
@@ -268,9 +259,6 @@ class BindingValidationTest(unittest.TestCase):
             "sequence": 1,
             "event_type": "stopped",
             "attempt_id": binding()["attempt_id"],
-            "plan_identity": PLAN_IDENTITY,
-            "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-            "previous_identity": None,
             "reason": "failure",
             "details": {"api_key": "<credential>"},
         }
@@ -382,16 +370,13 @@ class TestSummaryValidationTest(unittest.TestCase):
 
 
 class EventChainTest(unittest.TestCase):
-    def test_events_form_an_immutable_hash_chain(self) -> None:
+    def test_consecutive_events_are_ordered_by_sequence_alone(self) -> None:
         first = implement_model.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
                 "event_type": "worktree-bound",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": None,
                 "outcome": "bound",
             }
         )
@@ -402,9 +387,6 @@ class EventChainTest(unittest.TestCase):
                 "sequence": 2,
                 "event_type": "red",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": first.value["content_identity"],
                 "step_id": "step-1",
                 "oracle_identity": implement_model.content_identity(oracle()),
                 "outcome": "expected_failure",
@@ -420,25 +402,14 @@ class EventChainTest(unittest.TestCase):
 
         self.assertTrue(second.ok)
         self.assertEqual(second.value["sequence"], 2)
-        self.assertEqual(
-            second.value["previous_identity"],
-            first.value["content_identity"],
-        )
-        self.assertEqual(
-            implement_model.event_identity(second.value),
-            second.value["content_identity"],
-        )
 
-    def test_stale_sequence_and_previous_identity_are_rejected(self) -> None:
+    def test_a_sequence_that_skips_the_event_before_it_is_rejected(self) -> None:
         previous = implement_model.seal_event(
             {
                 "version": 1,
                 "sequence": 1,
                 "event_type": "worktree-bound",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": None,
                 "outcome": "bound",
             }
         ).value
@@ -447,9 +418,6 @@ class EventChainTest(unittest.TestCase):
             "sequence": 3,
             "event_type": "stopped",
             "attempt_id": binding()["attempt_id"],
-            "plan_identity": PLAN_IDENTITY,
-            "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-            "previous_identity": "sha256:" + "9" * 64,
             "reason": "drift",
         }
 
@@ -465,9 +433,6 @@ class EventChainTest(unittest.TestCase):
                 "sequence": 1,
                 "event_type": "worktree-bound",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": None,
                 "outcome": "bound",
             }
         ).value
@@ -477,9 +442,6 @@ class EventChainTest(unittest.TestCase):
                 "sequence": 2,
                 "event_type": "stopped",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": first["content_identity"],
                 "reason": "oracle_field_invalid",
             },
             previous_event=first,
@@ -491,9 +453,6 @@ class EventChainTest(unittest.TestCase):
                 "sequence": 3,
                 "event_type": "red",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": stopped["content_identity"],
                 "step_id": "step-1",
                 "oracle_identity": implement_model.content_identity(oracle()),
                 "outcome": "expected_failure",
@@ -517,9 +476,6 @@ class EventChainTest(unittest.TestCase):
                 "sequence": 1,
                 "event_type": "worktree-bound",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": None,
                 "outcome": "bound",
             }
         ).value
@@ -529,9 +485,6 @@ class EventChainTest(unittest.TestCase):
                 "sequence": 2,
                 "event_type": "stopped",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": first["content_identity"],
                 "reason": "unintended_red",
             },
             previous_event=first,
@@ -543,9 +496,6 @@ class EventChainTest(unittest.TestCase):
                 "sequence": 3,
                 "event_type": "resumed",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": stopped["content_identity"],
                 "head": BASE_HEAD,
                 "extra_commits": [],
                 "uncommitted_changes": False,
@@ -563,9 +513,6 @@ class EventChainTest(unittest.TestCase):
             "sequence": 1,
             "event_type": event_type,
             "attempt_id": binding()["attempt_id"],
-            "plan_identity": PLAN_IDENTITY,
-            "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-            "previous_identity": None,
             **fields,
         }
 
@@ -628,9 +575,6 @@ class EventChainTest(unittest.TestCase):
             "sequence": 1,
             "event_type": "commit",
             "attempt_id": binding()["attempt_id"],
-            "plan_identity": PLAN_IDENTITY,
-            "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-            "previous_identity": None,
             "step_id": "step-1",
         }
 
@@ -639,15 +583,12 @@ class EventChainTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "event_field_missing")
 
-    def test_existing_event_only_accepts_the_same_identity(self) -> None:
+    def test_a_retried_event_must_repeat_the_stored_one(self) -> None:
         candidate = {
             "version": 1,
             "sequence": 1,
             "event_type": "stopped",
             "attempt_id": binding()["attempt_id"],
-            "plan_identity": PLAN_IDENTITY,
-            "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-            "previous_identity": None,
             "reason": "permission_required",
         }
         sealed = implement_model.seal_event(candidate).value
@@ -669,9 +610,6 @@ class CheckEventTest(unittest.TestCase):
             "sequence": 1,
             "event_type": "check",
             "attempt_id": binding()["attempt_id"],
-            "plan_identity": PLAN_IDENTITY,
-            "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-            "previous_identity": None,
             "step_id": "step-2",
             "checks": [{"command": ["bunx", "agentic-skill-vendor", "verify"], "exit_code": 0}],
             "files": [{"path": "skills/ba0918-cycle/scripts/run.py", "content_identity": "sha256:" + "6" * 64}],
@@ -857,9 +795,6 @@ class ResultDerivationTest(unittest.TestCase):
                 "sequence": 1,
                 "event_type": "stopped",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": None,
                 "reason": "identity_drift",
                 "step_id": "step-1",
             }
@@ -878,9 +813,6 @@ class ResultDerivationTest(unittest.TestCase):
                 "sequence": 1,
                 "event_type": "implementation_green",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": None,
                 "commits": ["7" * 40],
             }
         ).value
@@ -899,9 +831,6 @@ class ResultDerivationTest(unittest.TestCase):
                 "sequence": sequence,
                 "event_type": "refactor",
                 "attempt_id": binding()["attempt_id"],
-                "plan_identity": PLAN_IDENTITY,
-                "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-                "previous_identity": previous["content_identity"] if previous else None,
                 "step_id": "step-1",
                 "oracle_identity": implement_model.content_identity(oracle()),
                 "outcome": "no_change",
@@ -966,9 +895,6 @@ def chain_event(sequence: int, event_type: str, previous: dict | None, **fields:
         "sequence": sequence,
         "event_type": event_type,
         "attempt_id": binding()["attempt_id"],
-        "plan_identity": PLAN_IDENTITY,
-        "spec_identities": {"docs/spec/cycle.md": SPEC_IDENTITY},
-        "previous_identity": None if previous is None else previous["content_identity"],
         **fields,
     }
 
@@ -997,8 +923,6 @@ def rebound_event(sequence: int, previous: dict, **overrides: object) -> dict:
         extra_commits=[],
         uncommitted_changes=False,
     )
-    event["plan_identity"] = NEW_PLAN_IDENTITY
-    event["spec_identities"] = {"docs/spec/cycle.md": NEW_SPEC_IDENTITY}
     event.update(overrides)
     return event
 
@@ -1007,33 +931,15 @@ class ReboundChainTest(unittest.TestCase):
     def _bound(self) -> dict:
         return implement_model.seal_event(chain_event(1, "worktree-bound", None, outcome="bound")).value
 
-    def test_a_rebound_changes_the_identities_and_later_events_must_follow_it(self) -> None:
+    def test_a_rebound_moves_the_binding_onto_the_revised_plan_and_specs(self) -> None:
         bound = self._bound()
         rebound = implement_model.seal_event(rebound_event(2, bound), previous_event=bound)
         self.assertIsNone(rebound.error)
 
-        follower = chain_event(3, "stopped", rebound.value, reason="drift")
-        follower["plan_identity"] = NEW_PLAN_IDENTITY
-        follower["spec_identities"] = {"docs/spec/cycle.md": NEW_SPEC_IDENTITY}
-        self.assertTrue(implement_model.seal_event(follower, previous_event=rebound.value).ok)
+        effective = implement_model.effective_binding(binding(), [bound, rebound.value])
 
-        stale = chain_event(3, "stopped", rebound.value, reason="drift")
-        result = implement_model.seal_event(stale, previous_event=rebound.value)
-        self.assertEqual(result.error.code, "stale_event_chain")
-
-    def test_only_a_rebound_may_change_the_identities(self) -> None:
-        bound = self._bound()
-        drifted = chain_event(2, "stopped", bound, reason="drift")
-        drifted["plan_identity"] = NEW_PLAN_IDENTITY
-        result = implement_model.seal_event(drifted, previous_event=bound)
-        self.assertEqual(result.error.code, "stale_event_chain")
-
-    def test_rebound_identities_must_match_the_plan_and_specs_it_carries(self) -> None:
-        bound = self._bound()
-        wrong_plan = rebound_event(2, bound, plan_identity=PLAN_IDENTITY)
-        self.assertFalse(implement_model.seal_event(wrong_plan, previous_event=bound).ok)
-        wrong_spec = rebound_event(2, bound, spec_identities={"docs/spec/cycle.md": SPEC_IDENTITY})
-        self.assertFalse(implement_model.seal_event(wrong_spec, previous_event=bound).ok)
+        self.assertEqual(effective["plan"]["content_identity"], NEW_PLAN_IDENTITY)
+        self.assertEqual(effective["specs"], [{"path": "docs/spec/cycle.md", "content_identity": NEW_SPEC_IDENTITY}])
 
     def test_a_rebound_may_follow_a_stop_but_not_implementation_green(self) -> None:
         bound = self._bound()
@@ -1143,3 +1049,19 @@ class EffectiveEventsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EventFingerprintTest(unittest.TestCase):
+    def test_an_event_carries_no_fingerprint_of_itself_or_of_the_event_before_it(self) -> None:
+        candidate = {
+            "version": 1,
+            "sequence": 1,
+            "event_type": "worktree-bound",
+            "attempt_id": binding()["attempt_id"],
+            "outcome": "bound",
+        }
+
+        sealed = implement_model.seal_event(candidate)
+
+        self.assertTrue(sealed.ok, sealed.error)
+        self.assertEqual(sealed.value, candidate)

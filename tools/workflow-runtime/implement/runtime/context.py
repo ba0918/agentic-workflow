@@ -115,9 +115,8 @@ def load_events(attempt: Attempt) -> RuntimeResult:
             return loaded
         event = loaded.value
         previous = events[-1] if events else None
-        unsigned = {key: value for key, value in event.items() if key != "content_identity"}
-        sealed = execution_model.seal_event(unsigned, previous_event=previous)
-        if not sealed.ok or sealed.value != event:
+        sealed = execution_model.seal_event(event, previous_event=previous)
+        if not sealed.ok:
             return failure("stale_event_chain", "durable event chain is invalid", path.name)
         events.append(event)
     return ok(events)
@@ -129,10 +128,6 @@ def append_event(
     *,
     sequence: int | None = None,
 ) -> RuntimeResult:
-    binding_result = read_json(attempt.binding_path)
-    if not binding_result.ok:
-        return binding_result
-    binding = binding_result.value
     loaded = load_events(attempt)
     if not loaded.ok:
         return loaded
@@ -141,19 +136,11 @@ def append_event(
     previous = next((event for event in events if event["sequence"] == next_sequence - 1), None)
     if next_sequence == 1:
         previous = None
-    # A rebound carries the identities it moves the chain onto; every other event carries the
-    # identities the chain currently stands on.
-    identities = details if event_type == "rebound" else execution_model.effective_binding(binding, events)
     candidate = {
         "version": 1,
         "sequence": next_sequence,
         "event_type": event_type,
         "attempt_id": attempt.attempt_id,
-        "plan_identity": identities["plan"]["content_identity"],
-        "spec_identities": {
-            item["path"]: item["content_identity"] for item in identities["specs"]
-        },
-        "previous_identity": previous["content_identity"] if previous is not None else None,
         **details,
     }
     sealed = execution_model.seal_event(candidate, previous_event=previous)

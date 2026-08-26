@@ -890,7 +890,10 @@ class ApprovalTest(unittest.TestCase):
 
             self.assertTrue(result.ok, result.error)
             self.assertEqual(result.value["event_type"], "approval")
-            self.assertEqual(result.value["target_identity"], artifact["content_identity"])
+            self.assertEqual(
+                result.value["target_identity"],
+                implement_runtime.execution_model.content_identity(artifact),
+            )
             self.assertEqual(result.value["result"], "approved")
 
     def test_a_deliverable_whose_format_check_failed_cannot_be_approved(self) -> None:
@@ -1366,7 +1369,7 @@ class EventPersistenceTest(unittest.TestCase):
             # The terminal freeze check now judges targets as of the step's commit; an
             # uncommitted rewrite is refused as a dirty worktree instead.
             self.assertEqual(result.error.code, "post_verification_dirty")
-    def test_event_retry_is_idempotent_only_for_the_same_identity(self) -> None:
+    def test_event_retry_is_idempotent_only_for_the_same_event(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             _, attempt = bootstrap_fixture(Path(directory))
             details = {"reason": "permission_required", "step_id": "step-1"}
@@ -1392,7 +1395,7 @@ class EventPersistenceTest(unittest.TestCase):
 
             self.assertTrue(first.ok)
             self.assertTrue(same.ok)
-            self.assertEqual(first.value["content_identity"], same.value["content_identity"])
+            self.assertEqual(first.value, same.value)
             self.assertFalse(collision.ok)
             self.assertEqual(collision.error.code, "event_identity_collision")
             events = sorted(attempt.evidence_path.glob("0*.json"))

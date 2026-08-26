@@ -129,16 +129,9 @@ def bootstrap_attempt(
             "sequence": 1,
             "event_type": "worktree-bound",
             "attempt_id": attempt_id,
-            "plan_identity": resolved_plan.content_identity,
-            "spec_identities": dict(resolved_plan.specs),
-            "previous_identity": None,
             "outcome": "bound",
-            "repository_identity": repository.value.repository_identity,
             "base_head": repository.value.base_head,
             "branch": branch,
-            "worktree_identity": execution_model.content_identity(
-                {"path": str(worktree_path.resolve()), "common_directory": str(repository.value.common_directory)}
-            ),
         }
     )
     if not event.ok:

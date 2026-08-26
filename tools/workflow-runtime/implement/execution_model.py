@@ -60,7 +60,7 @@ STEP_DISPOSITIONS = {"carry", "continue", "new"}
 APPROVAL_RESULTS = ["approved", "rejected"]
 BOUNDED_TEXT = 500
 EVENT_OPTIONAL_FIELDS = {
-    "worktree-bound": {"repository_identity", "base_head", "branch", "worktree_identity"},
+    "worktree-bound": {"base_head", "branch"},
     "commit": {"recorded_late"},
     "stopped": {"step_id"},
     "history_approved": {"reason"},
@@ -311,10 +311,6 @@ def _validate_rebound_event(candidate: dict) -> ModelResult:
     ):
         if not check.ok:
             return check
-    if candidate["plan_identity"] != candidate["plan"]["content_identity"]:
-        return _failure("event_identity_invalid", "plan_identity", "rebound must carry the identity of its plan")
-    if candidate["spec_identities"] != {spec["path"]: spec["content_identity"] for spec in candidate["specs"]}:
-        return _failure("event_identity_invalid", "spec_identities", "rebound must carry the identities of its specs")
     if (
         not _matches(COMMIT_SHA, candidate["head"])
         or not isinstance(candidate["extra_commits"], list)
@@ -538,11 +534,6 @@ def validate_oracle(value: object) -> ModelResult:
     return _validate_oracle(value, require_observed=True)
 
 
-def event_identity(event: dict) -> str:
-    unsigned = {key: value for key, value in event.items() if key != "content_identity"}
-    return content_identity(unsigned)
-
-
 def _bounded_text(value: object) -> bool:
     return isinstance(value, str) and bool(value.strip()) and len(value) <= BOUNDED_TEXT
 
@@ -617,15 +608,7 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
     secret = _first_secret_field(candidate)
     if secret is not None:
         return _failure("secret_value_forbidden", secret, "secret values are not durable evidence")
-    common = {
-        "version",
-        "sequence",
-        "event_type",
-        "attempt_id",
-        "plan_identity",
-        "spec_identities",
-        "previous_identity",
-    }
+    common = {"version", "sequence", "event_type", "attempt_id"}
     if not isinstance(candidate, dict) or not common.issubset(candidate):
         return _failure("event_field_missing", None, "common event fields are missing")
     event_type = candidate["event_type"]
@@ -645,18 +628,9 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         return _failure("event_sequence_invalid", "sequence", "event sequence is invalid")
     if not _matches(ATTEMPT_ID, candidate["attempt_id"]):
         return _failure("attempt_id_invalid", "attempt_id", "attempt id is invalid")
-    if not _matches(IDENTITY, candidate["plan_identity"]):
-        return _failure("event_identity_invalid", "plan_identity", "plan identity is invalid")
-    specs = candidate["spec_identities"]
-    if not isinstance(specs, dict) or not specs or any(
-        not _safe_relative_path(path)
-        or not _matches(IDENTITY, identity)
-        for path, identity in specs.items()
-    ):
-        return _failure("event_identity_invalid", "spec_identities", "spec identities are invalid")
 
     if previous_event is None:
-        if candidate["sequence"] != 1 or candidate["previous_identity"] is not None:
+        if candidate["sequence"] != 1:
             return _failure("stale_event_chain", "sequence", "first event must start the chain")
     else:
         if previous_event["event_type"] == "implementation_green" or (
@@ -664,23 +638,14 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         ):
             return _failure(
                 "terminal_event_chain",
-                "previous_identity",
+                "sequence",
                 "terminal event cannot be extended",
             )
-        expected_previous = event_identity(previous_event)
-        # A rebound is the one event allowed to move the chain onto revised plan and spec
-        # identities; every other event must carry the identities of the event before it.
-        identities_follow = event_type == "rebound" or (
-            candidate["plan_identity"] == previous_event["plan_identity"]
-            and candidate["spec_identities"] == previous_event["spec_identities"]
-        )
         if (
             candidate["sequence"] != previous_event["sequence"] + 1
-            or candidate["previous_identity"] != expected_previous
             or candidate["attempt_id"] != previous_event["attempt_id"]
-            or not identities_follow
         ):
-            return _failure("stale_event_chain", "previous_identity", "event does not extend the current chain")
+            return _failure("stale_event_chain", "sequence", "event does not extend the current chain")
 
     if event_type in {"red", "green", "refactor"} and not _matches(
         IDENTITY, candidate["oracle_identity"]
@@ -742,9 +707,7 @@ def seal_event(candidate: object, previous_event: dict | None = None) -> ModelRe
         if not approved.ok:
             return approved
 
-    sealed = dict(candidate)
-    sealed["content_identity"] = event_identity(sealed)
-    return _ok(sealed)
+    return _ok(dict(candidate))
 
 
 def validate_human_gate_event(binding: object, event: object) -> ModelResult:
@@ -815,14 +778,8 @@ def validate_human_gate_boundary(
 
 
 def compare_event_retry(existing: dict, candidate: dict) -> ModelResult:
-    existing_identity = event_identity(existing)
-    candidate_identity = event_identity(candidate)
-    if (
-        existing.get("content_identity") != existing_identity
-        or candidate.get("content_identity") != candidate_identity
-        or existing_identity != candidate_identity
-    ):
-        return _failure("event_identity_collision", "content_identity", "event retry differs from stored evidence")
+    if existing != candidate:
+        return _failure("event_identity_collision", "sequence", "event retry differs from stored evidence")
     return _ok(existing)
 
 
@@ -840,10 +797,11 @@ def deliverable_is_approved(events: list[dict], step_id: str) -> bool:
     target = latest_deliverable(step_events, step_id)
     if target is None:
         return False
+    target_identity = content_identity(target)
     after = step_events[step_events.index(target) + 1 :]
     return any(
         event.get("event_type") == "approval"
-        and event.get("target_identity") == target.get("content_identity")
+        and event.get("target_identity") == target_identity
         and event.get("result") == "approved"
         for event in after
     )
@@ -975,7 +933,6 @@ def derive_result(events: list[dict]) -> dict:
     result = {
         "state": "stopped",
         "attempt_id": last["attempt_id"],
-        "plan_identity": last["plan_identity"],
         "last_sequence": last["sequence"],
         "event_count": len(events),
     }
