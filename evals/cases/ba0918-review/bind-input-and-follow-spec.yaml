@@ -16,6 +16,10 @@ expectations:
     critical: true
   - text: branch、2 commits、implement run idの3入力を受け付ける
     critical: true
+  - text: branchとcommitをGitで解決して架空refを拒否し、branch tipから選択targetへのmerge-baseを束ねる
+    critical: true
+  - text: implement runはbinding・連番event・最後のimplementation_green・branch/worktree・commitの一致を検証する
+    critical: true
   - text: standalone入力では指定specまたはdocs/specを根拠としてGit commitを記録する
     critical: true
   - text: 重要判断を変えないspec変更は新Git版へ追従する

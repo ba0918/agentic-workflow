@@ -24,3 +24,5 @@ expectations:
     critical: true
   - text: 不足を示して次の重要な一問へ戻り、progressを保持する
     critical: true
+  - text: canonical writerはdocs/spec配下Markdown・docs/agreements直下Markdown・root ROADMAP.mdだけを許可し.gitやsource/configを拒否する
+    critical: true

@@ -25,5 +25,7 @@ expectations:
     critical: true
   - text: integer revisionの競合を検出して現在側と候補側の両方を残す
     critical: true
+  - text: item schema・ID一意性・revision参照先を検証し、revision比較と保存を排他lock内で不可分に行う
+    critical: true
   - text: 文書identityを要求せず、自動mergeまたは上書きをしない
     critical: true

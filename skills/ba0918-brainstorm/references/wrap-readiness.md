@@ -8,6 +8,8 @@ and recovery, migration, operations, and release when the requirement makes them
 Write strategy to `ROADMAP.md`, implementation behavior to `docs/spec/`, and rejected or
 unresolved decision history to `docs/agreements/`. Use `scripts/draft.py` only as the safe
 atomic writer to these canonical paths; it is not a draft or publish workflow.
+The writer accepts only repository-root `ROADMAP.md`, `docs/spec/**/*.md`, and direct
+`docs/agreements/*.md` files. It rejects source, configuration, `.git`, and every other path.
 
 Run the mandatory independent architecture review described by the skill. After it converges,
 stage the canonical files and ask for approval of the staged diff. On approval, commit those bytes

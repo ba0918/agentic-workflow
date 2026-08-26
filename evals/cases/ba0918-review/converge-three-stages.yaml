@@ -12,6 +12,10 @@ prompt: |
 expected_output: |
   初回全体review後は未解決と修正差分だけを見て関連回帰を追加し、無関係な軽微事項は終端観察へ分け、全件close後に最終全体reviewを1回だけ行い、新規warnを限定reviewで閉じる。
 expectations:
+  - text: initial/finalの開始eventと安全検査済みfinding結果eventを分け、結果なしの空集合でcompleteしない
+    critical: true
+  - text: fixable findingの必須fieldと事前に失敗したoracleを固定し、Finding trailer付きcommitだけでcloseする
+    critical: true
   - text: 初回は対象全体、修正中はopen findingとtrailer付き差分と持込みriskだけを見る
     critical: true
   - text: 修正が生んだsecurity findingと関連warn regressionをadmitする

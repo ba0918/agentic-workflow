@@ -22,7 +22,9 @@ Implement does not review, merge, publish, complete the plan, or delete executio
 ## Boundary
 
 - Read the named committed plan through `scripts/implement_runtime.py`. Its path stem is the plan
-  key and its approval commit fixes the source specification versions.
+  key. Require its working bytes to equal the last commit that changed that plan, parse those
+  approved bytes, and return approved/current specification versions plus their Git diff for the
+  agent's semantic decision; wording-only specification drift is not an automatic rejection.
 - Treat Scope as expected paths. A safe ordinary omission is recorded with its reason and included;
   it is not a human gate.
 - Apply secret, dangerous-path, temporary, log, generated-output, and sensitive-target checks to
@@ -38,6 +40,8 @@ Implement does not review, merge, publish, complete the plan, or delete executio
 ## Completion
 
 Complete when every plan step has its required evidence and commit, all safety checks pass, and an
-all-steps-complete event is recorded. Hand the branch, commits, plan approval commit, evidence path,
+`implementation_green` event has been derived by the runtime from valid step transitions, recorded
+commits, the bound branch/worktree, and a clean worktree. Every append also updates `current-status`
+in the same operation. Hand the branch, commits, plan approval commit, evidence path,
 unplanned changes and reasons, and verification results to cycle. Do not ask the human to approve
 artifact or external steps during implementation; their acceptance is the terminal cycle boundary.
