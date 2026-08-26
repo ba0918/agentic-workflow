@@ -102,7 +102,7 @@ class ImplementDistributionTest(unittest.TestCase):
             root = Path(directory)
             plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
             run = repository.bind_run(root, plan, run_id="run-1", delegated=False).value
-            result = context.append_event(run, "recovering", {"reason": "writer contract check"}, actor="implement")
+            result = context.append_event(run, "human_gate", {"reason": "writer contract check"}, actor="implement")
             self.assertTrue(result.ok, result.error)
             blocked = context.append_event(run, "delegated", {}, actor="cycle")
             self.assertFalse(blocked.ok)
@@ -115,10 +115,10 @@ class ImplementDistributionTest(unittest.TestCase):
             plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
             run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
             self.assertTrue(context.append_event(run, "delegated", {"role": "implementer"}, actor="cycle").ok)
-            blocked = context.append_event(run, "recovering", {"reason": "not cycle evidence"}, actor="cycle")
+            blocked = context.append_event(run, "human_gate", {"reason": "not cycle evidence"}, actor="cycle")
             self.assertFalse(blocked.ok)
             self.assertEqual(blocked.error.code, "writer_not_allowed")
-            self.assertTrue(context.append_event(run, "recovering", {"reason": "implement evidence"}, actor="implement").ok)
+            self.assertTrue(context.append_event(run, "human_gate", {"reason": "implement evidence"}, actor="implement").ok)
             wrong_boundary_writer = context.append_event(run, "returned", {}, actor="implement")
             self.assertFalse(wrong_boundary_writer.ok)
             self.assertEqual(wrong_boundary_writer.error.code, "writer_not_allowed")

@@ -19,18 +19,23 @@ class ImplementationEvidenceTest(unittest.TestCase):
     def event(self, sequence: int, event_type: str, **fields) -> dict:
         return {"version": 2, "sequence": sequence, "event_type": event_type, **fields}
 
+    def snapshot(self) -> dict:
+        return {"files": {"tests/a.py": "sha256:" + "0" * 64}, "command": "sha256:" + "1" * 64}
+
     def test_completion_and_resume_follow_each_completion_kind(self) -> None:
         steps = [
             {"id": "test", "completion": "test"}, {"id": "check", "completion": "check"},
             {"id": "artifact", "completion": "artifact"}, {"id": "external", "completion": "external"},
         ]
         events = [
-            self.event(1, "refactor", step="test", command="tests", exit_code=0),
-            self.event(2, "commit", step="test", commit="b" * 40, safety={"paths": [], "unplanned": []}),
-            self.event(3, "check", step="check", checks=[{"exit_code": 0}], changed_paths=[]),
-            self.event(4, "artifact", step="artifact", checks=[{"exit_code": 0}], changed_paths=["a"]),
-            self.event(5, "commit", step="artifact", commit="c" * 40, safety={"paths": ["a"], "unplanned": []}),
-            self.event(6, "external", step="external", condition_met=True, changed_paths=[]),
+            self.event(1, "red", step="test", command="tests", exit_code=1, snapshot=self.snapshot()),
+            self.event(2, "green", step="test", command="tests", exit_code=0, snapshot=self.snapshot()),
+            self.event(3, "refactor", step="test", command="tests", exit_code=0, snapshot=self.snapshot()),
+            self.event(4, "commit", step="test", commit="b" * 40, safety={"paths": [], "unplanned": []}),
+            self.event(5, "check", step="check", checks=[{"exit_code": 0}], changed_paths=[]),
+            self.event(6, "artifact", step="artifact", checks=[{"exit_code": 0}], changed_paths=["a"]),
+            self.event(7, "commit", step="artifact", commit="c" * 40, safety={"paths": ["a"], "unplanned": []}),
+            self.event(8, "external", step="external", condition_met=True, changed_paths=[]),
         ]
         result = self.model.derive_implementation(self.binding(steps), events)
         self.assertTrue(result.ok, result.error)
@@ -85,6 +90,20 @@ class ImplementationEvidenceTest(unittest.TestCase):
         result = self.model.derive_implementation(binding, [malformed])
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "evidence_invalid")
+        malformed_boundary = self.event(1, "worktree-bound", branch=1, worktree="/tmp/work")
+        self.assertEqual(
+            self.model.derive_implementation(binding, [malformed_boundary]).error.code,
+            "evidence_invalid",
+        )
+        green_without_red = self.event(
+            1, "green", step="1", command="tests", exit_code=0,
+            snapshot=self.snapshot(),
+        )
+        test_binding = self.binding([{"id": "1", "completion": "test"}])
+        self.assertEqual(
+            self.model.derive_implementation(test_binding, [green_without_red]).error.code,
+            "transition_invalid",
+        )
 
     def test_recovering_changes_the_effective_revision_boundary(self) -> None:
         binding = self.binding([{"id": "1", "completion": "check"}])
