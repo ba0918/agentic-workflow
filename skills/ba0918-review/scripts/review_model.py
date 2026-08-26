@@ -82,7 +82,7 @@ def can_append_after(event: dict) -> bool:
 def review_complete(events: list[dict], findings: list[dict]) -> bool:
     if events and events[-1].get("event_type") == "findings_stale":
         return False
-    return any(event.get("event_type") == "final-full-review" for event in events) and all(
+    return bool(events) and events[-1].get("event_type") == "review-completed" and all(
         finding.get("state") == "closed" for finding in findings
     )
 
@@ -97,13 +97,17 @@ def made_progress(before: list[dict], after: list[dict]) -> bool:
 
 def next_review_stage(events: list[dict], findings: list[dict]) -> str:
     kinds = {event.get("event_type") for event in events}
-    if "initial-full-review" not in kinds:
+    if "initial-full-review-started" not in kinds:
         return "initial-full"
+    if "initial-findings-recorded" not in kinds:
+        return "initial-results"
     if any(finding.get("state") == "open" for finding in findings):
         return "targeted"
-    if "final-full-review" not in kinds:
+    if "final-full-review-started" not in kinds:
         return "final-full"
-    return "complete"
+    if "final-findings-recorded" not in kinds:
+        return "final-results"
+    return "ready-to-complete"
 
 def admit_new_findings(candidates: list[dict], related_ids: set[str]) -> tuple[list[dict], list[dict]]:
     admitted: list[dict] = []

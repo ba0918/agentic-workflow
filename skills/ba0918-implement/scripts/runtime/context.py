@@ -143,8 +143,8 @@ def _event_lock(run: Run):
         fcntl.flock(descriptor, fcntl.LOCK_UN)
         os.close(descriptor)
 
-def append_event(
-    run: Run, event_type: str, fields: dict, *, actor: str | None = None, _derived: bool = False,
+def _append_event(
+    run: Run, event_type: str, fields: dict, *, actor: str | None = None, derived: bool = False,
 ) -> RuntimeResult:
     binding = read_json(run.binding_path)
     if not binding.ok:
@@ -155,7 +155,7 @@ def append_event(
         loaded = load_events(run)
         if not loaded.ok:
             return loaded
-        checked = _validate_event(binding.value, loaded.value, event_type, fields, actor, _derived)
+        checked = _validate_event(binding.value, loaded.value, event_type, fields, actor, derived)
         if not checked.ok:
             return checked
         sequence = len(loaded.value) + 1
@@ -170,6 +170,9 @@ def append_event(
             path.unlink(missing_ok=True)
             return failure("evidence_write_failed", "event and current status could not be recorded", str(error))
         return ok({**event, "path": path})
+
+def append_event(run: Run, event_type: str, fields: dict, *, actor: str | None = None) -> RuntimeResult:
+    return _append_event(run, event_type, fields, actor=actor)
 
 def record_stage(run: Run, step: str, phase: str, *, command: str, exit_code: int) -> RuntimeResult:
     return append_event(run, phase, {"step": step, "command": command, "exit_code": exit_code})
@@ -219,9 +222,9 @@ def complete_run(run: Run) -> RuntimeResult:
     for event in events.value:
         if event.get("event_type") == "commit" and _git(worktree, "cat-file", "-e", f"{event['commit']}^{{commit}}").returncode != 0:
             return failure("commit_invalid", f"recorded commit does not exist: {event['commit']}")
-    return append_event(
+    return _append_event(
         run, "implementation_green",
-        {"completed_steps": [step["id"] for step in binding.value.get("steps", [])]}, _derived=True,
+        {"completed_steps": [step["id"] for step in binding.value.get("steps", [])]}, derived=True,
     )
 
 def load_events(run: Run) -> RuntimeResult:
