@@ -7,6 +7,16 @@ reads the complete diff, selected profiles, relevant specification sections, and
 needed to judge security or critical candidates. Record `initial-full-review-started`, then one
 initial findings event; these are separate transitions.
 
+Before recording either findings set, the same reviewer supplies a small safety result containing
+`completed`, a bounded `summary`, and `unresolved`. Continue only when completed is true and
+unresolved is empty. The runtime stores that result; it never substitutes a hard-coded pass.
+
+The binding records level, profiles and their selection source, requested model and its selection
+source, and optional second-reviewer settings. The skill owns second-reviewer execution: send only
+the plan and diff after a secret scan, omit the first reviewer's findings and conclusion, invoke
+the explicitly requested replaceable runner once, then record its actual model and bounded result.
+If unavailable, record a warning and continue with the first reviewer.
+
 Every admitted finding carries specification path/section and Git version, evidence, root cause,
 profile, severity, action, and state. A fixable finding also records `oracle_status: failing` after
 the reviewer ran its oracle and observed failure. An unavailable mechanical oracle needs a bounded

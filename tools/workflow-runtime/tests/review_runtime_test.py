@@ -33,6 +33,11 @@ def finding(**changes) -> dict:
     value["id"] = review_model.finding_id(value)
     return value
 
+def safety(**changes) -> dict:
+    value = {"completed": True, "summary": "no unresolved safety issue", "unresolved": []}
+    value.update(changes)
+    return value
+
 class ReviewRuntimeTest(unittest.TestCase):
     def repository(self) -> tuple[Path, str, str]:
         root = Path(tempfile.mkdtemp())
@@ -106,18 +111,39 @@ class ReviewRuntimeTest(unittest.TestCase):
     def test_empty_findings_cannot_fake_initial_final_and_completion(self) -> None:
         root, _, _ = self.repository()
         binding = runtime.resolve_input(root, review_id="review-1", branch="feature", base="main").value
-        self.assertTrue(runtime.bind_review(root, binding, model="model-x").ok)
+        self.assertTrue(runtime.bind_review(
+            root, binding, model="model-x", level="light", profiles=["skill"],
+            model_source="explicit", second_reviewer="codex", second_model="model-y",
+        ).ok)
+        stored = runtime.load_review_binding(root, review_id="review-1").value
+        self.assertEqual(stored["review_options"], {
+            "level": "light", "profiles": ["skill"], "profile_source": "explicit",
+            "model": "model-x", "model_source": "explicit",
+            "second_reviewer": "codex", "second_model": "model-y",
+        })
+        second = runtime.record_second_review(
+            root, stored, status="unavailable", actual_model="model-y",
+            summary="runner unavailable; continuing with first reviewer",
+        )
+        self.assertTrue(second.ok, second.error)
+        self.assertEqual(second.value["event_type"], "second-review-recorded")
         initial = runtime.begin_stage(root, binding, reviewer_context="reviewer-initial")
         self.assertEqual(initial.value["event_type"], "initial-full-review-started")
         self.assertEqual(runtime.begin_stage(root, binding, reviewer_context="same").error.code, "stage_results_required")
+        unsafe = runtime.record_findings(
+            root, binding, stage="initial", findings=[],
+            safety=safety(completed=False, unresolved=["secret scan unavailable"]),
+            reviewer_context="reviewer-initial",
+        )
+        self.assertEqual(unsafe.error.code, "safety_check_required")
         self.assertTrue(runtime.record_findings(
-            root, binding, stage="initial", findings=[], safety_check=True, reviewer_context="reviewer-initial",
+            root, binding, stage="initial", findings=[], safety=safety(), reviewer_context="reviewer-initial",
         ).ok)
         final = runtime.begin_stage(root, binding, reviewer_context="reviewer-final")
         self.assertEqual(final.value["event_type"], "final-full-review-started")
         self.assertEqual(runtime.complete_review(root, binding).error.code, "final_results_required")
         self.assertTrue(runtime.record_findings(
-            root, binding, stage="final", findings=[], safety_check=True, reviewer_context="reviewer-final",
+            root, binding, stage="final", findings=[], safety=safety(), reviewer_context="reviewer-final",
         ).ok)
         completed = runtime.complete_review(root, binding)
         self.assertTrue(completed.ok, completed.error)
@@ -131,7 +157,7 @@ class ReviewRuntimeTest(unittest.TestCase):
         runtime.begin_stage(root, binding, reviewer_context="reviewer-initial")
         item = finding(spec_commit=binding["spec_commit"])
         self.assertTrue(runtime.record_findings(
-            root, binding, stage="initial", findings=[item], safety_check=True, reviewer_context="reviewer-initial",
+            root, binding, stage="initial", findings=[item], safety=safety(), reviewer_context="reviewer-initial",
         ).ok)
         bypass = runtime.close_finding(root, binding, item["id"], oracle_exit_code=0, fix_commits=[])
         self.assertEqual(bypass.error.code, "targeted_review_required")
@@ -158,7 +184,7 @@ class ReviewRuntimeTest(unittest.TestCase):
         runtime.begin_stage(root, binding, reviewer_context="reviewer-initial")
         original = finding(spec_commit=binding["spec_commit"])
         runtime.record_findings(
-            root, binding, stage="initial", findings=[original], safety_check=True,
+            root, binding, stage="initial", findings=[original], safety=safety(),
             reviewer_context="reviewer-initial",
         )
         related = finding(severity="warn", oracle="related", spec_commit=binding["spec_commit"])
@@ -186,7 +212,7 @@ class ReviewRuntimeTest(unittest.TestCase):
         item = finding(action="human_judgment", oracle="", oracle_status="unavailable",
                        oracle_unavailable_reason="scope decision", spec_commit=binding["spec_commit"])
         self.assertTrue(runtime.record_findings(
-            root, binding, stage="initial", findings=[item], safety_check=True,
+            root, binding, stage="initial", findings=[item], safety=safety(),
             reviewer_context="reviewer-initial",
         ).ok)
         missing_reason = runtime.record_human_decision(

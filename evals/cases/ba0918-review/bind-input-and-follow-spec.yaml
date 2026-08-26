@@ -26,3 +26,9 @@ expectations:
     critical: true
   - text: persistence変更はfindings_staleとして止め、open findingを保持してrebound可能にする
     critical: true
+  - text: level、profileと選択元、modelと選択元、明示されたsecond reviewer/modelをbindingへ記録する
+    critical: true
+  - text: 同じreviewerの安全確認結果が未完了または未解決ならfinding集合を成功記録しない
+    critical: true
+  - text: second reviewerはskillがplanとdiffだけをsecret scan後に一度渡し、利用不能なら警告して単独reviewを続ける
+    critical: true
