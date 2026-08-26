@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[3]
 RUNTIME_HOME = ROOT / "tools/workflow-runtime/implement"
 sys.path.insert(0, str(RUNTIME_HOME))
 planning = importlib.import_module("runtime.planning")
+staging = importlib.import_module("runtime.staging")
 
 PLAN = """# Plan
 
@@ -75,6 +76,38 @@ class ImplementPlanBindingTest(unittest.TestCase):
             self.assertNotIn("plan_identity", source)
             self.assertNotIn("plan_revision", source)
             self.assertNotIn("content_identity", source)
+
+    def test_safe_unplanned_paths_are_reported_instead_of_rejected(self) -> None:
+        result = staging.assess_paths(
+            ["src/app.py", "tests/app_test.py"],
+            expected_paths=["src/app.py"],
+            reasons={"tests/app_test.py": "behavior needs coverage"},
+        )
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.value["unplanned"], [{"path": "tests/app_test.py", "reason": "behavior needs coverage"}])
+
+    def test_unplanned_path_requires_a_reason(self) -> None:
+        result = staging.assess_paths(["tests/app_test.py"], expected_paths=[])
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "unplanned_reason_missing")
+
+    def test_safety_checks_apply_inside_and_outside_expected_paths(self) -> None:
+        for expected in ([".env.production"], []):
+            result = staging.assess_paths([".env.production"], expected_paths=expected, reasons={".env.production": "needed"})
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "dangerous_path")
+        for path in ("run.log", "scratch.tmp", "node_modules/pkg/index.js", ".agents/evidence/x.json"):
+            result = staging.assess_paths([path], expected_paths=[path])
+            self.assertFalse(result.ok)
+
+    def test_semantically_dangerous_paths_are_returned_for_human_judgment(self) -> None:
+        result = staging.assess_paths(
+            ["config/release.toml"],
+            expected_paths=["config/release.toml"],
+            dangerous_paths={"config/release.toml": "production deployment target"},
+        )
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "human_judgment_required")
 
 if __name__ == "__main__":
     unittest.main()
