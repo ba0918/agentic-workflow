@@ -1,7 +1,7 @@
 # implement の減量 — 自己検証を落とし、状態の写しと委譲を足す
 
 **Plan ID:** `20260826050000`
-**Plan revision:** `1`
+**Plan revision:** `2`
 
 **Target specifications:**
 
@@ -17,6 +17,35 @@
 止まり方を 2 種類に割ることを求めています。`workflow.md` は、その検査の線引きと、状態の
 写しに何を書き何を書かないかを定めています。この手順書は、そこに書かれた振る舞いを
 コードに移すだけで、新しい意味を決めません。
+
+## 版 2 で直したこと
+
+版 1 は、実行して初めて分かる欠陥を持っていました。**作る物、禁止、人が判断する場面は
+版 1 のままです。**直したのは、検査コマンドが見る範囲と、変更してよいファイルの
+取りこぼしだけです。
+
+- 手順 2・3 の検査コマンドが `tools/workflow-runtime/` 全体を見ていました。review は
+  同じ名前の失敗コードを持つ別の記録機構で、この計画は review の記録機構を触りません。
+  そのままでは、10 手順のどこまで進んでも検査が通りません。implement とその試験に
+  絞りました
+- 手順 3 が消す名前のうち `attempt_id_invalid` と `repository_identity_invalid` は、
+  外の世界を見る検査の名前でもあります（実行 ID がパスとして安全か、git の共通
+  ディレクトリが本当に主作業ディレクトリの `.git` か）。消すのは束ねの記録の形式検証
+  だけなので、名前が消えたことを見る対象を `execution_model.py` に絞り、外の世界を
+  見る 2 つが残っていることを別の行で確かめます
+- 手順 1 の変更してよいファイルに `repository.py` と `deliverables.py` がありません
+  でした。落とす欄を組み立てているのはこの 2 つです
+- 手順 6 の変更してよいファイルに、手順の一覧を使うモジュールが 3 つ足りませんでした
+- 手順 8 に、配布された複製の `execution_model.py` を消すことが入っていませんでした
+- 手順 10 の変更してよいファイルに `skills/ba0918-review/scripts/` がありませんでした
+- Scope に review の 2 ファイルがありませんでした。review は implement の最後の
+  出来事の指紋を自分の記録に書き留めており、implement が指紋を保存しなくなると、
+  そこだけが動かなくなります
+- Scope の木で `scripts/` と末尾に `/` を付けて書いた行が、変更してよい範囲に
+  1 つも寄与していませんでした。この木の読み方では、`/` で終わる行はその下に
+  並ぶ行の親を表すだけで、それ自体は範囲になりません。子を並べない
+  `skills/ba0918-implement/scripts/` は、手順 10 が書き込む場所であるのに範囲の外に
+  ありました。`/` を外すと、そのパスとその下すべてが範囲になります
 
 ## この計画で採る方針
 
@@ -53,9 +82,12 @@ tools/workflow-runtime/
       storage.py
       tdd.py
       types.py
+  review/
+    review_runtime.py
   tests/
     implement_execution_model_test.py
     implement_runtime_test.py
+    review_runtime_test.py
 skills/ba0918-implement/
   SKILL.md
   references/
@@ -63,7 +95,9 @@ skills/ba0918-implement/
     evidence.md
     execution.md
     tdd.md
-  scripts/
+  scripts
+skills/ba0918-review/
+  scripts
 vendor-lock.json
 ```
 
@@ -81,7 +115,16 @@ vendor-lock.json
 
 **変更してよいファイル:** `tools/workflow-runtime/implement/execution_model.py`、
 `tools/workflow-runtime/implement/runtime/context.py`、
-`tools/workflow-runtime/tests/implement_execution_model_test.py`。
+`tools/workflow-runtime/implement/runtime/repository.py`、
+`tools/workflow-runtime/implement/runtime/deliverables.py`、
+`tools/workflow-runtime/tests/implement_execution_model_test.py`、
+`tools/workflow-runtime/tests/implement_runtime_test.py`、
+`tools/workflow-runtime/review/review_runtime.py`、
+`tools/workflow-runtime/tests/review_runtime_test.py`。
+
+`repository.py` は作業場所の出来事を、`deliverables.py` は成果物の承認の対象を
+組み立てており、どちらも落とす欄をそのまま参照しています。review は implement の
+最後の出来事の指紋を読んでいるので、読んだ内容から自分で計算する形へ変えます。
 
 **Completion:** test
 
@@ -113,7 +156,7 @@ vendor-lock.json
 
 **Checks:**
 
-- `test -z "$(rg -l 'event_field_invalid|event_fields_invalid|event_field_missing|event_type_invalid|event_version_invalid|event_sequence_invalid|event_identity_invalid|event_identity_collision|stale_event_chain' tools/workflow-runtime/)"`
+- `test -z "$(rg -l 'event_field_invalid|event_fields_invalid|event_field_missing|event_type_invalid|event_version_invalid|event_sequence_invalid|event_identity_invalid|event_identity_collision|stale_event_chain' tools/workflow-runtime/implement/ tools/workflow-runtime/tests/implement_execution_model_test.py tools/workflow-runtime/tests/implement_runtime_test.py)"`
 - `python3 -m unittest discover -s tools/workflow-runtime/tests -p '*_test.py'`
 
 **止まる条件:** 消そうとした検査が、外の世界について何かを言っていると分かったら止まる。
@@ -139,8 +182,11 @@ oracle のうち「失敗の内容が何も言っていない物を弾く」検�
 
 **Checks:**
 
-- `test -z "$(rg -l 'oracle_field_invalid|oracle_fields_invalid|oracle_field_missing|human_gate_binding_invalid|plan_binding_invalid|spec_binding_invalid|binding_fields_invalid|binding_version_invalid|test_summary_invalid|attempt_id_invalid|executor_invalid|branch_invalid|worktree_invalid|base_head_invalid|repository_identity_invalid' tools/workflow-runtime/)"`
-- `rg -q 'oracle_failure_signature_invalid' tools/workflow-runtime/`
+- `test -z "$(rg -l 'oracle_field_invalid|oracle_fields_invalid|oracle_field_missing|human_gate_binding_invalid|plan_binding_invalid|spec_binding_invalid|binding_fields_invalid|binding_version_invalid|test_summary_invalid|executor_invalid|branch_invalid|worktree_invalid|base_head_invalid' tools/workflow-runtime/implement/ tools/workflow-runtime/tests/implement_execution_model_test.py tools/workflow-runtime/tests/implement_runtime_test.py)"`
+- `test -z "$(rg -l 'attempt_id_invalid|repository_identity_invalid' tools/workflow-runtime/implement/execution_model.py)"`
+- `rg -q 'oracle_failure_signature_invalid' tools/workflow-runtime/implement/`
+- `rg -q 'attempt_id_invalid' tools/workflow-runtime/implement/runtime/repository.py`
+- `rg -q 'repository_identity_invalid' tools/workflow-runtime/implement/runtime/gitio.py`
 - `python3 -m unittest discover -s tools/workflow-runtime/tests -p '*_test.py'`
 
 **止まる条件:** 手順 2 と同じ。
@@ -208,8 +254,18 @@ cycle の仕事で、implement は記録するだけ。
 
 **変更してよいファイル:** `tools/workflow-runtime/implement/runtime/planning.py`、
 `tools/workflow-runtime/implement/runtime/cli.py`、
+`tools/workflow-runtime/implement/runtime/context.py`、
+`tools/workflow-runtime/implement/runtime/deliverables.py`、
+`tools/workflow-runtime/implement/runtime/staging.py`、
+`tools/workflow-runtime/implement/runtime/tdd.py`、
+`tools/workflow-runtime/implement/runtime/resume.py`、
 `tools/workflow-runtime/implement/runtime/deps.py`、
 `tools/workflow-runtime/tests/implement_runtime_test.py`。
+
+手順書の本文を構文として読む処理は plan 側の `plan_artifact.py` にあり、この計画では
+触りません。変えるのは implement がそれを呼ぶのをやめる側です。手順の一覧を使って
+いるのは `planning.py` のほか `deliverables.py`、`staging.py`、`tdd.py`、`resume.py`、
+`cli.py` で、手順の見出しを正規表現で探しているのは `context.py` です。
 
 **Completion:** test
 
@@ -264,13 +320,18 @@ cycle の仕事で、implement は記録するだけ。
 
 **変更してよいファイル:** `tools/workflow-runtime/implement/` 以下すべて、
 `tools/workflow-runtime/tests/implement_execution_model_test.py`、
-`tools/workflow-runtime/tests/implement_runtime_test.py`、`vendor-manifest.yaml`。
+`tools/workflow-runtime/tests/implement_runtime_test.py`、`vendor-manifest.yaml`、
+`skills/ba0918-implement/scripts/execution_model.py`。
+
+配布された複製も同時に消します。正本が無くなったのに複製が残ると、`vendor-manifest.yaml`
+から消した行が指していたファイルだけが取り残されます。
 
 **Completion:** check
 
 **Checks:**
 
 - `test ! -f tools/workflow-runtime/implement/execution_model.py`
+- `test ! -f skills/ba0918-implement/scripts/execution_model.py`
 - `python3 -m unittest discover -s tools/workflow-runtime/tests -p '*_test.py'`
 
 **止まる条件:** 移し先が決まらない検査が出たら止まる。それは外の世界を見ていない可能性が
@@ -303,7 +364,11 @@ cycle の仕事で、implement は記録するだけ。
 
 **前提:** 手順 9。
 
-**変更してよいファイル:** `skills/ba0918-implement/scripts/`、`vendor-lock.json`。
+**変更してよいファイル:** `skills/ba0918-implement/scripts/`、
+`skills/ba0918-review/scripts/`、`vendor-lock.json`。
+
+`gen` は登録された全 skill の複製を作り直します。review の正本も手順 1 で変えているので、
+その複製もここで揃います。
 
 **Completion:** check
 
