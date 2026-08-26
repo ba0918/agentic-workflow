@@ -132,33 +132,42 @@ def residual_executions(project_root: Path, *, plan_id: str) -> RuntimeResult:
         return failure("execution_ids_invalid", "plan id is not path-safe")
     facts: list[dict[str, Any]] = []
     for evidence_path in _execution_directories(main_checkout, plan_id):
-        events = raw_events(evidence_path)
-        last = events[-1] if events else None
-        if last is not None and last.get("event_type") == "implementation_green":
+        def unreadable(reason: str) -> dict[str, Any]:
+            return {
+                "execution_id": evidence_path.name,
+                "started_at": _started_at(evidence_path.name),
+                "resumable": {"ok": False, "reason": reason},
+            }
+
+        # How far the execution got comes from its status, not from replaying its events: that
+        # is the whole reason the status exists. The events are still read below, for the one
+        # fact only they hold — which commits on the branch the record explains.
+        status_result = read_json(evidence_path / "current-status")
+        status = status_result.value if status_result.ok else None
+        if not isinstance(status, dict) or not isinstance(status.get("last_event"), dict):
+            facts.append(unreadable("current-status is missing or unreadable"))
+            continue
+        last_event = status["last_event"]
+        if last_event.get("event_type") == "implementation_green":
             continue
         binding_result = read_json(evidence_path / "binding.json")
-        unreadable = {
-            "execution_id": evidence_path.name,
-            "started_at": _started_at(evidence_path.name),
-            "resumable": {"ok": False, "reason": "binding.json is missing or unreadable"},
-        }
         if not binding_result.ok:
-            facts.append(unreadable)
+            facts.append(unreadable("binding.json is missing or unreadable"))
             continue
-        # This path shows a human what is lying around, so a binding nobody can read is one more
+        # This path shows a human what is lying around, so a record nobody can read is one more
         # fact to show, not a reason to fail the listing. Its fields are read, never validated.
         try:
+            events = raw_events(evidence_path)
             binding = execution_model.effective_binding(binding_result.value, events)
-            commits = [event for event in execution_model.effective_events(events) if event.get("event_type") == "commit"]
             mismatch = _binding_fingerprints_match(main_checkout, binding)
             facts.append(
                 {
                     "execution_id": evidence_path.name,
                     "started_at": _started_at(evidence_path.name),
-                    "completed_steps": len({event.get("step_id") for event in commits}),
+                    "completed_steps": len(status.get("completed_steps") or []),
                     "last_event": {
-                        "event_type": last.get("event_type") if last else None,
-                        "reason": last.get("reason") if last else None,
+                        "event_type": last_event.get("event_type"),
+                        "reason": last_event.get("reason"),
                     },
                     "branch": _branch_facts(main_checkout, binding["branch"], binding["base_head"], _recorded_commits(events)),
                     "worktree": _worktree_facts(main_checkout, repository.value.common_directory, Path(binding["worktree"])),
@@ -167,7 +176,7 @@ def residual_executions(project_root: Path, *, plan_id: str) -> RuntimeResult:
                 }
             )
         except (AttributeError, KeyError, TypeError):
-            facts.append(unreadable)
+            facts.append(unreadable("binding.json is missing or unreadable"))
     return ok(facts)
 
 def _next_step_after_evidence(events: list[dict], step_ids: list[str]) -> tuple[str | None, bool, list[str]]:

@@ -648,6 +648,90 @@ class AtomicWriteTest(unittest.TestCase):
             self.assertFalse(target.exists())
 
 
+class CurrentStatusTest(unittest.TestCase):
+    def test_appending_one_event_rewrites_the_status_in_the_same_operation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+
+            appended = implement_runtime.append_event(
+                attempt, "stopped", {"reason": "identity_drift", "step_id": "step-1"}
+            )
+
+            self.assertTrue(appended.ok, appended.error)
+            status = json.loads(
+                (attempt.evidence_path / "current-status").read_text(encoding="utf-8")
+            )
+            self.assertEqual(status["last_event"], {"event_type": "stopped", "reason": "identity_drift"})
+            self.assertEqual(status["branch"], attempt.branch)
+            self.assertEqual(status["worktree"], str(attempt.worktree))
+            self.assertEqual(status["completed_steps"], [])
+            self.assertEqual(status["plan"]["revision"], 1)
+
+    def test_creating_the_execution_writes_the_status_without_a_further_step(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+
+            status = json.loads(
+                implement_runtime.current_status_path(attempt).read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(status["last_event"], {"event_type": "worktree-bound", "reason": None})
+
+    def test_the_status_holds_the_four_facts_and_nothing_that_says_what_to_do_next(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            _, attempt = bootstrap_fixture(Path(directory))
+
+            status = json.loads(
+                implement_runtime.current_status_path(attempt).read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(
+                set(status),
+                {"plan", "completed_steps", "last_event", "branch", "worktree"},
+            )
+            self.assertEqual(set(status["plan"]), {"path", "revision"})
+
+    def test_the_residual_listing_reads_the_progress_from_the_status(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            status_path = implement_runtime.current_status_path(attempt)
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+            status["completed_steps"] = ["step-1", "step-2"]
+            status["last_event"] = {"event_type": "stopped", "reason": "approval_rejected"}
+            status_path.write_text(json.dumps(status), encoding="utf-8")
+
+            facts = implement_runtime.residual_executions(root, plan_id=attempt.plan_id)
+
+            self.assertTrue(facts.ok, facts.error)
+            self.assertEqual(facts.value[0]["completed_steps"], 2)
+            self.assertEqual(
+                facts.value[0]["last_event"],
+                {"event_type": "stopped", "reason": "approval_rejected"},
+            )
+
+    def test_a_finished_execution_keeps_its_status(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = complete_fixture(Path(directory))
+
+            status = json.loads(
+                implement_runtime.current_status_path(attempt).read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(status["last_event"]["event_type"], "implementation_green")
+            self.assertEqual(status["completed_steps"], ["step-1"])
+            self.assertEqual(implement_runtime.residual_executions(root, plan_id=attempt.plan_id).value, [])
+
+    def test_an_execution_without_a_status_is_listed_as_one_more_fact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root, attempt = bootstrap_fixture(Path(directory))
+            implement_runtime.current_status_path(attempt).unlink()
+
+            facts = implement_runtime.residual_executions(root, plan_id=attempt.plan_id)
+
+            self.assertTrue(facts.ok, facts.error)
+            self.assertEqual(facts.value[0]["resumable"], {"ok": False, "reason": "current-status is missing or unreadable"})
+
+
 class FreshSessionTest(unittest.TestCase):
     def test_execution_is_reconstructed_from_its_evidence_directory_alone(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

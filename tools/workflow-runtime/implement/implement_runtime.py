@@ -27,6 +27,7 @@ from runtime.planning import resolve_plan
 from runtime.repository import bootstrap_attempt, execution_branch
 from runtime.context import (
     append_event,
+    current_status_path,
     derive_attempt_result,
     load_events as _load_events,
     validate_context,

@@ -6,7 +6,7 @@ from typing import Any
 from runtime.deps import execution_model, plan_artifact
 from runtime.types import RuntimeFailure, RuntimeResult, Attempt, ok, failure
 from runtime.gitio import run_git
-from runtime.storage import read_json, write_once
+from runtime.storage import read_json, write_atomic, write_once
 from runtime.planning import raw_identity
 from runtime.repository import discover_repository
 
@@ -119,6 +119,44 @@ def load_events(attempt: Attempt) -> RuntimeResult:
         events.append(loaded.value)
     return ok(events)
 
+def completed_steps(events: list[dict]) -> list[str]:
+    """Steps that reached a commit, numbered as the rebounds left them."""
+    seen: list[str] = []
+    for event in execution_model.effective_events(events):
+        if event.get("event_type") != "commit":
+            continue
+        step_id = event.get("step_id")
+        if step_id is not None and step_id not in seen:
+            seen.append(step_id)
+    return seen
+
+def current_status_path(attempt: Attempt) -> Path:
+    return attempt.evidence_path / "current-status"
+
+def write_current_status(attempt: Attempt, events: list[dict]) -> RuntimeResult:
+    """The four facts of the specification, every one of them derived from the record.
+
+    No "what to do next": a judgement cannot be derived by appending code, so writing one here
+    would go stale the moment the reader disagrees with it.
+    """
+    binding_result = read_json(attempt.binding_path)
+    if not binding_result.ok:
+        return binding_result
+    binding = execution_model.effective_binding(binding_result.value, events)
+    plan = binding.get("plan") or {}
+    last = events[-1] if events else {}
+    document = {
+        "plan": {"path": plan.get("path"), "revision": plan.get("revision")},
+        "completed_steps": completed_steps(events),
+        "last_event": {
+            "event_type": last.get("event_type"),
+            "reason": last.get("reason"),
+        },
+        "branch": attempt.branch,
+        "worktree": str(attempt.worktree),
+    }
+    return write_atomic(current_status_path(attempt), execution_model.canonical_json(document))
+
 def append_event(attempt: Attempt, event_type: str, details: dict[str, Any]) -> RuntimeResult:
     loaded = load_events(attempt)
     if not loaded.ok:
@@ -141,6 +179,11 @@ def append_event(attempt: Attempt, event_type: str, details: dict[str, Any]) -> 
     )
     if not persisted.ok:
         return persisted
+    # The event is the record; the status is derived from it. Writing the status after the event
+    # means a failure here leaves a stale status that the next append repairs, never a lost event.
+    status = write_current_status(attempt, events + [sealed.value])
+    if not status.ok:
+        return status
     return ok(sealed.value)
 
 def derive_attempt_result(attempt: Attempt) -> dict:

@@ -142,15 +142,21 @@ def bootstrap_attempt(
     )
     if not event_result.ok:
         return event_result
-    return ok(
-        Attempt(
-            attempt_id=attempt_id,
-            plan_id=resolved_plan.plan_id,
-            branch=branch,
-            worktree=worktree_path.resolve(),
-            binding_path=binding_path,
-            evidence_path=evidence_path,
-            tmp_path=tmp_path,
-            main_checkout=main_checkout,
-        )
+    attempt = Attempt(
+        attempt_id=attempt_id,
+        plan_id=resolved_plan.plan_id,
+        branch=branch,
+        worktree=worktree_path.resolve(),
+        binding_path=binding_path,
+        evidence_path=evidence_path,
+        tmp_path=tmp_path,
+        main_checkout=main_checkout,
     )
+    # context imports this module, so the status writer is fetched at call time rather than at
+    # module load: importing it at the top would close an import cycle.
+    from runtime.context import write_current_status
+
+    status = write_current_status(attempt, [event.value])
+    if not status.ok:
+        return status
+    return ok(attempt)
