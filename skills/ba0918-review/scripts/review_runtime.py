@@ -10,6 +10,12 @@ import re
 import subprocess
 import tempfile
 from typing import Any, NamedTuple
+import sys
+
+SHARED_DIR = Path(__file__).resolve().parents[1] / "shared"
+if str(SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(SHARED_DIR))
+import implementation_evidence
 
 import review_model
 
@@ -52,7 +58,7 @@ def execution_binding(
     if SAFE_ID.fullmatch(plan_key) is None or SAFE_ID.fullmatch(run_id) is None or COMMIT.fullmatch(approval_commit) is None:
         raise ValueError("unsafe execution binding")
     return {
-        "kind": "execution", "plan_key": plan_key, "run_id": run_id,
+        "version": 2, "kind": "execution", "plan_key": plan_key, "run_id": run_id,
         "approval_commit": approval_commit, "implement_sequence": implement_sequence,
         "branch": branch, "head": head, "worktree": worktree,
     }
@@ -69,7 +75,7 @@ def standalone_binding(
         if candidate.is_absolute() or ".." in candidate.parts:
             raise ValueError("unsafe specification path")
     return {
-        "kind": "standalone", "review_id": review_id,
+        "version": 2, "kind": "standalone", "review_id": review_id,
         "input": {"kind": "branch" if branch else "commits", "branch": branch, "base": base, "head": head},
         "spec_paths": sorted(spec_paths), "spec_commit": head,
     }
@@ -128,31 +134,22 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
         return failure("execution_input_invalid", "implementation binding is invalid")
     if binding.get("plan_key") != plan_key or binding.get("run_id") != run_id:
         return failure("execution_input_invalid", "implementation binding and path differ")
-    approval = _commit(root, binding.get("approval_commit"))
-    if not approval.ok:
-        return failure("execution_input_invalid", "implementation approval commit does not exist")
     loaded = _implementation_events(store)
     if not loaded.ok:
         return loaded
     events = loaded.value
     if not events or events[-1].get("event_type") != "implementation_green":
         return failure("implementation_incomplete", "last implementation event is not implementation_green")
-    step_ids = [step.get("id") for step in binding.get("steps", [])]
-    if not step_ids or events[-1].get("completed_steps") != step_ids:
+    derived = implementation_evidence.derive_implementation(binding, events[:-1])
+    if not derived.ok:
+        return failure(derived.error.code, derived.error.message)
+    approval = _commit(root, derived.value["approval_commit"])
+    if not approval.ok:
+        return failure("execution_input_invalid", "effective implementation approval commit does not exist")
+    step_ids = [step["id"] for step in derived.value["steps"]]
+    if derived.value["resume_step"] is not None or events[-1].get("completed_steps") != step_ids:
         return failure("execution_input_invalid", "implementation_green does not cover the bound steps")
     commits = [event for event in events if event.get("event_type") == "commit"]
-    for step in binding["steps"]:
-        step_events = [event for event in events if event.get("step") == step["id"]]
-        required = "refactor" if step.get("completion") == "test" else step.get("completion")
-        evidence = next((event for event in reversed(step_events) if event.get("event_type") == required), None)
-        if evidence is None or not isinstance(evidence.get("safety"), dict):
-            return failure("execution_input_invalid", f"implementation step evidence is incomplete: {step['id']}")
-        commit_required = step.get("completion") in {"test", "artifact"} or bool(evidence.get("changed_paths"))
-        step_commits = [event for event in step_events if event.get("event_type") == "commit"]
-        if commit_required and not step_commits:
-            return failure("execution_input_invalid", f"implementation step commit is missing: {step['id']}")
-        if any(not isinstance(event.get("safety"), dict) for event in step_commits):
-            return failure("execution_input_invalid", f"implementation commit safety is missing: {step['id']}")
     worktree = Path(str(binding.get("worktree", "")))
     branch = binding.get("branch")
     if not worktree.is_dir() or _git(worktree, "branch", "--show-current").stdout.strip() != branch:
@@ -274,7 +271,7 @@ def append_event(root: Path, binding: dict, event_type: str, fields: dict) -> Ru
     if review_model.review_complete(loaded.value, current_findings(loaded.value)):
         return failure("review_already_completed", "completed review cannot be extended")
     sequence = len(loaded.value) + 1
-    event = {"version": 1, "sequence": sequence, "event_type": event_type, **fields}
+    event = {"version": 2, "sequence": sequence, "event_type": event_type, **fields}
     if any("identity" in key.lower() for key in event):
         return failure("identity_field_forbidden", "review identity chains are not supported")
     try:
@@ -292,20 +289,53 @@ def load_events(root: Path, binding: dict) -> RuntimeResult:
             event = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return failure("review_event_invalid", f"invalid review event: {path.name}")
+        if event.get("version") == 1:
+            return failure("legacy_evidence_unsupported", "version 1 review evidence is unsupported")
         if event.get("sequence") != expected or not path.name.startswith(f"{expected:06d}-{event.get('event_type')}"):
             return failure("review_event_invalid", "review event sequence is invalid")
         events.append(event)
     return ok(events)
 
-def bind_review(root: Path, binding: dict, *, model: str) -> RuntimeResult:
+def _selected_profiles(root: Path, binding: dict, explicit: list[str]) -> tuple[list[str], str]:
+    if explicit:
+        return sorted(set(explicit)), "explicit"
+    base = binding.get("input", {}).get("base") or binding.get("approval_commit")
+    head = binding.get("input", {}).get("head") or binding.get("head")
+    changed = _git(root, "diff", "--name-only", base, head).stdout.splitlines() if base and head else []
+    profiles: set[str] = set()
+    for path in changed:
+        if path.startswith("skills/"):
+            profiles.add("skill")
+        elif path.endswith(".md"):
+            profiles.add("document")
+        else:
+            profiles.add("default")
+    return sorted(profiles or {"default"}), "changed_files"
+
+def bind_review(
+    root: Path, binding: dict, *, model: str, level: str = "standard",
+    profiles: list[str] | None = None, model_source: str = "explicit",
+    second_reviewer: str | None = None, second_model: str | None = None,
+) -> RuntimeResult:
     if not model.strip():
         return failure("review_model_required", "review model must be recorded")
-    directory = review_directory(root, binding)
+    if level not in {"light", "standard"}:
+        return failure("review_level_invalid", "review level must be light or standard")
+    selected, profile_source = _selected_profiles(root, binding, profiles or [])
+    enriched = {**binding, "version": 2, "review_options": {
+        "level": level, "profiles": selected, "profile_source": profile_source,
+        "model": model, "model_source": model_source,
+        "second_reviewer": second_reviewer, "second_model": second_model,
+    }}
+    directory = review_directory(root, enriched)
     try:
-        _write_once(directory / "binding.json", binding)
+        _write_once(directory / "binding.json", enriched)
     except FileExistsError:
         return failure("review_collision", "review binding already exists")
-    return append_event(root, binding, "review-bound", {"model": model, "input_kind": input_kind(binding)})
+    return append_event(root, enriched, "review-bound", {
+        "model": model, "model_source": model_source, "input_kind": input_kind(enriched),
+        "level": level, "profiles": selected, "profile_source": profile_source,
+    })
 
 def current_findings(events: list[dict]) -> list[dict]:
     findings: dict[str, dict] = {}
@@ -319,7 +349,28 @@ def current_findings(events: list[dict]) -> list[dict]:
             and event.get("finding_id") in findings
         ):
             findings[event["finding_id"]]["state"] = "closed"
+        elif event.get("event_type") == "human-finding-decided" and event.get("finding_id") in findings:
+            findings[event["finding_id"]]["state"] = "closed"
     return list(findings.values())
+
+def record_second_review(
+    root: Path, binding: dict, *, status: str, actual_model: str, summary: str,
+) -> RuntimeResult:
+    options = binding.get("review_options", {})
+    if not options.get("second_reviewer"):
+        return failure("second_reviewer_not_requested", "second review was not explicitly requested")
+    if status not in {"completed", "unavailable"} or not actual_model.strip() or not summary.strip():
+        return failure("second_review_invalid", "second review result needs status, model, and summary")
+    events = load_events(root, binding)
+    if not events.ok:
+        return events
+    if any(event.get("event_type") == "second-review-recorded" for event in events.value):
+        return failure("second_review_already_recorded", "second reviewer runs only once")
+    return append_event(root, binding, "second-review-recorded", {
+        "status": status, "reviewer": options["second_reviewer"],
+        "requested_model": options.get("second_model"), "actual_model": actual_model,
+        "summary": summary,
+    })
 
 def begin_stage(root: Path, binding: dict, *, reviewer_context: str) -> RuntimeResult:
     events_result = load_events(root, binding)
@@ -375,10 +426,14 @@ def begin_stage(root: Path, binding: dict, *, reviewer_context: str) -> RuntimeR
     return ok({"event_type": "ready-to-complete"})
 
 def record_findings(
-    root: Path, binding: dict, *, stage: str, findings: list[dict], safety_check: bool,
+    root: Path, binding: dict, *, stage: str, findings: list[dict], safety: dict,
     reviewer_context: str,
 ) -> RuntimeResult:
-    if stage not in {"initial", "final"} or safety_check is not True:
+    if (
+        stage not in {"initial", "final"} or not isinstance(safety, dict)
+        or safety.get("completed") is not True or not str(safety.get("summary", "")).strip()
+        or safety.get("unresolved") != []
+    ):
         return failure("safety_check_required", "initial and final review require a completed safety check")
     events = load_events(root, binding)
     if not events.ok:
@@ -403,7 +458,9 @@ def record_findings(
             return failure("finding_state_invalid", "new fixable findings are open and info observations are closed")
         ids.add(item["id"])
     return append_event(root, binding, result_type, {
-        "findings": findings, "safety_check": True, "reviewer_context": reviewer_context,
+        "findings": findings, "safety": {
+            "completed": True, "summary": safety["summary"], "unresolved": [],
+        }, "reviewer_context": reviewer_context,
     })
 
 def _commit_has_trailer(root: Path, commit: str, finding_id: str) -> bool:
@@ -440,6 +497,21 @@ def close_finding(
         return failure("fix_commit_unlinked", "every fix commit must exist and carry the finding trailer")
     return append_event(root, binding, "targeted-review-result", {
         "finding_id": finding_id, "oracle_exit_code": oracle_exit_code, "fix_commits": fix_commits,
+    })
+
+def record_human_decision(
+    root: Path, binding: dict, finding_id: str, *, decision: str, reason: str,
+) -> RuntimeResult:
+    events = load_events(root, binding)
+    if not events.ok:
+        return events
+    item = next((candidate for candidate in current_findings(events.value) if candidate["id"] == finding_id), None)
+    if item is None or item.get("state") != "open":
+        return failure("finding_not_open", "only an open admitted finding can receive a human decision")
+    if not decision.strip() or not reason.strip():
+        return failure("human_decision_invalid", "human decision and reason must be non-empty")
+    return append_event(root, binding, "human-finding-decided", {
+        "finding_id": finding_id, "decision": decision.strip(), "reason": reason.strip(),
     })
 
 def record_targeted_result(
@@ -564,7 +636,12 @@ def load_review_binding(
     if path.is_symlink() or not path.is_file():
         return failure("review_not_bound", "review binding is unavailable")
     try:
-        return ok(json.loads(path.read_text(encoding="utf-8")))
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if value.get("version") == 1:
+            return failure("legacy_evidence_unsupported", "version 1 review binding is unsupported")
+        if value.get("version") != 2:
+            return failure("review_not_bound", "review binding version is invalid")
+        return ok(value)
     except (OSError, json.JSONDecodeError):
         return failure("review_not_bound", "review binding is invalid")
 
@@ -588,6 +665,11 @@ def main(argv: list[str] | None = None) -> int:
     bind.add_argument("--pull-request-target")
     bind.add_argument("--spec-path", action="append", default=[])
     bind.add_argument("--model", required=True)
+    bind.add_argument("--model-source", default="explicit")
+    bind.add_argument("--level", choices=("light", "standard"), default="standard")
+    bind.add_argument("--profile", action="append", default=[])
+    bind.add_argument("--second-reviewer")
+    bind.add_argument("--second-model")
     bind.add_argument("--reviewer-context", required=True)
     begin = commands.add_parser("begin")
     _selector(begin)
@@ -597,6 +679,10 @@ def main(argv: list[str] | None = None) -> int:
     findings.add_argument("--stage", choices=("initial", "final"), required=True)
     findings.add_argument("--reviewer-context", required=True)
     findings.add_argument("--findings-file", required=True)
+    findings.add_argument("--safety-file", required=True)
+    second = commands.add_parser("record-second-review")
+    _selector(second)
+    second.add_argument("--result-file", required=True)
     additions = commands.add_parser("add-findings")
     _selector(additions)
     additions.add_argument("--findings-file", required=True)
@@ -606,6 +692,11 @@ def main(argv: list[str] | None = None) -> int:
     close.add_argument("--finding-id", required=True)
     close.add_argument("--oracle-exit-code", type=int, required=True)
     close.add_argument("--fix-commit", action="append", default=[])
+    human = commands.add_parser("human-decision")
+    _selector(human)
+    human.add_argument("--finding-id", required=True)
+    human.add_argument("--decision", required=True)
+    human.add_argument("--reason", required=True)
     progress = commands.add_parser("progress")
     _selector(progress)
     stale = commands.add_parser("stale")
@@ -627,7 +718,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         if not binding.ok:
             parser.error(binding.error.message)
-        bound = bind_review(root, binding.value, model=args.model)
+        bound = bind_review(
+            root, binding.value, model=args.model, model_source=args.model_source,
+            level=args.level, profiles=args.profile, second_reviewer=args.second_reviewer,
+            second_model=args.second_model,
+        )
         if not bound.ok:
             parser.error(bound.error.message)
         stage = begin_stage(root, binding.value, reviewer_context=args.reviewer_context)
@@ -646,7 +741,14 @@ def main(argv: list[str] | None = None) -> int:
         result = record_findings(
             root, binding.value, stage=args.stage,
             findings=json.loads(Path(args.findings_file).read_text(encoding="utf-8")),
-            safety_check=True, reviewer_context=args.reviewer_context,
+            safety=json.loads(Path(args.safety_file).read_text(encoding="utf-8")),
+            reviewer_context=args.reviewer_context,
+        )
+    elif args.command == "record-second-review":
+        payload = json.loads(Path(args.result_file).read_text(encoding="utf-8"))
+        result = record_second_review(
+            root, binding.value, status=payload.get("status", ""),
+            actual_model=payload.get("actual_model", ""), summary=payload.get("summary", ""),
         )
     elif args.command == "add-findings":
         result = add_findings(
@@ -658,6 +760,10 @@ def main(argv: list[str] | None = None) -> int:
         result = close_finding(
             root, binding.value, args.finding_id,
             oracle_exit_code=args.oracle_exit_code, fix_commits=args.fix_commit,
+        )
+    elif args.command == "human-decision":
+        result = record_human_decision(
+            root, binding.value, args.finding_id, decision=args.decision, reason=args.reason,
         )
     elif args.command == "progress":
         result = record_progress(root, binding.value)

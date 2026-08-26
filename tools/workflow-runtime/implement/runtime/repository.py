@@ -111,6 +111,10 @@ def load_run(root: Path, plan_key: str, run_id: str) -> RuntimeResult:
     binding = read_json(binding_path)
     if not binding.ok:
         return binding
+    if binding.value.get("version") == 1:
+        return failure("legacy_evidence_unsupported", "version 1 implementation evidence is unsupported")
+    if binding.value.get("version") != 2:
+        return failure("run_binding_invalid", "implementation binding version is invalid")
     if binding.value.get("plan_key") != plan_key or binding.value.get("run_id") != run_id:
         return failure("run_binding_invalid", "run path and binding differ")
     return ok(Run(run_id, plan_key, repository, evidence, binding_path))

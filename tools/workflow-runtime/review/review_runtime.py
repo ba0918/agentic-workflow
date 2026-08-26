@@ -134,9 +134,6 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
         return failure("execution_input_invalid", "implementation binding is invalid")
     if binding.get("plan_key") != plan_key or binding.get("run_id") != run_id:
         return failure("execution_input_invalid", "implementation binding and path differ")
-    approval = _commit(root, binding.get("approval_commit"))
-    if not approval.ok:
-        return failure("execution_input_invalid", "implementation approval commit does not exist")
     loaded = _implementation_events(store)
     if not loaded.ok:
         return loaded
@@ -146,6 +143,9 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
     derived = implementation_evidence.derive_implementation(binding, events[:-1])
     if not derived.ok:
         return failure(derived.error.code, derived.error.message)
+    approval = _commit(root, derived.value["approval_commit"])
+    if not approval.ok:
+        return failure("execution_input_invalid", "effective implementation approval commit does not exist")
     step_ids = [step["id"] for step in derived.value["steps"]]
     if derived.value["resume_step"] is not None or events[-1].get("completed_steps") != step_ids:
         return failure("execution_input_invalid", "implementation_green does not cover the bound steps")

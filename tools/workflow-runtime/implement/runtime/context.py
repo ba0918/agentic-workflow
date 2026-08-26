@@ -261,15 +261,22 @@ def record_commit(
         events = load_events(run)
         if not events.ok:
             return events
+        derived = implementation_evidence.derive_implementation(binding.value, events.value)
+        if not derived.ok:
+            return failure(derived.error.code, derived.error.message)
+        effective_binding = {
+            **binding.value, "steps": derived.value["steps"],
+            "approval_commit": derived.value["approval_commit"],
+        }
         if any(event.get("event_type") == "commit" and event.get("commit") == commit for event in events.value):
             return failure("commit_already_recorded", "one implementation commit can belong to only one step")
-        ancestry = _validate_commit_ancestry(worktree, binding.value, commit)
+        ancestry = _validate_commit_ancestry(worktree, effective_binding, commit)
         if not ancestry.ok:
             return ancestry
         paths = _commit_paths(worktree, commit)
         if not paths.ok:
             return paths
-        assessed = _safety(binding.value, paths.value, unplanned_reasons)
+        assessed = _safety(effective_binding, paths.value, unplanned_reasons)
         if not assessed.ok:
             return assessed
         content = _content_safety(worktree, paths.value, commit=commit)
@@ -435,7 +442,7 @@ def complete_run(run: Run) -> RuntimeResult:
     for event in events.value:
         if event.get("event_type") == "commit" and _git(worktree, "cat-file", "-e", f"{event['commit']}^{{commit}}").returncode != 0:
             return failure("commit_invalid", f"recorded commit does not exist: {event['commit']}")
-    history = _commits_after(worktree, binding.value["approval_commit"])
+    history = _commits_after(worktree, derived.value["approval_commit"])
     if not history.ok:
         return history
     recorded_list = [event["commit"] for event in events.value if event.get("event_type") == "commit"]
@@ -456,5 +463,9 @@ def load_events(run: Run) -> RuntimeResult:
             return loaded
         if loaded.value.get("sequence") != expected or not path.name.startswith(f"{expected:06d}-"):
             return failure("evidence_sequence_invalid", f"invalid event sequence: {path.name}")
+        if loaded.value.get("version") == 1:
+            return failure("legacy_evidence_unsupported", "version 1 implementation evidence is unsupported")
+        if loaded.value.get("version") != 2:
+            return failure("evidence_sequence_invalid", f"invalid event version: {path.name}")
         events.append(loaded.value)
     return ok(events)

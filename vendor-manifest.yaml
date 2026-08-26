@@ -7,6 +7,7 @@ contracts:
       tools/workflow-runtime/implement/implement_runtime.py: scripts/implement_runtime.py
       tools/workflow-runtime/implement/runtime/: scripts/runtime/
       tools/workflow-runtime/plan/plan_artifact.py: scripts/plan_artifact.py
+      tools/workflow-runtime/shared/implementation_evidence.py: scripts/implementation_evidence.py
   plan-runtime:
     source: local
     files:
@@ -21,3 +22,4 @@ contracts:
     files:
       tools/workflow-runtime/review/review_model.py: scripts/review_model.py
       tools/workflow-runtime/review/review_runtime.py: scripts/review_runtime.py
+      tools/workflow-runtime/shared/implementation_evidence.py: scripts/implementation_evidence.py

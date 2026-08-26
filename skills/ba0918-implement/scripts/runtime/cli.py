@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from runtime.context import (
-    append_event, complete_run, rebound_run, record_commit, record_stage, stop_run,
+    append_event, complete_run, follow_documents, rebound_run, record_commit, record_stage, stop_run,
 )
 from runtime.planning import resolve_plan
 from runtime.repository import bind_run, load_run
@@ -63,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     stage.add_argument("--path", action="append", default=[])
     stage.add_argument("--test-path", action="append", default=[])
     stage.add_argument("--summary")
+    stage.add_argument("--condition-met", choices=("true", "false"))
     stage.add_argument("--unplanned-reason", action="append", default=[])
     commit = commands.add_parser("record-commit")
     _run_arguments(commit)
@@ -77,6 +78,13 @@ def main(argv: list[str] | None = None) -> int:
     _run_arguments(rebound)
     rebound.add_argument("--approval-commit", required=True)
     rebound.add_argument("--reason", required=True)
+    rebound.add_argument("--step", action="append", default=[])
+    rebound.add_argument("--map", action="append", default=[])
+    follow = commands.add_parser("follow-documents")
+    _run_arguments(follow)
+    follow.add_argument("--current-commit", required=True)
+    follow.add_argument("--document", action="append", required=True)
+    follow.add_argument("--reason", required=True)
     complete = commands.add_parser("complete")
     _run_arguments(complete)
     delegated = commands.add_parser("delegated")
@@ -138,8 +146,11 @@ def main(argv: list[str] | None = None) -> int:
                 "paths": sorted(args.path), "unplanned_reasons": reasons,
             })
         else:
+            if args.condition_met is None:
+                parser.error("external stage needs --condition-met=true|false")
             result = append_event(run.value, "external", {
                 "step": args.step, "checked": args.oracle_command, "summary": args.summary or "",
+                "condition_met": args.condition_met == "true",
                 "unplanned_reasons": reasons,
             })
     elif args.command == "record-commit":
@@ -150,7 +161,23 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "stop":
         result = stop_run(run.value, args.reason)
     elif args.command == "rebound":
-        result = rebound_run(run.value, args.approval_commit, args.reason)
+        steps = []
+        for value in args.step:
+            step_id, separator, completion = value.partition(":")
+            if not separator:
+                parser.error("--step must be ID:COMPLETION")
+            steps.append({"id": step_id, "completion": completion})
+        mappings = []
+        for value in args.map:
+            old, separator, new = value.partition("=")
+            if not separator:
+                parser.error("--map must be OLD=NEW")
+            mappings.append({"old": old, "new": new})
+        result = rebound_run(
+            run.value, args.approval_commit, args.reason, steps=steps, mappings=mappings,
+        )
+    elif args.command == "follow-documents":
+        result = follow_documents(run.value, args.current_commit, args.document, args.reason)
     elif args.command == "complete":
         result = complete_run(run.value)
     elif args.command == "delegated":
