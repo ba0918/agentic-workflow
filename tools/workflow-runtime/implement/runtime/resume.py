@@ -1,5 +1,11 @@
 """Discovery and continuation of unfinished implementation runs."""
 from pathlib import Path
+import sys
+
+SHARED_DIR = Path(__file__).resolve().parents[2] / "shared"
+if str(SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(SHARED_DIR))
+import implementation_evidence
 
 from runtime.context import append_event, load_events
 from runtime.storage import read_json
@@ -36,11 +42,10 @@ def _resume_step(run: Run) -> RuntimeResult:
     events = load_events(run)
     if not binding.ok or not events.ok:
         return binding if not binding.ok else events
-    completed = {event.get("step") for event in events.value if event.get("event_type") == "commit"}
-    for step in binding.value.get("steps", []):
-        if step["id"] not in completed:
-            return ok(step["id"])
-    return ok(None)
+    derived = implementation_evidence.derive_implementation(binding.value, events.value)
+    if not derived.ok:
+        return failure(derived.error.code, derived.error.message)
+    return ok(derived.value["resume_step"])
 
 def resume_unique(
     root: Path,

@@ -63,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     stage.add_argument("--path", action="append", default=[])
     stage.add_argument("--test-path", action="append", default=[])
     stage.add_argument("--summary")
+    stage.add_argument("--condition-met", choices=("true", "false"))
     stage.add_argument("--unplanned-reason", action="append", default=[])
     commit = commands.add_parser("record-commit")
     _run_arguments(commit)
@@ -138,8 +139,11 @@ def main(argv: list[str] | None = None) -> int:
                 "paths": sorted(args.path), "unplanned_reasons": reasons,
             })
         else:
+            if args.condition_met is None:
+                parser.error("external stage needs --condition-met=true|false")
             result = append_event(run.value, "external", {
                 "step": args.step, "checked": args.oracle_command, "summary": args.summary or "",
+                "condition_met": args.condition_met == "true",
                 "unplanned_reasons": reasons,
             })
     elif args.command == "record-commit":

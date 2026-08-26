@@ -72,7 +72,7 @@ def bind_run(
         return failure("run_collision", "run evidence already exists")
     binding_path = evidence / "binding.json"
     binding = {
-        "version": 1,
+        "version": 2,
         "run_id": run_id,
         "plan_key": plan.plan_key,
         "plan_path": plan.path,

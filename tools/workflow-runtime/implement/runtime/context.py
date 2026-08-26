@@ -6,6 +6,12 @@ import fcntl
 import os
 from pathlib import Path
 import subprocess
+import sys
+
+SHARED_DIR = Path(__file__).resolve().parents[2] / "shared"
+if str(SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(SHARED_DIR))
+import implementation_evidence
 
 from runtime.storage import canonical_json, read_json, write_atomic, write_once
 from runtime import tdd
@@ -110,8 +116,8 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
                 checks = fields.get("checks")
                 if not isinstance(checks, list) or not checks or any(check.get("exit_code") != 0 for check in checks):
                     return failure("stage_invalid", "check evidence needs successful commands")
-            elif not str(fields.get("summary", "")).strip():
-                return failure("stage_invalid", "external evidence needs a bounded summary")
+            elif not str(fields.get("summary", "")).strip() or not isinstance(fields.get("condition_met"), bool):
+                return failure("stage_invalid", "external evidence needs a bounded summary and explicit condition result")
         elif event_type == "commit":
             if COMMIT_SHA.fullmatch(str(fields.get("commit", ""))) is None:
                 return failure("commit_invalid", "commit evidence needs a full Git SHA")
@@ -121,7 +127,8 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
     return ok()
 
 def _status(binding: dict, events: list[dict], event: dict) -> dict:
-    completed = sorted({existing["step"] for existing in events + [event] if existing.get("event_type") == "commit"})
+    derived = implementation_evidence.derive_implementation(binding, events + [event])
+    completed = derived.value["completed_steps"] if derived.ok else []
     reason = event.get("reason") or event.get("summary") or event.get("outcome")
     approval_commit = binding["approval_commit"]
     for existing in events + [event]:
@@ -160,7 +167,7 @@ def _append_event(
         if not checked.ok:
             return checked
         sequence = len(loaded.value) + 1
-        event = {"version": 1, "sequence": sequence, "event_type": event_type, "run_id": run.run_id, "writer": actor, **fields}
+        event = {"version": 2, "sequence": sequence, "event_type": event_type, "run_id": run.run_id, "writer": actor, **fields}
         if any("identity" in key.lower() for key in event):
             return failure("identity_field_forbidden", "event identity chains are not supported")
         path = run.evidence_path / f"{sequence:06d}-{event_type}.json"
@@ -340,20 +347,11 @@ def complete_run(run: Run) -> RuntimeResult:
         return binding if not binding.ok else events
     if not events.value or events.value[0].get("event_type") != "worktree-bound":
         return failure("completion_invalid", "worktree binding evidence is missing")
-    if not binding.value.get("steps"):
-        return failure("completion_invalid", "implementation run has no declared steps")
-    for step in binding.value.get("steps", []):
-        step_events = _events_for_step(events.value, step["id"])
-        required = "refactor" if step["completion"] == "test" else step["completion"]
-        evidence = next((event for event in reversed(step_events) if event.get("event_type") == required), None)
-        if evidence is None or not isinstance(evidence.get("safety"), dict):
-            return failure("completion_invalid", f"step is incomplete: {step['id']}")
-        commit_required = step["completion"] in {"test", "artifact"} or bool(evidence.get("changed_paths"))
-        commits = [event for event in step_events if event.get("event_type") == "commit"]
-        if commit_required and not commits:
-            return failure("completion_invalid", f"step commit is missing: {step['id']}")
-        if any(not isinstance(event.get("safety"), dict) for event in commits):
-            return failure("completion_invalid", f"commit safety is missing: {step['id']}")
+    derived = implementation_evidence.derive_implementation(binding.value, events.value)
+    if not derived.ok:
+        return failure(derived.error.code, derived.error.message)
+    if derived.value["resume_step"] is not None:
+        return failure("completion_invalid", f"step is incomplete: {derived.value['resume_step']}")
     if events.value[-1].get("event_type") == "stopped":
         return failure("completion_invalid", "stopped run must be resumed or rebound")
     worktree = Path(binding.value.get("worktree") or "")
@@ -376,7 +374,7 @@ def complete_run(run: Run) -> RuntimeResult:
         return failure("commit_bijection_invalid", "implementation history and commit evidence differ")
     return _append_event(
         run, "implementation_green",
-        {"completed_steps": [step["id"] for step in binding.value.get("steps", [])]}, derived=True,
+        {"completed_steps": derived.value["completed_steps"]}, derived=True,
     )
 
 def load_events(run: Run) -> RuntimeResult:

@@ -10,6 +10,12 @@ import re
 import subprocess
 import tempfile
 from typing import Any, NamedTuple
+import sys
+
+SHARED_DIR = Path(__file__).resolve().parents[1] / "shared"
+if str(SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(SHARED_DIR))
+import implementation_evidence
 
 import review_model
 
@@ -137,22 +143,13 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
     events = loaded.value
     if not events or events[-1].get("event_type") != "implementation_green":
         return failure("implementation_incomplete", "last implementation event is not implementation_green")
-    step_ids = [step.get("id") for step in binding.get("steps", [])]
-    if not step_ids or events[-1].get("completed_steps") != step_ids:
+    derived = implementation_evidence.derive_implementation(binding, events[:-1])
+    if not derived.ok:
+        return failure(derived.error.code, derived.error.message)
+    step_ids = [step["id"] for step in derived.value["steps"]]
+    if derived.value["resume_step"] is not None or events[-1].get("completed_steps") != step_ids:
         return failure("execution_input_invalid", "implementation_green does not cover the bound steps")
     commits = [event for event in events if event.get("event_type") == "commit"]
-    for step in binding["steps"]:
-        step_events = [event for event in events if event.get("step") == step["id"]]
-        required = "refactor" if step.get("completion") == "test" else step.get("completion")
-        evidence = next((event for event in reversed(step_events) if event.get("event_type") == required), None)
-        if evidence is None or not isinstance(evidence.get("safety"), dict):
-            return failure("execution_input_invalid", f"implementation step evidence is incomplete: {step['id']}")
-        commit_required = step.get("completion") in {"test", "artifact"} or bool(evidence.get("changed_paths"))
-        step_commits = [event for event in step_events if event.get("event_type") == "commit"]
-        if commit_required and not step_commits:
-            return failure("execution_input_invalid", f"implementation step commit is missing: {step['id']}")
-        if any(not isinstance(event.get("safety"), dict) for event in step_commits):
-            return failure("execution_input_invalid", f"implementation commit safety is missing: {step['id']}")
     worktree = Path(str(binding.get("worktree", "")))
     branch = binding.get("branch")
     if not worktree.is_dir() or _git(worktree, "branch", "--show-current").stdout.strip() != branch:

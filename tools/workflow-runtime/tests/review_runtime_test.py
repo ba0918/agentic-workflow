@@ -58,18 +58,18 @@ class ReviewRuntimeTest(unittest.TestCase):
         store = root / ".agents/evidence/plan-a/run-1"
         store.mkdir(parents=True)
         binding = {
-            "version": 1, "plan_key": "plan-a", "run_id": "run-1", "approval_commit": base,
+            "version": 2, "plan_key": "plan-a", "run_id": "run-1", "approval_commit": base,
             "branch": "feature", "worktree": str(root),
             "steps": [{"id": "1", "completion": "check"}],
         }
         (store / "binding.json").write_text(json.dumps(binding), encoding="utf-8")
         events = [
-            {"sequence": 1, "event_type": "worktree-bound", "branch": "feature", "worktree": str(root)},
-            {"sequence": 2, "event_type": "check", "step": "1", "checks": [{"command": "lint", "exit_code": 0}],
+            {"version": 2, "sequence": 1, "event_type": "worktree-bound", "branch": "feature", "worktree": str(root)},
+            {"version": 2, "sequence": 2, "event_type": "check", "step": "1", "checks": [{"command": "lint", "exit_code": 0}],
              "changed_paths": ["app.txt"], "safety": {"paths": ["app.txt"], "unplanned": []}},
-            {"sequence": 3, "event_type": "commit", "step": "1", "commit": head,
+            {"version": 2, "sequence": 3, "event_type": "commit", "step": "1", "commit": head,
              "safety": {"paths": ["app.txt"], "unplanned": []}},
-            {"sequence": 4, "event_type": "implementation_green", "completed_steps": ["1"]},
+            {"version": 2, "sequence": 4, "event_type": "implementation_green", "completed_steps": ["1"]},
         ]
         for event in events:
             (store / f"{event['sequence']:06d}-{event['event_type']}.json").write_text(json.dumps(event), encoding="utf-8")
