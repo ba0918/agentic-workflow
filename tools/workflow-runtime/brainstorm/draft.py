@@ -17,8 +17,23 @@ class UnsafeDocumentPath(DocumentError):
 
 def _target(project_root: Path, destination: str) -> Path:
     candidate = PurePosixPath(destination)
-    if candidate.is_absolute() or not candidate.parts or ".." in candidate.parts or destination.endswith("/") or candidate.parts[0] == ".agents":
-        raise UnsafeDocumentPath("destination must be a repository-relative document outside .agents")
+    allowed = (
+        candidate == PurePosixPath("ROADMAP.md")
+        or (
+            len(candidate.parts) >= 3
+            and candidate.parts[:2] == ("docs", "spec")
+            and candidate.suffix == ".md"
+        )
+        or (
+            len(candidate.parts) == 3
+            and candidate.parts[:2] == ("docs", "agreements")
+            and candidate.suffix == ".md"
+        )
+    )
+    if candidate.is_absolute() or ".." in candidate.parts or not allowed:
+        raise UnsafeDocumentPath(
+            "destination must be docs/spec/**/*.md, docs/agreements/*.md, or repository-root ROADMAP.md"
+        )
     root = project_root.resolve()
     cursor = root
     for part in candidate.parts:

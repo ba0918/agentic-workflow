@@ -20,6 +20,20 @@ class BrainstormDocumentWriterTest(unittest.TestCase):
             self.assertEqual(path.read_text(encoding="utf-8"), "# Spec\n")
             self.assertFalse((root / ".agents").exists())
 
+    def test_allows_only_spec_agreement_and_root_roadmap_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for destination in (
+                "docs/spec/nested/example.md", "docs/agreements/decision.md", "ROADMAP.md"
+            ):
+                self.assertTrue(draft.write_document(root, destination=destination, text="# Document\n").is_file())
+            for destination in (
+                ".git/config", "src/app.py", "config/release.md", "docs/README.md",
+                "docs/agreements/nested/decision.md", "ROADMAP.txt",
+            ):
+                with self.assertRaises(draft.UnsafeDocumentPath):
+                    draft.write_document(root, destination=destination, text="bad")
+
     def test_rejects_traversal_agents_and_symlinks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -30,17 +44,17 @@ class BrainstormDocumentWriterTest(unittest.TestCase):
             outside.mkdir()
             (root / "docs").symlink_to(outside, target_is_directory=True)
             with self.assertRaises(draft.UnsafeDocumentPath):
-                draft.write_document(root, destination="docs/spec.md", text="bad")
+                draft.write_document(root, destination="docs/spec/example.md", text="bad")
 
     def test_failed_atomic_replace_keeps_existing_document(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            destination = root / "docs/spec.md"
-            destination.parent.mkdir()
+            destination = root / "docs/spec/example.md"
+            destination.parent.mkdir(parents=True)
             destination.write_text("old", encoding="utf-8")
             with mock.patch.object(draft.os, "replace", side_effect=OSError("disk full")):
                 with self.assertRaises(OSError):
-                    draft.write_document(root, destination="docs/spec.md", text="new")
+                    draft.write_document(root, destination="docs/spec/example.md", text="new")
             self.assertEqual(destination.read_text(encoding="utf-8"), "old")
 
     def test_old_draft_and_publish_apis_are_absent(self) -> None:
