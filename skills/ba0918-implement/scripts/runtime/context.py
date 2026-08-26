@@ -9,6 +9,7 @@ import subprocess
 
 from runtime.storage import canonical_json, read_json, write_atomic, write_once
 from runtime import tdd
+from runtime.secret_detect import contains_secret
 from runtime.staging import assess_paths
 from runtime.types import COMMIT_SHA, Run, RuntimeResult, failure, ok
 
@@ -184,6 +185,9 @@ def append_event(run: Run, event_type: str, fields: dict, *, actor: str | None =
             assessed = _safety(binding.value, staged.value, prepared.get("unplanned_reasons"))
             if not assessed.ok:
                 return assessed
+            content = _content_safety(_worktree(binding.value, run), staged.value, index=True)
+            if not content.ok:
+                return content
             prepared["changed_paths"] = assessed.value["paths"]
             prepared["safety"] = assessed.value
         else:
@@ -230,12 +234,24 @@ def record_commit(
     if not binding.ok:
         return binding
     if binding.value.get("worktree"):
-        paths = _commit_paths(_worktree(binding.value, run), commit)
+        worktree = _worktree(binding.value, run)
+        events = load_events(run)
+        if not events.ok:
+            return events
+        if any(event.get("event_type") == "commit" and event.get("commit") == commit for event in events.value):
+            return failure("commit_already_recorded", "one implementation commit can belong to only one step")
+        ancestry = _validate_commit_ancestry(worktree, binding.value, commit)
+        if not ancestry.ok:
+            return ancestry
+        paths = _commit_paths(worktree, commit)
         if not paths.ok:
             return paths
         assessed = _safety(binding.value, paths.value, unplanned_reasons)
         if not assessed.ok:
             return assessed
+        content = _content_safety(worktree, paths.value, commit=commit)
+        if not content.ok:
+            return content
         safety = assessed.value
     else:
         safety = {"paths": [], "unplanned": []}
@@ -251,6 +267,9 @@ def rebound_run(run: Run, approval_commit: str, reason: str) -> RuntimeResult:
 
 def _git(worktree: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", "-C", str(worktree), *args], text=True, capture_output=True, check=False)
+
+def _git_bytes(worktree: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(["git", "-C", str(worktree), *args], capture_output=True, check=False)
 
 def _worktree(binding: dict, run: Run) -> Path:
     return Path(binding.get("worktree") or run.root)
@@ -274,6 +293,30 @@ def _commits_after(worktree: Path, approval_commit: str) -> RuntimeResult:
     if result.returncode != 0:
         return failure("git_inspection_failed", "implementation commit range could not be inspected")
     return ok(list(filter(None, result.stdout.splitlines())))
+
+def _validate_commit_ancestry(worktree: Path, binding: dict, commit: str) -> RuntimeResult:
+    if commit == binding["approval_commit"] or _git(
+        worktree, "merge-base", "--is-ancestor", binding["approval_commit"], commit,
+    ).returncode != 0:
+        return failure("commit_before_approval", "implementation commit must follow the approval commit")
+    branch_head = _git(worktree, "rev-parse", "--verify", f"refs/heads/{binding['branch']}^{{commit}}")
+    if branch_head.returncode != 0 or _git(
+        worktree, "merge-base", "--is-ancestor", commit, branch_head.stdout.strip(),
+    ).returncode != 0:
+        return failure("commit_not_on_branch", "implementation commit must be an ancestor of the bound branch tip")
+    return ok()
+
+def _content_safety(
+    worktree: Path, paths: list[str], *, index: bool = False, commit: str | None = None,
+) -> RuntimeResult:
+    for path in paths:
+        reference = f":{path}" if index else f"{commit}:{path}"
+        content = _git_bytes(worktree, "show", reference)
+        if content.returncode != 0:
+            return failure("git_inspection_failed", "changed file content could not be inspected", path)
+        if contains_secret(content.stdout):
+            return failure("secret_content", "secret-shaped content is not allowed", path)
+    return ok()
 
 def _safety(binding: dict, paths: list[str], reasons: dict[str, str] | None = None) -> RuntimeResult:
     assessed = assess_paths(paths, expected_paths=binding.get("expected_paths", []), reasons=reasons or {})
@@ -326,10 +369,11 @@ def complete_run(run: Run) -> RuntimeResult:
     history = _commits_after(worktree, binding.value["approval_commit"])
     if not history.ok:
         return history
-    recorded = {event["commit"] for event in events.value if event.get("event_type") == "commit"}
-    unexplained = [commit for commit in history.value if commit not in recorded]
-    if unexplained:
-        return failure("commit_unexplained", "implementation history contains an unrecorded commit", unexplained[0])
+    recorded_list = [event["commit"] for event in events.value if event.get("event_type") == "commit"]
+    if len(recorded_list) != len(set(recorded_list)):
+        return failure("commit_assignment_invalid", "one implementation commit is assigned more than once")
+    if set(history.value) != set(recorded_list):
+        return failure("commit_bijection_invalid", "implementation history and commit evidence differ")
     return _append_event(
         run, "implementation_green",
         {"completed_steps": [step["id"] for step in binding.value.get("steps", [])]}, derived=True,
