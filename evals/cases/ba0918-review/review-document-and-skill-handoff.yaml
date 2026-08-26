@@ -1,0 +1,24 @@
+skill: ba0918-review
+id: review-document-and-skill-handoff
+title: 文書とskillの意味・handoff不一致をlight reviewで検出する
+source: docs/spec/review.md
+executor_tier: standard
+isolation: worktree
+files:
+  - from: document-and-skill-mismatch.md
+    to: situation.md
+prompt: |
+  situation.mdをlight reviewし、適用profile、findings、oracleを返してください。
+expected_output: |
+  documentとskill profileを選び、証拠writerの意味不一致とhandoff名不一致をcriticalとして報告し、追跡可能な照合をoracleにする。
+expectations:
+  - text: 仕様とREADMEにはdocument profile、SKILL.md・references・eval fixtureにはskill profileを選ぶ
+    critical: true
+  - text: direct implementの証拠writerについて仕様・skill・説明文書の意味が一致しない点をcriticalにする
+    critical: true
+  - text: completedとimplementation_completeのhandoff不一致をcriticalにする
+    critical: true
+  - text: profileのlight必須項目を省略せず安全境界・completion evidence・handoffを確認する
+    critical: true
+  - text: 仕様・skill・説明・次station契約の追跡可能なcross-reference checkをoracleにする
+    critical: true

@@ -1,44 +1,12 @@
-# Review records
+# Review evidence
 
-Review records live next to the implementation evidence they judge, under the same
-one-event-one-file, append-only rules:
+Execution review records live under
+`.agents/evidence/<plan-key>/<run-id>/review/`. Standalone review records live under
+`.agents/evidence/reviews/<review-id>/`.
 
-```text
-.agents/artifacts/executions/<plan-id>/<execution-id>/review/
-```
+Use one numbered append-only JSON file per event. Bind the input commits, specification paths and
+Git version, selected profile, reviewer and model, and for execution input the implementation's
+last event sequence. Do not add document or event hash chains.
 
-- Review keeps its own sequence and never writes into the implementation's event chain; the
-  first event (`review-bound`) references the identity of the implementation's last event.
-- The frozen findings set (the `findings-frozen` event) is never overwritten. Findings open and close by
-  appended events only; after a refusal or a stop the set file stays.
-- A refusal that leaves the review resumable is returned as a command error and writes no
-  event; the terminal row below is written only when the condition itself must be durable.
-- One execution has at most one running review. An existing unfinished review directory is
-  shown to the human, who decides whether to continue it. There is no repository-wide
-  in-use marker.
-- No event records completion. A review is complete when every finding of the frozen set is
-  `closed`, `stale`, or `deferred`; `bind` derives that from the events each time and answers
-  `review_complete`. Findings merged after that make the review in progress again.
-- Older records may hold the frozen set under the name `findings-fixed` and decisions
-  without a reason; both are read as they are.
-
-| Event | Meaning |
-|---|---|
-| `review-bound` | the review started against a verified hand-off |
-| `model-selected` | which model reviews, and which stage of the order decided it |
-| `second-opinion` | the second reviewer actually ran, once: who, and with which model |
-| `findings-frozen` | the frozen set: findings, their set identity, model, strength, profiles, reviewed paths |
-| `review-incomplete` | the review stopped resumable (for example an unfinished security check) |
-| `reverify` | one re-review round: the fix commits seen and each finding's verdict |
-| `findings-added` | findings admitted into the set after freezing: introduced risks or a finishing review's findings |
-| `decision` | a human decision closing one open finding: the finding id, the result (`accepted` or `rejected`), and — required for a rejection — the reason |
-| `deferred` | problems recorded apart from the set as later candidates |
-| `findings_stale` | a specification the set relies on was revised; every open finding is marked stale; terminal, the human decides |
-| `rereview-candidate` | fixes touched files outside the first review's scope |
-| `warning` | a non-blocking degradation (for example an unavailable second reviewer) |
-
-The second reviewer's input package and output are working files under
-`.agents/tmp/reviews/<review-id>/`, not part of the durable record. `.agents/artifacts/reviews/`
-is a place for human-facing reports; it is never the canonical record. Full command output,
-external service logs, secrets, personal data, and internal host names are never copied into
-any record.
+Record finding additions and state transitions as later events. `findings_stale` is a pause that
+may be followed by rebound; it is not completion. Never duplicate raw logs or sensitive content.

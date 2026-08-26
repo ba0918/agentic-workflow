@@ -1,0 +1,24 @@
+skill: ba0918-implement
+id: resume-unique-run
+title: 一意な未完了runだけを自動再開する
+source: docs/spec/implement.md
+executor_tier: standard
+isolation: worktree
+files:
+  - from: resume-runs.md
+    to: situation.md
+prompt: |
+  situation.mdの2つのscenarioについて再開判断を返してください。
+expected_output: |
+  一意なrunはresumed記録後に自動継続し、2候補は事実を示して人へ選択を返す。
+expectations:
+  - text: .agents/evidenceから未完了runを発見し、一意性を判定する
+    critical: true
+  - text: 一意で重要変更のないrunは人へ確認せず再開する
+    critical: true
+  - text: resumedにbranch先端、説明不能commit、未commit変更を記録する
+    critical: true
+  - text: resumed eventを追記してからevidence上の最後の未完了stepを再開点として導出する
+    critical: true
+  - text: 複数候補では更新時刻や名前で選ばず人へ返す
+    critical: true

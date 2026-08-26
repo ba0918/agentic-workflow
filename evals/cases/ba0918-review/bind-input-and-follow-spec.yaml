@@ -1,0 +1,24 @@
+skill: ba0918-review
+id: bind-input-and-follow-spec
+title: 三入力を同じreviewへ束ね仕様変更を意味判定する
+source: docs/spec/review.md
+executor_tier: standard
+isolation: worktree
+files:
+  - from: input-and-drift.md
+    to: situation.md
+prompt: |
+  situation.mdの入力と仕様変更についてreview開始・継続判断を返してください。
+expected_output: |
+  branch、2 commit、run idを同じ工程へ束ね、文言変更はGit版へ追従し、persistence変更だけfindings_staleで一時停止する。
+expectations:
+  - text: branchは明示比較先、pull request target、default branchとのmerge-baseの順でbaseを解決する
+    critical: true
+  - text: branch、2 commits、implement run idの3入力を受け付ける
+    critical: true
+  - text: standalone入力では指定specまたはdocs/specを根拠としてGit commitを記録する
+    critical: true
+  - text: 重要判断を変えないspec変更は新Git版へ追従する
+    critical: true
+  - text: persistence変更はfindings_staleとして止め、open findingを保持してrebound可能にする
+    critical: true
