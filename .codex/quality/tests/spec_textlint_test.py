@@ -49,6 +49,17 @@ class SpecTextlintTest(unittest.TestCase):
         executable.chmod(0o755)
         return executable
 
+    def track_spec_symlink(self, root: Path) -> Path:
+        link = root / "docs" / "spec" / "typed.md"
+        link.symlink_to("tracked.md")
+        subprocess.run(["git", "add", str(link)], cwd=root, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "track symlink"],
+            cwd=root,
+            check=True,
+        )
+        return link
+
     def invoke(
         self,
         root: Path,
@@ -166,6 +177,53 @@ class SpecTextlintTest(unittest.TestCase):
             self.assertEqual(
                 capture.read_text(encoding="utf-8"),
                 "--stdin\0--stdin-filename\0docs/spec/added.md",
+            )
+
+    def test_worktree_scope_lints_markdown_changed_from_symlink_to_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.initialize_repository(root)
+            self.install_fake_textlint(root)
+            capture = root / "capture"
+            changed = self.track_spec_symlink(root)
+            changed.unlink()
+            changed.write_text("regular file\n", encoding="utf-8")
+
+            completed = self.invoke(root, "worktree", capture)
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(
+                capture.read_text(encoding="utf-8"),
+                "docs/spec/typed.md",
+            )
+
+    def test_staged_scope_lints_markdown_changed_from_symlink_to_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.initialize_repository(root)
+            self.install_fake_textlint(root)
+            capture = root / "capture"
+            content_capture = root / "content-capture"
+            changed = self.track_spec_symlink(root)
+            changed.unlink()
+            changed.write_text("staged regular file\n", encoding="utf-8")
+            subprocess.run(["git", "add", str(changed)], cwd=root, check=True)
+
+            completed = self.invoke(
+                root,
+                "staged",
+                capture,
+                TEXTLINT_CONTENT_CAPTURE=str(content_capture),
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(
+                content_capture.read_text(encoding="utf-8"),
+                "staged regular file\n",
+            )
+            self.assertEqual(
+                capture.read_text(encoding="utf-8"),
+                "--stdin\0--stdin-filename\0docs/spec/typed.md",
             )
 
     def test_no_changed_spec_does_not_start_textlint(self) -> None:
