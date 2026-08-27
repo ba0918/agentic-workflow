@@ -38,6 +38,9 @@ class SpecTextlintTest(unittest.TestCase):
             "capture = os.environ.get('TEXTLINT_CAPTURE')\n"
             "if capture:\n"
             "    Path(capture).write_text('\\0'.join(sys.argv[1:]))\n"
+            "content_capture = os.environ.get('TEXTLINT_CONTENT_CAPTURE')\n"
+            "if content_capture:\n"
+            "    Path(content_capture).write_text(sys.stdin.read())\n"
             "print(os.environ.get('TEXTLINT_STDOUT', ''))\n"
             "print(os.environ.get('TEXTLINT_STDERR', ''), file=sys.stderr)\n"
             "raise SystemExit(int(os.environ.get('TEXTLINT_EXIT', '0')))\n",
@@ -103,7 +106,37 @@ class SpecTextlintTest(unittest.TestCase):
 
             self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertEqual(
-                capture.read_text(encoding="utf-8"), "docs/spec/tracked.md"
+                capture.read_text(encoding="utf-8"),
+                "--stdin\0--stdin-filename\0docs/spec/tracked.md",
+            )
+
+    def test_staged_scope_lints_content_from_index(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.initialize_repository(root)
+            self.install_fake_textlint(root)
+            capture = root / "capture"
+            content_capture = root / "content-capture"
+            tracked = root / "docs" / "spec" / "tracked.md"
+            tracked.write_text("staged content\n", encoding="utf-8")
+            subprocess.run(["git", "add", str(tracked)], cwd=root, check=True)
+            tracked.write_text("unstaged content\n", encoding="utf-8")
+
+            completed = self.invoke(
+                root,
+                "staged",
+                capture,
+                TEXTLINT_CONTENT_CAPTURE=str(content_capture),
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(
+                content_capture.read_text(encoding="utf-8"),
+                "staged content\n",
+            )
+            self.assertEqual(
+                capture.read_text(encoding="utf-8"),
+                "--stdin\0--stdin-filename\0docs/spec/tracked.md",
             )
 
     def test_no_changed_spec_does_not_start_textlint(self) -> None:

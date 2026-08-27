@@ -35,6 +35,19 @@ def git_paths(project_root: Path, arguments: Sequence[str]) -> set[Path]:
     }
 
 
+def staged_content(project_root: Path, path: Path) -> bytes:
+    completed = subprocess.run(
+        ["git", "show", f":{path.as_posix()}"],
+        cwd=project_root,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        diagnostic = os.fsdecode(completed.stderr).strip()
+        raise GitPathError(diagnostic or f"git exited {completed.returncode}")
+    return completed.stdout
+
+
 def changed_paths(project_root: Path, scope: str) -> set[Path]:
     if scope == "staged":
         return git_paths(
@@ -90,10 +103,27 @@ def lintable_spec_paths(project_root: Path, scope: str) -> list[Path]:
     return sorted(selected)
 
 
-def run_textlint(project_root: Path, paths: Sequence[Path]) -> int:
+def run_textlint(project_root: Path, paths: Sequence[Path], scope: str) -> int:
     if not paths:
         return 0
     executable = project_root / "node_modules" / ".bin" / "textlint"
+    if scope == "staged":
+        exit_code = 0
+        for path in paths:
+            completed = subprocess.run(
+                [
+                    str(executable),
+                    "--stdin",
+                    "--stdin-filename",
+                    str(path),
+                ],
+                cwd=project_root,
+                input=staged_content(project_root, path),
+                check=False,
+            )
+            if completed.returncode != 0 and exit_code == 0:
+                exit_code = completed.returncode
+        return exit_code
     completed = subprocess.run(
         [str(executable), *(str(path) for path in paths)],
         cwd=project_root,
@@ -117,10 +147,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
         return 2
     try:
         paths = lintable_spec_paths(project_root, scope)
+        return run_textlint(project_root, paths, scope)
     except GitPathError as error:
         print(str(error), file=sys.stderr)
         return 2
-    return run_textlint(project_root, paths)
 
 
 if __name__ == "__main__":
