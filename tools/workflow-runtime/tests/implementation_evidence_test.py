@@ -165,5 +165,15 @@ class ImplementationEvidenceTest(unittest.TestCase):
         self.assertTrue(result.ok, result.error)
         self.assertIsNone(result.value["resume_step"])
 
+    def test_retirement_excludes_default_resume_without_erasing_run_state(self) -> None:
+        binding = self.binding([{"id": "1", "completion": "check"}])
+        events = [self.event(1, "resume-candidate-retired", reason="replacement requested")]
+
+        result = self.model.derive_implementation(binding, events)
+
+        self.assertTrue(result.ok, result.error)
+        self.assertTrue(result.value["resume_candidate_retired"])
+        self.assertEqual(result.value["resume_step"], "1")
+
 if __name__ == "__main__":
     unittest.main()

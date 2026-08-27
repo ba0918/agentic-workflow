@@ -6,8 +6,18 @@ from its approval commit.
 
 Create or resume `.agents/evidence/<plan-key>/<run-id>/`, branch
 `implement/<run-id>`, and one linked worktree. Never copy dirty main-checkout files into it.
-When exactly one unfinished run exists and consequential decisions or dangerous targets did not
-change, append `resumed` and continue automatically. Several candidates require a human choice.
+Before creating a run, discover every unfinished run that has not been logically retired. Show the
+plan, run id, runtime-recorded start time (or explicit unavailable status for older version 2
+bindings), last event, completed and remaining steps, and Git-derived branch, worktree,
+unexplained-commit, and uncommitted-path facts. Do this even for one candidate and append nothing
+until the human chooses. Resume only an explicitly selected run; derive all Git facts inside the
+runtime rather than accepting caller claims.
+
+When the human chooses a new run, append `resume-candidate-retired` with the reason to each old run
+being set aside. Logical retirement removes it from default discovery but preserves evidence,
+branch, and worktree, and an explicit run id can inspect or resume it later. Never retire by age or
+inference and never expose physical deletion through this entry point. Do not repeat this startup
+choice between synchronous delegates in the same cycle.
 
 At each step compare the approval commit's plan and specifications with current committed
 documents. Return both versions and changed paths to the agent for semantic judgment. Record and

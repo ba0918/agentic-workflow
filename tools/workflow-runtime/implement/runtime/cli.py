@@ -8,7 +8,7 @@ from runtime.context import (
 )
 from runtime.planning import resolve_plan
 from runtime.repository import bind_run, load_run
-from runtime.resume import resume_unique
+from runtime.resume import discover_unfinished, resume_run, retire_run
 
 def _run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--repo", required=True)
@@ -50,10 +50,13 @@ def main(argv: list[str] | None = None) -> int:
     resume = commands.add_parser("resume")
     resume.add_argument("--repo", required=True)
     resume.add_argument("--plan-key", required=True)
-    resume.add_argument("--branch-head", required=True)
-    resume.add_argument("--unexplained-commit", action="append", default=[])
-    resume.add_argument("--uncommitted-path", action="append", default=[])
-    resume.add_argument("--consequential-change", action="store_true")
+    resume.add_argument("--run-id", required=True)
+    discover = commands.add_parser("discover")
+    discover.add_argument("--repo", required=True)
+    discover.add_argument("--plan-key", required=True)
+    retire = commands.add_parser("retire")
+    _run_arguments(retire)
+    retire.add_argument("--reason", required=True)
     stage = commands.add_parser("stage")
     _run_arguments(stage)
     stage.add_argument("--step", required=True)
@@ -121,19 +124,19 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"plan_key": result.value.plan_key, "run_id": result.value.run_id}, ensure_ascii=False))
         return 0
     if args.command == "resume":
-        result = resume_unique(
-            Path(args.repo), plan_key=args.plan_key, branch_head=args.branch_head,
-            unexplained_commits=args.unexplained_commit, uncommitted_paths=args.uncommitted_path,
-            consequential_change=args.consequential_change,
-        )
+        result = resume_run(Path(args.repo), plan_key=args.plan_key, run_id=args.run_id)
         if not result.ok:
             parser.error(result.error.message)
         print(json.dumps({"run_id": result.value["run"].run_id, "resume_step": result.value["resume_step"]}, ensure_ascii=False))
         return 0
+    if args.command == "discover":
+        return _emit(parser, discover_unfinished(Path(args.repo), args.plan_key))
     run = load_run(Path(args.repo), args.plan_key, args.run_id)
     if not run.ok:
         parser.error(run.error.message)
-    if args.command == "stage":
+    if args.command == "retire":
+        result = retire_run(Path(args.repo), plan_key=args.plan_key, run_id=args.run_id, reason=args.reason)
+    elif args.command == "stage":
         reasons = _reasons(parser, args.unplanned_reason)
         if args.phase in {"red", "green", "refactor"}:
             if args.oracle_command is None or args.exit_code is None:

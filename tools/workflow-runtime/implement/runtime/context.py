@@ -24,7 +24,7 @@ from runtime.types import COMMIT_SHA, Run, RuntimeResult, failure, ok
 EVENT_TYPES = {
     "worktree-bound", "red", "green", "refactor", "check", "artifact", "external",
     "commit", "human_gate", "delegated", "returned", "resumed", "rebound", "recovering",
-    "stopped", "implementation_green",
+    "resume-candidate-retired", "stopped", "implementation_green",
 }
 
 def document_context(binding: dict, current_commit: str, changed_documents: list[str]) -> RuntimeResult:
@@ -60,7 +60,7 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
         return failure("event_type_invalid", f"unsupported implementation event: {event_type}")
     if events and events[-1].get("event_type") == "implementation_green":
         return failure("run_already_complete", "completed implementation evidence cannot be extended")
-    if events and events[-1].get("event_type") == "stopped" and event_type not in {"resumed", "rebound"}:
+    if events and events[-1].get("event_type") == "stopped" and event_type not in {"resumed", "rebound", "resume-candidate-retired"}:
         return failure("run_stopped", "stopped implementation must be resumed or rebound before more work")
     active_delegation = False
     for existing in events:
@@ -145,6 +145,8 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
             required = "refactor" if completion == "test" else completion
             if not any(event.get("event_type") == required for event in prior):
                 return failure("transition_invalid", "commit needs completed step evidence")
+    if event_type == "resume-candidate-retired" and not str(fields.get("reason", "")).strip():
+        return failure("event_field_missing", "logical run retirement needs a reason")
     return ok()
 
 def _status(binding: dict, events: list[dict], event: dict) -> dict:

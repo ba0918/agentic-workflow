@@ -14,7 +14,12 @@ never implement, review, or fix the work in this context.
   bytes from its approval commit and require the working-tree bytes to match exactly. Reject an
   uncommitted plan and a plan edited after approval. Pass its path and approval commit to implement
   without interpreting its steps.
-- Create or resume one run id and `.agents/evidence/<plan-key>/<run-id>/` before delegation.
+- Before creating a run, show every unfinished non-retired run for the plan, including the
+  runtime-recorded start time and Git-derived branch/worktree/commit/dirty-path facts. Ask the human
+  to continue, rebound, or logically retire and start new even when there is one candidate. Resume
+  only the selected run. Logical retirement preserves all resources and explicit recovery; cycle
+  never physically deletes them or guesses abandonment from age. Do not repeat this startup choice
+  between synchronous delegates in the same cycle.
 - Delegate synchronously. While a delegate is active it is the only evidence writer; outside a
   delegation cycle records the delegation start and finish.
 - Delegate the whole remaining implementation phase at once. Do not split delegation by plan

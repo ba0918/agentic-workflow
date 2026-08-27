@@ -160,6 +160,8 @@ def _valid_event(event: dict) -> bool:
         )
     if kind == "stopped":
         return isinstance(event.get("reason"), str) and bool(event["reason"].strip())
+    if kind == "resume-candidate-retired":
+        return isinstance(event.get("reason"), str) and bool(event["reason"].strip())
     return False
 
 def derive_implementation(binding: object, events: object) -> EvidenceResult:
@@ -185,13 +187,18 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
     test_stages: dict[str, str] = {}
     red_snapshots: dict[str, dict] = {}
     stopped = False
+    resume_candidate_retired = False
     for event in events:
         kind = event["event_type"]
-        if stopped and kind not in {"resumed", "rebound"}:
+        if stopped and kind not in {"resumed", "rebound", "resume-candidate-retired"}:
             return _failure("transition_invalid", "stopped implementation requires resumed or rebound")
         stopped = kind == "stopped"
         if kind in {"resumed", "rebound"}:
             stopped = False
+        if kind == "resume-candidate-retired":
+            resume_candidate_retired = True
+        elif kind == "resumed":
+            resume_candidate_retired = False
         if kind in {"red", "green", "refactor", "check", "artifact", "external", "commit"}:
             contract = next((step for step in active_steps if step["id"] == event.get("step")), None)
             if contract is None:
@@ -251,4 +258,5 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
         "approval_commit": approval_commit, "steps": active_steps,
         "completed_steps": ordered_completed, "resume_step": resume_step, "segments": segments,
         "commits": [commit for segment in segments for commit in segment["commits"]],
+        "resume_candidate_retired": resume_candidate_retired,
     })

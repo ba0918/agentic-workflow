@@ -31,8 +31,12 @@ artifact path, commit, and independently reviewable result. External evidence re
 checked, a bounded result summary, and whether the condition was met.
 
 Discovery validates the version 2 binding and complete event stream before choosing a run. Derive
-the resume point before appending the single `resumed` event; a legacy or malformed run must return
-an error without changing its events or `current-status`.
+the resume point and a safe Git-backed summary before appending the single `resumed` event; a unique
+candidate is still shown to the human without automatic mutation. Binding records `started_at` at
+creation; an older version 2 binding without it reports the value as unavailable and never guesses
+from file timestamps. A legacy or malformed run must return an error without changing its events or
+`current-status`. `resume-candidate-retired` is an append-only logical exclusion from default
+discovery, not deletion; explicit run-id inspection and resumption remain available.
 
 Safety reads both path names and file content from Git itself. Report only the offending path and
 category when credential-shaped assignments or private-key headers are found; never copy the

@@ -184,35 +184,65 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "rebound_or_new_run_required")
 
-    def test_unique_unfinished_run_resumes_automatically(self) -> None:
-        self.assertEqual(resume.select_unfinished([{"run_id": "one", "state": "active"}]).value["run_id"], "one")
-        multiple = resume.select_unfinished([{"run_id": "one", "state": "active"}, {"run_id": "two", "state": "stopped"}])
-        self.assertFalse(multiple.ok)
-        self.assertEqual(multiple.error.code, "run_candidate_ambiguous")
-
-    def test_discovers_and_resumes_the_unique_run_from_evidence(self) -> None:
-        from runtime import repository
+    def test_discovery_summarizes_a_unique_run_without_resuming_it(self) -> None:
         from runtime.types import ResolvedPlan
-        root = Path(tempfile.mkdtemp())
-        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+        root = self.fixture()
+        approval = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
         run = repository.bind_run(
             root, plan, run_id="run-1", delegated=False,
             steps=[{"id": "1", "completion": "check"}, {"id": "2", "completion": "check"}],
+            branch=branch, worktree=str(root),
         ).value
         context.append_event(run, "check", {"step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": []})
-        context.record_commit(run, "1", "b" * 40)
-        resumed = resume.resume_unique(
-            root,
-            plan_key="plan-a",
-            branch_head="b" * 40,
-            unexplained_commits=[],
-            uncommitted_paths=[],
-            consequential_change=False,
-        )
+        before = len(context.load_events(run).value)
+
+        discovered = resume.discover_unfinished(root, "plan-a")
+
+        self.assertTrue(discovered.ok, discovered.error)
+        self.assertEqual(len(discovered.value), 1)
+        summary = discovered.value[0]
+        self.assertEqual(summary["run_id"], "run-1")
+        self.assertEqual(summary["completed_steps"], ["1"])
+        self.assertEqual(summary["remaining_steps"], ["2"])
+        self.assertEqual(summary["branch"]["name"], branch)
+        self.assertTrue(summary["worktree"]["registered"])
+        self.assertIsNotNone(summary["started_at"])
+        self.assertEqual(len(context.load_events(run).value), before)
+
+        resumed = resume.resume_run(root, plan_key="plan-a", run_id="run-1")
         self.assertTrue(resumed.ok, resumed.error)
         self.assertEqual(resumed.value["run"].run_id, "run-1")
         self.assertEqual(resumed.value["resume_step"], "2")
         self.assertEqual(context.load_events(resumed.value["run"]).value[-1]["event_type"], "resumed")
+
+    def test_retired_run_leaves_default_discovery_but_can_be_explicitly_resumed(self) -> None:
+        from runtime.types import ResolvedPlan
+        root = self.fixture()
+        approval = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+        run = repository.bind_run(
+            root, plan, run_id="run-1", delegated=False, steps=[{"id": "1", "completion": "check"}],
+            branch=branch, worktree=str(root),
+        ).value
+
+        retired = resume.retire_run(root, plan_key="plan-a", run_id="run-1", reason="start a replacement run")
+
+        self.assertTrue(retired.ok, retired.error)
+        self.assertEqual(resume.discover_unfinished(root, "plan-a").value, [])
+        self.assertTrue(repository.load_run(root, "plan-a", "run-1").ok)
+        self.assertTrue(resume.resume_run(root, plan_key="plan-a", run_id="run-1").ok)
+        self.assertEqual(context.load_events(run).value[-1]["event_type"], "resumed")
 
     def test_completed_run_is_not_discovered_as_unfinished(self) -> None:
         from runtime.types import ResolvedPlan
@@ -250,22 +280,27 @@ class ImplementPlanBindingTest(unittest.TestCase):
         binding["version"] = 1
         run.binding_path.write_text(json.dumps(binding), encoding="utf-8")
         before = sorted(path.name for path in run.evidence_path.iterdir())
-        result = resume.resume_unique(
-            root, plan_key="plan-a", branch_head="b" * 40,
-            unexplained_commits=[], uncommitted_paths=[], consequential_change=False,
-        )
+        result = resume.resume_run(root, plan_key="plan-a", run_id="run-1")
         self.assertEqual(result.error.code, "legacy_evidence_unsupported")
         self.assertEqual(sorted(path.name for path in run.evidence_path.iterdir()), before)
 
     def test_resume_cli_discovers_records_and_reports_the_resume_point(self) -> None:
         from runtime import repository
         from runtime.types import ResolvedPlan
-        root = Path(tempfile.mkdtemp())
-        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
-        repository.bind_run(root, plan, run_id="run-1", delegated=False, steps=["1"]).value
+        root = self.fixture()
+        approval = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+        repository.bind_run(
+            root, plan, run_id="run-1", delegated=False, steps=["1"], branch=branch, worktree=str(root),
+        ).value
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            code = cli.main(["resume", "--repo", str(root), "--plan-key", "plan-a", "--branch-head", "b" * 40])
+            code = cli.main(["resume", "--repo", str(root), "--plan-key", "plan-a", "--run-id", "run-1"])
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(output.getvalue())["resume_step"], "1")
 

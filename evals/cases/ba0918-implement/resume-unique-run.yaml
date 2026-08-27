@@ -1,6 +1,6 @@
 skill: ba0918-implement
 id: resume-unique-run
-title: 一意な未完了runだけを自動再開する
+title: 一意な未完了runも対話して再開または論理的に片付ける
 source: docs/spec/implement.md
 executor_tier: standard
 isolation: worktree
@@ -10,17 +10,25 @@ files:
 prompt: |
   situation.mdの2つのscenarioについて再開判断を返してください。
 expected_output: |
-  一意なrunはresumed記録後に自動継続し、2候補は事実を示して人へ選択を返す。
+  一意でも全候補の安全な要約を示して人の選択を待ち、選ばれたrunだけresumedを記録する。新規開始なら旧runを理由つきで既定候補から外す。
 expectations:
   - text: .agents/evidenceから未完了runを発見し、一意性を判定する
     critical: true
-  - text: 一意で重要変更のないrunは人へ確認せず再開する
+  - text: 候補が一意でもresumedを自動追記せず、開始前に人へ続行・束ね直し・論理的片付けを選んでもらう
+    critical: true
+  - text: plan、run ID、runtime記録の開始時刻、最後の出来事、完了済みと残りstep、branch、worktree、説明不能commit、未commit pathを安全に示す
+    critical: true
+  - text: 開始時刻のない既存version 2 runはmtimeから推測せず取得不能と示す
     critical: true
   - text: resumedにbranch先端、説明不能commit、未commit変更を記録する
     critical: true
   - text: binding versionと全eventを検証して再開点を完全導出してからresumed eventを1回だけ追記し、拒否時は何も増やさない
     critical: true
   - text: 複数候補では更新時刻や名前で選ばず人へ返す
+    critical: true
+  - text: 新しく始める選択では旧runを理由つきの追記eventで既定候補から外し、証拠・branch・worktreeを削除しない
+    critical: true
+  - text: 既定候補から外したrunも明示run IDなら調査・再開でき、時間経過では自動除外しない
     critical: true
   - text: version 2証拠の完了方法から再開点を導き、version 1は推測せず拒否する
     critical: true
