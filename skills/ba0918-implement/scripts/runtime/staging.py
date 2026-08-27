@@ -1,27 +1,14 @@
 """Assess every commit path against safety rules and plan expectations."""
-from pathlib import PurePosixPath
+from pathlib import Path
+import sys
 from typing import Mapping
 
-from runtime.planning import safe_relative_path
 from runtime.types import RuntimeResult, failure, ok
 
-SECRET_NAMES = {".env", "credentials.json", "secrets.json"}
-SECRET_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
-TEMP_SUFFIXES = (".log", ".tmp", ".swp", "~")
-IGNORED_PARTS = {".agents", "node_modules", "__pycache__", ".pytest_cache"}
-
-def _safety_problem(path: str) -> str | None:
-    if not safe_relative_path(path):
-        return "unsafe relative path"
-    candidate = PurePosixPath(path)
-    lowered = candidate.name.lower()
-    if lowered in SECRET_NAMES or lowered.startswith(".env.") or lowered.endswith(SECRET_SUFFIXES):
-        return "secret-bearing file"
-    if lowered.endswith(TEMP_SUFFIXES):
-        return "temporary or log file"
-    if any(part in IGNORED_PARTS for part in candidate.parts):
-        return "runtime or generated file"
-    return None
+for candidate in (Path(__file__).resolve().parents[2] / "shared", Path(__file__).resolve().parents[1]):
+    if str(candidate) not in sys.path:
+        sys.path.insert(0, str(candidate))
+from path_safety import safety_problem
 
 def assess_paths(
     paths: list[str],
@@ -35,7 +22,7 @@ def assess_paths(
     expected = set(expected_paths)
     unplanned: list[dict[str, str]] = []
     for path in paths:
-        problem = _safety_problem(path)
+        problem = safety_problem(path)
         if problem is not None:
             return failure("dangerous_path", problem, path)
         if path in dangerous_paths:

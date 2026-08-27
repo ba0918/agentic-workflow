@@ -1,5 +1,6 @@
 """Create an implementation run bound to a Git-approved plan."""
 from pathlib import Path
+from datetime import datetime, timezone
 import shutil
 import subprocess
 
@@ -83,6 +84,7 @@ def bind_run(
         "branch": branch,
         "worktree": str(resolved_worktree) if resolved_worktree is not None else None,
         "state": "active",
+        "started_at": datetime.now(timezone.utc).isoformat(),
     }
     evidence.mkdir(parents=True)
     run = Run(run_id, plan.plan_key, repository, evidence, binding_path)

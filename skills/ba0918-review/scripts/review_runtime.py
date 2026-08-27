@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import shlex
 import subprocess
 import tempfile
 from typing import Any, NamedTuple
@@ -16,6 +17,7 @@ SHARED_DIR = Path(__file__).resolve().parents[1] / "shared"
 if str(SHARED_DIR) not in sys.path:
     sys.path.insert(0, str(SHARED_DIR))
 import implementation_evidence
+from path_safety import safety_problem
 
 try:
     from secret_detect import contains_secret
@@ -163,18 +165,32 @@ def _implementation_events(store: Path) -> RuntimeResult:
         events.append(event)
     return ok(events)
 
-def _validate_implementation_segments(root: Path, segments: list[dict], branch_head: str) -> RuntimeResult:
-    for index, segment in enumerate(segments):
-        end = segments[index + 1]["approval_commit"] if index + 1 < len(segments) else branch_head
-        history = _git(root, "rev-list", "--reverse", f"{segment['approval_commit']}..{end}")
-        if history.returncode != 0:
-            return failure("execution_input_invalid", "implementation revision range is unavailable")
-        commits = list(filter(None, history.stdout.splitlines()))
-        if index + 1 < len(segments) and commits and commits[-1] == end:
-            commits.pop()
-        if commits != segment.get("commits"):
-            return failure("execution_input_invalid", "implementation revision range and evidence differ")
+def _validate_implementation_segments(
+    root: Path, start_commit: str, segments: list[dict], branch_head: str,
+) -> RuntimeResult:
+    history = _git(root, "rev-list", "--reverse", f"{start_commit}..{branch_head}")
+    if history.returncode != 0:
+        return failure("execution_input_invalid", "implementation revision range is unavailable")
+    commits = [commit for segment in segments for commit in segment.get("commits", [])]
+    document_boundaries = {segment.get("approval_commit") for segment in segments[1:]}
+    implementation_history = [
+        commit for commit in filter(None, history.stdout.splitlines()) if commit not in document_boundaries
+    ]
+    if implementation_history != commits:
+        return failure("execution_input_invalid", "implementation revision range and evidence differ")
     return ok()
+
+def _changed_paths(root: Path, start: str, end: str) -> RuntimeResult:
+    result = _git(root, "diff", "--name-only", start, end)
+    if result.returncode != 0:
+        return failure("execution_input_invalid", "implementation changed paths are unavailable")
+    return ok(sorted(filter(None, result.stdout.splitlines())))
+
+def _uncommitted_paths(worktree: Path) -> RuntimeResult:
+    result = _git(worktree, "status", "--porcelain=v1", "--untracked-files=all")
+    if result.returncode != 0:
+        return failure("execution_input_invalid", "implementation worktree status is unavailable")
+    return ok(sorted({line[3:] for line in result.stdout.splitlines() if len(line) >= 4}))
 
 def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> RuntimeResult:
     if SAFE_ID.fullmatch(plan_key) is None or SAFE_ID.fullmatch(run_id) is None:
@@ -209,8 +225,6 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
     branch = binding.get("branch")
     if not worktree.is_dir() or _git(worktree, "branch", "--show-current").stdout.strip() != branch:
         return failure("execution_input_invalid", "implementation worktree and branch do not match")
-    if _git(worktree, "status", "--porcelain").stdout.strip():
-        return failure("execution_input_invalid", "implementation worktree is no longer clean")
     root_common = _git(root, "rev-parse", "--git-common-dir")
     worktree_common = _git(worktree, "rev-parse", "--git-common-dir")
     if root_common.returncode != 0 or worktree_common.returncode != 0:
@@ -219,19 +233,35 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
     worktree_common_path = (worktree / worktree_common.stdout.strip()).resolve()
     if root_common_path != worktree_common_path:
         return failure("execution_input_invalid", "implementation worktree belongs to another repository")
-    branch_head = _commit(root, branch)
+    branch_head = _commit(root, f"refs/heads/{branch}")
     if any(not _commit(root, event.get("commit")).ok for event in commits):
         return failure("execution_input_invalid", "implementation evidence names a missing commit")
     if not branch_head.ok:
         return failure("execution_input_invalid", "implementation branch tip is unavailable")
-    segment_check = _validate_implementation_segments(root, derived.value["segments"], branch_head.value)
+    segment_check = _validate_implementation_segments(
+        root, binding.get("approval_commit", ""), derived.value["segments"], branch_head.value,
+    )
     if not segment_check.ok:
         return segment_check
+    changed = _changed_paths(root, binding["approval_commit"], branch_head.value)
+    dirty = _uncommitted_paths(worktree)
+    if not changed.ok or not dirty.ok:
+        return changed if not changed.ok else dirty
+    dirty_in_scope = sorted(set(dirty.value) & set(changed.value))
+    if dirty_in_scope:
+        return failure("review_scope_dirty", "reviewed implementation paths have uncommitted changes")
+    outside = sorted(set(dirty.value) - set(changed.value))
+    for path in outside:
+        problem = safety_problem(path)
+        if problem is not None:
+            return failure("dangerous_path", f"unsafe uncommitted path: {path}")
     try:
-        return ok(execution_binding(
+        resolved = execution_binding(
             plan_key, run_id, approval.value, implement_sequence=events[-1]["sequence"],
             branch=branch, head=branch_head.value, worktree=str(worktree.resolve()),
-        ))
+        )
+        resolved["uncommitted_outside_scope"] = outside
+        return ok(resolved)
     except (KeyError, ValueError):
         return failure("execution_input_invalid", "implementation binding cannot start review")
 
@@ -377,11 +407,14 @@ def load_events(root: Path, binding: dict) -> RuntimeResult:
     reduced = review_model.reduce_review(events)
     if not reduced.ok:
         return failure(reduced.error.code, reduced.error.message)
+    active_spec_commit = binding.get("spec_commit") or binding.get("approval_commit")
     for event in events:
         for item in event.get("findings", []) + event.get("terminal_observations", []):
-            checked = _validate_finding_for_binding(root, binding, item)
+            checked = _validate_finding_for_binding(root, binding, item, spec_commit=active_spec_commit)
             if not checked.ok:
                 return checked
+        if event.get("event_type") == "findings-rebound":
+            active_spec_commit = event.get("spec_commit")
     return ok(events)
 
 def _selected_profiles(root: Path, binding: dict, explicit: list[str]) -> tuple[list[str], str]:
@@ -483,7 +516,9 @@ def _safe_finding_strings(value: object, *, field: str = "finding") -> RuntimeRe
                 return failure("finding_content_invalid", "finding path must be repository-relative")
     return ok()
 
-def _validate_finding_for_binding(root: Path, binding: dict, item: object) -> RuntimeResult:
+def _validate_finding_for_binding(
+    root: Path, binding: dict, item: object, *, spec_commit: str | None = None,
+) -> RuntimeResult:
     checked = review_model.validate_finding(item)
     if not checked.ok:
         return failure(checked.error.code, checked.error.message)
@@ -492,7 +527,7 @@ def _validate_finding_for_binding(root: Path, binding: dict, item: object) -> Ru
         return content
     assert isinstance(item, dict)
     profiles = binding.get("review_options", {}).get("profiles", [])
-    spec_commit = binding.get("spec_commit") or binding.get("approval_commit")
+    spec_commit = spec_commit or binding.get("spec_commit") or binding.get("approval_commit")
     specification = item["specification"]
     allowed_paths = binding.get("spec_paths") or ["docs/spec/"]
     path = specification["path"]
@@ -505,25 +540,32 @@ def _validate_finding_for_binding(root: Path, binding: dict, item: object) -> Ru
     return ok(dict(item))
 
 def record_second_review(
-    root: Path, binding: dict, *, status: str, actual_model: str, summary: str,
+    root: Path, binding: dict, *, status: str, actual_model: str | None, summary: str,
 ) -> RuntimeResult:
     options = binding.get("review_options", {})
     if not options.get("second_reviewer"):
         return failure("second_reviewer_not_requested", "second review was not explicitly requested")
-    checked_model = _bounded_text(actual_model)
     checked_summary = _bounded_text(summary)
-    if status not in {"completed", "unavailable"} or not checked_model.ok or not checked_summary.ok:
+    checked_model = _bounded_text(actual_model) if actual_model is not None else None
+    if (
+        status not in {"completed", "unavailable"} or not checked_summary.ok
+        or (status == "completed" and (checked_model is None or not checked_model.ok))
+        or (status == "unavailable" and actual_model is not None)
+    ):
         return failure("second_review_invalid", "second review result needs status, model, and summary")
     events = load_events(root, binding)
     if not events.ok:
         return events
     if any(event.get("event_type") == "second-review-recorded" for event in events.value):
         return failure("second_review_already_recorded", "second reviewer runs only once")
-    return append_event(root, binding, "second-review-recorded", {
+    fields = {
         "status": status, "reviewer": options["second_reviewer"],
-        "requested_model": options.get("second_model"), "actual_model": checked_model.value,
+        "requested_model": options.get("second_model"),
         "summary": checked_summary.value,
-    })
+    }
+    if checked_model is not None:
+        fields["actual_model"] = checked_model.value
+    return append_event(root, binding, "second-review-recorded", fields)
 
 def begin_stage(root: Path, binding: dict, *, reviewer_context: str) -> RuntimeResult:
     checked_context = _bounded_text(reviewer_context)
@@ -597,8 +639,9 @@ def record_findings(
     if any(event.get("event_type") == result_type for event in events.value):
         return failure("findings_already_recorded", "stage findings are append-only")
     ids: set[str] = set()
+    active_spec_commit = review_model.reduce_review(events.value).value["active_spec_commit"]
     for item in findings:
-        checked = _validate_finding_for_binding(root, binding, item)
+        checked = _validate_finding_for_binding(root, binding, item, spec_commit=active_spec_commit)
         if not checked.ok:
             return failure(checked.error.code, checked.error.message)
         if item["id"] in ids:
@@ -643,9 +686,34 @@ def _bound_trailer_commits(
         return failure("fix_commit_unlinked", "review commit range is unavailable")
     return ok([commit for commit in history.stdout.splitlines() if _commit_has_trailer(root, commit, finding_id)])
 
+def _review_execution(operation: str, exit_code: int, summary: str) -> RuntimeResult:
+    checked_operation = _bounded_text(operation)
+    checked_summary = _bounded_text(summary)
+    if not checked_operation.ok or not checked_summary.ok:
+        return failure("review_operation_unsafe", "targeted review operation and result must be safe bounded text")
+    try:
+        tokens = shlex.split(checked_operation.value)
+    except ValueError:
+        return failure("review_operation_unsafe", "targeted review operation cannot be parsed safely")
+    forbidden_commands = {"rm", "rmdir", "mv", "sudo", "curl", "wget", "ssh", "scp", "rsync", "gh"}
+    if (
+        not tokens or tokens[0] in forbidden_commands or "push" in tokens or "publish" in tokens
+        or any(token.startswith("/") or ".." in PurePosixPath(token).parts for token in tokens)
+        or any(token in {">", ">>", "2>", "2>>"} or token.startswith((">", "2>")) for token in tokens)
+    ):
+        return failure("review_operation_unsafe", "targeted review operation must stay local, reversible, and worktree-relative")
+    return ok({
+        "operation": checked_operation.value, "working_directory": ".",
+        "exit_code": exit_code, "summary": checked_summary.value,
+    })
+
 def close_finding(
     root: Path, binding: dict, finding_id: str, *, oracle_exit_code: int, fix_commits: list[str],
+    operation: str, result_summary: str,
 ) -> RuntimeResult:
+    execution = _review_execution(operation, oracle_exit_code, result_summary)
+    if not execution.ok:
+        return execution
     events = load_events(root, binding)
     if not events.ok:
         return events
@@ -672,7 +740,8 @@ def close_finding(
     if not linked.ok or not fix_commits or linked.value != fix_commits:
         return failure("fix_commit_unlinked", "every fix commit must exist and carry the finding trailer")
     return append_event(root, binding, "targeted-review-result", {
-        "finding_id": finding_id, "oracle_exit_code": oracle_exit_code, "fix_commits": fix_commits,
+        "finding_id": finding_id, "oracle_exit_code": oracle_exit_code,
+        "fix_commits": fix_commits, "execution": execution.value,
     })
 
 def record_human_decision(
@@ -696,11 +765,16 @@ def record_human_decision(
 
 def record_targeted_result(
     root: Path, binding: dict, finding_id: str, *, oracle_exit_code: int, fix_commits: list[str],
+    operation: str, result_summary: str,
 ) -> RuntimeResult:
     if oracle_exit_code == 0:
         return close_finding(
             root, binding, finding_id, oracle_exit_code=oracle_exit_code, fix_commits=fix_commits,
+            operation=operation, result_summary=result_summary,
         )
+    execution = _review_execution(operation, oracle_exit_code, result_summary)
+    if not execution.ok:
+        return execution
     events = load_events(root, binding)
     if not events.ok:
         return events
@@ -719,7 +793,8 @@ def record_targeted_result(
     if any(not _commit_has_trailer(root, commit, finding_id) for commit in fix_commits):
         return failure("fix_commit_unlinked", "every fix commit must exist and carry the finding trailer")
     return append_event(root, binding, "targeted-review-result", {
-        "finding_id": finding_id, "oracle_exit_code": oracle_exit_code, "fix_commits": fix_commits,
+        "finding_id": finding_id, "oracle_exit_code": oracle_exit_code,
+        "fix_commits": fix_commits, "execution": execution.value,
     })
 
 def add_findings(root: Path, binding: dict, *, candidates: list[dict], related_ids: set[str]) -> RuntimeResult:
@@ -727,8 +802,9 @@ def add_findings(root: Path, binding: dict, *, candidates: list[dict], related_i
     if not events.ok:
         return events
     existing_ids = {item["id"] for item in current_findings(events.value)}
+    active_spec_commit = review_model.reduce_review(events.value).value["active_spec_commit"]
     for item in candidates:
-        checked = _validate_finding_for_binding(root, binding, item)
+        checked = _validate_finding_for_binding(root, binding, item, spec_commit=active_spec_commit)
         if not checked.ok:
             return failure(checked.error.code, checked.error.message)
     admitted, observations = review_model.admit_new_findings(candidates, related_ids)
@@ -749,7 +825,7 @@ def record_progress(root: Path, binding: dict) -> RuntimeResult:
     finding_ids = set(events.value[latest].get("finding_ids", []))
     result_ids = {
         event.get("finding_id") for event in events.value[latest + 1:]
-        if event.get("event_type") == "targeted-review-result"
+        if event.get("event_type") in {"targeted-review-result", "human-finding-decided"}
     }
     if finding_ids - result_ids:
         return failure("targeted_results_required", "progress needs every targeted finding result")
@@ -886,6 +962,8 @@ def main(argv: list[str] | None = None) -> int:
     close.add_argument("--finding-id", required=True)
     close.add_argument("--oracle-exit-code", type=int, required=True)
     close.add_argument("--fix-commit", action="append", default=[])
+    close.add_argument("--operation", required=True)
+    close.add_argument("--result-summary", required=True)
     human = commands.add_parser("human-decision")
     _selector(human)
     human.add_argument("--finding-id", required=True)
@@ -942,7 +1020,7 @@ def main(argv: list[str] | None = None) -> int:
         payload = json.loads(Path(args.result_file).read_text(encoding="utf-8"))
         result = record_second_review(
             root, binding.value, status=payload.get("status", ""),
-            actual_model=payload.get("actual_model", ""), summary=payload.get("summary", ""),
+            actual_model=payload.get("actual_model"), summary=payload.get("summary", ""),
         )
     elif args.command == "add-findings":
         result = add_findings(
@@ -954,6 +1032,7 @@ def main(argv: list[str] | None = None) -> int:
         result = close_finding(
             root, binding.value, args.finding_id,
             oracle_exit_code=args.oracle_exit_code, fix_commits=args.fix_commit,
+            operation=args.operation, result_summary=args.result_summary,
         )
     elif args.command == "human-decision":
         result = record_human_decision(

@@ -24,7 +24,7 @@ from runtime.types import COMMIT_SHA, Run, RuntimeResult, failure, ok
 EVENT_TYPES = {
     "worktree-bound", "red", "green", "refactor", "check", "artifact", "external",
     "commit", "human_gate", "delegated", "returned", "resumed", "rebound", "recovering",
-    "stopped", "implementation_green",
+    "resume-candidate-retired", "stopped", "implementation_green",
 }
 
 def document_context(binding: dict, current_commit: str, changed_documents: list[str]) -> RuntimeResult:
@@ -60,7 +60,7 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
         return failure("event_type_invalid", f"unsupported implementation event: {event_type}")
     if events and events[-1].get("event_type") == "implementation_green":
         return failure("run_already_complete", "completed implementation evidence cannot be extended")
-    if events and events[-1].get("event_type") == "stopped" and event_type not in {"resumed", "rebound"}:
+    if events and events[-1].get("event_type") == "stopped" and event_type not in {"resumed", "rebound", "resume-candidate-retired"}:
         return failure("run_stopped", "stopped implementation must be resumed or rebound before more work")
     active_delegation = False
     for existing in events:
@@ -143,8 +143,10 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
             ):
                 return failure("commit_invalid", "commit evidence needs canonical safety results")
             required = "refactor" if completion == "test" else completion
-            if not prior or prior[-1].get("event_type") != required:
+            if not any(event.get("event_type") == required for event in prior):
                 return failure("transition_invalid", "commit needs completed step evidence")
+    if event_type == "resume-candidate-retired" and not str(fields.get("reason", "")).strip():
+        return failure("event_field_missing", "logical run retirement needs a reason")
     return ok()
 
 def _status(binding: dict, events: list[dict], event: dict) -> dict:
@@ -391,19 +393,15 @@ def _commits_after(worktree: Path, approval_commit: str) -> RuntimeResult:
     return ok(list(filter(None, result.stdout.splitlines())))
 
 def _segment_commits(worktree: Path, segments: list[dict]) -> RuntimeResult:
-    commits: list[str] = []
-    for index, segment in enumerate(segments):
-        end = segments[index + 1]["approval_commit"] if index + 1 < len(segments) else "HEAD"
-        result = _git(worktree, "rev-list", "--reverse", f"{segment['approval_commit']}..{end}")
-        if result.returncode != 0:
-            return failure("git_inspection_failed", "implementation revision range could not be inspected")
-        revision = list(filter(None, result.stdout.splitlines()))
-        if end != "HEAD" and revision and revision[-1] == end:
-            revision.pop()
-        if revision != segment["commits"]:
-            return failure("commit_bijection_invalid", "revision history and commit evidence differ")
-        commits.extend(revision)
-    return ok(commits)
+    result = _git(worktree, "rev-list", "--reverse", f"{segments[0]['approval_commit']}..HEAD")
+    if result.returncode != 0:
+        return failure("git_inspection_failed", "implementation revision range could not be inspected")
+    document_boundaries = {segment["approval_commit"] for segment in segments[1:]}
+    history = [commit for commit in filter(None, result.stdout.splitlines()) if commit not in document_boundaries]
+    commits = [commit for segment in segments for commit in segment["commits"]]
+    if history != commits:
+        return failure("commit_bijection_invalid", "implementation revision range and commit evidence differ")
+    return ok(history)
 
 def _validate_commit_ancestry(worktree: Path, binding: dict, commit: str) -> RuntimeResult:
     if commit == binding["approval_commit"] or _git(
@@ -419,13 +417,31 @@ def _validate_commit_ancestry(worktree: Path, binding: dict, commit: str) -> Run
 
 def _content_safety(
     worktree: Path, paths: list[str], *, index: bool = False, commit: str | None = None,
+    working_tree: bool = False,
 ) -> RuntimeResult:
     for path in paths:
-        reference = f":{path}" if index else f"{commit}:{path}"
-        content = _git_bytes(worktree, "show", reference)
+        tracked = _git(worktree, "ls-files", "--error-unmatch", "--", path).returncode == 0
+        if working_tree and not tracked:
+            try:
+                added = (worktree / path).read_bytes()
+            except OSError:
+                return failure("git_inspection_failed", "untracked content could not be inspected", path)
+            if contains_secret(added):
+                return failure("secret_content", "secret-shaped content is not allowed", path)
+            continue
+        if working_tree:
+            content = _git_bytes(worktree, "diff", "--unified=0", "--", path)
+        elif index:
+            content = _git_bytes(worktree, "diff", "--cached", "--unified=0", "--", path)
+        else:
+            content = _git_bytes(worktree, "show", "--format=", "--unified=0", commit or "", "--", path)
         if content.returncode != 0:
-            return failure("git_inspection_failed", "changed file content could not be inspected", path)
-        if contains_secret(content.stdout):
+            return failure("git_inspection_failed", "changed diff content could not be inspected", path)
+        added = b"\n".join(
+            line[1:] for line in content.stdout.splitlines()
+            if line.startswith(b"+") and not line.startswith(b"+++")
+        )
+        if contains_secret(added):
             return failure("secret_content", "secret-shaped content is not allowed", path)
     return ok()
 
@@ -462,8 +478,25 @@ def complete_run(run: Run) -> RuntimeResult:
         return failure("completion_invalid", "stopped run must be resumed or rebound")
     worktree = Path(binding.value.get("worktree") or "")
     branch = binding.value.get("branch")
-    if not worktree.is_dir() or _git(worktree, "status", "--porcelain").stdout.strip():
-        return failure("worktree_dirty", "implementation worktree must be clean")
+    if not worktree.is_dir():
+        return failure("worktree_binding_invalid", "implementation worktree is unavailable")
+    status = _git(worktree, "status", "--porcelain=v1", "--untracked-files=all")
+    if status.returncode != 0:
+        return failure("git_inspection_failed", "worktree status could not be inspected")
+    dirty_paths = sorted({
+        line[3:] for line in status.stdout.splitlines()
+        if len(line) >= 4 and not line[3:].startswith(".agents/")
+    })
+    planned_dirty = sorted(set(dirty_paths) & set(binding.value.get("expected_paths", [])))
+    if planned_dirty:
+        return failure("planned_changes_uncommitted", "planned paths still have uncommitted changes", planned_dirty[0])
+    outside_dirty = sorted(set(dirty_paths) - set(binding.value.get("expected_paths", [])))
+    outside_safety = assess_paths(outside_dirty, expected_paths=outside_dirty)
+    if not outside_safety.ok:
+        return outside_safety
+    outside_content = _content_safety(worktree, outside_dirty, working_tree=True)
+    if not outside_content.ok:
+        return outside_content
     current_branch = _git(worktree, "branch", "--show-current")
     if current_branch.returncode != 0 or current_branch.stdout.strip() != branch:
         return failure("worktree_binding_invalid", "worktree branch differs from the run binding")
@@ -480,7 +513,8 @@ def complete_run(run: Run) -> RuntimeResult:
         return failure("commit_bijection_invalid", "implementation history and commit evidence differ")
     return _append_event(
         run, "implementation_green",
-        {"completed_steps": derived.value["completed_steps"]}, derived=True,
+        {"completed_steps": derived.value["completed_steps"],
+         "uncommitted_outside_scope": outside_dirty}, derived=True,
     )
 
 def load_events(run: Run) -> RuntimeResult:
