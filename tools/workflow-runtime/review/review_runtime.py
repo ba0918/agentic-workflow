@@ -187,10 +187,24 @@ def _changed_paths(root: Path, start: str, end: str) -> RuntimeResult:
     return ok(sorted(filter(None, result.stdout.splitlines())))
 
 def _uncommitted_paths(worktree: Path) -> RuntimeResult:
-    result = _git(worktree, "status", "--porcelain=v1", "--untracked-files=all")
+    result = _git(worktree, "status", "--porcelain=v1", "-z", "--untracked-files=all")
     if result.returncode != 0:
         return failure("execution_input_invalid", "implementation worktree status is unavailable")
-    return ok(sorted({line[3:] for line in result.stdout.splitlines() if len(line) >= 4}))
+    records = result.stdout.split("\0")
+    paths: set[str] = set()
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if len(record) < 4:
+            continue
+        paths.add(record[3:])
+        if "R" in record[:2] or "C" in record[:2]:
+            if index >= len(records) or not records[index]:
+                return failure("execution_input_invalid", "implementation rename status is incomplete")
+            paths.add(records[index])
+            index += 1
+    return ok(sorted(paths))
 
 def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> RuntimeResult:
     if SAFE_ID.fullmatch(plan_key) is None or SAFE_ID.fullmatch(run_id) is None:

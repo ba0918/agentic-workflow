@@ -170,6 +170,15 @@ class ReviewRuntimeTest(unittest.TestCase):
         inside = runtime.resolve_input(root, review_id="inside", plan_key="plan-a", run_id="run-1")
         self.assertEqual(inside.error.code, "review_scope_dirty")
 
+    def test_execution_review_rejects_a_staged_rename_of_a_reviewed_path(self) -> None:
+        root, _, _ = self.execution_fixture()
+        subprocess.run(["git", "-C", str(root), "mv", "app.txt", "renamed.txt"], check=True)
+
+        result = runtime.resolve_input(root, review_id="rename", plan_key="plan-a", run_id="run-1")
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "review_scope_dirty")
+
     def test_review_selectors_and_bindings_cannot_escape_the_evidence_store(self) -> None:
         root, base, head = self.repository()
         outside = root.parent / f"{root.name}-outside" / "review"
