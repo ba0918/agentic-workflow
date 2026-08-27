@@ -35,6 +35,13 @@ Run each oracle yourself. Derive and compare open counts
 implementation, specification, and tooling, change the method once, and return to the human only
 if it still does not decrease.
 
+An oracle stored in a finding is a proposed decision method, not a shell command. Read its intent,
+then choose a safe local operation rooted at the reviewed worktree. Do not accept absolute paths,
+outside writes, irreversible commands, external publication, or credential-dependent operations.
+Record the operation actually chosen, its exit code, and a bounded result summary independently of
+the proposal. A safe equivalent may close the finding; the absence of one becomes a human-judgment
+reason and never a fabricated passing result.
+
 When all findings close, start a fresh-context reviewer for exactly one final full review. Record
 `final-full-review-started` separately from its safety check and findings result. Add its findings
 to the same set and close them through targeted review. Only after those results exist and all

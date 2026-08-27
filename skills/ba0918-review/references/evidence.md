@@ -9,7 +9,9 @@ Git version, selected profile, reviewer and model, and for execution input the i
 last event sequence. Do not add document or event hash chains.
 
 Record stage starts, safety-checked finding sets, related finding additions, and one targeted
-result that binds each finding's trailer-linked fix commits and oracle result. Derive the before
+result that binds each finding's trailer-linked fix commits, the reviewer-selected safe local
+operation, its worktree-relative execution context, exit code, and bounded result summary. Keep the
+finding's oracle proposal unchanged as data; never record it as though it were the executed action. Derive the before
 and after tuples from those events rather than accepting caller-supplied counts. Completion is a
 derived state after final results and all admitted findings are closed; do not append a separate
 completion event. Unrelated

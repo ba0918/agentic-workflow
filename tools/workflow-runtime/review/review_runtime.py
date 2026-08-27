@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import shlex
 import subprocess
 import tempfile
 from typing import Any, NamedTuple
@@ -679,9 +680,34 @@ def _bound_trailer_commits(
         return failure("fix_commit_unlinked", "review commit range is unavailable")
     return ok([commit for commit in history.stdout.splitlines() if _commit_has_trailer(root, commit, finding_id)])
 
+def _review_execution(operation: str, exit_code: int, summary: str) -> RuntimeResult:
+    checked_operation = _bounded_text(operation)
+    checked_summary = _bounded_text(summary)
+    if not checked_operation.ok or not checked_summary.ok:
+        return failure("review_operation_unsafe", "targeted review operation and result must be safe bounded text")
+    try:
+        tokens = shlex.split(checked_operation.value)
+    except ValueError:
+        return failure("review_operation_unsafe", "targeted review operation cannot be parsed safely")
+    forbidden_commands = {"rm", "rmdir", "mv", "sudo", "curl", "wget", "ssh", "scp", "rsync", "gh"}
+    if (
+        not tokens or tokens[0] in forbidden_commands or "push" in tokens or "publish" in tokens
+        or any(token.startswith("/") or ".." in PurePosixPath(token).parts for token in tokens)
+        or any(token in {">", ">>", "2>", "2>>"} or token.startswith((">", "2>")) for token in tokens)
+    ):
+        return failure("review_operation_unsafe", "targeted review operation must stay local, reversible, and worktree-relative")
+    return ok({
+        "operation": checked_operation.value, "working_directory": ".",
+        "exit_code": exit_code, "summary": checked_summary.value,
+    })
+
 def close_finding(
     root: Path, binding: dict, finding_id: str, *, oracle_exit_code: int, fix_commits: list[str],
+    operation: str, result_summary: str,
 ) -> RuntimeResult:
+    execution = _review_execution(operation, oracle_exit_code, result_summary)
+    if not execution.ok:
+        return execution
     events = load_events(root, binding)
     if not events.ok:
         return events
@@ -708,7 +734,8 @@ def close_finding(
     if not linked.ok or not fix_commits or linked.value != fix_commits:
         return failure("fix_commit_unlinked", "every fix commit must exist and carry the finding trailer")
     return append_event(root, binding, "targeted-review-result", {
-        "finding_id": finding_id, "oracle_exit_code": oracle_exit_code, "fix_commits": fix_commits,
+        "finding_id": finding_id, "oracle_exit_code": oracle_exit_code,
+        "fix_commits": fix_commits, "execution": execution.value,
     })
 
 def record_human_decision(
@@ -732,11 +759,16 @@ def record_human_decision(
 
 def record_targeted_result(
     root: Path, binding: dict, finding_id: str, *, oracle_exit_code: int, fix_commits: list[str],
+    operation: str, result_summary: str,
 ) -> RuntimeResult:
     if oracle_exit_code == 0:
         return close_finding(
             root, binding, finding_id, oracle_exit_code=oracle_exit_code, fix_commits=fix_commits,
+            operation=operation, result_summary=result_summary,
         )
+    execution = _review_execution(operation, oracle_exit_code, result_summary)
+    if not execution.ok:
+        return execution
     events = load_events(root, binding)
     if not events.ok:
         return events
@@ -755,7 +787,8 @@ def record_targeted_result(
     if any(not _commit_has_trailer(root, commit, finding_id) for commit in fix_commits):
         return failure("fix_commit_unlinked", "every fix commit must exist and carry the finding trailer")
     return append_event(root, binding, "targeted-review-result", {
-        "finding_id": finding_id, "oracle_exit_code": oracle_exit_code, "fix_commits": fix_commits,
+        "finding_id": finding_id, "oracle_exit_code": oracle_exit_code,
+        "fix_commits": fix_commits, "execution": execution.value,
     })
 
 def add_findings(root: Path, binding: dict, *, candidates: list[dict], related_ids: set[str]) -> RuntimeResult:
@@ -923,6 +956,8 @@ def main(argv: list[str] | None = None) -> int:
     close.add_argument("--finding-id", required=True)
     close.add_argument("--oracle-exit-code", type=int, required=True)
     close.add_argument("--fix-commit", action="append", default=[])
+    close.add_argument("--operation", required=True)
+    close.add_argument("--result-summary", required=True)
     human = commands.add_parser("human-decision")
     _selector(human)
     human.add_argument("--finding-id", required=True)
@@ -979,7 +1014,7 @@ def main(argv: list[str] | None = None) -> int:
         payload = json.loads(Path(args.result_file).read_text(encoding="utf-8"))
         result = record_second_review(
             root, binding.value, status=payload.get("status", ""),
-            actual_model=payload.get("actual_model", ""), summary=payload.get("summary", ""),
+            actual_model=payload.get("actual_model"), summary=payload.get("summary", ""),
         )
     elif args.command == "add-findings":
         result = add_findings(
@@ -991,6 +1026,7 @@ def main(argv: list[str] | None = None) -> int:
         result = close_finding(
             root, binding.value, args.finding_id,
             oracle_exit_code=args.oracle_exit_code, fix_commits=args.fix_commit,
+            operation=args.operation, result_summary=args.result_summary,
         )
     elif args.command == "human-decision":
         result = record_human_decision(

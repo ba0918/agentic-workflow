@@ -158,7 +158,15 @@ def reduce_review(events: object) -> Result:
             targeted_seen = True
         elif kind == "targeted-review-result":
             finding_id = event.get("finding_id")
-            if finding_id not in targeted_pending or not isinstance(event.get("oracle_exit_code"), int) or not isinstance(event.get("fix_commits"), list):
+            execution = event.get("execution")
+            if (
+                finding_id not in targeted_pending or not isinstance(event.get("oracle_exit_code"), int)
+                or not isinstance(event.get("fix_commits"), list) or not isinstance(execution, dict)
+                or not str(execution.get("operation", "")).strip()
+                or execution.get("working_directory") != "."
+                or execution.get("exit_code") != event.get("oracle_exit_code")
+                or not str(execution.get("summary", "")).strip()
+            ):
                 return failure("review_transition_invalid", "targeted result has no matching start")
             targeted_pending.remove(finding_id)
             if event["oracle_exit_code"] == 0:

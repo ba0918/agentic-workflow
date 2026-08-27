@@ -343,14 +343,20 @@ class ReviewRuntimeTest(unittest.TestCase):
         self.assertTrue(runtime.record_findings(
             root, binding, stage="initial", findings=[item], safety=safety(), reviewer_context="reviewer-initial", actual_model="model-x",
         ).ok)
-        bypass = runtime.close_finding(root, binding, item["id"], oracle_exit_code=0, fix_commits=[])
+        bypass = runtime.close_finding(
+            root, binding, item["id"], oracle_exit_code=0, fix_commits=[],
+            operation="python3 -m unittest", result_summary="local test passed",
+        )
         self.assertEqual(bypass.error.code, "targeted_review_required")
         self.assertEqual(runtime.begin_stage(root, binding, reviewer_context="reviewer-targeted").value["event_type"], "targeted-review-started")
         (root / "fixed").write_text("fixed\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(root), "add", "fixed"], check=True)
         subprocess.run(["git", "-C", str(root), "commit", "-qm", f"fix finding\n\nFinding: {item['id']}"], check=True)
         fix_commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
-        closed = runtime.close_finding(root, binding, item["id"], oracle_exit_code=0, fix_commits=[fix_commit])
+        closed = runtime.close_finding(
+            root, binding, item["id"], oracle_exit_code=0, fix_commits=[fix_commit],
+            operation="python3 -m unittest", result_summary="local test passed",
+        )
         self.assertTrue(closed.ok, closed.error)
         self.assertEqual(closed.value["event_type"], "targeted-review-result")
         progress = runtime.record_progress(root, binding)
@@ -384,9 +390,11 @@ class ReviewRuntimeTest(unittest.TestCase):
             self.assertTrue(runtime.begin_stage(root, binding, reviewer_context=f"targeted-{index}").ok)
             self.assertTrue(runtime.record_targeted_result(
                 root, binding, original["id"], oracle_exit_code=1, fix_commits=[],
+                operation="python3 -m unittest", result_summary="local test still fails",
             ).ok)
             self.assertTrue(runtime.record_targeted_result(
                 root, binding, related["id"], oracle_exit_code=1, fix_commits=[],
+                operation="python3 -m unittest", result_summary="local test still fails",
             ).ok)
             actions.append(runtime.record_progress(root, binding).value["next_action"])
         self.assertEqual(actions, ["diagnose", "change_method", "human_judgment"])
@@ -416,8 +424,40 @@ class ReviewRuntimeTest(unittest.TestCase):
         progress = runtime.record_progress(root, binding)
         self.assertTrue(progress.ok, progress.error)
         self.assertEqual(progress.value["after"], (0, 0, 0))
-        later = runtime.record_targeted_result(root, binding, item["id"], oracle_exit_code=0, fix_commits=[])
+        later = runtime.record_targeted_result(
+            root, binding, item["id"], oracle_exit_code=0, fix_commits=[],
+            operation="python3 -m unittest", result_summary="local test passed",
+        )
         self.assertEqual(later.error.code, "finding_not_open")
+
+    def test_targeted_result_records_reviewer_operation_and_rejects_unsafe_proposals(self) -> None:
+        root, _, _ = self.repository()
+        binding = runtime.resolve_input(root, review_id="safe-operation", branch="feature", base="main").value
+        runtime.bind_review(root, binding, model="model-x")
+        runtime.begin_stage(root, binding, reviewer_context="initial")
+        item = finding(spec_commit=binding["spec_commit"])
+        runtime.record_findings(
+            root, binding, stage="initial", findings=[item], safety=safety(),
+            reviewer_context="initial", actual_model="model-x",
+        )
+        runtime.begin_stage(root, binding, reviewer_context="targeted")
+
+        unsafe = runtime.record_targeted_result(
+            root, binding, item["id"], oracle_exit_code=1, fix_commits=[],
+            operation="rm -rf /", result_summary="proposal was not executed",
+        )
+        safe = runtime.record_targeted_result(
+            root, binding, item["id"], oracle_exit_code=1, fix_commits=[],
+            operation="python3 -m unittest tests.review_test", result_summary="local test still fails",
+        )
+
+        self.assertEqual(unsafe.error.code, "review_operation_unsafe")
+        self.assertTrue(safe.ok, safe.error)
+        self.assertEqual(safe.value["execution"], {
+            "operation": "python3 -m unittest tests.review_test", "working_directory": ".",
+            "exit_code": 1, "summary": "local test still fails",
+        })
+        self.assertEqual(item["oracle"], "test -f fixed")
 
     def test_stale_state_blocks_every_operation_except_rebound(self) -> None:
         root, _, _ = self.repository()
@@ -449,7 +489,10 @@ class ReviewRuntimeTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(root), "add", "side.txt"], check=True)
         subprocess.run(["git", "-C", str(root), "commit", "-qm", f"unrelated\n\nFinding: {item['id']}"], check=True)
         side = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
-        result = runtime.close_finding(root, binding, item["id"], oracle_exit_code=0, fix_commits=[side])
+        result = runtime.close_finding(
+            root, binding, item["id"], oracle_exit_code=0, fix_commits=[side],
+            operation="python3 -m unittest", result_summary="local test passed",
+        )
         self.assertEqual(result.error.code, "fix_commit_unlinked")
 
     def test_two_commit_review_closes_with_exact_descendant_fix_range(self) -> None:
@@ -467,7 +510,10 @@ class ReviewRuntimeTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(root), "add", "fixed"], check=True)
         subprocess.run(["git", "-C", str(root), "commit", "-qm", f"fix\n\nFinding: {item['id']}"], check=True)
         fix = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
-        closed = runtime.close_finding(root, binding, item["id"], oracle_exit_code=0, fix_commits=[fix])
+        closed = runtime.close_finding(
+            root, binding, item["id"], oracle_exit_code=0, fix_commits=[fix],
+            operation="python3 -m unittest", result_summary="local test passed",
+        )
         self.assertTrue(closed.ok, closed.error)
 
         other, other_base, other_head = self.repository()
@@ -489,6 +535,7 @@ class ReviewRuntimeTest(unittest.TestCase):
         side = subprocess.run(["git", "-C", str(other), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
         rejected = runtime.close_finding(
             other, other_binding, other_item["id"], oracle_exit_code=0, fix_commits=[side],
+            operation="python3 -m unittest", result_summary="local test passed",
         )
         self.assertEqual(rejected.error.code, "fix_commit_unlinked")
 
