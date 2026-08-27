@@ -225,9 +225,18 @@ def can_append_after(event: dict) -> bool:
 
 def review_complete(events: list[dict], findings: list[dict]) -> bool:
     reduced = reduce_review(events)
+    targeted_positions = [
+        index for index, event in enumerate(events)
+        if event.get("event_type") == "targeted-review-started"
+    ]
+    targeted_progress_recorded = not targeted_positions or any(
+        event.get("event_type") == "progress-assessed"
+        for event in events[targeted_positions[-1] + 1:]
+    )
     return bool(
         reduced.ok and reduced.value["final_done"] and not reduced.value["stale"]
         and not reduced.value["targeted_pending"]
+        and targeted_progress_recorded
         and all(finding.get("state") == "closed" for finding in reduced.value["findings"])
     )
 

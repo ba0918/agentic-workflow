@@ -78,7 +78,7 @@
       },
       "scripts/review_model.py": {
         "contract": "review-runtime",
-        "digest": "sha256:9ab2b4ad46b21ea61de63b24f0377a04c625b29c75e753d3fbc9f9e747d6e494",
+        "digest": "sha256:ad1082b2d4887ef3696fe9864acd56216819ebcb7bc26c9e2b20ac693a80d355",
         "src": "tools/workflow-runtime/review/review_model.py"
       },
       "scripts/review_runtime.py": {
@@ -107,7 +107,7 @@
       "kind": "raw"
     },
     "review-runtime": {
-      "digest": "sha256:14f0520da34bd2b9edb79d2b39f4e5ff820773d118cf43253d04a1ae7ec65fd4",
+      "digest": "sha256:e0b3ac48e68024feedf47a068c9703b01b5ac62cef02f451cac9450e5daa3f4e",
       "kind": "raw"
     }
   }

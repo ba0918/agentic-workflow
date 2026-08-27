@@ -401,6 +401,48 @@ class ReviewRuntimeTest(unittest.TestCase):
         added = runtime.add_findings(root, binding, candidates=[rebound_finding], related_ids={rebound_finding["id"]})
         self.assertTrue(added.ok, added.error)
 
+    def test_final_targeted_close_accepts_required_progress_before_completion(self) -> None:
+        root, _, _ = self.repository()
+        binding = runtime.resolve_input(root, review_id="final-targeted", branch="feature", base="main").value
+        runtime.bind_review(root, binding, model="model-x")
+        runtime.begin_stage(root, binding, reviewer_context="initial")
+        self.assertTrue(runtime.record_findings(
+            root, binding, stage="initial", findings=[], safety=safety(),
+            reviewer_context="initial", actual_model="model-x",
+        ).ok)
+        runtime.begin_stage(root, binding, reviewer_context="final")
+        item = finding(spec_commit=binding["spec_commit"])
+        self.assertTrue(runtime.record_findings(
+            root, binding, stage="final", findings=[item], safety=safety(),
+            reviewer_context="final", actual_model="model-x",
+        ).ok)
+        self.assertTrue(runtime.begin_stage(root, binding, reviewer_context="targeted").ok)
+        (root / "fixed").write_text("fixed\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "fixed"], check=True)
+        subprocess.run([
+            "git", "-C", str(root), "commit", "-qm", f"fix\n\nFinding: {item['id']}",
+        ], check=True)
+        fix_commit = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        self.assertTrue(runtime.close_finding(
+            root, binding, item["id"], oracle_exit_code=0, fix_commits=[fix_commit],
+            operation="python3 -m unittest", result_summary="local test passed",
+        ).ok)
+
+        before_progress = runtime.complete_review(root, binding)
+        progress = runtime.record_progress(root, binding)
+        completed = runtime.complete_review(root, binding)
+        after_completion = runtime.mark_stale(root, binding, reason="must remain terminal")
+
+        self.assertEqual(before_progress.error.code, "progress_assessment_required")
+        self.assertTrue(progress.ok, progress.error)
+        self.assertEqual(progress.value["event_type"], "progress-assessed")
+        self.assertTrue(completed.ok, completed.error)
+        self.assertEqual(completed.value["event_type"], "review-complete")
+        self.assertEqual(after_completion.error.code, "review_already_completed")
+
     def test_dynamic_findings_and_stalled_progress_are_runtime_events(self) -> None:
         root, _, _ = self.repository()
         binding = runtime.resolve_input(root, review_id="review-1", branch="feature", base="main").value
