@@ -19,12 +19,15 @@ def invoke_gate(
     working_directory: Path,
     project_root: Path | None = None,
     output: str | None = None,
+    scope: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     arguments = [sys.executable, str(QUALITY_GATE), "--config", str(config)]
     if project_root is not None:
         arguments.extend(["--root", str(project_root)])
     if output is not None:
         arguments.extend(["--output", output])
+    if scope is not None:
+        arguments.extend(["--scope", scope])
     return subprocess.run(
         arguments,
         cwd=working_directory,
@@ -144,6 +147,33 @@ class QualityGateTest(unittest.TestCase):
                 ],
             )
             completed = invoke_gate(config, root / ".codex", project_root=root)
+
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(json.loads(completed.stdout), {"continue": True})
+
+    def test_selected_scope_is_forwarded_to_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / "scope"
+            config = root / "checks.json"
+            write_config(
+                config,
+                [
+                    {
+                        "name": "scope-reader",
+                        "argv": [
+                            sys.executable,
+                            "-c",
+                            "import os, pathlib; "
+                            f"pathlib.Path({str(marker)!r}).write_text("
+                            "os.environ['AGENTIC_QUALITY_SCOPE'])",
+                        ],
+                    }
+                ],
+            )
+            completed = invoke_gate(config, root, scope="staged")
+
+            self.assertEqual(marker.read_text(encoding="utf-8"), "staged")
 
         self.assertEqual(completed.returncode, 0)
         self.assertEqual(json.loads(completed.stdout), {"continue": True})

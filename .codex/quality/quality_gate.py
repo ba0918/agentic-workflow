@@ -3,6 +3,7 @@
 import argparse
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -53,13 +54,17 @@ def load_checks(config_path: Path) -> list[Check]:
     return checks
 
 
-def run_checks(checks: list[Check], working_directory: Path) -> list[CheckFailure]:
+def run_checks(
+    checks: list[Check], working_directory: Path, scope: str
+) -> list[CheckFailure]:
     failures = []
+    environment = {**os.environ, "AGENTIC_QUALITY_SCOPE": scope}
     for check in checks:
         try:
             completed = subprocess.run(
                 check.argv,
                 cwd=working_directory,
+                env=environment,
                 text=True,
                 capture_output=True,
                 check=False,
@@ -105,6 +110,7 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
     parser.add_argument("--config", type=Path)
     parser.add_argument("--root", type=Path)
     parser.add_argument("--output", choices=("hook", "cli"), default="hook")
+    parser.add_argument("--scope", choices=("worktree", "staged"), default="worktree")
     return parser.parse_args(arguments)
 
 
@@ -131,7 +137,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
             )
         ]
     else:
-        failures = run_checks(checks, project_root)
+        failures = run_checks(checks, project_root, options.scope)
     if options.output == "cli":
         if failures:
             print(failure_diagnostics(failures), file=sys.stderr)

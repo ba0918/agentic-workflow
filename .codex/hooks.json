@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/quality/quality_gate.py\"",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/quality/quality_gate.py\" --scope worktree",
             "timeout": 600,
             "statusMessage": "Running repository quality checks"
           }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/quality/quality_gate.py\"",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/quality/quality_gate.py\" --scope worktree",
             "timeout": 600,
             "statusMessage": "Running repository quality checks"
           }

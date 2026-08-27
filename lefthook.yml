@@ -1,4 +1,4 @@
 pre-commit:
   commands:
     quality-gate:
-      run: python3 .codex/quality/quality_gate.py --output cli
+      run: python3 .codex/quality/quality_gate.py --output cli --scope staged
