@@ -163,18 +163,32 @@ def _implementation_events(store: Path) -> RuntimeResult:
         events.append(event)
     return ok(events)
 
-def _validate_implementation_segments(root: Path, segments: list[dict], branch_head: str) -> RuntimeResult:
-    for index, segment in enumerate(segments):
-        end = segments[index + 1]["approval_commit"] if index + 1 < len(segments) else branch_head
-        history = _git(root, "rev-list", "--reverse", f"{segment['approval_commit']}..{end}")
-        if history.returncode != 0:
-            return failure("execution_input_invalid", "implementation revision range is unavailable")
-        commits = list(filter(None, history.stdout.splitlines()))
-        if index + 1 < len(segments) and commits and commits[-1] == end:
-            commits.pop()
-        if commits != segment.get("commits"):
-            return failure("execution_input_invalid", "implementation revision range and evidence differ")
+def _validate_implementation_segments(
+    root: Path, start_commit: str, segments: list[dict], branch_head: str,
+) -> RuntimeResult:
+    history = _git(root, "rev-list", "--reverse", f"{start_commit}..{branch_head}")
+    if history.returncode != 0:
+        return failure("execution_input_invalid", "implementation revision range is unavailable")
+    commits = [commit for segment in segments for commit in segment.get("commits", [])]
+    document_boundaries = {segment.get("approval_commit") for segment in segments[1:]}
+    implementation_history = [
+        commit for commit in filter(None, history.stdout.splitlines()) if commit not in document_boundaries
+    ]
+    if implementation_history != commits:
+        return failure("execution_input_invalid", "implementation revision range and evidence differ")
     return ok()
+
+def _changed_paths(root: Path, start: str, end: str) -> RuntimeResult:
+    result = _git(root, "diff", "--name-only", start, end)
+    if result.returncode != 0:
+        return failure("execution_input_invalid", "implementation changed paths are unavailable")
+    return ok(sorted(filter(None, result.stdout.splitlines())))
+
+def _uncommitted_paths(worktree: Path) -> RuntimeResult:
+    result = _git(worktree, "status", "--porcelain=v1", "--untracked-files=all")
+    if result.returncode != 0:
+        return failure("execution_input_invalid", "implementation worktree status is unavailable")
+    return ok(sorted({line[3:] for line in result.stdout.splitlines() if len(line) >= 4}))
 
 def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> RuntimeResult:
     if SAFE_ID.fullmatch(plan_key) is None or SAFE_ID.fullmatch(run_id) is None:
@@ -209,8 +223,6 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
     branch = binding.get("branch")
     if not worktree.is_dir() or _git(worktree, "branch", "--show-current").stdout.strip() != branch:
         return failure("execution_input_invalid", "implementation worktree and branch do not match")
-    if _git(worktree, "status", "--porcelain").stdout.strip():
-        return failure("execution_input_invalid", "implementation worktree is no longer clean")
     root_common = _git(root, "rev-parse", "--git-common-dir")
     worktree_common = _git(worktree, "rev-parse", "--git-common-dir")
     if root_common.returncode != 0 or worktree_common.returncode != 0:
@@ -219,19 +231,30 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
     worktree_common_path = (worktree / worktree_common.stdout.strip()).resolve()
     if root_common_path != worktree_common_path:
         return failure("execution_input_invalid", "implementation worktree belongs to another repository")
-    branch_head = _commit(root, branch)
+    branch_head = _commit(root, f"refs/heads/{branch}")
     if any(not _commit(root, event.get("commit")).ok for event in commits):
         return failure("execution_input_invalid", "implementation evidence names a missing commit")
     if not branch_head.ok:
         return failure("execution_input_invalid", "implementation branch tip is unavailable")
-    segment_check = _validate_implementation_segments(root, derived.value["segments"], branch_head.value)
+    segment_check = _validate_implementation_segments(
+        root, binding.get("approval_commit", ""), derived.value["segments"], branch_head.value,
+    )
     if not segment_check.ok:
         return segment_check
+    changed = _changed_paths(root, binding["approval_commit"], branch_head.value)
+    dirty = _uncommitted_paths(worktree)
+    if not changed.ok or not dirty.ok:
+        return changed if not changed.ok else dirty
+    dirty_in_scope = sorted(set(dirty.value) & set(changed.value))
+    if dirty_in_scope:
+        return failure("review_scope_dirty", "reviewed implementation paths have uncommitted changes")
     try:
-        return ok(execution_binding(
+        resolved = execution_binding(
             plan_key, run_id, approval.value, implement_sequence=events[-1]["sequence"],
             branch=branch, head=branch_head.value, worktree=str(worktree.resolve()),
-        ))
+        )
+        resolved["uncommitted_outside_scope"] = sorted(set(dirty.value) - set(changed.value))
+        return ok(resolved)
     except (KeyError, ValueError):
         return failure("execution_input_invalid", "implementation binding cannot start review")
 

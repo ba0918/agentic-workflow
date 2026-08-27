@@ -250,4 +250,5 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
     return _ok({
         "approval_commit": approval_commit, "steps": active_steps,
         "completed_steps": ordered_completed, "resume_step": resume_step, "segments": segments,
+        "commits": [commit for segment in segments for commit in segment["commits"]],
     })

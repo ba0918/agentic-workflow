@@ -90,6 +90,64 @@ class ReviewRuntimeTest(unittest.TestCase):
         self.assertEqual(branch.value["input"]["base"], base)
         self.assertEqual(branch.value["input"]["head"], head)
 
+    def test_branch_names_are_resolved_only_from_local_branch_references(self) -> None:
+        root, base, head = self.execution_fixture()
+        subprocess.run(["git", "-C", str(root), "tag", "feature", base], check=True)
+
+        execution = runtime.resolve_input(root, review_id="exec", plan_key="plan-a", run_id="run-1")
+        standalone = runtime.resolve_input(root, review_id="branch", branch="feature", base="main")
+
+        self.assertTrue(execution.ok, execution.error)
+        self.assertTrue(standalone.ok, standalone.error)
+        self.assertEqual(execution.value["head"], head)
+        self.assertEqual(standalone.value["input"]["head"], head)
+
+    def test_document_only_rebound_commit_need_not_be_in_implementation_history(self) -> None:
+        root, base, implementation = self.execution_fixture()
+        subprocess.run(["git", "-C", str(root), "switch", "-qc", "specification", base], check=True)
+        (root / "docs/spec/review.md").write_text("# Review\n\nClarified wording.\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "docs/spec/review.md"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "clarify specification"], check=True)
+        revised = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        subprocess.run(["git", "-C", str(root), "switch", "feature"], check=True)
+        store = root / ".agents/evidence/plan-a/run-1"
+        (store / "000004-implementation_green.json").unlink()
+        rebound = {
+            "version": 2, "sequence": 4, "event_type": "rebound", "approval_commit": revised,
+            "steps": [{"id": "same", "completion": "check"}],
+            "mappings": [{"old": "1", "new": "same"}], "reason": "wording only",
+        }
+        green = {
+            "version": 2, "sequence": 5, "event_type": "implementation_green",
+            "completed_steps": ["same"],
+        }
+        (store / "000004-rebound.json").write_text(json.dumps(rebound), encoding="utf-8")
+        (store / "000005-implementation_green.json").write_text(json.dumps(green), encoding="utf-8")
+
+        resolved = runtime.resolve_input(root, review_id="rebound", plan_key="plan-a", run_id="run-1")
+
+        self.assertTrue(resolved.ok, resolved.error)
+        self.assertEqual(resolved.value["approval_commit"], revised)
+        self.assertEqual(resolved.value["head"], implementation)
+
+    def test_execution_review_rejects_dirty_reviewed_paths_but_records_other_dirty_paths(self) -> None:
+        root, _, _ = self.execution_fixture()
+        binding_path = root / ".agents/evidence/plan-a/run-1/binding.json"
+        binding = json.loads(binding_path.read_text(encoding="utf-8"))
+        binding["expected_paths"] = ["app.txt"]
+        binding_path.write_text(json.dumps(binding), encoding="utf-8")
+        (root / "notes.txt").write_text("outside review scope\n", encoding="utf-8")
+
+        outside = runtime.resolve_input(root, review_id="outside", plan_key="plan-a", run_id="run-1")
+
+        self.assertTrue(outside.ok, outside.error)
+        self.assertEqual(outside.value["uncommitted_outside_scope"], ["notes.txt"])
+        (root / "app.txt").write_text("dirty reviewed input\n", encoding="utf-8")
+        inside = runtime.resolve_input(root, review_id="inside", plan_key="plan-a", run_id="run-1")
+        self.assertEqual(inside.error.code, "review_scope_dirty")
+
     def test_review_selectors_and_bindings_cannot_escape_the_evidence_store(self) -> None:
         root, base, head = self.repository()
         outside = root.parent / f"{root.name}-outside" / "review"

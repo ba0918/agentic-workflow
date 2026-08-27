@@ -136,6 +136,7 @@ class ImplementationEvidenceTest(unittest.TestCase):
             {"approval_commit": "a" * 40, "commits": ["c" * 40]},
             {"approval_commit": "d" * 40, "commits": []},
         ])
+        self.assertEqual(result.value["commits"], ["c" * 40])
 
     def test_frozen_red_snapshot_must_match_green_and_refactor(self) -> None:
         binding = self.binding([{"id": "1", "completion": "test"}])
