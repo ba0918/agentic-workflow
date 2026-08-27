@@ -175,5 +175,31 @@ class ImplementationEvidenceTest(unittest.TestCase):
         self.assertTrue(result.value["resume_candidate_retired"])
         self.assertEqual(result.value["resume_step"], "1")
 
+    def test_rebound_does_not_reuse_an_unfinished_red_snapshot(self) -> None:
+        binding = self.binding([{"id": "old", "completion": "test"}])
+        events = [
+            self.event(1, "red", step="old", command="tests", exit_code=1, snapshot=self.snapshot()),
+            self.event(2, "rebound", approval_commit="b" * 40,
+                       steps=[{"id": "new", "completion": "test"}],
+                       mappings=[{"old": "old", "new": "new"}], reason="approved"),
+            self.event(3, "green", step="new", command="tests", exit_code=0, snapshot=self.snapshot()),
+        ]
+
+        result = self.model.derive_implementation(binding, events)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "transition_invalid")
+
+    def test_step_evidence_cannot_complete_out_of_plan_order(self) -> None:
+        binding = self.binding([
+            {"id": "first", "completion": "check"}, {"id": "second", "completion": "check"},
+        ])
+        event = self.event(1, "check", step="second", checks=[{"exit_code": 0}], changed_paths=[])
+
+        result = self.model.derive_implementation(binding, [event])
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "step_order_invalid")
+
 if __name__ == "__main__":
     unittest.main()

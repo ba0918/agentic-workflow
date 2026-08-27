@@ -384,5 +384,52 @@ class ImplementPlanBindingTest(unittest.TestCase):
                 "--unplanned-reason", "helper.py=two",
             ])
 
+    def test_completion_rejects_planned_dirty_paths_but_reports_safe_unplanned_dirty_paths(self) -> None:
+        from runtime.types import ResolvedPlan
+        outside_root = self.fixture()
+        approval = subprocess.run(
+            ["git", "-C", str(outside_root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        branch = subprocess.run(
+            ["git", "-C", str(outside_root), "branch", "--show-current"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("src/app.py",))
+        run = repository.bind_run(
+            outside_root, plan, run_id="run-1", delegated=False,
+            steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(outside_root),
+        ).value
+        context.append_event(run, "check", {
+            "step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": [],
+        })
+        (outside_root / "notes.txt").write_text("safe outside scope\n", encoding="utf-8")
+
+        outside = context.complete_run(run)
+
+        self.assertTrue(outside.ok, outside.error)
+        self.assertEqual(outside.value["uncommitted_outside_scope"], ["notes.txt"])
+
+        inside_root = self.fixture()
+        approval = subprocess.run(
+            ["git", "-C", str(inside_root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        branch = subprocess.run(
+            ["git", "-C", str(inside_root), "branch", "--show-current"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        run = repository.bind_run(
+            inside_root, ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("src/app.py",)),
+            run_id="run-1", delegated=False, steps=[{"id": "1", "completion": "check"}],
+            branch=branch, worktree=str(inside_root),
+        ).value
+        context.append_event(run, "check", {
+            "step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": [],
+        })
+        (inside_root / "src").mkdir()
+        (inside_root / "src/app.py").write_text("planned but uncommitted\n", encoding="utf-8")
+
+        inside = context.complete_run(run)
+
+        self.assertFalse(inside.ok)
+        self.assertEqual(inside.error.code, "planned_changes_uncommitted")
+
 if __name__ == "__main__":
     unittest.main()

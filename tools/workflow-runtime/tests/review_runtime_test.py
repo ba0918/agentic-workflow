@@ -144,6 +144,10 @@ class ReviewRuntimeTest(unittest.TestCase):
 
         self.assertTrue(outside.ok, outside.error)
         self.assertEqual(outside.value["uncommitted_outside_scope"], ["notes.txt"])
+        (root / ".env").write_text("placeholder\n", encoding="utf-8")
+        dangerous = runtime.resolve_input(root, review_id="dangerous", plan_key="plan-a", run_id="run-1")
+        self.assertEqual(dangerous.error.code, "dangerous_path")
+        (root / ".env").unlink()
         (root / "app.txt").write_text("dirty reviewed input\n", encoding="utf-8")
         inside = runtime.resolve_input(root, review_id="inside", plan_key="plan-a", run_id="run-1")
         self.assertEqual(inside.error.code, "review_scope_dirty")

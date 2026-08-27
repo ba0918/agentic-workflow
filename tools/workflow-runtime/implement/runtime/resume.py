@@ -31,7 +31,10 @@ def _uncommitted_paths(worktree: Path) -> list[str]:
     status = _git(worktree, "status", "--porcelain=v1", "--untracked-files=all")
     if status.returncode != 0:
         return []
-    return sorted({line[3:] for line in status.stdout.splitlines() if len(line) >= 4})
+    return sorted({
+        line[3:] for line in status.stdout.splitlines()
+        if len(line) >= 4 and not line[3:].startswith(".agents/")
+    })
 
 def _git_facts(root: Path, binding: dict, events: list[dict]) -> RuntimeResult:
     branch = binding.get("branch")

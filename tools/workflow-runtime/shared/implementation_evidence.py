@@ -145,7 +145,7 @@ def _valid_event(event: dict) -> bool:
             and isinstance(event.get("reason"), str) and bool(event["reason"].strip())
         )
     if kind == "implementation_green":
-        return _safe_paths(event.get("completed_steps"))
+        return _safe_paths(event.get("completed_steps")) and _safe_paths(event.get("uncommitted_outside_scope", []))
     if kind == "worktree-bound":
         return isinstance(event.get("branch"), str) and bool(event["branch"]) and isinstance(event.get("worktree"), str) and bool(event["worktree"])
     if kind == "human_gate":
@@ -203,6 +203,14 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
             contract = next((step for step in active_steps if step["id"] == event.get("step")), None)
             if contract is None:
                 return _failure("transition_invalid", "implementation event names an unknown active step")
+            completed_now = completed | _completed_steps(active_steps, segment)
+            next_step = next((step["id"] for step in active_steps if step["id"] not in completed_now), None)
+            contract_index = next(index for index, step in enumerate(active_steps) if step["id"] == contract["id"])
+            started_steps = completed_now | {item.get("step") for item in segment}
+            if contract["id"] not in completed_now and contract["id"] != next_step and any(
+                step["id"] not in started_steps for step in active_steps[:contract_index]
+            ):
+                return _failure("step_order_invalid", "implementation evidence must follow plan step order")
             if kind in {"red", "green", "refactor"}:
                 if contract["completion"] != "test":
                     return _failure("transition_invalid", "test stage belongs to a non-test step")
@@ -243,8 +251,8 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
             return _failure("rebound_mapping_invalid", "rebound step mapping is invalid")
         completed = {mapping[step_id] for step_id in completed if step_id in mapping}
         active_steps = new_steps
-        test_stages = {mapping[step]: state for step, state in test_stages.items() if step in mapping}
-        red_snapshots = {mapping[step]: snapshot for step, snapshot in red_snapshots.items() if step in mapping}
+        test_stages = {}
+        red_snapshots = {}
         approval_commit = event.get("approval_commit")
         segment = []
     completed |= _completed_steps(active_steps, segment)

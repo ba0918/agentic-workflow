@@ -17,6 +17,7 @@ SHARED_DIR = Path(__file__).resolve().parents[1] / "shared"
 if str(SHARED_DIR) not in sys.path:
     sys.path.insert(0, str(SHARED_DIR))
 import implementation_evidence
+from path_safety import safety_problem
 
 try:
     from secret_detect import contains_secret
@@ -249,12 +250,17 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
     dirty_in_scope = sorted(set(dirty.value) & set(changed.value))
     if dirty_in_scope:
         return failure("review_scope_dirty", "reviewed implementation paths have uncommitted changes")
+    outside = sorted(set(dirty.value) - set(changed.value))
+    for path in outside:
+        problem = safety_problem(path)
+        if problem is not None:
+            return failure("dangerous_path", f"unsafe uncommitted path: {path}")
     try:
         resolved = execution_binding(
             plan_key, run_id, approval.value, implement_sequence=events[-1]["sequence"],
             branch=branch, head=branch_head.value, worktree=str(worktree.resolve()),
         )
-        resolved["uncommitted_outside_scope"] = sorted(set(dirty.value) - set(changed.value))
+        resolved["uncommitted_outside_scope"] = outside
         return ok(resolved)
     except (KeyError, ValueError):
         return failure("execution_input_invalid", "implementation binding cannot start review")
