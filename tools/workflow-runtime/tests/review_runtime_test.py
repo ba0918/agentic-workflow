@@ -463,6 +463,20 @@ class ReviewRuntimeTest(unittest.TestCase):
         })
         self.assertEqual(item["oracle"], "test -f fixed")
 
+    def test_targeted_result_rejects_destructive_git_shell_and_interpreter_operations(self) -> None:
+        operations = (
+            "git reset --hard",
+            "git clean -fd",
+            "sh -c 'rm -rf build'",
+            "python3 -c \"from pathlib import Path; Path('result').write_text('changed')\"",
+        )
+
+        for operation in operations:
+            with self.subTest(operation=operation):
+                result = runtime._review_execution(operation, 1, "operation was not executed")
+                self.assertFalse(result.ok)
+                self.assertEqual(result.error.code, "review_operation_unsafe")
+
     def test_stale_state_blocks_every_operation_except_rebound(self) -> None:
         root, _, _ = self.repository()
         binding = runtime.resolve_input(root, review_id="stale", branch="feature", base="main").value

@@ -686,6 +686,27 @@ def _bound_trailer_commits(
         return failure("fix_commit_unlinked", "review commit range is unavailable")
     return ok([commit for commit in history.stdout.splitlines() if _commit_has_trailer(root, commit, finding_id)])
 
+def _review_operation_allowed(tokens: list[str]) -> bool:
+    command = tokens[0]
+    if command in {"python", "python3"}:
+        return len(tokens) >= 3 and tokens[1] == "-m" and tokens[2] in {"unittest", "pytest"}
+    if command == "git":
+        return len(tokens) >= 2 and tokens[1] in {
+            "diff", "grep", "log", "ls-files", "merge-base", "rev-parse", "show", "status",
+        }
+    if command == "cargo":
+        return len(tokens) >= 2 and tokens[1] in {"check", "clippy", "test"}
+    if command == "go":
+        return len(tokens) >= 2 and tokens[1] in {"test", "vet"}
+    if command == "npm":
+        return len(tokens) >= 2 and tokens[1] == "test"
+    if command == "bun":
+        return len(tokens) >= 2 and tokens[1] == "test"
+    if command == "bunx":
+        return len(tokens) >= 3 and tokens[1:] == ["agentic-skill-vendor", "verify"]
+    return command in {"pytest", "rg", "sed"}
+
+
 def _review_execution(operation: str, exit_code: int, summary: str) -> RuntimeResult:
     checked_operation = _bounded_text(operation)
     checked_summary = _bounded_text(summary)
@@ -695,11 +716,14 @@ def _review_execution(operation: str, exit_code: int, summary: str) -> RuntimeRe
         tokens = shlex.split(checked_operation.value)
     except ValueError:
         return failure("review_operation_unsafe", "targeted review operation cannot be parsed safely")
-    forbidden_commands = {"rm", "rmdir", "mv", "sudo", "curl", "wget", "ssh", "scp", "rsync", "gh"}
     if (
-        not tokens or tokens[0] in forbidden_commands or "push" in tokens or "publish" in tokens
+        not tokens or not _review_operation_allowed(tokens)
         or any(token.startswith("/") or ".." in PurePosixPath(token).parts for token in tokens)
-        or any(token in {">", ">>", "2>", "2>>"} or token.startswith((">", "2>")) for token in tokens)
+        or any(
+            token in {";", "&", "&&", "|", "||", ">", ">>", "2>", "2>>"}
+            or token.startswith((">", "2>"))
+            for token in tokens
+        )
     ):
         return failure("review_operation_unsafe", "targeted review operation must stay local, reversible, and worktree-relative")
     return ok({
