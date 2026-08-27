@@ -3,6 +3,7 @@
 import argparse
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 from typing import Sequence
@@ -12,9 +13,14 @@ from project_paths import resolve_project_root
 
 SCOPE_ENVIRONMENT_VARIABLE = "AGENTIC_QUALITY_SCOPE"
 SPEC_DIRECTORY = Path("docs/spec")
+REGULAR_GIT_MODES = frozenset({"100644", "100755"})
 
 
 class GitPathError(RuntimeError):
+    pass
+
+
+class NonRegularSpecError(RuntimeError):
     pass
 
 
@@ -46,6 +52,22 @@ def staged_content(project_root: Path, path: Path) -> bytes:
         diagnostic = os.fsdecode(completed.stderr).strip()
         raise GitPathError(diagnostic or f"git exited {completed.returncode}")
     return completed.stdout
+
+
+def staged_mode(project_root: Path, path: Path) -> str:
+    completed = subprocess.run(
+        ["git", "ls-files", "--stage", "-z", "--", path.as_posix()],
+        cwd=project_root,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        diagnostic = os.fsdecode(completed.stderr).strip()
+        raise GitPathError(diagnostic or f"git exited {completed.returncode}")
+    entry, separator, _ = completed.stdout.partition(b"\t")
+    if not separator:
+        raise GitPathError(f"missing staged entry for {path.as_posix()}")
+    return os.fsdecode(entry.split(b" ", maxsplit=1)[0])
 
 
 def changed_paths(project_root: Path, scope: str) -> set[Path]:
@@ -96,9 +118,17 @@ def lintable_spec_paths(project_root: Path, scope: str) -> list[Path]:
             continue
         if scope == "staged":
             if relative_path.is_relative_to(SPEC_DIRECTORY):
+                if staged_mode(project_root, relative_path) not in REGULAR_GIT_MODES:
+                    raise NonRegularSpecError(
+                        f"{relative_path.as_posix()} is not a regular file"
+                    )
                 selected.append(relative_path)
             continue
         candidate = project_root / relative_path
+        if not stat.S_ISREG(candidate.stat(follow_symlinks=False).st_mode):
+            raise NonRegularSpecError(
+                f"{relative_path.as_posix()} is not a regular file"
+            )
         resolved = candidate.resolve()
         if resolved.is_relative_to(spec_root) and candidate.is_file():
             selected.append(relative_path)
@@ -150,7 +180,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     try:
         paths = lintable_spec_paths(project_root, scope)
         return run_textlint(project_root, paths, scope)
-    except GitPathError as error:
+    except (GitPathError, NonRegularSpecError, OSError) as error:
         print(str(error), file=sys.stderr)
         return 2
 

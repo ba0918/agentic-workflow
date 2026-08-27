@@ -260,20 +260,41 @@ class SpecTextlintTest(unittest.TestCase):
             self.assertIn("line 1: violation", completed.stdout)
             self.assertIn("textlint failed", completed.stderr)
 
-    def test_spec_symlink_outside_repository_is_not_linted(self) -> None:
+    def test_worktree_scope_rejects_spec_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.initialize_repository(root)
             self.install_fake_textlint(root)
             capture = root / "capture"
-            outside = root / "outside.md"
-            outside.write_text("outside\n")
             link = root / "docs" / "spec" / "linked.md"
-            link.symlink_to(outside)
+            link.symlink_to("tracked.md")
 
             completed = self.invoke(root, "worktree", capture)
 
-            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(completed.returncode, 2)
+            self.assertIn(
+                "docs/spec/linked.md is not a regular file",
+                completed.stderr,
+            )
+            self.assertFalse(capture.exists())
+
+    def test_staged_scope_rejects_spec_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.initialize_repository(root)
+            self.install_fake_textlint(root)
+            capture = root / "capture"
+            link = root / "docs" / "spec" / "linked.md"
+            link.symlink_to("tracked.md")
+            subprocess.run(["git", "add", str(link)], cwd=root, check=True)
+
+            completed = self.invoke(root, "staged", capture)
+
+            self.assertEqual(completed.returncode, 2)
+            self.assertIn(
+                "docs/spec/linked.md is not a regular file",
+                completed.stderr,
+            )
             self.assertFalse(capture.exists())
 
 
