@@ -95,6 +95,32 @@ class ReviewModelTest(unittest.TestCase):
         self.assertTrue(model.review_complete(complete, []))
         self.assertFalse(model.review_complete(complete[:-2], []))
 
+    def test_human_decision_clears_targeted_pending_and_rebound_updates_active_specification(self) -> None:
+        item = finding(action="human_judgment", oracle="", oracle_status="unavailable",
+                       oracle_unavailable_reason="requires a product decision")
+        safety = {"completed": True, "summary": "safe", "unresolved": []}
+        events = [
+            {"version": 2, "sequence": 1, "event_type": "review-bound", "model": "m"},
+            {"version": 2, "sequence": 2, "event_type": "initial-full-review-started", "reviewer_context": "initial"},
+            {"version": 2, "sequence": 3, "event_type": "initial-findings-recorded", "findings": [item],
+             "safety": safety, "reviewer_context": "initial", "actual_model": "m"},
+            {"version": 2, "sequence": 4, "event_type": "targeted-review-started", "finding_ids": [item["id"]],
+             "reviewer_context": "targeted"},
+            {"version": 2, "sequence": 5, "event_type": "human-finding-decided", "finding_id": item["id"],
+             "decision": "do_not_fix", "reason": "accepted"},
+            {"version": 2, "sequence": 6, "event_type": "progress-assessed", "progressed": True},
+            {"version": 2, "sequence": 7, "event_type": "findings_stale", "reason": "spec changed"},
+            {"version": 2, "sequence": 8, "event_type": "findings-rebound", "reason": "approved",
+             "spec_commit": "b" * 40},
+        ]
+
+        reduced = model.reduce_review(events)
+
+        self.assertTrue(reduced.ok, reduced.error)
+        self.assertEqual(reduced.value["targeted_pending"], [])
+        self.assertEqual(reduced.value["active_spec_commit"], "b" * 40)
+        self.assertEqual(reduced.value["findings"][0]["spec_commit"], "b" * 40)
+
     def test_unrelated_minor_findings_are_observations_but_serious_regressions_join_review(self) -> None:
         warn = finding(severity="warn")
         info = finding(severity="info", action="record_only", oracle="")

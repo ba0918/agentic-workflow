@@ -276,11 +276,12 @@ class ReviewRuntimeTest(unittest.TestCase):
             "second_reviewer": "codex", "second_model": "model-y",
         })
         second = runtime.record_second_review(
-            root, stored, status="unavailable", actual_model="model-y",
+            root, stored, status="unavailable", actual_model=None,
             summary="runner unavailable; continuing with first reviewer",
         )
         self.assertTrue(second.ok, second.error)
         self.assertEqual(second.value["event_type"], "second-review-recorded")
+        self.assertNotIn("actual_model", second.value)
         initial = runtime.begin_stage(root, binding, reviewer_context="reviewer-initial")
         self.assertEqual(initial.value["event_type"], "initial-full-review-started")
         self.assertEqual(runtime.begin_stage(root, binding, reviewer_context="same").error.code, "stage_results_required")
@@ -359,6 +360,9 @@ class ReviewRuntimeTest(unittest.TestCase):
         self.assertTrue(runtime.mark_stale(root, binding, reason="important spec change").ok)
         self.assertEqual(runtime.begin_stage(root, binding, reviewer_context="blocked").error.code, "findings_stale")
         self.assertTrue(runtime.rebound_findings(root, binding, spec_commit=fix_commit, reason="human approved revision").ok)
+        rebound_finding = finding(oracle="new-spec", spec_commit=fix_commit)
+        added = runtime.add_findings(root, binding, candidates=[rebound_finding], related_ids={rebound_finding["id"]})
+        self.assertTrue(added.ok, added.error)
 
     def test_dynamic_findings_and_stalled_progress_are_runtime_events(self) -> None:
         root, _, _ = self.repository()
@@ -398,6 +402,7 @@ class ReviewRuntimeTest(unittest.TestCase):
             root, binding, stage="initial", findings=[item], safety=safety(),
             reviewer_context="reviewer-initial", actual_model="model-x",
         ).ok)
+        self.assertTrue(runtime.begin_stage(root, binding, reviewer_context="reviewer-targeted").ok)
         missing_reason = runtime.record_human_decision(
             root, binding, item["id"], decision="do_not_fix", reason="",
         )
@@ -408,6 +413,9 @@ class ReviewRuntimeTest(unittest.TestCase):
         self.assertTrue(decided.ok, decided.error)
         self.assertEqual(decided.value["event_type"], "human-finding-decided")
         self.assertEqual(runtime.current_findings(runtime.load_events(root, binding).value)[0]["state"], "closed")
+        progress = runtime.record_progress(root, binding)
+        self.assertTrue(progress.ok, progress.error)
+        self.assertEqual(progress.value["after"], (0, 0, 0))
         later = runtime.record_targeted_result(root, binding, item["id"], oracle_exit_code=0, fix_commits=[])
         self.assertEqual(later.error.code, "finding_not_open")
 

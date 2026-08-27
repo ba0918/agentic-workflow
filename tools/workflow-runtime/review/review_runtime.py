@@ -400,11 +400,14 @@ def load_events(root: Path, binding: dict) -> RuntimeResult:
     reduced = review_model.reduce_review(events)
     if not reduced.ok:
         return failure(reduced.error.code, reduced.error.message)
+    active_spec_commit = binding.get("spec_commit") or binding.get("approval_commit")
     for event in events:
         for item in event.get("findings", []) + event.get("terminal_observations", []):
-            checked = _validate_finding_for_binding(root, binding, item)
+            checked = _validate_finding_for_binding(root, binding, item, spec_commit=active_spec_commit)
             if not checked.ok:
                 return checked
+        if event.get("event_type") == "findings-rebound":
+            active_spec_commit = event.get("spec_commit")
     return ok(events)
 
 def _selected_profiles(root: Path, binding: dict, explicit: list[str]) -> tuple[list[str], str]:
@@ -506,7 +509,9 @@ def _safe_finding_strings(value: object, *, field: str = "finding") -> RuntimeRe
                 return failure("finding_content_invalid", "finding path must be repository-relative")
     return ok()
 
-def _validate_finding_for_binding(root: Path, binding: dict, item: object) -> RuntimeResult:
+def _validate_finding_for_binding(
+    root: Path, binding: dict, item: object, *, spec_commit: str | None = None,
+) -> RuntimeResult:
     checked = review_model.validate_finding(item)
     if not checked.ok:
         return failure(checked.error.code, checked.error.message)
@@ -515,7 +520,7 @@ def _validate_finding_for_binding(root: Path, binding: dict, item: object) -> Ru
         return content
     assert isinstance(item, dict)
     profiles = binding.get("review_options", {}).get("profiles", [])
-    spec_commit = binding.get("spec_commit") or binding.get("approval_commit")
+    spec_commit = spec_commit or binding.get("spec_commit") or binding.get("approval_commit")
     specification = item["specification"]
     allowed_paths = binding.get("spec_paths") or ["docs/spec/"]
     path = specification["path"]
@@ -528,25 +533,32 @@ def _validate_finding_for_binding(root: Path, binding: dict, item: object) -> Ru
     return ok(dict(item))
 
 def record_second_review(
-    root: Path, binding: dict, *, status: str, actual_model: str, summary: str,
+    root: Path, binding: dict, *, status: str, actual_model: str | None, summary: str,
 ) -> RuntimeResult:
     options = binding.get("review_options", {})
     if not options.get("second_reviewer"):
         return failure("second_reviewer_not_requested", "second review was not explicitly requested")
-    checked_model = _bounded_text(actual_model)
     checked_summary = _bounded_text(summary)
-    if status not in {"completed", "unavailable"} or not checked_model.ok or not checked_summary.ok:
+    checked_model = _bounded_text(actual_model) if actual_model is not None else None
+    if (
+        status not in {"completed", "unavailable"} or not checked_summary.ok
+        or (status == "completed" and (checked_model is None or not checked_model.ok))
+        or (status == "unavailable" and actual_model is not None)
+    ):
         return failure("second_review_invalid", "second review result needs status, model, and summary")
     events = load_events(root, binding)
     if not events.ok:
         return events
     if any(event.get("event_type") == "second-review-recorded" for event in events.value):
         return failure("second_review_already_recorded", "second reviewer runs only once")
-    return append_event(root, binding, "second-review-recorded", {
+    fields = {
         "status": status, "reviewer": options["second_reviewer"],
-        "requested_model": options.get("second_model"), "actual_model": checked_model.value,
+        "requested_model": options.get("second_model"),
         "summary": checked_summary.value,
-    })
+    }
+    if checked_model is not None:
+        fields["actual_model"] = checked_model.value
+    return append_event(root, binding, "second-review-recorded", fields)
 
 def begin_stage(root: Path, binding: dict, *, reviewer_context: str) -> RuntimeResult:
     checked_context = _bounded_text(reviewer_context)
@@ -620,8 +632,9 @@ def record_findings(
     if any(event.get("event_type") == result_type for event in events.value):
         return failure("findings_already_recorded", "stage findings are append-only")
     ids: set[str] = set()
+    active_spec_commit = review_model.reduce_review(events.value).value["active_spec_commit"]
     for item in findings:
-        checked = _validate_finding_for_binding(root, binding, item)
+        checked = _validate_finding_for_binding(root, binding, item, spec_commit=active_spec_commit)
         if not checked.ok:
             return failure(checked.error.code, checked.error.message)
         if item["id"] in ids:
@@ -750,8 +763,9 @@ def add_findings(root: Path, binding: dict, *, candidates: list[dict], related_i
     if not events.ok:
         return events
     existing_ids = {item["id"] for item in current_findings(events.value)}
+    active_spec_commit = review_model.reduce_review(events.value).value["active_spec_commit"]
     for item in candidates:
-        checked = _validate_finding_for_binding(root, binding, item)
+        checked = _validate_finding_for_binding(root, binding, item, spec_commit=active_spec_commit)
         if not checked.ok:
             return failure(checked.error.code, checked.error.message)
     admitted, observations = review_model.admit_new_findings(candidates, related_ids)
@@ -772,7 +786,7 @@ def record_progress(root: Path, binding: dict) -> RuntimeResult:
     finding_ids = set(events.value[latest].get("finding_ids", []))
     result_ids = {
         event.get("finding_id") for event in events.value[latest + 1:]
-        if event.get("event_type") == "targeted-review-result"
+        if event.get("event_type") in {"targeted-review-result", "human-finding-decided"}
     }
     if finding_ids - result_ids:
         return failure("targeted_results_required", "progress needs every targeted finding result")

@@ -88,6 +88,7 @@ def reduce_review(events: object) -> Result:
     targeted_seen = False
     stale = False
     second_seen = False
+    active_spec_commit: str | None = None
     allowed = {
         "review-bound", "second-review-recorded", "initial-full-review-started",
         "initial-findings-recorded", "targeted-review-started", "targeted-review-result",
@@ -110,7 +111,12 @@ def reduce_review(events: object) -> Result:
         if stale and kind != "findings-rebound":
             return failure("review_transition_invalid", "stale review accepts only rebound")
         if kind == "second-review-recorded":
-            if second_seen or event.get("status") not in {"completed", "unavailable"} or not str(event.get("actual_model", "")).strip():
+            status = event.get("status")
+            if (
+                second_seen or status not in {"completed", "unavailable"}
+                or (status == "completed" and not str(event.get("actual_model", "")).strip())
+                or (status == "unavailable" and "actual_model" in event)
+            ):
                 return failure("review_event_invalid", "second review event is invalid")
             second_seen = True
         elif kind == "initial-full-review-started":
@@ -138,6 +144,7 @@ def reduce_review(events: object) -> Result:
                 if item["id"] in findings:
                     return failure("review_event_invalid", "review finding id is duplicated")
                 findings[item["id"]] = dict(item)
+                active_spec_commit = active_spec_commit or item["spec_commit"]
             if is_initial:
                 initial_done = True
             else:
@@ -161,6 +168,7 @@ def reduce_review(events: object) -> Result:
             if finding_id not in findings or findings[finding_id].get("state") != "open" or not str(event.get("reason", "")).strip():
                 return failure("review_transition_invalid", "human decision needs an open finding")
             findings[finding_id]["state"] = "closed"
+            targeted_pending.discard(finding_id)
         elif kind == "findings-added":
             if not initial_done or not isinstance(event.get("findings"), list) or not isinstance(event.get("terminal_observations"), list):
                 return failure("review_event_invalid", "added findings are invalid")
@@ -181,6 +189,11 @@ def reduce_review(events: object) -> Result:
             if not stale or not str(event.get("reason", "")).strip() or re.fullmatch(r"[0-9a-f]{40,64}", str(event.get("spec_commit", ""))) is None:
                 return failure("review_transition_invalid", "only stale findings can rebound")
             stale = False
+            active_spec_commit = event["spec_commit"]
+            findings = {
+                finding_id: {**item, "spec_commit": active_spec_commit}
+                for finding_id, item in findings.items()
+            }
         elif kind == "final-full-review-started":
             if (
                 not initial_done or final_context is not None or targeted_pending
@@ -196,6 +209,7 @@ def reduce_review(events: object) -> Result:
         "initial_done": initial_done, "final_started": final_context is not None,
         "final_context": final_context, "final_done": final_done,
         "targeted_pending": sorted(targeted_pending), "targeted_seen": targeted_seen,
+        "active_spec_commit": active_spec_commit,
     })
 
 def can_append_after(event: dict) -> bool:
