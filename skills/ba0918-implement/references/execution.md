@@ -24,8 +24,9 @@ documents. Return both versions and changed paths to the agent for semantic judg
 follow the current commit with `follow-documents` when no consequential decision changed; this
 appends `recovering` with the changed documents, existing Git commit, and reason. Ask between
 rebound and a new run only when one did. A rebound supplies the new approval commit, complete new
-step contracts, and a one-to-one `old=new` mapping. Carry only completed steps whose completion
-kind is unchanged, and resume at the first changed or new step.
+plan, and a one-to-one `old=new` mapping; the runtime re-derives the complete new Step contracts
+from that commit rather than accepting them from the caller. Carry only completed steps whose
+completion kind is unchanged, and resume at the first changed or new step.
 
 Do not discard uncommitted work, unexplained commits, branches, worktrees, or evidence. Investigate
 their meaning and carry safe ordinary work with an explicit terminal note.

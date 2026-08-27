@@ -26,3 +26,5 @@ expectations:
     critical: true
   - text: 不足した意味をbrainstormへ戻す
     critical: true
+  - text: 仕様見出しから反例感度のある検証portfolioへ対応づけられないことをplan不能の根拠にする
+    critical: true

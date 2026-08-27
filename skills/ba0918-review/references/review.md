@@ -10,6 +10,14 @@ reads the complete diff, selected profiles, relevant specification sections, and
 needed to judge security or critical candidates. Record `initial-full-review-started`, then one
 initial findings event; these are separate transitions.
 
+For specification conformance, build the chain `specification heading -> Verification coverage ->
+Step portfolio -> evidence -> diff`. Confirm every relevant heading is covered, each direct proof
+observes the promised behavior at the right boundary, and at least one meaningful counterexample
+would make it fail. Treat lint, type checking, snapshots without semantic assertions, and mocked
+interactions as supporting evidence unless they directly establish the requirement. A missing
+safe test or check is a fixable verification gap. Missing product meaning, a new dependency,
+external access, or permission is a human boundary rather than an invented oracle.
+
 Before recording either findings set, the same reviewer supplies a small safety result containing
 `completed`, a bounded `summary`, and `unresolved`. Continue only when completed is true and
 unresolved is empty. The runtime stores that result; it never substitutes a hard-coded pass.

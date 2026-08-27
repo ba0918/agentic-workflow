@@ -22,6 +22,8 @@ expectations:
     critical: true
   - text: 成功観測、反例、verificationが未決定なのでcanonical spec、ROADMAP、planを書かない
     critical: true
+  - text: planから一意に参照できる仕様見出しと、実行不能な場合の限定された人判断基準を要求する
+    critical: true
   - text: 不足を示して次の重要な一問へ戻り、progressを保持する
     critical: true
   - text: canonical writerはdocs/spec配下Markdown・docs/agreements直下Markdown・root ROADMAP.mdだけを許可し.gitやsource/configを拒否する

@@ -14,6 +14,8 @@ expected_output: |
 expectations:
   - text: plan working bytesを最後にplanを変更したapproval commitのbytesと完全一致させ、承認版をparseする
     critical: true
+  - text: Verification coverageとStep見出しからruntimeが完全なstep contractを導出し、bindやreboundでcaller指定のcompletionを受け取らない
+    critical: true
   - text: spec driftは承認版・現在版・Git diffを読んで意味判定し、文言だけなら拒否せず続ける
     critical: true
   - text: Scope外の安全なtests/validator_test.pyを理由付きで補完する
@@ -29,6 +31,8 @@ expectations:
   - text: 変更のないcheckまたはexternalはcommitを要求せず、testとartifactはcommitを要求する
     critical: true
   - text: checkは成功commandを1件以上要求し、artifactはformat checkerが無い場合の空checksを許してもpath・commit・独立review可能性を維持する
+    critical: true
+  - text: testはRED・GREEN・REFACTOR、checkはplan宣言順の全command、externalは限定要約と条件判定をcompletion evidenceにする
     critical: true
   - text: 全step evidence・commit・安全検査・clean worktreeが揃ったときだけimplementation_greenをruntimeに導出させる
     critical: true

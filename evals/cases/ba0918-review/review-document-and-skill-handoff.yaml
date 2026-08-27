@@ -10,7 +10,7 @@ files:
 prompt: |
   situation.mdをlight reviewし、適用profile、findings、oracleを返してください。
 expected_output: |
-  documentとskill profileを選び、証拠writerの意味不一致とhandoff名不一致をcriticalとして報告し、追跡可能な照合をoracleにする。
+  documentとskill profileを選び、証拠writer、handoff、仕様要求から検証までの意味不一致をcriticalとして報告し、追跡可能な照合をoracleにする。
 expectations:
   - text: 仕様とREADMEにはdocument profile、SKILL.md・references・eval fixtureにはskill profileを選ぶ
     critical: true
@@ -21,4 +21,6 @@ expectations:
   - text: profileのlight必須項目を省略せず安全境界・completion evidence・handoffを確認する
     critical: true
   - text: 仕様・skill・説明・次station契約の追跡可能なcross-reference checkをoracleにする
+    critical: true
+  - text: 仕様見出しからVerification coverage・Step portfolio・evidence・diffを辿り、lintだけでは空白表示名の反例を検出できない点をcriticalにする
     critical: true

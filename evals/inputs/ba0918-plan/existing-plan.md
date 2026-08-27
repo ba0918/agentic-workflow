@@ -1,9 +1,8 @@
 # 設定読込みの未知key検出
 
-**Target specifications:**
+**Verification coverage:**
 
-- `docs/spec/settings.md`
-  - sections: `設定の読込み`
+- `docs/spec/settings.md` / `設定の読込み` -> `1:test`
 
 ## Scope
 
@@ -14,10 +13,6 @@ tests/
   settings_reader_test.py
 ```
 
-## Steps
-
-### 1. 未知keyを検出して起動を止める
-
-**Completion:** test
+## Step 1: 未知keyを検出して起動を止める
 
 まだ着手していない。

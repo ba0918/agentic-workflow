@@ -20,3 +20,5 @@ expectations:
     critical: true
   - text: 通常のファイル漏れと重要な設計判断を区別する
     critical: true
+  - text: verificationを追加すれば解決する不足ではなく、検証対象の意味自体が未決定だと区別する
+    critical: true

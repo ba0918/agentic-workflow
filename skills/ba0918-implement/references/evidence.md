@@ -2,6 +2,8 @@
 
 Store binding and numbered append-only JSON events under
 `.agents/evidence/<plan-key>/<run-id>/`. Binding names the plan path and approval Git commit.
+It also records the complete Step contracts derived from the approved plan; never accept a caller's
+replacement list.
 Event ordering comes from the six-digit filename sequence; do not add event, plan, specification,
 profile, or deliverable hash chains.
 
@@ -19,7 +21,8 @@ branch/worktree.
 
 Bindings and events use version 2. Reject legacy version 1 rather than guessing its completion
 state. Binding stays append-only: `recovering` records harmless document following, while
-`rebound` supplies the effective approval commit, new steps, and validated one-to-one mapping.
+`rebound` records the effective approval commit, Step contracts re-derived from that committed
+plan, and a caller-supplied validated one-to-one mapping.
 
 Keep only bounded facts required for verification and hand-off: steps, commands and exit codes,
 safe summaries, commit SHAs, delegation boundaries, document-meaning decisions, recovery, stops,

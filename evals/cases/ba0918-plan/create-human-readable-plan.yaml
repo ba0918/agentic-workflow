@@ -19,11 +19,17 @@ prompt: |
 expected_output: |
   docs/plans直下へ正本候補を書き、機械可読部分を検査し、別文脈の全体review後にstage済み差分を承認対象として提示する。
 expectations:
-  - text: Target specificationsはpathとsectionsだけ、Scopeは予定file treeとして書く
+  - text: Verification coverageをpath・heading・Step番号・completionの厳密な行で書き、Scopeは予定file treeとして書く
     critical: true
   - text: manual Plan ID、revision、content identity、draft、publish処理を作らない
     critical: true
-  - text: 各手順が仕様節、順序、予定file、completion、委任、停止条件へ追跡できる
+  - text: 各Stepが仕様見出し、順序、予定file、completion、委任、停止条件へ追跡できる
+    critical: true
+  - text: 反例で失敗する直接証拠を設計し、lintやtype checkなどの補助検査だけで仕様適合を主張しない
+    critical: true
+  - text: check StepだけがChecksに正確なcommandを宣言し、旧Target specifications・Steps wrapper・本文Completionを生成しない
+    critical: true
+  - text: skill文言のlive LLM E2Eはscenario・model・token budgetが明示された場合だけ計画する
     critical: true
   - text: 仕様にない入力境界や新規dependencyをplanで決めない
     critical: true

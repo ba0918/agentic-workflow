@@ -25,6 +25,10 @@ Implement does not review, merge, publish, complete the plan, or delete executio
   key. Require its working bytes to equal the last commit that changed that plan, parse those
   approved bytes, and return approved/current specification versions plus their Git diff for the
   agent's semantic decision; wording-only specification drift is not an automatic rejection.
+- Treat the approved plan's `Verification coverage` and `## Step N` sections as the sole source of
+  complete Step contracts. Bind and rebound through the runtime without caller-supplied Step ids or
+  completion kinds. Caller Step ids select an already-derived contract only for stage and commit
+  recording.
 - Treat Scope as expected paths. A safe ordinary omission is recorded with its reason and included;
   it is not a human gate.
 - Derive changed paths from Git's actual staged diff and each recorded commit, then apply secret,
@@ -45,8 +49,11 @@ Implement does not review, merge, publish, complete the plan, or delete executio
 
 ## Completion
 
-Complete when every plan step has its required evidence and, when that completion kind requires
-one, a commit; `check` and `external` need no commit when Git reports no changed paths. All Git-
+Complete when every plan Step has evidence matching its derived completion kind and, when that kind
+requires one, a commit: `test` requires a valid RED, GREEN, and REFACTOR chain; `check` runs all
+declared commands successfully in order; `artifact` leaves independently reviewable paths and
+format results; `external` records a bounded observation and explicit condition result. `check`
+and `external` need no commit when Git reports no changed paths. All Git-
 derived safety checks must pass, and an
 `implementation_green` event has been derived by the runtime from valid step transitions, recorded
 commits, the bound branch/worktree, and a clean worktree. Every append also updates `current-status`

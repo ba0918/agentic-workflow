@@ -5,6 +5,11 @@ boundaries, silently inferred decisions, and incomplete verification. Explicitly
 and lifetime, ownership and concurrency, permissions, external systems, new dependencies, failure
 and recovery, migration, operations, and release when the requirement makes them relevant.
 
+Group implementation requirements under uniquely addressable Markdown headings at a granularity
+that lets a later plan map each requirement to verification. State the observable success, at least
+one counterexample or failure boundary, and how a later plan can judge it. When execution cannot
+decide the result, name the bounded human criterion instead of pretending that a command proves it.
+
 Write strategy to `ROADMAP.md`, implementation behavior to `docs/spec/`, and rejected or
 unresolved decision history to `docs/agreements/`. Use `scripts/draft.py` only as the safe
 atomic writer to these canonical paths; it is not a draft or publish workflow.
@@ -16,6 +21,7 @@ stage the canonical files and ask for approval of the staged diff. On approval, 
 and remove temporary state.
 
 A result is ready for plan only when it is one implementation and review unit, states observable
-value and exclusions, has decided or ruled out distribution, runtime, persistence, external I/O,
-permissions, and new dependencies, names human boundaries and verification, lists affected skills
-or code, and leaves no foundational design decision unresolved.
+value, counterexamples, exclusions, and a verification or human criterion under uniquely
+addressable headings of practical scope; has decided or ruled out distribution, runtime,
+persistence, external I/O, permissions, and new dependencies; lists affected skills or code; and
+leaves no foundational design decision unresolved.

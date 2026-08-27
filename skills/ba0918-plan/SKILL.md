@@ -20,9 +20,10 @@ phase.
 ## Boundary
 
 - Accept only specification paths and sections named by the caller or human. Verify they are
-  committed and complete enough for one implementation and review unit.
-- Own the implementation approach, ordering, dependencies, expected file tree, completion evidence,
-  explicitly delegated mechanical choices, and stop conditions within approved meaning.
+  committed, uniquely addressable, and complete enough for one implementation and review unit.
+- Own the implementation approach, ordering, dependencies, expected file tree, the verification
+  portfolio for each requirement, explicitly delegated mechanical choices, and stop conditions
+  within approved meaning.
 - Do not choose a missing dependency, persistence model, permission boundary, external service, or
   product behavior. Return missing meaning to brainstorm.
 - Write directly to one canonical Markdown file under `docs/plans/`. The path stem is the plan
@@ -42,7 +43,8 @@ Review cannot invent product meaning. A consequential gap returns to brainstorm.
 
 ## Approval and completion
 
-After review converges and `scripts/plan_artifact.py` validates the two machine-shaped sections,
+After review converges and `scripts/plan_artifact.py` validates the machine-shaped coverage, Step,
+Checks, and Scope contracts,
 stage only the plan. Show its path, the staged diff command, and decisions the human must judge.
 Explicit acceptance of those staged bytes authorizes committing them. The commit is the sole
 approval record and does not authorize implementation.

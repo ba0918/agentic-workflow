@@ -16,6 +16,8 @@ expectations:
     critical: true
   - text: Scope外という理由だけで停止せず、tests/account_test.pyの必要性と影響を記録して続行する
     critical: true
+  - text: 承認済み要件の反例を検出するtest不足は安全に補えるverification gapとしてfixへ委譲し、人へ判断を戻さない
+    critical: true
   - text: 固定回数ではなく、実装証拠の増加とreviewの未解決件数で収束を判定する
     critical: true
   - text: 終端まで人へ承認を求めず、最後に成果物・検証・差分を提示する
