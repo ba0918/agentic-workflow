@@ -244,6 +244,40 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertTrue(resume.resume_run(root, plan_key="plan-a", run_id="run-1").ok)
         self.assertEqual(context.load_events(run).value[-1]["event_type"], "resumed")
 
+    def test_delegated_returned_run_can_be_resumed_or_retired(self) -> None:
+        from runtime.types import ResolvedPlan
+
+        for action in ("resume", "retire"):
+            with self.subTest(action=action):
+                root = self.fixture()
+                approval = subprocess.run(
+                    ["git", "-C", str(root), "rev-parse", "HEAD"],
+                    text=True, capture_output=True, check=True,
+                ).stdout.strip()
+                branch = subprocess.run(
+                    ["git", "-C", str(root), "branch", "--show-current"],
+                    text=True, capture_output=True, check=True,
+                ).stdout.strip()
+                plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+                run = repository.bind_run(
+                    root, plan, run_id="run-1", delegated=True,
+                    steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+                ).value
+                self.assertTrue(context.append_event(run, "delegated", {}, actor="cycle").ok)
+                self.assertTrue(context.append_event(run, "returned", {}, actor="cycle").ok)
+
+                if action == "resume":
+                    result = resume.resume_run(root, plan_key="plan-a", run_id="run-1")
+                    expected_event = "resumed"
+                else:
+                    result = resume.retire_run(
+                        root, plan_key="plan-a", run_id="run-1", reason="start replacement",
+                    )
+                    expected_event = "resume-candidate-retired"
+
+                self.assertTrue(result.ok, result.error)
+                self.assertEqual(context.load_events(run).value[-1]["event_type"], expected_event)
+
     def test_completed_run_is_not_discovered_as_unfinished(self) -> None:
         from runtime.types import ResolvedPlan
         root = self.fixture()

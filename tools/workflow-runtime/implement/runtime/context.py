@@ -78,9 +78,10 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
             (event_type == "worktree-bound" and not events)
             or (event_type == "delegated" and not active_delegation)
             or (event_type == "returned" and active_delegation)
+            or (event_type in {"resumed", "resume-candidate-retired"} and not active_delegation)
         )
         if not allowed:
-            return failure("writer_not_allowed", "cycle writes only delegated and returned boundaries")
+            return failure("writer_not_allowed", "cycle writes only delegation and resume-control boundaries")
     elif actor != "implement":
         return failure("writer_not_allowed", "unknown evidence writer")
     elif event_type in {"delegated", "returned"}:

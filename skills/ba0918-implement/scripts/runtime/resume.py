@@ -138,11 +138,12 @@ def resume_run(root: Path, *, plan_key: str, run_id: str) -> RuntimeResult:
     derived = implementation_evidence.derive_implementation(binding.value, events.value)
     if not derived.ok:
         return failure(derived.error.code, derived.error.message)
+    actor = "cycle" if binding.value.get("delegated") else "implement"
     resumed = append_event(loaded.value, "resumed", {
         "branch_head": branch["tip"],
         "unexplained_commits": [item["sha"] for item in branch["unexplained_commits"]],
         "uncommitted_paths": summary.value["worktree"]["uncommitted_paths"],
-    }, actor="implement")
+    }, actor=actor)
     if not resumed.ok:
         return resumed
     return ok({"run": loaded.value, "resume_step": derived.value["resume_step"], "event": resumed.value})
@@ -153,4 +154,8 @@ def retire_run(root: Path, *, plan_key: str, run_id: str, reason: str) -> Runtim
     loaded = load_run(root, plan_key, run_id)
     if not loaded.ok:
         return loaded
-    return append_event(loaded.value, "resume-candidate-retired", {"reason": reason}, actor="implement")
+    binding = read_json(loaded.value.binding_path)
+    if not binding.ok:
+        return binding
+    actor = "cycle" if binding.value.get("delegated") else "implement"
+    return append_event(loaded.value, "resume-candidate-retired", {"reason": reason}, actor=actor)
