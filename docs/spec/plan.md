@@ -150,7 +150,7 @@ skills/ba0918-implement/
 呼びます。手順書に書く値は `test`、`check`、`artifact`、`external` です。
 
 選ぶ基準は「何を作るか」ではなく、**誰が完了を判定できるか**です
-（[workflow.md](workflow.md) の「plan → implement」と「承認を儀式にしない」）。
+（[workflow.md](workflow.md) の「plan → cycle」と「承認を儀式にしない」）。
 
 - 決まったコマンドが判定できる → `test`（先に失敗するテストが書けるとき）か `check`
 - 文章の意味を独立した目で判断する → `artifact`。作業場所の外で結果を確かめる → `external`
