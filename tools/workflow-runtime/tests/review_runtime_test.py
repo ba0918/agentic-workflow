@@ -504,6 +504,29 @@ class ReviewRuntimeTest(unittest.TestCase):
                 self.assertFalse(result.ok)
                 self.assertEqual(result.error.code, "review_operation_unsafe")
 
+    def test_review_operations_reject_side_effect_options_and_keep_read_only_checks(self) -> None:
+        unsafe_operations = (
+            "sed -i s/old/new/ app.txt",
+            "git diff --output=result.patch",
+            "rg --pre formatter.py pattern app.txt",
+        )
+        safe_operations = (
+            "python3 -m unittest tests.review_test",
+            "git diff --check",
+            "rg -n pattern app.txt",
+            "sed -n 1,20p app.txt",
+        )
+
+        for operation in unsafe_operations:
+            with self.subTest(operation=operation):
+                result = runtime._review_execution(operation, 1, "operation was not executed")
+                self.assertFalse(result.ok)
+                self.assertEqual(result.error.code, "review_operation_unsafe")
+        for operation in safe_operations:
+            with self.subTest(operation=operation):
+                result = runtime._review_execution(operation, 0, "local read-only check passed")
+                self.assertTrue(result.ok, result.error)
+
     def test_stale_state_blocks_every_operation_except_rebound(self) -> None:
         root, _, _ = self.repository()
         binding = runtime.resolve_input(root, review_id="stale", branch="feature", base="main").value

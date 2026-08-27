@@ -706,14 +706,33 @@ def _bound_trailer_commits(
         return failure("fix_commit_unlinked", "review commit range is unavailable")
     return ok([commit for commit in history.stdout.splitlines() if _commit_has_trailer(root, commit, finding_id)])
 
+def _has_command_option(
+    arguments: list[str], *, long_options: set[str], short_options: set[str] | None = None,
+) -> bool:
+    short_options = short_options or set()
+    for argument in arguments:
+        if argument == "--":
+            return False
+        if argument.startswith("--") and argument.split("=", 1)[0] in long_options:
+            return True
+        if any(argument == option or argument.startswith(f"{option}.") for option in short_options):
+            return True
+    return False
+
+
 def _review_operation_allowed(tokens: list[str]) -> bool:
     command = tokens[0]
     if command in {"python", "python3"}:
         return len(tokens) >= 3 and tokens[1] == "-m" and tokens[2] in {"unittest", "pytest"}
     if command == "git":
-        return len(tokens) >= 2 and tokens[1] in {
+        if len(tokens) < 2 or tokens[1] not in {
             "diff", "grep", "log", "ls-files", "merge-base", "rev-parse", "show", "status",
-        }
+        }:
+            return False
+        return not _has_command_option(
+            tokens[2:],
+            long_options={"--ext-diff", "--open-files-in-pager", "--output", "--textconv"},
+        )
     if command == "cargo":
         return len(tokens) >= 2 and tokens[1] in {"check", "clippy", "test"}
     if command == "go":
@@ -724,7 +743,13 @@ def _review_operation_allowed(tokens: list[str]) -> bool:
         return len(tokens) >= 2 and tokens[1] == "test"
     if command == "bunx":
         return len(tokens) >= 3 and tokens[1:] == ["agentic-skill-vendor", "verify"]
-    return command in {"pytest", "rg", "sed"}
+    if command == "rg":
+        return not _has_command_option(tokens[1:], long_options={"--pre"})
+    if command == "sed":
+        return not _has_command_option(
+            tokens[1:], long_options={"--in-place"}, short_options={"-i"},
+        )
+    return command == "pytest"
 
 
 def _review_execution(operation: str, exit_code: int, summary: str) -> RuntimeResult:
