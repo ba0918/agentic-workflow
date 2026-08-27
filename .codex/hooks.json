@@ -1,0 +1,29 @@
+{
+  "description": "Run the repository quality gate before a turn or subagent stops.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/quality/quality_gate.py\"",
+            "timeout": 600,
+            "statusMessage": "Running repository quality checks"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/quality/quality_gate.py\"",
+            "timeout": 600,
+            "statusMessage": "Running repository quality checks"
+          }
+        ]
+      }
+    ]
+  }
+}

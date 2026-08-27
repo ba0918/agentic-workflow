@@ -1,0 +1,41 @@
+{
+  "checks": [
+    {
+      "name": "python-structure",
+      "argv": [
+        "env",
+        "PYTHONPATH=.codex/quality",
+        "UV_CACHE_DIR=/tmp/agentic-workflow-uv-cache",
+        "uv",
+        "run",
+        "--with",
+        "pylint==4.0.5",
+        "python",
+        "-m",
+        "pylint",
+        "--load-plugins=plugins.design_checker",
+        "--disable=all",
+        "--enable=F,E,W,too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-return-statements,too-many-branches,too-many-statements,too-many-boolean-expressions,too-many-nested-blocks,duplicate-code,forbidden-lint-suppression,forbidden-layer-import,forbidden-type-escape-hatch,forbidden-pure-layer-call",
+        "--score=no",
+        ".codex/quality"
+      ]
+    },
+    {
+      "name": "python-types",
+      "argv": [
+        "env",
+        "UV_CACHE_DIR=/tmp/agentic-workflow-uv-cache",
+        "uv",
+        "run",
+        "--with",
+        "pylint==4.0.5",
+        "--with",
+        "mypy==1.18.2",
+        "mypy",
+        "--strict",
+        "--follow-untyped-imports",
+        ".codex/quality"
+      ]
+    }
+  ]
+}

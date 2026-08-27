@@ -1,6 +1,7 @@
 {
   "dependencies": {},
   "devDependencies": {
-    "@ba0918-dev/agentic-skill-vendor": "^0.4.0"
+    "@ba0918-dev/agentic-skill-vendor": "^0.4.0",
+    "lefthook": "2.1.10"
   }
 }
