@@ -43,11 +43,12 @@ def resolve_plan(project_root: Path, *, plan_path: str | None = None) -> Runtime
     except plan_artifact.PlanArtifactError as error:
         return failure("plan_invalid", str(error))
     return ok(ResolvedPlan(
-        PurePosixPath(approved.path).stem,
-        approved.path,
-        approved.approval_commit,
-        approved.text,
-        approved.specifications,
-        approved.scope,
-        approved.specification_changes,
+        plan_key=PurePosixPath(approved.path).stem,
+        path=approved.path,
+        approval_commit=approved.approval_commit,
+        text=approved.text,
+        specifications=approved.specifications,
+        expected_paths=approved.scope,
+        specification_changes=approved.specification_changes,
+        steps=approved.steps,
     ))

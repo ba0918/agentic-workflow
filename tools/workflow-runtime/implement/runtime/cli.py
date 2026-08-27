@@ -46,7 +46,6 @@ def main(argv: list[str] | None = None) -> int:
     bind.add_argument("--branch", required=True)
     bind.add_argument("--worktree", required=True)
     bind.add_argument("--delegated", action="store_true")
-    bind.add_argument("--step", action="append", default=[])
     resume = commands.add_parser("resume")
     resume.add_argument("--repo", required=True)
     resume.add_argument("--plan-key", required=True)
@@ -81,7 +80,6 @@ def main(argv: list[str] | None = None) -> int:
     _run_arguments(rebound)
     rebound.add_argument("--approval-commit", required=True)
     rebound.add_argument("--reason", required=True)
-    rebound.add_argument("--step", action="append", default=[])
     rebound.add_argument("--map", action="append", default=[])
     follow = commands.add_parser("follow-documents")
     _run_arguments(follow)
@@ -109,15 +107,9 @@ def main(argv: list[str] | None = None) -> int:
         plan = resolve_plan(Path(args.repo), plan_path=args.plan_path)
         if not plan.ok:
             parser.error(plan.error.message)
-        steps = []
-        for value in args.step:
-            step_id, separator, completion = value.partition(":")
-            if not separator:
-                parser.error("--step must be ID:COMPLETION")
-            steps.append({"id": step_id, "completion": completion})
         result = bind_run(
             Path(args.repo), plan.value, run_id=args.run_id, delegated=args.delegated,
-            steps=steps, branch=args.branch, worktree=args.worktree,
+            branch=args.branch, worktree=args.worktree,
         )
         if not result.ok:
             parser.error(result.error.message)
@@ -169,12 +161,6 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "stop":
         result = stop_run(run.value, args.reason)
     elif args.command == "rebound":
-        steps = []
-        for value in args.step:
-            step_id, separator, completion = value.partition(":")
-            if not separator:
-                parser.error("--step must be ID:COMPLETION")
-            steps.append({"id": step_id, "completion": completion})
         mappings = []
         for value in args.map:
             old, separator, new = value.partition("=")
@@ -182,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
                 parser.error("--map must be OLD=NEW")
             mappings.append({"old": old, "new": new})
         result = rebound_run(
-            run.value, args.approval_commit, args.reason, steps=steps, mappings=mappings,
+            run.value, args.approval_commit, args.reason, mappings=mappings,
         )
     elif args.command == "follow-documents":
         result = follow_documents(run.value, args.current_commit, args.document, args.reason)

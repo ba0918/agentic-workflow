@@ -28,6 +28,7 @@ class ResolvedPlan:
     specifications: tuple[Any, ...]
     expected_paths: tuple[str, ...]
     specification_changes: tuple[Any, ...] = ()
+    steps: tuple[Any, ...] = ()
 
 class Run(NamedTuple):
     run_id: str

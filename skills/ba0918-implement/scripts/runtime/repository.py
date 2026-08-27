@@ -13,7 +13,6 @@ def bind_run(
     *,
     run_id: str,
     delegated: bool,
-    steps: list[str | dict] | None = None,
     branch: str | None = None,
     worktree: str | None = None,
 ) -> RuntimeResult:
@@ -21,14 +20,17 @@ def bind_run(
         return failure("run_id_invalid", "run id is not path-safe")
     repository = root.resolve()
     normalized_steps = [
-        {"id": step, "completion": "test"} if isinstance(step, str) else dict(step)
-        for step in (steps or [])
+        {
+            "id": step["id"] if isinstance(step, dict) else step.id,
+            "completion": step["completion"] if isinstance(step, dict) else step.completion,
+        }
+        for step in plan.steps
     ]
     if any(
         not isinstance(step.get("id"), str)
         or step.get("completion") not in {"test", "check", "artifact", "external"}
         for step in normalized_steps
-    ) or len({step["id"] for step in normalized_steps}) != len(normalized_steps):
+    ) or not normalized_steps or len({step["id"] for step in normalized_steps}) != len(normalized_steps):
         return failure("step_contract_invalid", "steps need unique ids and a supported completion kind")
     if (branch is None) != (worktree is None):
         return failure("worktree_binding_incomplete", "branch and worktree must be supplied together")

@@ -325,9 +325,7 @@ def follow_documents(
         "current_commit": current_commit, "changed_documents": sorted(changed_documents), "reason": reason,
     })
 
-def rebound_run(
-    run: Run, approval_commit: str, reason: str, *, steps: list[dict], mappings: list[dict],
-) -> RuntimeResult:
+def rebound_run(run: Run, approval_commit: str, reason: str, *, mappings: list[dict]) -> RuntimeResult:
     binding = read_json(run.binding_path)
     events = load_events(run)
     if not binding.ok or not events.ok:
@@ -335,6 +333,10 @@ def rebound_run(
     checked = _validate_document_commit(run, binding.value, approval_commit)
     if not checked.ok:
         return checked
+    steps = [
+        {"id": step.id, "completion": step.completion}
+        for step in checked.value.steps
+    ]
     candidate = {
         "version": 2, "sequence": len(events.value) + 1, "event_type": "rebound",
         "approval_commit": approval_commit, "steps": steps, "mappings": mappings, "reason": reason,
@@ -364,11 +366,11 @@ def _validate_document_commit(run: Run, binding: dict, commit: str) -> RuntimeRe
     for specification in header.specifications:
         content = _git(run.root, "show", f"{commit}:{specification.path}")
         if content.returncode != 0 or any(
-            not re.search(rf"^#+\s+{re.escape(section)}\s*$", content.stdout, re.MULTILINE)
+            len(re.findall(rf"^#+\s+{re.escape(section)}\s*$", content.stdout, re.MULTILINE)) != 1
             for section in specification.sections
         ):
             return failure("document_commit_invalid", "target specification is unavailable in the document commit")
-    return ok()
+    return ok(header)
 
 def _git(worktree: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", "-C", str(worktree), *args], text=True, capture_output=True, check=False)

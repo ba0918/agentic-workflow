@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read the two machine-shaped parts of an approved plan."""
+"""Read the machine-shaped parts of an approved plan."""
 
 from __future__ import annotations
 
@@ -11,8 +11,12 @@ import subprocess
 from typing import NamedTuple
 
 PLAN_STORE = PurePosixPath("docs/plans")
-SECTION_NAME = re.compile(r"`([^`]+)`")
 TREE_ENTRY = re.compile(r"[^\s/#][^\s]*")
+COVERAGE_ROW = re.compile(
+    r"^- `([^`]+)` / `([^`]+)` -> `([1-9][0-9]*):(test|check|artifact|external)`$"
+)
+STEP_HEADING = re.compile(r"^## Step ([1-9][0-9]*): (\S.*)$", re.MULTILINE)
+CHECK_ROW = re.compile(r"^- `([^`]+)`$")
 
 class PlanArtifactError(Exception):
     pass
@@ -30,14 +34,29 @@ class TargetSpecification(NamedTuple):
     path: str
     sections: tuple[str, ...]
 
+class VerificationCoverage(NamedTuple):
+    path: str
+    section: str
+    step_id: str
+    completion: str
+
+class StepContract(NamedTuple):
+    id: str
+    completion: str
+    checks: tuple[str, ...]
+
 class PlanHeader(NamedTuple):
     specifications: tuple[TargetSpecification, ...]
+    coverage: tuple[VerificationCoverage, ...]
+    steps: tuple[StepContract, ...]
 
 class ApprovedPlan(NamedTuple):
     path: str
     text: str
     approval_commit: str
     specifications: tuple[TargetSpecification, ...]
+    coverage: tuple[VerificationCoverage, ...]
+    steps: tuple[StepContract, ...]
     scope: tuple[str, ...]
     specification_changes: tuple["SpecificationChange", ...]
 
@@ -54,30 +73,89 @@ def _run_git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 def _run_git_bytes(root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=False)
 
-def _target_specification_block(text: str) -> str:
-    match = re.search(r"^\*\*Target specifications:\*\*[ \t]*\n+(.*?)(?=\n\s*\n|\Z)", text, re.MULTILINE | re.DOTALL)
+def _coverage_block(text: str) -> str:
+    if re.search(r"^\*\*Target specifications:\*\*", text, re.MULTILINE):
+        raise InvalidPlanFormat("legacy **Target specifications:** is not supported")
+    match = re.search(r"^\*\*Verification coverage:\*\*[ \t]*\n+(.*?)(?=\n\s*\n|\Z)", text, re.MULTILINE | re.DOTALL)
     return match.group(1) if match else ""
 
-def read_plan_header(text: str) -> PlanHeader:
-    items = re.split(r"^- ", _target_specification_block(text), flags=re.MULTILINE)[1:]
-    if not items:
-        raise InvalidPlanFormat("**Target specifications:** must list at least one specification")
-    specifications: list[TargetSpecification] = []
-    for item in items:
-        head, _, details = item.partition("\n")
-        path_match = re.fullmatch(r"`([^`]+)`\s*", head)
-        if path_match is None:
-            raise InvalidPlanFormat("each target specification needs a backquoted path")
-        path = path_match.group(1)
+def _read_coverage(text: str) -> tuple[VerificationCoverage, ...]:
+    block = _coverage_block(text)
+    if not block:
+        raise InvalidPlanFormat("**Verification coverage:** must list at least one specification section")
+    coverage: list[VerificationCoverage] = []
+    for line in block.splitlines():
+        match = COVERAGE_ROW.fullmatch(line)
+        if match is None:
+            raise InvalidPlanFormat(f"invalid verification coverage row: {line!r}")
+        path, section, step_id, completion = match.groups()
         candidate = PurePosixPath(path)
-        if candidate.is_absolute() or ".." in candidate.parts or not candidate.parts:
-            raise InvalidPlanFormat(f"unsafe target specification path: {path}")
-        sections_match = re.search(r"^\s*- sections:(.*)$", details, re.MULTILINE)
-        sections = tuple(SECTION_NAME.findall(sections_match.group(1))) if sections_match else ()
-        if not sections:
-            raise InvalidPlanFormat(f"target specification needs sections: {path}")
-        specifications.append(TargetSpecification(path, sections))
-    return PlanHeader(tuple(specifications))
+        if (
+            candidate.is_absolute() or ".." in candidate.parts
+            or candidate.parts[:2] != ("docs", "spec") or candidate.suffix != ".md"
+            or not section.strip()
+        ):
+            raise InvalidPlanFormat(f"unsafe verification coverage address: {path} / {section}")
+        coverage.append(VerificationCoverage(path, section, step_id, completion))
+    return tuple(coverage)
+
+def _checks(body: str, *, step_id: str, completion: str) -> tuple[str, ...]:
+    label = re.search(r"^\*\*Checks:\*\*[ \t]*$", body, re.MULTILINE)
+    if completion != "check":
+        if label is not None:
+            raise InvalidPlanFormat(f"non-check Step {step_id} cannot declare **Checks:**")
+        return ()
+    if label is None:
+        raise InvalidPlanFormat(f"check Step {step_id} needs **Checks:**")
+    tail = body[label.end():].lstrip("\n")
+    block = tail.split("\n\n", 1)[0]
+    checks: list[str] = []
+    for line in block.splitlines():
+        match = CHECK_ROW.fullmatch(line)
+        if match is None:
+            raise InvalidPlanFormat(f"invalid check command in Step {step_id}: {line!r}")
+        checks.append(match.group(1))
+    if not checks:
+        raise InvalidPlanFormat(f"check Step {step_id} needs at least one command")
+    return tuple(checks)
+
+def _read_steps(text: str, coverage: tuple[VerificationCoverage, ...]) -> tuple[StepContract, ...]:
+    matches = list(STEP_HEADING.finditer(text))
+    numbers = [int(match.group(1)) for match in matches]
+    if numbers != list(range(1, len(matches) + 1)) or not matches:
+        raise InvalidPlanFormat("Step headings must be unique and contiguous from 1")
+    completions: dict[str, set[str]] = {}
+    for item in coverage:
+        completions.setdefault(item.step_id, set()).add(item.completion)
+    expected = {str(number) for number in numbers}
+    if set(completions) != expected:
+        raise InvalidPlanFormat("verification coverage and Step headings must cover each other")
+    if any(len(values) != 1 for values in completions.values()):
+        raise InvalidPlanFormat("each Step needs exactly one completion kind")
+    steps: list[StepContract] = []
+    for match in matches:
+        step_id = match.group(1)
+        following_section = re.search(r"^## ", text[match.end():], re.MULTILINE)
+        body_end = (
+            match.end() + following_section.start()
+            if following_section is not None else len(text)
+        )
+        body = text[match.end():body_end]
+        completion = next(iter(completions[step_id]))
+        steps.append(StepContract(step_id, completion, _checks(body, step_id=step_id, completion=completion)))
+    return tuple(steps)
+
+def _specifications(coverage: tuple[VerificationCoverage, ...]) -> tuple[TargetSpecification, ...]:
+    grouped: dict[str, list[str]] = {}
+    for item in coverage:
+        sections = grouped.setdefault(item.path, [])
+        if item.section not in sections:
+            sections.append(item.section)
+    return tuple(TargetSpecification(path, tuple(sections)) for path, sections in grouped.items())
+
+def read_plan_header(text: str) -> PlanHeader:
+    coverage = _read_coverage(text)
+    return PlanHeader(_specifications(coverage), coverage, _read_steps(text, coverage))
 
 def _section_body(text: str, heading: str) -> str:
     match = re.search(rf"^## {re.escape(heading)}[ \t]*\n(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL)
@@ -124,8 +202,8 @@ def _safe_plan_path(root: Path, relative_path: str) -> Path:
         raise UnsafePlanPath("plan path escapes docs/plans")
     return target
 
-def _heading_exists(text: str, heading: str) -> bool:
-    return re.search(rf"^#+\s+{re.escape(heading)}\s*$", text, re.MULTILINE) is not None
+def _heading_count(text: str, heading: str) -> int:
+    return len(re.findall(rf"^#+\s+{re.escape(heading)}\s*$", text, re.MULTILINE))
 
 def validate_plan(project_root: Path, text: str, *, approval_commit: str) -> None:
     header = read_plan_header(text)
@@ -138,8 +216,8 @@ def validate_plan(project_root: Path, text: str, *, approval_commit: str) -> Non
         if working.is_symlink() or not working.is_file() or working.read_text(encoding="utf-8") != committed.stdout:
             raise TargetSpecificationMismatch(f"target specification differs from approval commit: {specification.path}")
         for section in specification.sections:
-            if not _heading_exists(committed.stdout, section):
-                raise TargetSpecificationMismatch(f"target section is missing: {specification.path}#{section}")
+            if _heading_count(committed.stdout, section) != 1:
+                raise TargetSpecificationMismatch(f"target section is not unique: {specification.path}#{section}")
 
 def _approved_specifications(
     project_root: Path, approval_commit: str, specifications: tuple[TargetSpecification, ...]
@@ -152,8 +230,8 @@ def _approved_specifications(
         if approved.returncode != 0:
             raise TargetSpecificationMismatch(f"target specification is not committed: {specification.path}")
         for section in specification.sections:
-            if not _heading_exists(approved.stdout, section):
-                raise TargetSpecificationMismatch(f"target section is missing: {specification.path}#{section}")
+            if _heading_count(approved.stdout, section) != 1:
+                raise TargetSpecificationMismatch(f"target section is not unique: {specification.path}#{section}")
         current = _run_git(project_root, "show", f"HEAD:{specification.path}")
         current_text = current.stdout if current.returncode == 0 else ""
         if current_text != approved.stdout:
@@ -188,4 +266,6 @@ def read_plan(project_root: Path, relative_path: str) -> ApprovedPlan:
     header = read_plan_header(text)
     scope = read_plan_scope(text)
     changes = _approved_specifications(project_root, commit, header.specifications)
-    return ApprovedPlan(relative_path, text, commit, header.specifications, scope, changes)
+    return ApprovedPlan(
+        relative_path, text, commit, header.specifications, header.coverage, header.steps, scope, changes,
+    )

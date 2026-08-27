@@ -17,13 +17,13 @@ context = importlib.import_module("runtime.context")
 resume = importlib.import_module("runtime.resume")
 cli = importlib.import_module("runtime.cli")
 repository = importlib.import_module("runtime.repository")
+ResolvedPlan = importlib.import_module("runtime.types").ResolvedPlan
 
 PLAN = """# Plan
 
-**Target specifications:**
+**Verification coverage:**
 
-- `docs/spec/example.md`
-  - sections: `Contract`
+- `docs/spec/example.md` / `Contract` -> `1:check`
 
 ## Scope
 
@@ -31,7 +31,21 @@ PLAN = """# Plan
 src/
   app.py
 ```
+
+## Step 1: Validate the implementation
+
+**Checks:**
+
+- `lint`
 """
+
+def resolved_plan(
+    approval: str, *, expected_paths: tuple[str, ...] = (),
+    steps: tuple[dict, ...] = ({"id": "1", "completion": "check"},),
+) -> ResolvedPlan:
+    return ResolvedPlan(
+        "plan-a", "docs/plans/plan-a.md", approval, "text", (), expected_paths, steps=steps,
+    )
 
 class ImplementPlanBindingTest(unittest.TestCase):
     def fixture(self) -> Path:
@@ -53,6 +67,9 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertTrue(result.ok, result.error)
         self.assertEqual(result.value.plan_key, "example")
         self.assertEqual(result.value.specifications[0].sections, ("Contract",))
+        self.assertEqual(
+            [(step.id, step.completion) for step in result.value.steps], [("1", "check")],
+        )
         self.assertEqual(result.value.expected_paths, ("src/app.py",))
 
     def test_unique_plan_is_selected_automatically(self) -> None:
@@ -185,7 +202,6 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertEqual(result.error.code, "rebound_or_new_run_required")
 
     def test_discovery_summarizes_a_unique_run_without_resuming_it(self) -> None:
-        from runtime.types import ResolvedPlan
         root = self.fixture()
         approval = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
@@ -193,10 +209,11 @@ class ImplementPlanBindingTest(unittest.TestCase):
         branch = subprocess.run(
             ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True,
         ).stdout.strip()
-        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+        plan = resolved_plan(approval, steps=(
+            {"id": "1", "completion": "check"}, {"id": "2", "completion": "check"},
+        ))
         run = repository.bind_run(
             root, plan, run_id="run-1", delegated=False,
-            steps=[{"id": "1", "completion": "check"}, {"id": "2", "completion": "check"}],
             branch=branch, worktree=str(root),
         ).value
         context.append_event(run, "check", {"step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": []})
@@ -222,7 +239,6 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertEqual(context.load_events(resumed.value["run"]).value[-1]["event_type"], "resumed")
 
     def test_retired_run_leaves_default_discovery_but_can_be_explicitly_resumed(self) -> None:
-        from runtime.types import ResolvedPlan
         root = self.fixture()
         approval = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
@@ -230,9 +246,9 @@ class ImplementPlanBindingTest(unittest.TestCase):
         branch = subprocess.run(
             ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True,
         ).stdout.strip()
-        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+        plan = resolved_plan(approval)
         run = repository.bind_run(
-            root, plan, run_id="run-1", delegated=False, steps=[{"id": "1", "completion": "check"}],
+            root, plan, run_id="run-1", delegated=False,
             branch=branch, worktree=str(root),
         ).value
 
@@ -245,8 +261,6 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertEqual(context.load_events(run).value[-1]["event_type"], "resumed")
 
     def test_delegated_returned_run_can_be_resumed_or_retired(self) -> None:
-        from runtime.types import ResolvedPlan
-
         for action in ("resume", "retire"):
             with self.subTest(action=action):
                 root = self.fixture()
@@ -258,10 +272,10 @@ class ImplementPlanBindingTest(unittest.TestCase):
                     ["git", "-C", str(root), "branch", "--show-current"],
                     text=True, capture_output=True, check=True,
                 ).stdout.strip()
-                plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+                plan = resolved_plan(approval)
                 run = repository.bind_run(
                     root, plan, run_id="run-1", delegated=True,
-                    steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+                    branch=branch, worktree=str(root),
                 ).value
                 self.assertTrue(context.append_event(run, "delegated", {}, actor="cycle").ok)
                 self.assertTrue(context.append_event(run, "returned", {}, actor="cycle").ok)
@@ -279,7 +293,6 @@ class ImplementPlanBindingTest(unittest.TestCase):
                 self.assertEqual(context.load_events(run).value[-1]["event_type"], expected_event)
 
     def test_completed_run_is_not_discovered_as_unfinished(self) -> None:
-        from runtime.types import ResolvedPlan
         root = self.fixture()
         (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
@@ -290,10 +303,10 @@ class ImplementPlanBindingTest(unittest.TestCase):
         branch = subprocess.run(
             ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True
         ).stdout.strip()
-        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", commit, "text", (), ())
+        plan = resolved_plan(commit)
         run = repository.bind_run(
             root, plan, run_id="run-1", delegated=False,
-            steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+            branch=branch, worktree=str(root),
         ).value
         context.append_event(run, "check", {
             "step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": [],
@@ -303,12 +316,10 @@ class ImplementPlanBindingTest(unittest.TestCase):
 
     def test_legacy_resume_is_rejected_without_writing_an_event_or_status(self) -> None:
         from runtime import repository, storage
-        from runtime.types import ResolvedPlan
         root = Path(tempfile.mkdtemp())
-        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+        plan = resolved_plan("a" * 40)
         run = repository.bind_run(
             root, plan, run_id="run-1", delegated=False,
-            steps=[{"id": "1", "completion": "check"}],
         ).value
         binding = storage.read_json(run.binding_path).value
         binding["version"] = 1
@@ -320,7 +331,6 @@ class ImplementPlanBindingTest(unittest.TestCase):
 
     def test_resume_cli_discovers_records_and_reports_the_resume_point(self) -> None:
         from runtime import repository
-        from runtime.types import ResolvedPlan
         root = self.fixture()
         approval = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
@@ -328,9 +338,9 @@ class ImplementPlanBindingTest(unittest.TestCase):
         branch = subprocess.run(
             ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True,
         ).stdout.strip()
-        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+        plan = resolved_plan(approval)
         repository.bind_run(
-            root, plan, run_id="run-1", delegated=False, steps=["1"], branch=branch, worktree=str(root),
+            root, plan, run_id="run-1", delegated=False, branch=branch, worktree=str(root),
         ).value
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
@@ -348,7 +358,7 @@ class ImplementPlanBindingTest(unittest.TestCase):
         ).stdout.strip()
         commands = [
             ["bind", "--repo", str(root), "--plan-path", "docs/plans/example.md", "--run-id", "run-1",
-             "--branch", branch, "--worktree", str(root), "--step", "1:check"],
+             "--branch", branch, "--worktree", str(root)],
         ]
         for command in commands:
             with contextlib.redirect_stdout(io.StringIO()):
@@ -371,7 +381,7 @@ class ImplementPlanBindingTest(unittest.TestCase):
             ["stop", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1", "--reason", "permission"],
             ["rebound", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
              "--approval-commit", commit, "--reason", "approved wording update",
-             "--step", "1:check", "--map", "1=1"],
+             "--map", "1=1"],
         ]
         for command in commands:
             with contextlib.redirect_stdout(io.StringIO()):
@@ -382,18 +392,36 @@ class ImplementPlanBindingTest(unittest.TestCase):
             ["worktree-bound", "check", "commit", "stopped", "rebound"],
         )
 
+    def test_bind_and_rebound_cli_reject_caller_step_contracts(self) -> None:
+        root = self.fixture()
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        selector = ["--repo", str(root), "--plan-path", "docs/plans/example.md", "--run-id", "run-1"]
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            cli.main(["bind", *selector, "--branch", branch, "--worktree", str(root), "--step", "1:check"])
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main(["bind", *selector, "--branch", branch, "--worktree", str(root)]), 0)
+        approval = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            cli.main([
+                "rebound", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
+                "--approval-commit", approval, "--reason", "same plan", "--step", "1:check", "--map", "1=1",
+            ])
+
     def test_cli_accepts_exact_reasons_for_safe_unplanned_paths(self) -> None:
-        from runtime.types import ResolvedPlan
         root = self.fixture()
         (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
         subprocess.run(["git", "-C", str(root), "commit", "-qm", "ignore evidence"], check=True)
         approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
         branch = subprocess.run(["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True).stdout.strip()
-        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+        plan = resolved_plan(approval)
         run = repository.bind_run(
             root, plan, run_id="run-1", delegated=False,
-            steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+            branch=branch, worktree=str(root),
         ).value
         (root / "helper.py").write_text("value = 1\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(root), "add", "helper.py"], check=True)
@@ -419,7 +447,6 @@ class ImplementPlanBindingTest(unittest.TestCase):
             ])
 
     def test_completion_rejects_planned_dirty_paths_but_reports_safe_unplanned_dirty_paths(self) -> None:
-        from runtime.types import ResolvedPlan
         outside_root = self.fixture()
         approval = subprocess.run(
             ["git", "-C", str(outside_root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
@@ -427,10 +454,10 @@ class ImplementPlanBindingTest(unittest.TestCase):
         branch = subprocess.run(
             ["git", "-C", str(outside_root), "branch", "--show-current"], text=True, capture_output=True, check=True,
         ).stdout.strip()
-        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("src/app.py",))
+        plan = resolved_plan(approval, expected_paths=("src/app.py",))
         run = repository.bind_run(
             outside_root, plan, run_id="run-1", delegated=False,
-            steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(outside_root),
+            branch=branch, worktree=str(outside_root),
         ).value
         context.append_event(run, "check", {
             "step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": [],
@@ -450,8 +477,8 @@ class ImplementPlanBindingTest(unittest.TestCase):
             ["git", "-C", str(inside_root), "branch", "--show-current"], text=True, capture_output=True, check=True,
         ).stdout.strip()
         run = repository.bind_run(
-            inside_root, ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("src/app.py",)),
-            run_id="run-1", delegated=False, steps=[{"id": "1", "completion": "check"}],
+            inside_root, resolved_plan(approval, expected_paths=("src/app.py",)),
+            run_id="run-1", delegated=False,
             branch=branch, worktree=str(inside_root),
         ).value
         context.append_event(run, "check", {
@@ -466,8 +493,6 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertEqual(inside.error.code, "planned_changes_uncommitted")
 
     def test_uncommitted_rename_paths_are_parsed_exactly(self) -> None:
-        from runtime.types import ResolvedPlan
-
         root = self.fixture()
         (root / "safe.txt").write_text("tracked\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(root), "add", "safe.txt"], check=True)
@@ -478,10 +503,10 @@ class ImplementPlanBindingTest(unittest.TestCase):
         branch = subprocess.run(
             ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True,
         ).stdout.strip()
-        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("safe.txt",))
+        plan = resolved_plan(approval, expected_paths=("safe.txt",))
         run = repository.bind_run(
             root, plan, run_id="run-1", delegated=False,
-            steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+            branch=branch, worktree=str(root),
         ).value
         self.assertTrue(context.append_event(run, "check", {
             "step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": [],

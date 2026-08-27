@@ -11,6 +11,23 @@ from runtime import deps
 from runtime import context, deliverables, gates, repository, secret_detect, storage, tdd
 from runtime.types import ResolvedPlan
 
+def resolved_plan(
+    approval: str, *, expected_paths: tuple[str, ...] = (),
+    steps: tuple[dict, ...] = ({"id": "1", "completion": "check"},),
+) -> ResolvedPlan:
+    return ResolvedPlan(
+        "plan-a", "docs/plans/plan-a.md", approval, "text", (), expected_paths, steps=steps,
+    )
+
+def approved_plan_text(step_id: str = "1", completion: str = "check") -> str:
+    checks = "\n**Checks:**\n\n- `lint`\n" if completion == "check" else ""
+    return (
+        "# Plan\n\n**Verification coverage:**\n\n"
+        f"- `docs/spec/a.md` / `Contract` -> `{step_id}:{completion}`\n\n"
+        "## Scope\n\n```text\napp.txt\n```\n\n"
+        f"## Step {step_id}: Implement\n{checks}"
+    )
+
 class ImplementDistributionTest(unittest.TestCase):
     def test_plan_reader_is_loaded_from_the_same_distribution(self) -> None:
         self.assertTrue(deps.PLAN_READER_PATH.is_file())
@@ -20,7 +37,7 @@ class ImplementDistributionTest(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ("src/app.py",))
+            plan = resolved_plan("a" * 40, expected_paths=("src/app.py",))
             result = repository.bind_run(root, plan, run_id="run-1", delegated=True)
             self.assertTrue(result.ok, result.error)
             run = result.value
@@ -45,23 +62,23 @@ class ImplementDistributionTest(unittest.TestCase):
             approval = subprocess.run(
                 ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True
             ).stdout.strip()
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+            invalid_plan = resolved_plan(approval, steps=({"id": "1", "completion": "unknown"},))
             invalid = repository.bind_run(
-                root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "unknown"}], branch=branch, worktree=str(root),
+                root, invalid_plan, run_id="run-1", delegated=False, branch=branch, worktree=str(root),
             )
             self.assertFalse(invalid.ok)
             self.assertFalse((root / ".agents/evidence/plan-a/run-1").exists())
+            plan = resolved_plan(approval)
             with mock.patch("runtime.context.append_event", return_value=context.failure("write_failed", "failed")):
                 failed = repository.bind_run(
                     root, plan, run_id="run-1", delegated=False,
-                    steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+                    branch=branch, worktree=str(root),
                 )
             self.assertFalse(failed.ok)
             self.assertFalse((root / ".agents/evidence/plan-a/run-1").exists())
             retried = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+                branch=branch, worktree=str(root),
             )
             self.assertTrue(retried.ok, retried.error)
 
@@ -75,16 +92,13 @@ class ImplementDistributionTest(unittest.TestCase):
             (root / "docs/spec").mkdir(parents=True)
             (root / "docs/plans").mkdir(parents=True)
             (root / "docs/spec/a.md").write_text("# Contract\n", encoding="utf-8")
-            (root / "docs/plans/plan-a.md").write_text(
-                "# Plan\n\n**Target specifications:**\n\n- `docs/spec/a.md`\n  - sections: `Contract`\n",
-                encoding="utf-8",
-            )
+            (root / "docs/plans/plan-a.md").write_text(approved_plan_text(), encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "docs/spec/a.md", "docs/plans/plan-a.md"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "documents"], check=True)
             approval = subprocess.run(
                 ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
             ).stdout.strip()
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+            plan = resolved_plan(approval)
             run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
             first = context.append_event(run, "delegated", {"role": "implementer"})
             second = context.append_event(run, "returned", {"outcome": "completed"})
@@ -100,7 +114,7 @@ class ImplementDistributionTest(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            plan = resolved_plan("a" * 40)
             run = repository.bind_run(root, plan, run_id="run-1", delegated=False).value
             result = context.append_event(run, "human_gate", {"reason": "writer contract check"}, actor="implement")
             self.assertTrue(result.ok, result.error)
@@ -112,7 +126,7 @@ class ImplementDistributionTest(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            plan = resolved_plan("a" * 40)
             run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
             self.assertTrue(context.append_event(run, "delegated", {"role": "implementer"}, actor="cycle").ok)
             blocked = context.append_event(run, "human_gate", {"reason": "not cycle evidence"}, actor="cycle")
@@ -128,7 +142,7 @@ class ImplementDistributionTest(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            plan = resolved_plan("a" * 40)
             run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
             blocked = context.append_event(run, "recovering", {"reason": "before delegation"}, actor="implement")
             self.assertFalse(blocked.ok)
@@ -138,7 +152,7 @@ class ImplementDistributionTest(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            plan = resolved_plan("a" * 40)
             run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
             self.assertTrue(context.append_event(run, "delegated", {}, actor="cycle").ok)
             self.assertTrue(context.append_event(run, "returned", {}, actor="cycle").ok)
@@ -150,10 +164,9 @@ class ImplementDistributionTest(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            plan = resolved_plan("a" * 40, steps=({"id": "1", "completion": "test"},))
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "test"}],
             ).value
             result = context.append_event(run, "implementation_green", {}, actor="implement")
             self.assertFalse(result.ok)
@@ -165,10 +178,9 @@ class ImplementDistributionTest(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
+            plan = resolved_plan("a" * 40)
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "check"}],
             ).value
             result = context.append_event(run, "commit", {"step": "1", "commit": "b" * 40})
             self.assertFalse(result.ok)
@@ -178,16 +190,15 @@ class ImplementDistributionTest(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", "a" * 40, "text", (), ())
             empty = repository.bind_run(
-                root, plan, run_id="empty", delegated=False, steps=[],
-            ).value
-            self.assertEqual(context.complete_run(empty).error.code, "completion_invalid")
+                root, resolved_plan("a" * 40, steps=()), run_id="empty", delegated=False,
+            )
+            self.assertEqual(empty.error.code, "step_contract_invalid")
             (root / "tests").mkdir()
             (root / "tests/example_test.py").write_text("test bytes\n", encoding="utf-8")
+            plan = resolved_plan("a" * 40, steps=({"id": "1", "completion": "test"},))
             run = repository.bind_run(
                 root, plan, run_id="ordered", delegated=False,
-                steps=[{"id": "1", "completion": "test"}],
             ).value
             self.assertTrue(context.record_stage(
                 run, "1", "red", command="test", exit_code=1, test_paths=["tests/example_test.py"],
@@ -210,19 +221,15 @@ class ImplementDistributionTest(unittest.TestCase):
             (root / "docs/spec").mkdir(parents=True)
             (root / "docs/plans").mkdir(parents=True)
             (root / "docs/spec/a.md").write_text("# Contract\n", encoding="utf-8")
-            (root / "docs/plans/plan-a.md").write_text(
-                "# Plan\n\n**Target specifications:**\n\n- `docs/spec/a.md`\n  - sections: `Contract`\n",
-                encoding="utf-8",
-            )
+            (root / "docs/plans/plan-a.md").write_text(approved_plan_text(), encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "docs/spec/a.md", "docs/plans/plan-a.md"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "documents"], check=True)
             approval = subprocess.run(
                 ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
             ).stdout.strip()
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ())
+            plan = resolved_plan(approval)
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "check"}],
             ).value
             self.assertTrue(context.stop_run(run, "important decision").ok)
             blocked = context.append_event(
@@ -230,8 +237,7 @@ class ImplementDistributionTest(unittest.TestCase):
             )
             self.assertFalse(blocked.ok)
             rebound = context.rebound_run(
-                run, approval, "approved revision",
-                steps=[{"id": "1", "completion": "check"}], mappings=[{"old": "1", "new": "1"}],
+                run, approval, "approved revision", mappings=[{"old": "1", "new": "1"}],
             )
             self.assertTrue(rebound.ok, rebound.error)
             status = json.loads((run.evidence_path / "current-status").read_text(encoding="utf-8"))
@@ -257,13 +263,12 @@ class ImplementDistributionTest(unittest.TestCase):
             commit = subprocess.run(
                 ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True
             ).stdout.strip()
-            plan = ResolvedPlan(
-                "plan-a", "docs/plans/plan-a.md", commit, "text", (),
-                ("README.md", ".gitignore", "tests/example_test.py"),
+            plan = resolved_plan(
+                commit, expected_paths=("README.md", ".gitignore", "tests/example_test.py"),
+                steps=({"id": "1", "completion": "test"},),
             )
             run = repository.bind_run(
-                root, plan, run_id="run-1", delegated=True,
-                steps=[{"id": "1", "completion": "test"}], branch=branch, worktree=str(root),
+                root, plan, run_id="run-1", delegated=True, branch=branch, worktree=str(root),
             ).value
             self.assertTrue(context.append_event(run, "delegated", {"role": "implementer"}, actor="cycle").ok)
             self.assertTrue(context.record_stage(
@@ -305,10 +310,9 @@ class ImplementDistributionTest(unittest.TestCase):
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
             commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
             branch = subprocess.run(["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True).stdout.strip()
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", commit, "text", (), ())
+            plan = resolved_plan(commit)
             run = repository.bind_run(
-                root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+                root, plan, run_id="run-1", delegated=False, branch=branch, worktree=str(root),
             ).value
             checked = context.append_event(run, "check", {
                 "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
@@ -328,35 +332,32 @@ class ImplementDistributionTest(unittest.TestCase):
             (root / "docs/spec").mkdir(parents=True)
             (root / "docs/plans").mkdir(parents=True)
             (root / "docs/spec/a.md").write_text("# Contract\n", encoding="utf-8")
-            (root / "docs/plans/plan-a.md").write_text(
-                "# Plan\n\n**Target specifications:**\n\n- `docs/spec/a.md`\n  - sections: `Contract`\n",
-                encoding="utf-8",
-            )
+            (root / "docs/plans/plan-a.md").write_text(approved_plan_text(), encoding="utf-8")
             (root / "app.txt").write_text("base\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", ".gitignore", "docs", "app.txt"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "approval"], check=True)
             approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("app.txt",))
+            plan = resolved_plan(
+                approval, expected_paths=("app.txt",), steps=({"id": "1", "completion": "check"},),
+            )
             run = repository.bind_run(
-                root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "old", "completion": "check"}], branch="main", worktree=str(root),
+                root, plan, run_id="run-1", delegated=False, branch="main", worktree=str(root),
             ).value
             wording_run = repository.bind_run(
-                root, plan, run_id="wording", delegated=False,
-                steps=[{"id": "old", "completion": "check"}], branch="main", worktree=str(root),
+                root, plan, run_id="wording", delegated=False, branch="main", worktree=str(root),
             ).value
             (root / "app.txt").write_text("done\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
             self.assertTrue(context.append_event(run, "check", {
-                "step": "old", "checks": [{"command": "lint", "exit_code": 0}],
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}],
             }).ok)
             self.assertTrue(context.append_event(wording_run, "check", {
-                "step": "old", "checks": [{"command": "lint", "exit_code": 0}],
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}],
             }).ok)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "implementation"], check=True)
             implementation = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
-            self.assertTrue(context.record_commit(run, "old", implementation).ok)
-            self.assertTrue(context.record_commit(wording_run, "old", implementation).ok)
+            self.assertTrue(context.record_commit(run, "1", implementation).ok)
+            self.assertTrue(context.record_commit(wording_run, "1", implementation).ok)
             (root / "docs/spec/a.md").write_text("# Contract\n\nClarified.\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "docs/spec/a.md"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "approved revision"], check=True)
@@ -371,11 +372,49 @@ class ImplementDistributionTest(unittest.TestCase):
             self.assertEqual(status["plan"]["approval_commit"], revised)
             self.assertTrue(context.complete_run(wording_run).ok)
             self.assertTrue(context.rebound_run(
-                run, revised, "approved revision", steps=[{"id": "same", "completion": "check"}],
-                mappings=[{"old": "old", "new": "same"}],
+                run, revised, "approved revision", mappings=[{"old": "1", "new": "1"}],
             ).ok)
             completed = context.complete_run(run)
             self.assertTrue(completed.ok, completed.error)
+
+    def test_document_follow_rejects_a_duplicate_specification_heading(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+            (root / "docs/spec").mkdir(parents=True)
+            (root / "docs/plans").mkdir(parents=True)
+            (root / "docs/spec/a.md").write_text("# Contract\n", encoding="utf-8")
+            (root / "docs/plans/plan-a.md").write_text(approved_plan_text(), encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", ".gitignore", "docs"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "approval"], check=True)
+            approval = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                text=True, capture_output=True, check=True,
+            ).stdout.strip()
+            run = repository.bind_run(
+                root, resolved_plan(approval), run_id="run-1", delegated=False,
+                branch="main", worktree=str(root),
+            ).value
+            (root / "docs/spec/a.md").write_text(
+                "# Contract\n\n## Contract\n", encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", str(root), "add", "docs/spec/a.md"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "duplicate heading"], check=True)
+            revised = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                text=True, capture_output=True, check=True,
+            ).stdout.strip()
+
+            result = context.follow_documents(
+                run, revised, ["docs/spec/a.md"], "wording-only revision",
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.error.code, "document_commit_invalid")
 
     def test_dangerous_commit_path_cannot_be_recorded_or_completed(self) -> None:
         import tempfile
@@ -389,10 +428,9 @@ class ImplementDistributionTest(unittest.TestCase):
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
             approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
             branch = subprocess.run(["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True).stdout.strip()
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), (".env.production",))
+            plan = resolved_plan(approval, expected_paths=(".env.production",))
             run = repository.bind_run(
-                root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+                root, plan, run_id="run-1", delegated=False, branch=branch, worktree=str(root),
             ).value
             (root / ".env.production").write_text("SECRET=value\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "-f", ".env.production"], check=True)
@@ -418,10 +456,9 @@ class ImplementDistributionTest(unittest.TestCase):
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
             approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
             branch = subprocess.run(["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True).stdout.strip()
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("config.py",))
+            plan = resolved_plan(approval, expected_paths=("config.py",))
             run = repository.bind_run(
-                root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+                root, plan, run_id="run-1", delegated=False, branch=branch, worktree=str(root),
             ).value
             for name in ("api_token", "TOKEN", "Secret", "CREDENTIAL"):
                 with self.subTest(name=name):
@@ -459,10 +496,9 @@ class ImplementDistributionTest(unittest.TestCase):
             subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
             approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("config.py",))
+            plan = resolved_plan(approval, expected_paths=("config.py",))
             run = repository.bind_run(
-                root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "check"}], branch="main", worktree=str(root),
+                root, plan, run_id="run-1", delegated=False, branch="main", worktree=str(root),
             ).value
             self.assertTrue(context.append_event(run, "check", {
                 "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
@@ -490,10 +526,13 @@ class ImplementDistributionTest(unittest.TestCase):
             subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
             approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
-            plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("app.txt",))
+            plan = resolved_plan(
+                approval, expected_paths=("app.txt",), steps=(
+                    {"id": "1", "completion": "check"}, {"id": "2", "completion": "check"},
+                ),
+            )
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
-                steps=[{"id": "1", "completion": "check"}, {"id": "2", "completion": "check"}],
                 branch="main", worktree=str(root),
             ).value
             subprocess.run(["git", "-C", str(root), "switch", "-qc", "side"], check=True)
