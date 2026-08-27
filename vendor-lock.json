@@ -49,7 +49,7 @@
       },
       "scripts/runtime/": {
         "contract": "implement-runtime",
-        "digest": "sha256:3f0533dda3cf3573c4f19632755d4f1b80f4545441cf2f9283719def9291ed3c",
+        "digest": "sha256:9721c26bfca93ca8103e4f2f4d969c73d77fce22875461b3441aed8a95e4ac12",
         "src": "tools/workflow-runtime/implement/runtime/"
       }
     },
@@ -78,7 +78,7 @@
       },
       "scripts/review_runtime.py": {
         "contract": "review-runtime",
-        "digest": "sha256:c080ba1cec4f7d144ef1959a96593aa8c6e1164e2c841b828e4073a50b22b334",
+        "digest": "sha256:5b74d13137b47eafce137f329327944f1844d99b9c582e319649fbdf9f366071",
         "src": "tools/workflow-runtime/review/review_runtime.py"
       },
       "scripts/secret_detect.py": {
@@ -94,7 +94,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:40f56454e6f0dc956ba2f944936bb2074d48b6d064c416650fe7d801eaaa28bc",
+      "digest": "sha256:5f6e1a751422ece61a678c71a3fc562c08500f20b6df420c32d0dc1999a907e7",
       "kind": "raw"
     },
     "plan-runtime": {
@@ -102,7 +102,7 @@
       "kind": "raw"
     },
     "review-runtime": {
-      "digest": "sha256:9d7e3a0f850abd04b57a841ad2f4f4fd787d3173ae7cdcdd0edad32c46b974fc",
+      "digest": "sha256:45915433b6bd040c0f6c216ff302851effc2407da6ffd55e0bf2fb2f795afd79",
       "kind": "raw"
     }
   }

@@ -209,16 +209,22 @@ def _validate_execution_input(root: Path, plan_key: str, run_id: str) -> Runtime
     if not loaded.ok:
         return loaded
     events = loaded.value
-    if not events or events[-1].get("event_type") != "implementation_green":
+    green_index = len(events) - 1
+    if binding.get("delegated"):
+        if len(events) < 2 or events[-1].get("event_type") != "returned":
+            return failure("implementation_incomplete", "delegated implementation has not returned")
+        green_index -= 1
+    if green_index < 0 or events[green_index].get("event_type") != "implementation_green":
         return failure("implementation_incomplete", "last implementation event is not implementation_green")
-    derived = implementation_evidence.derive_implementation(binding, events[:-1])
+    green = events[green_index]
+    derived = implementation_evidence.derive_implementation(binding, events[:green_index])
     if not derived.ok:
         return failure(derived.error.code, derived.error.message)
     approval = _commit(root, derived.value["approval_commit"])
     if not approval.ok:
         return failure("execution_input_invalid", "effective implementation approval commit does not exist")
     step_ids = [step["id"] for step in derived.value["steps"]]
-    if derived.value["resume_step"] is not None or events[-1].get("completed_steps") != step_ids:
+    if derived.value["resume_step"] is not None or green.get("completed_steps") != step_ids:
         return failure("execution_input_invalid", "implementation_green does not cover the bound steps")
     commits = [event for event in events if event.get("event_type") == "commit"]
     worktree = Path(str(binding.get("worktree", "")))

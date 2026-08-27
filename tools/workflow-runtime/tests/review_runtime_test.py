@@ -90,6 +90,24 @@ class ReviewRuntimeTest(unittest.TestCase):
         self.assertEqual(branch.value["input"]["base"], base)
         self.assertEqual(branch.value["input"]["head"], head)
 
+    def test_execution_review_accepts_returned_after_implementation_green(self) -> None:
+        root, _, _ = self.execution_fixture()
+        store = root / ".agents/evidence/plan-a/run-1"
+        binding_path = store / "binding.json"
+        binding = json.loads(binding_path.read_text(encoding="utf-8"))
+        binding["delegated"] = True
+        binding_path.write_text(json.dumps(binding), encoding="utf-8")
+        returned = {
+            "version": 2, "sequence": 5, "event_type": "returned", "writer": "cycle",
+            "outcome": "completed",
+        }
+        (store / "000005-returned.json").write_text(json.dumps(returned), encoding="utf-8")
+
+        result = runtime.resolve_input(root, review_id="returned", plan_key="plan-a", run_id="run-1")
+
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.value["implement_sequence"], 5)
+
     def test_branch_names_are_resolved_only_from_local_branch_references(self) -> None:
         root, base, head = self.execution_fixture()
         subprocess.run(["git", "-C", str(root), "tag", "feature", base], check=True)

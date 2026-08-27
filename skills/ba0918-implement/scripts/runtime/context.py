@@ -58,7 +58,12 @@ def _events_for_step(events: list[dict], step_id: str) -> list[dict]:
 def _validate_event(binding: dict, events: list[dict], event_type: str, fields: dict, actor: str, derived: bool) -> RuntimeResult:
     if event_type not in EVENT_TYPES:
         return failure("event_type_invalid", f"unsupported implementation event: {event_type}")
-    if events and events[-1].get("event_type") == "implementation_green":
+    implementation_complete = any(event.get("event_type") == "implementation_green" for event in events)
+    returning_completed_delegation = (
+        implementation_complete and events[-1].get("event_type") == "implementation_green"
+        and event_type == "returned" and actor == "cycle"
+    )
+    if implementation_complete and not returning_completed_delegation:
         return failure("run_already_complete", "completed implementation evidence cannot be extended")
     if events and events[-1].get("event_type") == "stopped" and event_type not in {"resumed", "rebound", "resume-candidate-retired"}:
         return failure("run_stopped", "stopped implementation must be resumed or rebound before more work")

@@ -262,9 +262,10 @@ class ImplementDistributionTest(unittest.TestCase):
                 ("README.md", ".gitignore", "tests/example_test.py"),
             )
             run = repository.bind_run(
-                root, plan, run_id="run-1", delegated=False,
+                root, plan, run_id="run-1", delegated=True,
                 steps=[{"id": "1", "completion": "test"}], branch=branch, worktree=str(root),
             ).value
+            self.assertTrue(context.append_event(run, "delegated", {"role": "implementer"}, actor="cycle").ok)
             self.assertTrue(context.record_stage(
                 run, "1", "red", command="test cmd", exit_code=1, test_paths=["tests/example_test.py"],
             ).ok)
@@ -286,9 +287,11 @@ class ImplementDistributionTest(unittest.TestCase):
             completed = context.complete_run(run)
             self.assertTrue(completed.ok, completed.error)
             self.assertEqual(completed.value["event_type"], "implementation_green")
+            returned = context.append_event(run, "returned", {"outcome": "completed"}, actor="cycle")
+            self.assertTrue(returned.ok, returned.error)
             status = json.loads((run.evidence_path / "current-status").read_text(encoding="utf-8"))
             self.assertEqual(status["completed_steps"], ["1"])
-            self.assertEqual(status["last_event"]["event_type"], "implementation_green")
+            self.assertEqual(status["last_event"]["event_type"], "returned")
 
     def test_check_without_changed_paths_needs_no_commit(self) -> None:
         import tempfile
