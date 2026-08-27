@@ -78,7 +78,7 @@
       },
       "scripts/review_runtime.py": {
         "contract": "review-runtime",
-        "digest": "sha256:a2d57dc06e462c9ceda3c6ac863ce42ca0567f7f65684bbc8cf90c9a42da8b76",
+        "digest": "sha256:e3b488163569f3e592979dede945f3bee67a815e9b3ffa86c173301796bad26e",
         "src": "tools/workflow-runtime/review/review_runtime.py"
       },
       "scripts/secret_detect.py": {
@@ -102,7 +102,7 @@
       "kind": "raw"
     },
     "review-runtime": {
-      "digest": "sha256:6e72f538e41accd1961bcbc093800f86410765a5a56ea4e44878f62b6aa75f08",
+      "digest": "sha256:14f0520da34bd2b9edb79d2b39f4e5ff820773d118cf43253d04a1ae7ec65fd4",
       "kind": "raw"
     }
   }

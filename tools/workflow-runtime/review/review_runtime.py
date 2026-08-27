@@ -706,16 +706,11 @@ def _bound_trailer_commits(
         return failure("fix_commit_unlinked", "review commit range is unavailable")
     return ok([commit for commit in history.stdout.splitlines() if _commit_has_trailer(root, commit, finding_id)])
 
-def _has_command_option(
-    arguments: list[str], *, long_options: set[str], short_options: set[str] | None = None,
-) -> bool:
-    short_options = short_options or set()
+def _has_command_option(arguments: list[str], *, long_options: set[str]) -> bool:
     for argument in arguments:
         if argument == "--":
             return False
         if argument.startswith("--") and argument.split("=", 1)[0] in long_options:
-            return True
-        if any(argument == option or argument.startswith(f"{option}.") for option in short_options):
             return True
     return False
 
@@ -745,10 +740,6 @@ def _review_operation_allowed(tokens: list[str]) -> bool:
         return len(tokens) >= 3 and tokens[1:] == ["agentic-skill-vendor", "verify"]
     if command == "rg":
         return not _has_command_option(tokens[1:], long_options={"--pre"})
-    if command == "sed":
-        return not _has_command_option(
-            tokens[1:], long_options={"--in-place"}, short_options={"-i"},
-        )
     return command == "pytest"
 
 

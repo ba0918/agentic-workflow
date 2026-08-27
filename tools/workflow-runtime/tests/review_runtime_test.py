@@ -514,7 +514,6 @@ class ReviewRuntimeTest(unittest.TestCase):
             "python3 -m unittest tests.review_test",
             "git diff --check",
             "rg -n pattern app.txt",
-            "sed -n 1,20p app.txt",
         )
 
         for operation in unsafe_operations:
@@ -525,6 +524,28 @@ class ReviewRuntimeTest(unittest.TestCase):
         for operation in safe_operations:
             with self.subTest(operation=operation):
                 result = runtime._review_execution(operation, 0, "local read-only check passed")
+                self.assertTrue(result.ok, result.error)
+
+    def test_review_operations_exclude_sed_and_retain_read_only_alternatives(self) -> None:
+        sed_operations = (
+            "sed -ibak s/old/new/ app.txt",
+            "sed -n 'e touch result.txt' app.txt",
+            "sed -n 1,20p app.txt",
+        )
+        read_only_alternatives = (
+            "rg -n pattern app.txt",
+            "git grep -n pattern",
+            "python3 -m unittest tests.review_test",
+        )
+
+        for operation in sed_operations:
+            with self.subTest(operation=operation):
+                result = runtime._review_execution(operation, 1, "operation was not executed")
+                self.assertFalse(result.ok)
+                self.assertEqual(result.error.code, "review_operation_unsafe")
+        for operation in read_only_alternatives:
+            with self.subTest(operation=operation):
+                result = runtime._review_execution(operation, 0, "safe alternative passed")
                 self.assertTrue(result.ok, result.error)
 
     def test_stale_state_blocks_every_operation_except_rebound(self) -> None:
