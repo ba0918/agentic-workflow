@@ -36,6 +36,13 @@
         "--follow-untyped-imports",
         ".codex/quality"
       ]
+    },
+    {
+      "name": "spec-textlint",
+      "argv": [
+        "python3",
+        ".codex/quality/spec_textlint.py"
+      ]
     }
   ]
 }

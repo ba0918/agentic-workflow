@@ -9,6 +9,8 @@ import subprocess
 import sys
 from typing import Sequence
 
+from project_paths import resolve_project_root
+
 
 @dataclass(frozen=True)
 class Check:
@@ -116,11 +118,7 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
 
 def main(arguments: Sequence[str] | None = None) -> int:
     options = parse_arguments(arguments)
-    project_root = (
-        options.root.resolve()
-        if options.root is not None
-        else Path(__file__).resolve().parents[2]
-    )
+    project_root = resolve_project_root(options.root, Path(__file__))
     config_path = (
         options.config.resolve()
         if options.config is not None
