@@ -92,13 +92,15 @@ def lintable_spec_paths(project_root: Path, scope: str) -> list[Path]:
     spec_root = (project_root / SPEC_DIRECTORY).resolve()
     selected = []
     for relative_path in changed_paths(project_root, scope):
+        if relative_path.suffix != ".md":
+            continue
+        if scope == "staged":
+            if relative_path.is_relative_to(SPEC_DIRECTORY):
+                selected.append(relative_path)
+            continue
         candidate = project_root / relative_path
         resolved = candidate.resolve()
-        if (
-            relative_path.suffix == ".md"
-            and resolved.is_relative_to(spec_root)
-            and candidate.is_file()
-        ):
+        if resolved.is_relative_to(spec_root) and candidate.is_file():
             selected.append(relative_path)
     return sorted(selected)
 

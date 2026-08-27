@@ -139,6 +139,35 @@ class SpecTextlintTest(unittest.TestCase):
                 "--stdin\0--stdin-filename\0docs/spec/tracked.md",
             )
 
+    def test_staged_scope_lints_added_file_missing_from_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.initialize_repository(root)
+            self.install_fake_textlint(root)
+            capture = root / "capture"
+            content_capture = root / "content-capture"
+            added = root / "docs" / "spec" / "added.md"
+            added.write_text("staged addition\n", encoding="utf-8")
+            subprocess.run(["git", "add", str(added)], cwd=root, check=True)
+            added.unlink()
+
+            completed = self.invoke(
+                root,
+                "staged",
+                capture,
+                TEXTLINT_CONTENT_CAPTURE=str(content_capture),
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(
+                content_capture.read_text(encoding="utf-8"),
+                "staged addition\n",
+            )
+            self.assertEqual(
+                capture.read_text(encoding="utf-8"),
+                "--stdin\0--stdin-filename\0docs/spec/added.md",
+            )
+
     def test_no_changed_spec_does_not_start_textlint(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
