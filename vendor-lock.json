@@ -34,7 +34,7 @@
       },
       "scripts/implementation_evidence.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:2f7934e0b621c0eccc58612ca25e32b5db08a6ed34ef5851aec54112a5c44325",
+        "digest": "sha256:e26d1683d04fa6057e9b40dba8fb1505d996c7a8a763ea0fb106728af648a838",
         "src": "tools/workflow-runtime/shared/implementation_evidence.py"
       },
       "scripts/path_safety.py": {
@@ -63,7 +63,7 @@
     "ba0918-review": {
       "scripts/implementation_evidence.py": {
         "contract": "review-runtime",
-        "digest": "sha256:2f7934e0b621c0eccc58612ca25e32b5db08a6ed34ef5851aec54112a5c44325",
+        "digest": "sha256:e26d1683d04fa6057e9b40dba8fb1505d996c7a8a763ea0fb106728af648a838",
         "src": "tools/workflow-runtime/shared/implementation_evidence.py"
       },
       "scripts/path_safety.py": {
@@ -94,7 +94,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:5f6e1a751422ece61a678c71a3fc562c08500f20b6df420c32d0dc1999a907e7",
+      "digest": "sha256:2a77e1cc2458b403ca68aa26c8f6903c6094c432030af2d24c424a056f132113",
       "kind": "raw"
     },
     "plan-runtime": {
@@ -102,7 +102,7 @@
       "kind": "raw"
     },
     "review-runtime": {
-      "digest": "sha256:45915433b6bd040c0f6c216ff302851effc2407da6ffd55e0bf2fb2f795afd79",
+      "digest": "sha256:969c09db8d07d3f53a6a0472c54eb2b78e6f79c426107c74862ddec2226da5ba",
       "kind": "raw"
     }
   }

@@ -206,9 +206,8 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
             completed_now = completed | _completed_steps(active_steps, segment)
             next_step = next((step["id"] for step in active_steps if step["id"] not in completed_now), None)
             contract_index = next(index for index, step in enumerate(active_steps) if step["id"] == contract["id"])
-            started_steps = completed_now | {item.get("step") for item in segment}
             if contract["id"] not in completed_now and contract["id"] != next_step and any(
-                step["id"] not in started_steps for step in active_steps[:contract_index]
+                step["id"] not in completed_now for step in active_steps[:contract_index]
             ):
                 return _failure("step_order_invalid", "implementation evidence must follow plan step order")
             if kind in {"red", "green", "refactor"}:

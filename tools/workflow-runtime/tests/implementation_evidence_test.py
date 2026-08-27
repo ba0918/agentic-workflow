@@ -42,16 +42,15 @@ class ImplementationEvidenceTest(unittest.TestCase):
         self.assertEqual(result.value["completed_steps"], ["test", "check", "artifact", "external"])
         self.assertIsNone(result.value["resume_step"])
 
-    def test_external_false_and_changed_check_without_commit_remain_incomplete(self) -> None:
+    def test_later_evidence_is_rejected_until_a_changed_prior_step_is_committed(self) -> None:
         steps = [{"id": "check", "completion": "check"}, {"id": "external", "completion": "external"}]
         events = [
             self.event(1, "check", step="check", checks=[{"exit_code": 0}], changed_paths=["x"]),
             self.event(2, "external", step="external", checked="deployment", summary="not ready", condition_met=False, changed_paths=[]),
         ]
         result = self.model.derive_implementation(self.binding(steps), events)
-        self.assertTrue(result.ok, result.error)
-        self.assertEqual(result.value["completed_steps"], [])
-        self.assertEqual(result.value["resume_step"], "check")
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "step_order_invalid")
 
     def test_legacy_binding_and_event_are_explicitly_rejected(self) -> None:
         binding = self.binding([{"id": "1", "completion": "check"}])
@@ -197,6 +196,24 @@ class ImplementationEvidenceTest(unittest.TestCase):
         event = self.event(1, "check", step="second", checks=[{"exit_code": 0}], changed_paths=[])
 
         result = self.model.derive_implementation(binding, [event])
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, "step_order_invalid")
+
+    def test_later_step_cannot_complete_while_prior_changed_artifact_awaits_commit(self) -> None:
+        binding = self.binding([
+            {"id": "artifact", "completion": "artifact"},
+            {"id": "verify", "completion": "check"},
+        ])
+        events = [
+            self.event(
+                1, "artifact", step="artifact", checks=[{"exit_code": 0}],
+                changed_paths=["artifact.txt"],
+            ),
+            self.event(2, "check", step="verify", checks=[{"exit_code": 0}], changed_paths=[]),
+        ]
+
+        result = self.model.derive_implementation(binding, events)
 
         self.assertFalse(result.ok)
         self.assertEqual(result.error.code, "step_order_invalid")
