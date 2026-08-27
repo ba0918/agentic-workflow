@@ -23,12 +23,17 @@ def bind_run(
         {
             "id": step["id"] if isinstance(step, dict) else step.id,
             "completion": step["completion"] if isinstance(step, dict) else step.completion,
+            "checks": list(step.get("checks", ())) if isinstance(step, dict) else list(step.checks),
         }
         for step in plan.steps
     ]
     if any(
         not isinstance(step.get("id"), str)
         or step.get("completion") not in {"test", "check", "artifact", "external"}
+        or (step["completion"] == "check" and (
+            not step["checks"] or not all(isinstance(command, str) and command for command in step["checks"])
+        ))
+        or (step["completion"] != "check" and step["checks"])
         for step in normalized_steps
     ) or not normalized_steps or len({step["id"] for step in normalized_steps}) != len(normalized_steps):
         return failure("step_contract_invalid", "steps need unique ids and a supported completion kind")

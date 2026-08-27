@@ -76,8 +76,15 @@ def _run_git_bytes(root: Path, *args: str) -> subprocess.CompletedProcess[bytes]
 def _coverage_block(text: str) -> str:
     if re.search(r"^\*\*Target specifications:\*\*", text, re.MULTILINE):
         raise InvalidPlanFormat("legacy **Target specifications:** is not supported")
+    if len(re.findall(r"^\*\*Verification coverage:\*\*[ \t]*$", text, re.MULTILINE)) != 1:
+        raise InvalidPlanFormat("plan needs exactly one **Verification coverage:** block")
     match = re.search(r"^\*\*Verification coverage:\*\*[ \t]*\n+(.*?)(?=\n\s*\n|\Z)", text, re.MULTILINE | re.DOTALL)
-    return match.group(1) if match else ""
+    if match is None:
+        return ""
+    remainder = text[:match.start()] + text[match.end():]
+    if any(COVERAGE_ROW.fullmatch(line) for line in remainder.splitlines()):
+        raise InvalidPlanFormat("verification coverage rows must form one contiguous block")
+    return match.group(1)
 
 def _read_coverage(text: str) -> tuple[VerificationCoverage, ...]:
     block = _coverage_block(text)

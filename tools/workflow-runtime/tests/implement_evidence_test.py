@@ -15,8 +15,12 @@ def resolved_plan(
     approval: str, *, expected_paths: tuple[str, ...] = (),
     steps: tuple[dict, ...] = ({"id": "1", "completion": "check"},),
 ) -> ResolvedPlan:
+    normalized_steps = tuple({
+        **step,
+        "checks": step.get("checks", ("lint",)) if step.get("completion") == "check" else (),
+    } for step in steps)
     return ResolvedPlan(
-        "plan-a", "docs/plans/plan-a.md", approval, "text", (), expected_paths, steps=steps,
+        "plan-a", "docs/plans/plan-a.md", approval, "text", (), expected_paths, steps=normalized_steps,
     )
 
 def approved_plan_text(step_id: str = "1", completion: str = "check") -> str:
@@ -44,6 +48,7 @@ class ImplementDistributionTest(unittest.TestCase):
             self.assertEqual(run.evidence_path.relative_to(root).as_posix(), ".agents/evidence/plan-a/run-1")
             binding = storage.read_json(run.binding_path)
             self.assertEqual(binding.value["approval_commit"], "a" * 40)
+            self.assertEqual(binding.value["steps"][0]["checks"], ["lint"])
             self.assertNotIn("identity", str(binding.value))
 
     def test_bind_validates_every_contract_before_creation_and_cleans_failed_initial_event(self) -> None:
@@ -321,6 +326,62 @@ class ImplementDistributionTest(unittest.TestCase):
             self.assertEqual(checked.value["changed_paths"], [])
             self.assertTrue(context.complete_run(run).ok)
 
+    def test_check_requires_every_plan_command_in_declared_order(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+            (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", ".gitignore"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+            approval = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                text=True, capture_output=True, check=True,
+            ).stdout.strip()
+            branch = subprocess.run(
+                ["git", "-C", str(root), "branch", "--show-current"],
+                text=True, capture_output=True, check=True,
+            ).stdout.strip()
+            plan = resolved_plan(approval, steps=({
+                "id": "1", "completion": "check", "checks": ("first-check", "second-check"),
+            },))
+            run = repository.bind_run(
+                root, plan, run_id="run-1", delegated=False,
+                branch=branch, worktree=str(root),
+            ).value
+
+            partial = context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "first-check", "exit_code": 0}], "paths": [],
+            })
+            reordered = context.append_event(run, "check", {
+                "step": "1", "checks": [
+                    {"command": "second-check", "exit_code": 0},
+                    {"command": "first-check", "exit_code": 0},
+                ], "paths": [],
+            })
+            complete = context.append_event(run, "check", {
+                "step": "1", "checks": [
+                    {"command": "first-check", "exit_code": 0},
+                    {"command": "second-check", "exit_code": 0},
+                ], "paths": [],
+            })
+
+            self.assertFalse(partial.ok)
+            self.assertFalse(reordered.ok)
+            self.assertTrue(complete.ok, complete.error)
+            self.assertTrue(context.complete_run(run).ok)
+
+    def test_existing_v2_check_contract_without_declared_commands_keeps_its_meaning(self) -> None:
+        binding = {"version": 2, "delegated": False, "steps": [{"id": "1", "completion": "check"}]}
+
+        result = context._validate_event(binding, [], "check", {
+            "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+        }, "implement", False)
+
+        self.assertTrue(result.ok, result.error)
+
     def test_rebound_completion_matches_commits_with_their_revision_segments(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
@@ -374,6 +435,7 @@ class ImplementDistributionTest(unittest.TestCase):
             self.assertTrue(context.rebound_run(
                 run, revised, "approved revision", mappings=[{"old": "1", "new": "1"}],
             ).ok)
+            self.assertEqual(context.load_events(run).value[-1]["steps"][0]["checks"], ["lint"])
             completed = context.complete_run(run)
             self.assertTrue(completed.ok, completed.error)
 

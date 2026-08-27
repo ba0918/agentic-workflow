@@ -135,6 +135,10 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
                 if (
                     not isinstance(checks, list) or (event_type == "check" and not checks)
                     or any(not isinstance(check, dict) or check.get("exit_code") != 0 for check in checks)
+                    or (
+                        event_type == "check" and contract.get("checks") is not None
+                        and [check.get("command") for check in checks] != contract["checks"]
+                    )
                 ):
                     return failure("stage_invalid", "check evidence needs successful commands")
             elif not str(fields.get("summary", "")).strip() or not isinstance(fields.get("condition_met"), bool):
@@ -334,7 +338,7 @@ def rebound_run(run: Run, approval_commit: str, reason: str, *, mappings: list[d
     if not checked.ok:
         return checked
     steps = [
-        {"id": step.id, "completion": step.completion}
+        {"id": step.id, "completion": step.completion, "checks": list(step.checks)}
         for step in checked.value.steps
     ]
     candidate = {

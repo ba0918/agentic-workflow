@@ -39,7 +39,7 @@
       },
       "scripts/implementation_evidence.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:e26d1683d04fa6057e9b40dba8fb1505d996c7a8a763ea0fb106728af648a838",
+        "digest": "sha256:135f4f385a5ac55e9c52f7c5c1a33da935ee5d90e718c830810e9cd61cd4679d",
         "src": "tools/workflow-runtime/shared/implementation_evidence.py"
       },
       "scripts/path_safety.py": {
@@ -49,26 +49,26 @@
       },
       "scripts/plan_artifact.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:c6c2f466abcda9bbfbea1ce90b9a2d4020779867e7424de3a88df9738d2e177a",
+        "digest": "sha256:60d05484bd00f65849ff9a9d57a8821ce1e6083af1426394db54517c90d96248",
         "src": "tools/workflow-runtime/plan/plan_artifact.py"
       },
       "scripts/runtime/": {
         "contract": "implement-runtime",
-        "digest": "sha256:c1794e5023e991c9f5efd046610f9aaaa5256940740814ba7d1facd935723804",
+        "digest": "sha256:2eb6bb442eaa829e397ff3e679ae673919efd3a133303a932159280d3963cf58",
         "src": "tools/workflow-runtime/implement/runtime/"
       }
     },
     "ba0918-plan": {
       "scripts/plan_artifact.py": {
         "contract": "plan-runtime",
-        "digest": "sha256:c6c2f466abcda9bbfbea1ce90b9a2d4020779867e7424de3a88df9738d2e177a",
+        "digest": "sha256:60d05484bd00f65849ff9a9d57a8821ce1e6083af1426394db54517c90d96248",
         "src": "tools/workflow-runtime/plan/plan_artifact.py"
       }
     },
     "ba0918-review": {
       "scripts/implementation_evidence.py": {
         "contract": "review-runtime",
-        "digest": "sha256:e26d1683d04fa6057e9b40dba8fb1505d996c7a8a763ea0fb106728af648a838",
+        "digest": "sha256:135f4f385a5ac55e9c52f7c5c1a33da935ee5d90e718c830810e9cd61cd4679d",
         "src": "tools/workflow-runtime/shared/implementation_evidence.py"
       },
       "scripts/path_safety.py": {
@@ -99,15 +99,15 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:cd400e4bca06c81b2e6e61464f3cdbd06182049718efcadbc2dc71d5fc2cfa6f",
+      "digest": "sha256:1c6d35cddf311be24aafe1b29f13a6cc9644ef9eade1a5baf20b3f5c9fe8d9c0",
       "kind": "raw"
     },
     "plan-runtime": {
-      "digest": "sha256:3b163ca6823f02557fd5c0fb6278c9dcad4d0fd3f4b608abbc6edf01a20c6a85",
+      "digest": "sha256:460fe8f33469052865dcf9ab78fa035fc337a60fc0d09be1fb578bd4936920af",
       "kind": "raw"
     },
     "review-runtime": {
-      "digest": "sha256:e0b3ac48e68024feedf47a068c9703b01b5ac62cef02f451cac9450e5daa3f4e",
+      "digest": "sha256:36ff3343a5b753c2cd2df84528957e291c6431b4938d18fd45edbf37eb355b67",
       "kind": "raw"
     }
   }

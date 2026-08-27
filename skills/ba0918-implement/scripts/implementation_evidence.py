@@ -35,9 +35,25 @@ def _steps(value: object) -> list[dict] | None:
             or not item["id"] or item.get("completion") not in COMPLETIONS or item["id"] in ids
         ):
             return None
+        checks = item.get("checks")
+        if checks is not None and (
+            not isinstance(checks, list)
+            or item["completion"] == "check" and (
+                not checks or not all(isinstance(command, str) and command for command in checks)
+            )
+            or item["completion"] != "check" and bool(checks)
+        ):
+            return None
         ids.add(item["id"])
-        normalized.append({"id": item["id"], "completion": item["completion"]})
+        normalized.append({
+            "id": item["id"], "completion": item["completion"],
+            **({"checks": list(checks)} if checks is not None else {}),
+        })
     return normalized
+
+def _declared_checks_match(step: dict, checks: list[dict]) -> bool:
+    declared = step.get("checks")
+    return declared is None or [check.get("command") for check in checks] == declared
 
 def _valid_evidence(step: dict, event: dict) -> bool:
     kind = step["completion"]
@@ -49,7 +65,7 @@ def _valid_evidence(step: dict, event: dict) -> bool:
         checks = event.get("checks")
         return isinstance(checks, list) and (kind == "artifact" or bool(checks)) and all(
             isinstance(check, dict) and check.get("exit_code") == 0 for check in checks
-        )
+        ) and (kind != "check" or _declared_checks_match(step, checks))
     return event.get("condition_met") is True
 
 def _completed_steps(steps: list[dict], events: list[dict]) -> set[str]:
@@ -228,6 +244,7 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
                 test_stages[contract["id"]] = kind
             elif kind in {"check", "artifact"} and (
                 kind != contract["completion"] or any(check["exit_code"] != 0 for check in event["checks"])
+                or kind == "check" and not _declared_checks_match(contract, event["checks"])
             ):
                 return _failure("transition_invalid", "check or artifact evidence does not complete its step")
             elif kind == "external" and contract["completion"] != "external":

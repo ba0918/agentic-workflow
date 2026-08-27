@@ -96,6 +96,23 @@ class PlanArtifactTest(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(plan_artifact.InvalidPlanFormat):
                 plan_artifact.read_plan_header(PLAN.replace(original, invalid))
 
+    def test_verification_coverage_must_be_one_contiguous_block(self) -> None:
+        duplicate_label = PLAN.replace(
+            "## Scope",
+            "**Verification coverage:**\n\n"
+            "- `docs/spec/example.md` / `Failure handling` -> `2:check`\n\n"
+            "## Scope",
+        )
+        split_rows = PLAN.replace(
+            "- `docs/spec/example.md` / `Contract` -> `1:test`\n"
+            "- `docs/spec/example.md` / `Failure handling` -> `2:check`",
+            "- `docs/spec/example.md` / `Contract` -> `1:test`\n\n"
+            "- `docs/spec/example.md` / `Failure handling` -> `2:check`",
+        )
+        for invalid in (duplicate_label, split_rows):
+            with self.subTest(), self.assertRaises(plan_artifact.InvalidPlanFormat):
+                plan_artifact.read_plan_header(invalid)
+
     def test_step_headings_must_be_contiguous_and_unique(self) -> None:
         for invalid in (
             PLAN.replace("## Step 2:", "## Step 3:"),

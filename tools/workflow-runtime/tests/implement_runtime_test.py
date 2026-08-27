@@ -43,8 +43,12 @@ def resolved_plan(
     approval: str, *, expected_paths: tuple[str, ...] = (),
     steps: tuple[dict, ...] = ({"id": "1", "completion": "check"},),
 ) -> ResolvedPlan:
+    normalized_steps = tuple({
+        **step,
+        "checks": step.get("checks", ("check",)) if step.get("completion") == "check" else (),
+    } for step in steps)
     return ResolvedPlan(
-        "plan-a", "docs/plans/plan-a.md", approval, "text", (), expected_paths, steps=steps,
+        "plan-a", "docs/plans/plan-a.md", approval, "text", (), expected_paths, steps=normalized_steps,
     )
 
 class ImplementPlanBindingTest(unittest.TestCase):
@@ -392,6 +396,33 @@ class ImplementPlanBindingTest(unittest.TestCase):
             ["worktree-bound", "check", "commit", "stopped", "rebound"],
         )
 
+    def test_cli_records_all_declared_check_commands_in_order(self) -> None:
+        root = self.fixture()
+        plan_path = root / "docs/plans/example.md"
+        plan_path.write_text(PLAN.replace("- `lint`", "- `lint`\n- `test`"), encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "docs/plans/example.md"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "two checks"], check=True)
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"],
+            text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main([
+                "bind", "--repo", str(root), "--plan-path", "docs/plans/example.md",
+                "--run-id", "run-1", "--branch", branch, "--worktree", str(root),
+            ]), 0)
+            self.assertEqual(cli.main([
+                "stage", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
+                "--step", "1", "--phase", "check",
+                "--command", "lint", "--exit-code", "0",
+                "--command", "test", "--exit-code", "0",
+            ]), 0)
+        run = repository.load_run(root, "example", "run-1").value
+        self.assertEqual(
+            context.load_events(run).value[-1]["checks"],
+            [{"command": "lint", "exit_code": 0}, {"command": "test", "exit_code": 0}],
+        )
+
     def test_bind_and_rebound_cli_reject_caller_step_contracts(self) -> None:
         root = self.fixture()
         branch = subprocess.run(
@@ -428,7 +459,7 @@ class ImplementPlanBindingTest(unittest.TestCase):
         selector = ["--repo", str(root), "--plan-key", "plan-a", "--run-id", "run-1"]
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(cli.main([
-                "stage", *selector, "--step", "1", "--phase", "check", "--command", "lint",
+                "stage", *selector, "--step", "1", "--phase", "check", "--command", "check",
                 "--exit-code", "0", "--unplanned-reason", "helper.py=required helper",
             ]), 0)
         subprocess.run(["git", "-C", str(root), "commit", "-qm", "helper"], check=True)
