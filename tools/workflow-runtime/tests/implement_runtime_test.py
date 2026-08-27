@@ -124,6 +124,27 @@ class ImplementPlanBindingTest(unittest.TestCase):
             result = staging.assess_paths([path], expected_paths=[path])
             self.assertFalse(result.ok)
 
+    def test_content_safety_scans_new_diff_content_not_unchanged_fixture_values(self) -> None:
+        root = self.fixture()
+        path = root / "src/app.py"
+        path.parent.mkdir(parents=True)
+        preexisting_fixture = "TO" + 'KEN="documented-' + 'placeholder-value"\n'
+        path.write_text(preexisting_fixture, encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "src/app.py"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+        path.write_text(path.read_text(encoding="utf-8") + "enabled = True\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "src/app.py"], check=True)
+
+        staged = context._content_safety(root, ["src/app.py"], index=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "safe change"], check=True)
+        commit = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        committed = context._content_safety(root, ["src/app.py"], commit=commit)
+
+        self.assertTrue(staged.ok, staged.error)
+        self.assertTrue(committed.ok, committed.error)
+
     def test_semantically_dangerous_paths_are_returned_for_human_judgment(self) -> None:
         result = staging.assess_paths(
             ["config/release.toml"],

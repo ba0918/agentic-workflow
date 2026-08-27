@@ -143,7 +143,7 @@ def _validate_event(binding: dict, events: list[dict], event_type: str, fields: 
             ):
                 return failure("commit_invalid", "commit evidence needs canonical safety results")
             required = "refactor" if completion == "test" else completion
-            if not prior or prior[-1].get("event_type") != required:
+            if not any(event.get("event_type") == required for event in prior):
                 return failure("transition_invalid", "commit needs completed step evidence")
     return ok()
 
@@ -421,11 +421,17 @@ def _content_safety(
     worktree: Path, paths: list[str], *, index: bool = False, commit: str | None = None,
 ) -> RuntimeResult:
     for path in paths:
-        reference = f":{path}" if index else f"{commit}:{path}"
-        content = _git_bytes(worktree, "show", reference)
+        if index:
+            content = _git_bytes(worktree, "diff", "--cached", "--unified=0", "--", path)
+        else:
+            content = _git_bytes(worktree, "show", "--format=", "--unified=0", commit or "", "--", path)
         if content.returncode != 0:
-            return failure("git_inspection_failed", "changed file content could not be inspected", path)
-        if contains_secret(content.stdout):
+            return failure("git_inspection_failed", "changed diff content could not be inspected", path)
+        added = b"\n".join(
+            line[1:] for line in content.stdout.splitlines()
+            if line.startswith(b"+") and not line.startswith(b"+++")
+        )
+        if contains_secret(added):
             return failure("secret_content", "secret-shaped content is not allowed", path)
     return ok()
 
