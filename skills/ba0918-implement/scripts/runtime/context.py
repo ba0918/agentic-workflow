@@ -13,6 +13,7 @@ SHARED_DIR = Path(__file__).resolve().parents[2] / "shared"
 if str(SHARED_DIR) not in sys.path:
     sys.path.insert(0, str(SHARED_DIR))
 import implementation_evidence
+import git_status
 
 from runtime.storage import canonical_json, read_json, write_atomic, write_once
 from runtime import tdd
@@ -486,13 +487,13 @@ def complete_run(run: Run) -> RuntimeResult:
     branch = binding.value.get("branch")
     if not worktree.is_dir():
         return failure("worktree_binding_invalid", "implementation worktree is unavailable")
-    status = _git(worktree, "status", "--porcelain=v1", "--untracked-files=all")
+    status = _git(worktree, "status", "--porcelain=v1", "-z", "--untracked-files=all")
     if status.returncode != 0:
         return failure("git_inspection_failed", "worktree status could not be inspected")
-    dirty_paths = sorted({
-        line[3:] for line in status.stdout.splitlines()
-        if len(line) >= 4 and not line[3:].startswith(".agents/")
-    })
+    try:
+        dirty_paths = git_status.parse_porcelain_v1_z(status.stdout, excluded_prefixes=(".agents/",))
+    except ValueError:
+        return failure("git_inspection_failed", "worktree status could not be parsed")
     planned_dirty = sorted(set(dirty_paths) & set(binding.value.get("expected_paths", [])))
     if planned_dirty:
         return failure("planned_changes_uncommitted", "planned paths still have uncommitted changes", planned_dirty[0])

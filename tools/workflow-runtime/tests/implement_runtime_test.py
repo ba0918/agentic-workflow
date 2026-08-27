@@ -465,5 +465,43 @@ class ImplementPlanBindingTest(unittest.TestCase):
         self.assertFalse(inside.ok)
         self.assertEqual(inside.error.code, "planned_changes_uncommitted")
 
+    def test_uncommitted_rename_paths_are_parsed_exactly(self) -> None:
+        from runtime.types import ResolvedPlan
+
+        root = self.fixture()
+        (root / "safe.txt").write_text("tracked\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "safe.txt"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "tracked path"], check=True)
+        approval = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        plan = ResolvedPlan("plan-a", "docs/plans/plan-a.md", approval, "text", (), ("safe.txt",))
+        run = repository.bind_run(
+            root, plan, run_id="run-1", delegated=False,
+            steps=[{"id": "1", "completion": "check"}], branch=branch, worktree=str(root),
+        ).value
+        self.assertTrue(context.append_event(run, "check", {
+            "step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": [],
+        }).ok)
+        subprocess.run(["git", "-C", str(root), "mv", "safe.txt", "renamed.txt"], check=True)
+
+        summary = resume._summary(run)
+        completed = context.complete_run(run)
+
+        self.assertTrue(summary.ok, summary.error)
+        self.assertEqual(summary.value["worktree"]["uncommitted_paths"], ["renamed.txt", "safe.txt"])
+        self.assertFalse(completed.ok)
+        self.assertEqual(completed.error.code, "planned_changes_uncommitted")
+
+    def test_porcelain_parser_keeps_both_copy_paths(self) -> None:
+        git_status = importlib.import_module("git_status")
+
+        paths = git_status.parse_porcelain_v1_z("C  copied.txt\0source.txt\0")
+
+        self.assertEqual(paths, ["copied.txt", "source.txt"])
+
 if __name__ == "__main__":
     unittest.main()

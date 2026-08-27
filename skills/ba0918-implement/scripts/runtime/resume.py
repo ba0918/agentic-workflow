@@ -7,6 +7,7 @@ SHARED_DIR = Path(__file__).resolve().parents[2] / "shared"
 if str(SHARED_DIR) not in sys.path:
     sys.path.insert(0, str(SHARED_DIR))
 import implementation_evidence
+import git_status
 
 from runtime.context import append_event, load_events
 from runtime.repository import load_run
@@ -28,13 +29,13 @@ def _worktree_registration(root: Path, branch: str, worktree: str) -> bool:
     )
 
 def _uncommitted_paths(worktree: Path) -> list[str]:
-    status = _git(worktree, "status", "--porcelain=v1", "--untracked-files=all")
+    status = _git(worktree, "status", "--porcelain=v1", "-z", "--untracked-files=all")
     if status.returncode != 0:
         return []
-    return sorted({
-        line[3:] for line in status.stdout.splitlines()
-        if len(line) >= 4 and not line[3:].startswith(".agents/")
-    })
+    try:
+        return git_status.parse_porcelain_v1_z(status.stdout, excluded_prefixes=(".agents/",))
+    except ValueError:
+        return []
 
 def _git_facts(root: Path, binding: dict, events: list[dict]) -> RuntimeResult:
     branch = binding.get("branch")

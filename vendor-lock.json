@@ -27,6 +27,11 @@
       }
     },
     "ba0918-implement": {
+      "scripts/git_status.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:9192c9cbd666c75ddc4f16d2eac087e0fb4da26dfff7567ad4b034bbdac00a9d",
+        "src": "tools/workflow-runtime/shared/git_status.py"
+      },
       "scripts/implement_runtime.py": {
         "contract": "implement-runtime",
         "digest": "sha256:8031823625b2cb62862e91ed5087a6e3fab8fed723acf6e17f6c3695b53e4e3a",
@@ -49,7 +54,7 @@
       },
       "scripts/runtime/": {
         "contract": "implement-runtime",
-        "digest": "sha256:38147ed2b089549be409ea3a35d6a20736c153d0cbd01124461cb4936231399a",
+        "digest": "sha256:4c0fe8b03b1be8d9ef976d9ab4736cb0994c2275c0c5004cfd4c9749b7f61e13",
         "src": "tools/workflow-runtime/implement/runtime/"
       }
     },
@@ -94,7 +99,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:b61ddf66576cd4e50038e9edd0b7cf75769f555af81f423970b9f635d189a91c",
+      "digest": "sha256:82e408ae10b561f9597fb9f95af200553a9df92a0858ecd5f2c41e4e03814e86",
       "kind": "raw"
     },
     "plan-runtime": {
