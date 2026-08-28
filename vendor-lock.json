@@ -52,10 +52,105 @@
         "digest": "sha256:60d05484bd00f65849ff9a9d57a8821ce1e6083af1426394db54517c90d96248",
         "src": "tools/workflow-runtime/plan/plan_artifact.py"
       },
-      "scripts/runtime/": {
+      "scripts/runtime/__init__.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:682cd792c8c65fceb2357297be063e287a40ee3fd036636a6aeae72b8017187d",
-        "src": "tools/workflow-runtime/implement/runtime/"
+        "digest": "sha256:601e6228e5d15463a7a5a25e94415d0977e89ffec68f41c52390879a4f37b951",
+        "src": "tools/workflow-runtime/implement/runtime/__init__.py"
+      },
+      "scripts/runtime/cli.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:5066fd367ecabe4901bfb74a1c3180d73b425164b38c73973539b0069e4c143f",
+        "src": "tools/workflow-runtime/implement/runtime/cli.py"
+      },
+      "scripts/runtime/completion.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:87f109baad5b0671d949543a73fd4c9ca5eb3bffdb4cdec04054fa6239f60ea9",
+        "src": "tools/workflow-runtime/implement/runtime/completion.py"
+      },
+      "scripts/runtime/context.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:94c76795d9b21bd512446bd9a6451265bb0e8898d08bad9a42e134a9e84391ab",
+        "src": "tools/workflow-runtime/implement/runtime/context.py"
+      },
+      "scripts/runtime/deliverables.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:492af52e2c5025f2c5edc8622003ab4d2f3377dc48deba1f22e0ae0645108642",
+        "src": "tools/workflow-runtime/implement/runtime/deliverables.py"
+      },
+      "scripts/runtime/deps.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:167bbd17cda106063e85d067d3b19895c08809887f52ef36117a2348e5135516",
+        "src": "tools/workflow-runtime/implement/runtime/deps.py"
+      },
+      "scripts/runtime/documents.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:a96e8c94163a792597569d523a4062557910c716bebfc884a2674ec7aa0a011a",
+        "src": "tools/workflow-runtime/implement/runtime/documents.py"
+      },
+      "scripts/runtime/events.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:51f07c6b4ceda9b5526667eda9484d01c804543190827f11b815c333178dcd61",
+        "src": "tools/workflow-runtime/implement/runtime/events.py"
+      },
+      "scripts/runtime/evidence.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:07dc5520cb50270f1eaa65e72ab73de47aa101a08fe87f576aef9392bd36d9f7",
+        "src": "tools/workflow-runtime/implement/runtime/evidence.py"
+      },
+      "scripts/runtime/gates.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:10450b9123bc6bdf44a0cd3abb59a90d9c59b7929a417e002e9a3634a9f2f909",
+        "src": "tools/workflow-runtime/implement/runtime/gates.py"
+      },
+      "scripts/runtime/gitio.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:58da50350c258e644b5d1606441c54ddb8e7daee7414e41a00d0f15223db1a14",
+        "src": "tools/workflow-runtime/implement/runtime/gitio.py"
+      },
+      "scripts/runtime/planning.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:1a19e306a35b7476c695f7d151f8094efe09afded6b647d9162a598b276a1392",
+        "src": "tools/workflow-runtime/implement/runtime/planning.py"
+      },
+      "scripts/runtime/repository.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:3cc566d0faae2f60064052e047d3054f4bd2cee017bbff384c2bcbe041731d56",
+        "src": "tools/workflow-runtime/implement/runtime/repository.py"
+      },
+      "scripts/runtime/resume.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:aa0d11525addfa2433ef82975d7d6f9176d1d79d5dbc408a2af60e3c3678a908",
+        "src": "tools/workflow-runtime/implement/runtime/resume.py"
+      },
+      "scripts/runtime/safety.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:9bb626ab951ae9a5a3bd504415455527d8fe3f6aab807b704414dfe233175c5b",
+        "src": "tools/workflow-runtime/implement/runtime/safety.py"
+      },
+      "scripts/runtime/secret_detect.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:1bd6430dbb19e594846e8f4615f9922a000c01ff6c9bf052dfad982db79ad405",
+        "src": "tools/workflow-runtime/implement/runtime/secret_detect.py"
+      },
+      "scripts/runtime/staging.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:0afd0d523be3a34e2752069da69a6307f11f0c2fdc7094d17fa9b08a706f03fb",
+        "src": "tools/workflow-runtime/implement/runtime/staging.py"
+      },
+      "scripts/runtime/storage.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:03852533b2d5942bb486dfb02037aa887ad41755493e0e66c66369112282b3c8",
+        "src": "tools/workflow-runtime/implement/runtime/storage.py"
+      },
+      "scripts/runtime/tdd.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:33397d87c7fe8b26cf465faa46a978bfe8095fc442d2c5349ffe966ae581f1e4",
+        "src": "tools/workflow-runtime/implement/runtime/tdd.py"
+      },
+      "scripts/runtime/types.py": {
+        "contract": "implement-runtime",
+        "digest": "sha256:36f1bb00c72531bb6178882fd09531b9522d0fef278d78cd398def0e4f4f2680",
+        "src": "tools/workflow-runtime/implement/runtime/types.py"
       }
     },
     "ba0918-plan": {
@@ -86,10 +181,45 @@
         "digest": "sha256:6753034fa9ded0902e823893ac3c564e96ef7274feddb759e9c196c2b91ae368",
         "src": "tools/workflow-runtime/review/review_runtime.py"
       },
-      "scripts/review_support/": {
+      "scripts/review_support/__init__.py": {
         "contract": "review-runtime",
-        "digest": "sha256:304c8ed7456ab326ffbd0b45abc8d9f31621b4ee17f816f893098fd190e698eb",
-        "src": "tools/workflow-runtime/review/review_support/"
+        "digest": "sha256:8409c67c44f83326b25f8a6729af444499b408743fc26ad7e8f74ed446ca8f90",
+        "src": "tools/workflow-runtime/review/review_support/__init__.py"
+      },
+      "scripts/review_support/binding.py": {
+        "contract": "review-runtime",
+        "digest": "sha256:7881ca5184d209f0622ab3350db44a025bb9d45b38c57ddcd2483a47743ad140",
+        "src": "tools/workflow-runtime/review/review_support/binding.py"
+      },
+      "scripts/review_support/cli.py": {
+        "contract": "review-runtime",
+        "digest": "sha256:fbcec40003a83f91bd330542931be1440121c6b949a363ef954662b7bc9e31fa",
+        "src": "tools/workflow-runtime/review/review_support/cli.py"
+      },
+      "scripts/review_support/events.py": {
+        "contract": "review-runtime",
+        "digest": "sha256:f8f6576dda28bec8bdf792e9df7136b632a31dd6e498aaac81a588ba26da7350",
+        "src": "tools/workflow-runtime/review/review_support/events.py"
+      },
+      "scripts/review_support/findings.py": {
+        "contract": "review-runtime",
+        "digest": "sha256:d1c685d295c07e70db92d4dd616cdc73b28a84487ba9eee0886309e1d88c1f8b",
+        "src": "tools/workflow-runtime/review/review_support/findings.py"
+      },
+      "scripts/review_support/repository.py": {
+        "contract": "review-runtime",
+        "digest": "sha256:37a51d69341e25bf7d82f22695d397bc85e546aee7eccbeaf1b6c4f46f339890",
+        "src": "tools/workflow-runtime/review/review_support/repository.py"
+      },
+      "scripts/review_support/types.py": {
+        "contract": "review-runtime",
+        "digest": "sha256:c6ed8d64d4cb9c5ab89d7a52ed82a7099d19b0ab2fcb20e66cb88b810847e7b9",
+        "src": "tools/workflow-runtime/review/review_support/types.py"
+      },
+      "scripts/review_support/validation.py": {
+        "contract": "review-runtime",
+        "digest": "sha256:16bb75668f80e663867e18bb6ec633d9bef43b64cf7101905c200a7a3abe239f",
+        "src": "tools/workflow-runtime/review/review_support/validation.py"
       },
       "scripts/runtime/secret_detect.py": {
         "contract": "review-runtime",

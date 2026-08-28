@@ -6,8 +6,5 @@
     "lefthook": "2.1.10",
     "textlint": "15.8.0",
     "textlint-rule-preset-ja-technical-writing": "12.0.2"
-  },
-  "patchedDependencies": {
-    "@ba0918-dev/agentic-skill-vendor@0.4.0": "patches/@ba0918-dev%2Fagentic-skill-vendor@0.4.0.patch"
   }
 }

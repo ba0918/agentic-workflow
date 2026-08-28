@@ -34,18 +34,13 @@ def run_python(skill: Path, *arguments: str) -> subprocess.CompletedProcess[str]
 
 
 class VendorEntrypointsTest(unittest.TestCase):
-    def test_directory_markers_need_no_git_whitespace_exception(self) -> None:
-        attributes = ROOT / ".gitattributes"
-        attribute_text = (
-            attributes.read_text(encoding="utf-8") if attributes.is_file() else ""
-        )
+    def test_runtime_files_are_vendored_without_directory_markers(self) -> None:
+        manifest = (ROOT / "vendor-manifest.yaml").read_text(encoding="utf-8")
         markers = sorted((ROOT / "skills").glob("*/scripts/**/.vendored"))
 
-        self.assertNotIn("blank-at-eof", attribute_text)
-        self.assertTrue(markers)
-        for marker in markers:
-            with self.subTest(marker=marker.relative_to(ROOT)):
-                self.assertFalse(marker.read_bytes().endswith(b"\n\n"))
+        self.assertNotIn("tools/workflow-runtime/implement/runtime/:", manifest)
+        self.assertNotIn("tools/workflow-runtime/review/review_support/:", manifest)
+        self.assertEqual(markers, [])
 
     def test_entry_scripts_reach_help_from_an_isolated_skill_copy(self) -> None:
         entries = (
