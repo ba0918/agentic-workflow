@@ -17,12 +17,12 @@
     "ba0918-brainstorm": {
       "scripts/draft.py": {
         "contract": "brainstorm-runtime",
-        "digest": "sha256:a0ed80d3b1a0442891c8898f5bd2e4a14c4c799679675efafc0945e275dc3607",
+        "digest": "sha256:bd784efb6429039f007057db3c45c640b5de685bffd4b7ef677fc8fd9dc8626c",
         "src": "tools/workflow-runtime/brainstorm/draft.py"
       },
       "scripts/state.py": {
         "contract": "brainstorm-runtime",
-        "digest": "sha256:ab9c95d08d9814fba61711265703d76c1270bb01652e046ce3970150b2d9772a",
+        "digest": "sha256:27ca9444a212b7e40cd9acdb9488ec6d78f0373476aabeae62c6d7131d89d09c",
         "src": "tools/workflow-runtime/brainstorm/state.py"
       }
     },
@@ -34,12 +34,12 @@
       },
       "scripts/implement_runtime.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:8031823625b2cb62862e91ed5087a6e3fab8fed723acf6e17f6c3695b53e4e3a",
+        "digest": "sha256:61c9611d17fa25289bf0b6e15c42c9e44c9cc43af7079fc4e69d32bf558f2f29",
         "src": "tools/workflow-runtime/implement/implement_runtime.py"
       },
       "scripts/implementation_evidence.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:135f4f385a5ac55e9c52f7c5c1a33da935ee5d90e718c830810e9cd61cd4679d",
+        "digest": "sha256:59cf54800bc644b00f3cb683ef2e6c627b9325c969157cef0c8173d3064856bc",
         "src": "tools/workflow-runtime/shared/implementation_evidence.py"
       },
       "scripts/path_safety.py": {
@@ -54,7 +54,7 @@
       },
       "scripts/runtime/": {
         "contract": "implement-runtime",
-        "digest": "sha256:2eb6bb442eaa829e397ff3e679ae673919efd3a133303a932159280d3963cf58",
+        "digest": "sha256:9f8e4186f747d2e40caa98713b5c13e29b564c5030d48bee5387f31a733ebb85",
         "src": "tools/workflow-runtime/implement/runtime/"
       }
     },
@@ -68,7 +68,7 @@
     "ba0918-review": {
       "scripts/implementation_evidence.py": {
         "contract": "review-runtime",
-        "digest": "sha256:135f4f385a5ac55e9c52f7c5c1a33da935ee5d90e718c830810e9cd61cd4679d",
+        "digest": "sha256:59cf54800bc644b00f3cb683ef2e6c627b9325c969157cef0c8173d3064856bc",
         "src": "tools/workflow-runtime/shared/implementation_evidence.py"
       },
       "scripts/path_safety.py": {
@@ -78,15 +78,20 @@
       },
       "scripts/review_model.py": {
         "contract": "review-runtime",
-        "digest": "sha256:ad1082b2d4887ef3696fe9864acd56216819ebcb7bc26c9e2b20ac693a80d355",
+        "digest": "sha256:d06d476397927171547123d124ac14e8b7b44670426bf9dc72030db03e5e4bab",
         "src": "tools/workflow-runtime/review/review_model.py"
       },
       "scripts/review_runtime.py": {
         "contract": "review-runtime",
-        "digest": "sha256:e3b488163569f3e592979dede945f3bee67a815e9b3ffa86c173301796bad26e",
+        "digest": "sha256:6753034fa9ded0902e823893ac3c564e96ef7274feddb759e9c196c2b91ae368",
         "src": "tools/workflow-runtime/review/review_runtime.py"
       },
-      "scripts/secret_detect.py": {
+      "scripts/review_support/": {
+        "contract": "review-runtime",
+        "digest": "sha256:304c8ed7456ab326ffbd0b45abc8d9f31621b4ee17f816f893098fd190e698eb",
+        "src": "tools/workflow-runtime/review/review_support/"
+      },
+      "scripts/runtime/secret_detect.py": {
         "contract": "review-runtime",
         "digest": "sha256:1bd6430dbb19e594846e8f4615f9922a000c01ff6c9bf052dfad982db79ad405",
         "src": "tools/workflow-runtime/implement/runtime/secret_detect.py"
@@ -95,11 +100,11 @@
   },
   "resolutions": {
     "brainstorm-runtime": {
-      "digest": "sha256:c3d08d57f5991fe1f8f5599d7a39a9b382994dd856c1e42914e99fd610a17e78",
+      "digest": "sha256:e02bc65c060ea545b32955b0bc2dfa71cdfa5748880b96c54b1cf784d5b3546c",
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:1c6d35cddf311be24aafe1b29f13a6cc9644ef9eade1a5baf20b3f5c9fe8d9c0",
+      "digest": "sha256:c2b727b33cbbe759cf6f26934f956bbc8c6947d42dae612d918f8145dc081972",
       "kind": "raw"
     },
     "plan-runtime": {
@@ -107,7 +112,7 @@
       "kind": "raw"
     },
     "review-runtime": {
-      "digest": "sha256:36ff3343a5b753c2cd2df84528957e291c6431b4938d18fd45edbf37eb355b67",
+      "digest": "sha256:071f2041389bac95dbc76b9bf03d532a94f30c2182529670eac5c9bd368fa70f",
       "kind": "raw"
     }
   }

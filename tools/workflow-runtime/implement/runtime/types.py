@@ -67,18 +67,24 @@ def forward_failure(
 
 
 def object_value(value: object) -> JsonObject | None:
-    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
+    mapping = value if isinstance(value, dict) else None
+    if mapping is None:
         return None
-    return {str(key): item for key, item in value.items()}
+    if any(not isinstance(key, str) for key in mapping):
+        return None
+    return {key: item for key, item in mapping.items() if isinstance(key, str)}
 
 
 def object_values(value: object) -> list[JsonObject] | None:
     if not isinstance(value, list):
         return None
-    values = [object_value(item) for item in value]
-    if any(item is None for item in values):
-        return None
-    return [item for item in values if item is not None]
+    values: list[JsonObject] = []
+    for item in value:
+        normalized = object_value(item)
+        if normalized is None:
+            return None
+        values.append(normalized)
+    return values
 
 
 def string_values(value: object) -> list[str] | None:

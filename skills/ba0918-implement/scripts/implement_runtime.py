@@ -13,5 +13,20 @@ from runtime.tdd import freeze_test, frozen_test_matches
 from runtime.types import Run, RuntimeFailure, RuntimeResult
 from runtime.cli import main
 
+__all__ = [
+    "Run",
+    "RuntimeFailure",
+    "RuntimeResult",
+    "append_event",
+    "bind_run",
+    "freeze_test",
+    "frozen_test_matches",
+    "load_events",
+    "locate_plan",
+    "main",
+    "plan_candidates",
+    "resolve_plan",
+]
+
 if __name__ == "__main__":
     raise SystemExit(main())

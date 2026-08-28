@@ -8,11 +8,12 @@ import unittest
 ROOT = Path(__file__).resolve().parents[3]
 MODULE = ROOT / "tools/workflow-runtime/brainstorm/state.py"
 SPEC = importlib.util.spec_from_file_location("brainstorm_state", MODULE)
+assert SPEC is not None
 state = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(state)
 
-def progress(revision: int, topic: str = "next") -> dict:
+def progress(revision: int, topic: str = "next") -> dict[str, object]:
     return {"session_id": "session-1", "revision": revision, "current_position": "here", "next_topic": topic, "items": []}
 
 class BrainstormStateTest(unittest.TestCase):
@@ -58,12 +59,12 @@ class BrainstormStateTest(unittest.TestCase):
             outcomes = process_context.Queue()
 
             def writer(topic: str) -> None:
-                original = state._write_atomic
+                original = getattr(state, "write_atomic")
                 def slow_write(path: Path, text: str) -> None:
                     if path.name == "session-1.md":
                         time.sleep(0.15)
                     original(path, text)
-                state._write_atomic = slow_write
+                setattr(state, "write_atomic", slow_write)
                 start.wait()
                 try:
                     state.save_progress(root, progress(2, topic), expected_revision=1)

@@ -15,6 +15,8 @@ review_runtime = importlib.import_module("review_runtime")
 
 
 def signature_contract(value: object) -> tuple[tuple[str, str, str], ...]:
+    if not callable(value):
+        raise TypeError("facade symbol is not callable")
     signature = inspect.signature(value)
     return tuple(
         (

@@ -3,12 +3,17 @@ from pathlib import Path
 import sys
 from typing import Mapping
 
-from runtime.types import RuntimeResult, failure, ok
+from runtime.types import JsonObject, RuntimeResult, failure, ok
 
 for candidate in (Path(__file__).resolve().parents[2] / "shared", Path(__file__).resolve().parents[1]):
     if str(candidate) not in sys.path:
         sys.path.insert(0, str(candidate))
 from path_safety import safety_problem
+
+
+def _unplanned_path(item: JsonObject) -> str:
+    path = item.get("path")
+    return path if isinstance(path, str) else ""
 
 def assess_paths(
     paths: list[str],
@@ -16,11 +21,11 @@ def assess_paths(
     expected_paths: list[str] | tuple[str, ...],
     reasons: Mapping[str, str] | None = None,
     dangerous_paths: Mapping[str, str] | None = None,
-) -> RuntimeResult:
+) -> RuntimeResult[JsonObject]:
     reasons = reasons or {}
     dangerous_paths = dangerous_paths or {}
     expected = set(expected_paths)
-    unplanned: list[dict[str, str]] = []
+    unplanned: list[JsonObject] = []
     for path in paths:
         problem = safety_problem(path)
         if problem is not None:
@@ -37,4 +42,4 @@ def assess_paths(
             if not reason:
                 return failure("unplanned_reason_missing", "a safe unplanned path needs a reason", path)
             unplanned.append({"path": path, "reason": reason})
-    return ok({"paths": sorted(set(paths)), "unplanned": sorted(unplanned, key=lambda item: item["path"])})
+    return ok({"paths": sorted(set(paths)), "unplanned": sorted(unplanned, key=_unplanned_path)})

@@ -7,6 +7,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[3]
 MODULE_PATH = ROOT / "tools/workflow-runtime/plan/plan_artifact.py"
 SPEC = importlib.util.spec_from_file_location("plan_artifact", MODULE_PATH)
+assert SPEC is not None
 plan_artifact = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(plan_artifact)

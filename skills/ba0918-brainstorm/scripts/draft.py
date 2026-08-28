@@ -45,10 +45,17 @@ def _target(project_root: Path, destination: str) -> Path:
 def write_document(project_root: Path, *, destination: str, text: str) -> Path:
     target = _target(project_root, destination)
     target.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent, text=True)
-    temporary = Path(temporary_name)
+    temporary: Path | None = None
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            prefix=f".{target.name}.",
+            dir=target.parent,
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
@@ -56,7 +63,8 @@ def write_document(project_root: Path, *, destination: str, text: str) -> Path:
             raise UnsafeDocumentPath(f"target became a symlink: {target}")
         os.replace(temporary, target)
     finally:
-        temporary.unlink(missing_ok=True)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return target
 
 def main(argv: list[str] | None = None) -> int:

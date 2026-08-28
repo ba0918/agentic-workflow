@@ -152,7 +152,7 @@ def _path(project_root: Path, session_id: str) -> Path:
         raise UnsafeProgress(f"progress file is a symlink: {target}")
     return target
 
-def _write_atomic(path: Path, text: str) -> None:
+def write_atomic(path: Path, text: str) -> None:
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent, text=True)
     temporary = Path(temporary_name)
     try:
@@ -216,11 +216,11 @@ def save_progress(project_root: Path, value: JsonObject, *, expected_revision: i
             current = decode_markdown(target.read_text(encoding="utf-8"))
             if current.get("revision") != expected_revision:
                 candidate = _conflict_path(target)
-                _write_atomic(candidate, encode_markdown(value))
+                write_atomic(candidate, encode_markdown(value))
                 raise RevisionConflict(target, candidate)
         elif expected_revision != 0:
             raise InvalidProgress("expected revision does not exist")
-        _write_atomic(target, encode_markdown(value))
+        write_atomic(target, encode_markdown(value))
     return target
 
 def finish_wrap(project_root: Path, session_id: str, *, approved: bool, write_succeeded: bool) -> bool:

@@ -1,10 +1,17 @@
 {
   "checks": [
     {
+      "name": "configuration-contract",
+      "argv": [
+        "python3",
+        "tools/quality/configuration_contract.py"
+      ]
+    },
+    {
       "name": "python-structure",
       "argv": [
         "env",
-        "PYTHONPATH=tools/quality",
+        "PYTHONPATH=tools/quality:tools/workflow-runtime/implement:tools/workflow-runtime/review:tools/workflow-runtime/shared",
         "UV_CACHE_DIR=/tmp/agentic-workflow-uv-cache",
         "uv",
         "run",
@@ -13,11 +20,9 @@
         "python",
         "-m",
         "pylint",
-        "--load-plugins=plugins.design_checker",
-        "--disable=all",
-        "--enable=F,E,W,too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-return-statements,too-many-branches,too-many-statements,too-many-boolean-expressions,too-many-nested-blocks,duplicate-code,forbidden-lint-suppression,forbidden-layer-import,forbidden-type-escape-hatch,forbidden-pure-layer-call",
-        "--score=no",
-        "tools/quality"
+        "--rcfile=tools/quality/pylint.rc",
+        "tools/quality",
+        "tools/workflow-runtime"
       ]
     },
     {
@@ -28,13 +33,12 @@
         "uv",
         "run",
         "--with",
-        "pylint==4.0.5",
-        "--with",
         "mypy==1.18.2",
         "mypy",
-        "--strict",
-        "--follow-untyped-imports",
-        "tools/quality"
+        "--config-file",
+        "tools/quality/mypy.ini",
+        "tools/quality",
+        "tools/workflow-runtime"
       ]
     },
     {

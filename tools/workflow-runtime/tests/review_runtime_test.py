@@ -45,23 +45,33 @@ def safety(**changes: object) -> JsonObject:
     value.update(changes)
     return value
 
+
+def run_git(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-C", str(root), *arguments],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+
 def repository() -> tuple[Path, str, str]:
     root = Path(tempfile.mkdtemp())
-    subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
-    subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
-    subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+    run_git(root, "init", "-q", "-b", "main")
+    run_git(root, "config", "user.email", "test@example.invalid")
+    run_git(root, "config", "user.name", "Test")
     (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
     (root / "docs/spec").mkdir(parents=True)
     (root / "docs/spec/review.md").write_text("# Review\n", encoding="utf-8")
     (root / "app.txt").write_text("base\n", encoding="utf-8")
-    subprocess.run(["git", "-C", str(root), "add", ".gitignore", "docs/spec/review.md", "app.txt"], check=True)
-    subprocess.run(["git", "-C", str(root), "commit", "-qm", "base"], check=True)
-    base = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
-    subprocess.run(["git", "-C", str(root), "switch", "-qc", "feature"], check=True)
+    run_git(root, "add", ".gitignore", "docs/spec/review.md", "app.txt")
+    run_git(root, "commit", "-qm", "base")
+    base = run_git(root, "rev-parse", "HEAD").stdout.strip()
+    run_git(root, "switch", "-qc", "feature")
     (root / "app.txt").write_text("feature\n", encoding="utf-8")
-    subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
-    subprocess.run(["git", "-C", str(root), "commit", "-qm", "feature"], check=True)
-    head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+    run_git(root, "add", "app.txt")
+    run_git(root, "commit", "-qm", "feature")
+    head = run_git(root, "rev-parse", "HEAD").stdout.strip()
     return root, base, head
 
 

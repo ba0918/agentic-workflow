@@ -7,6 +7,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[3]
 MODULE = ROOT / "tools/workflow-runtime/brainstorm/draft.py"
 SPEC = importlib.util.spec_from_file_location("brainstorm_draft", MODULE)
+assert SPEC is not None
 draft = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(draft)
