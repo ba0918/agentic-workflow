@@ -41,6 +41,14 @@ class ImplementEventTest(unittest.TestCase):
         self.assertTrue(validate_event(binding, events, returned).ok)
         events.append({"event_type": "returned", "outcome": "stopped"})
 
+        delegated_while_stopped = validate_event(
+            binding, events, EventCandidate("delegated", {}, "cycle")
+        )
+        self.assertFalse(delegated_while_stopped.ok)
+        self.assertEqual(
+            delegated_while_stopped.required_error().code, "run_stopped"
+        )
+
         resumed = EventCandidate("resumed", {}, "cycle")
         self.assertTrue(validate_event(binding, events, resumed).ok)
         events.append({"event_type": "resumed"})

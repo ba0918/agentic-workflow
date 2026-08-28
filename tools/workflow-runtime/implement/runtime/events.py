@@ -45,6 +45,17 @@ def _active_delegation(events: list[JsonObject]) -> bool:
     return active
 
 
+def _implementation_stopped(events: list[JsonObject]) -> bool:
+    stopped = False
+    for event in events:
+        event_type = event.get("event_type")
+        if event_type == "stopped":
+            stopped = True
+        elif event_type in {"resumed", "rebound", "resume-candidate-retired"}:
+            stopped = False
+    return stopped
+
+
 def _run_state_error(events: list[JsonObject], candidate: EventCandidate) -> RuntimeFailure | None:
     implementation_complete = any(
         event.get("event_type") == "implementation_green" for event in events
@@ -58,7 +69,7 @@ def _run_state_error(events: list[JsonObject], candidate: EventCandidate) -> Run
     )
     if implementation_complete and not returning_completed_delegation:
         return RuntimeFailure("run_already_complete", "completed implementation evidence cannot be extended")
-    stopped = events and events[-1].get("event_type") == "stopped"
+    stopped = _implementation_stopped(events)
     returning_stopped_delegation = (
         stopped
         and candidate.event_type == "returned"
