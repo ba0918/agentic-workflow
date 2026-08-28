@@ -9,7 +9,11 @@ import subprocess
 import sys
 from typing import Sequence
 
-from project_paths import resolve_project_root
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from tools.quality.project_paths import resolve_project_root
+from tools.quality.repository_snapshot import SnapshotError, create_repository_snapshot
 
 
 @dataclass(frozen=True)
@@ -60,7 +64,11 @@ def run_checks(
     checks: list[Check], working_directory: Path, scope: str
 ) -> list[CheckFailure]:
     failures = []
-    environment = {**os.environ, "AGENTIC_QUALITY_SCOPE": scope}
+    environment = {
+        **os.environ,
+        "AGENTIC_QUALITY_SCOPE": scope,
+        "AGENTIC_QUALITY_SNAPSHOT": "1",
+    }
     for check in checks:
         try:
             completed = subprocess.run(
@@ -102,20 +110,34 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path)
     parser.add_argument("--root", type=Path)
-    parser.add_argument("--scope", choices=("worktree", "staged"), default="worktree")
+    parser.add_argument(
+        "--scope",
+        choices=("worktree", "staged", "all"),
+        default="worktree",
+    )
     return parser.parse_args(arguments)
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
     options = parse_arguments(arguments)
     project_root = resolve_project_root(options.root, Path(__file__))
-    config_path = (
-        options.config.resolve()
-        if options.config is not None
-        else project_root / "tools" / "quality" / "checks.json"
-    )
     try:
-        checks = load_checks(config_path)
+        with create_repository_snapshot(project_root, options.scope) as snapshot:
+            config_path = (
+                options.config.resolve()
+                if options.config is not None
+                else snapshot.root / "tools" / "quality" / "checks.json"
+            )
+            checks = load_checks(config_path)
+            failures = run_checks(checks, snapshot.root, options.scope)
+    except SnapshotError as error:
+        failures = [
+            CheckFailure(
+                name="snapshot",
+                exit_code=1,
+                output=str(error),
+            )
+        ]
     except (ConfigurationError, json.JSONDecodeError, OSError) as error:
         failures = [
             CheckFailure(
@@ -124,8 +146,6 @@ def main(arguments: Sequence[str] | None = None) -> int:
                 output=str(error),
             )
         ]
-    else:
-        failures = run_checks(checks, project_root, options.scope)
     if failures:
         print(failure_diagnostics(failures), file=sys.stderr)
         return 1

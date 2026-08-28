@@ -5,6 +5,8 @@ import sys
 import tempfile
 import unittest
 
+from tools.quality.tests.git_repository import initialize_repository
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 QUALITY_GATE = PROJECT_ROOT / "tools" / "quality" / "quality_gate.py"
@@ -36,6 +38,7 @@ def invoke(
     root: Path,
     config: Path,
 ) -> subprocess.CompletedProcess[str]:
+    initialize_repository(root)
     working_directory = root / "nested"
     working_directory.mkdir(exist_ok=True)
     return subprocess.run(

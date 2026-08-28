@@ -8,130 +8,33 @@ import subprocess
 import sys
 from typing import Sequence
 
-from project_paths import resolve_project_root
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from tools.quality.project_paths import resolve_project_root
+from tools.quality.repository_snapshot import (
+    SnapshotError,
+    create_repository_snapshot,
+    worktree_spec_paths,
+)
 
 
 SCOPE_ENVIRONMENT_VARIABLE = "AGENTIC_QUALITY_SCOPE"
+SNAPSHOT_ENVIRONMENT_VARIABLE = "AGENTIC_QUALITY_SNAPSHOT"
 SPEC_DIRECTORY = Path("docs/spec")
-REGULAR_GIT_MODES = frozenset({"100644", "100755"})
+SUPPORTED_SCOPES = frozenset({"worktree", "staged", "all"})
 
 
-class GitPathError(RuntimeError):
-    pass
-
-
-class NonRegularSpecError(RuntimeError):
-    pass
-
-
-def git_paths(project_root: Path, arguments: Sequence[str]) -> set[Path]:
-    completed = subprocess.run(
-        ["git", *arguments],
-        cwd=project_root,
-        capture_output=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        diagnostic = os.fsdecode(completed.stderr).strip()
-        raise GitPathError(diagnostic or f"git exited {completed.returncode}")
-    return {
-        Path(os.fsdecode(value))
-        for value in completed.stdout.split(b"\0")
-        if value
-    }
-
-
-def staged_content(project_root: Path, path: Path) -> bytes:
-    completed = subprocess.run(
-        ["git", "show", f":{path.as_posix()}"],
-        cwd=project_root,
-        capture_output=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        diagnostic = os.fsdecode(completed.stderr).strip()
-        raise GitPathError(diagnostic or f"git exited {completed.returncode}")
-    return completed.stdout
-
-
-def staged_mode(project_root: Path, path: Path) -> str:
-    completed = subprocess.run(
-        ["git", "ls-files", "--stage", "-z", "--", path.as_posix()],
-        cwd=project_root,
-        capture_output=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        diagnostic = os.fsdecode(completed.stderr).strip()
-        raise GitPathError(diagnostic or f"git exited {completed.returncode}")
-    entry, separator, _ = completed.stdout.partition(b"\t")
-    if not separator:
-        raise GitPathError(f"missing staged entry for {path.as_posix()}")
-    return os.fsdecode(entry.split(b" ", maxsplit=1)[0])
-
-
-def changed_paths(project_root: Path, scope: str) -> set[Path]:
-    if scope == "staged":
-        return git_paths(
-            project_root,
-            [
-                "diff",
-                "--cached",
-                "--name-only",
-                "--diff-filter=ACMRT",
-                "-z",
-                "--",
-                str(SPEC_DIRECTORY),
-            ],
-        )
-    tracked = git_paths(
-        project_root,
-        [
-            "diff",
-            "HEAD",
-            "--name-only",
-            "--diff-filter=ACMRT",
-            "-z",
-            "--",
-            str(SPEC_DIRECTORY),
-        ],
-    )
-    untracked = git_paths(
-        project_root,
-        [
-            "ls-files",
-            "--others",
-            "--exclude-standard",
-            "-z",
-            "--",
-            str(SPEC_DIRECTORY),
-        ],
-    )
-    return tracked | untracked
-
-
-def lintable_spec_paths(project_root: Path, scope: str) -> list[Path]:
-    spec_root = (project_root / SPEC_DIRECTORY).resolve()
+def lintable_spec_paths(project_root: Path) -> list[Path]:
+    spec_root = project_root / SPEC_DIRECTORY
+    if not spec_root.exists():
+        return []
     selected = []
-    for relative_path in changed_paths(project_root, scope):
-        if relative_path.suffix != ".md":
-            continue
-        if scope == "staged":
-            if relative_path.is_relative_to(SPEC_DIRECTORY):
-                if staged_mode(project_root, relative_path) not in REGULAR_GIT_MODES:
-                    raise NonRegularSpecError(
-                        f"{relative_path.as_posix()} is not a regular file"
-                    )
-                selected.append(relative_path)
-            continue
-        candidate = project_root / relative_path
+    for candidate in spec_root.rglob("*.md"):
         if not stat.S_ISREG(candidate.stat(follow_symlinks=False).st_mode):
-            raise NonRegularSpecError(
-                f"{relative_path.as_posix()} is not a regular file"
-            )
-        resolved = candidate.resolve()
-        if resolved.is_relative_to(spec_root) and candidate.is_file():
-            selected.append(relative_path)
+            relative = candidate.relative_to(project_root).as_posix()
+            raise SnapshotError(f"{relative} is not a regular file")
+        selected.append(candidate.relative_to(project_root))
     return sorted(selected)
 
 
@@ -143,14 +46,9 @@ def run_textlint(project_root: Path, paths: Sequence[Path], scope: str) -> int:
         exit_code = 0
         for path in paths:
             completed = subprocess.run(
-                [
-                    str(executable),
-                    "--stdin",
-                    "--stdin-filename",
-                    str(path),
-                ],
+                [str(executable), "--stdin", "--stdin-filename", str(path)],
                 cwd=project_root,
-                input=staged_content(project_root, path),
+                input=(project_root / path).read_bytes(),
                 check=False,
             )
             if completed.returncode != 0 and exit_code == 0:
@@ -164,6 +62,10 @@ def run_textlint(project_root: Path, paths: Sequence[Path], scope: str) -> int:
     return completed.returncode
 
 
+def lint_snapshot(project_root: Path, scope: str) -> int:
+    return run_textlint(project_root, lintable_spec_paths(project_root), scope)
+
+
 def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path)
@@ -174,13 +76,21 @@ def main(arguments: Sequence[str] | None = None) -> int:
     options = parse_arguments(arguments)
     project_root = resolve_project_root(options.root, Path(__file__))
     scope = os.environ.get(SCOPE_ENVIRONMENT_VARIABLE, "worktree")
-    if scope not in {"worktree", "staged"}:
+    if scope not in SUPPORTED_SCOPES:
         print(f"unsupported quality scope: {scope}", file=sys.stderr)
         return 2
     try:
-        paths = lintable_spec_paths(project_root, scope)
-        return run_textlint(project_root, paths, scope)
-    except (GitPathError, NonRegularSpecError, OSError) as error:
+        if scope == "worktree":
+            return run_textlint(
+                project_root,
+                worktree_spec_paths(project_root),
+                scope,
+            )
+        if os.environ.get(SNAPSHOT_ENVIRONMENT_VARIABLE) == "1":
+            return lint_snapshot(project_root, scope)
+        with create_repository_snapshot(project_root, scope) as snapshot:
+            return lint_snapshot(snapshot.root, scope)
+    except (SnapshotError, OSError) as error:
         print(str(error), file=sys.stderr)
         return 2
 

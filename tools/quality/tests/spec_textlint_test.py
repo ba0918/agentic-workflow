@@ -5,21 +5,15 @@ import sys
 import tempfile
 import unittest
 
+from tools.quality.tests.git_repository import initialize_repository
+
 
 SPEC_TEXTLINT = Path(__file__).parents[1] / "spec_textlint.py"
 
 
 class SpecTextlintTest(unittest.TestCase):
     def initialize_repository(self, root: Path) -> None:
-        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-        subprocess.run(
-            ["git", "config", "user.email", "test@example.invalid"],
-            cwd=root,
-            check=True,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test"], cwd=root, check=True
-        )
+        initialize_repository(root)
         spec = root / "docs" / "spec"
         spec.mkdir(parents=True)
         (spec / "tracked.md").write_text("baseline\n", encoding="utf-8")
@@ -293,6 +287,38 @@ class SpecTextlintTest(unittest.TestCase):
             self.assertEqual(completed.returncode, 2)
             self.assertIn(
                 "docs/spec/linked.md is not a regular file",
+                completed.stderr,
+            )
+            self.assertFalse(capture.exists())
+
+    def test_all_scope_lints_every_tracked_spec_in_a_clean_checkout(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.initialize_repository(root)
+            self.install_fake_textlint(root)
+            capture = root / "capture"
+
+            completed = self.invoke(root, "all", capture)
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertEqual(
+                set(capture.read_text(encoding="utf-8").split("\0")),
+                {"docs/spec/other.md", "docs/spec/tracked.md"},
+            )
+
+    def test_all_scope_rejects_tracked_spec_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.initialize_repository(root)
+            self.install_fake_textlint(root)
+            capture = root / "capture"
+            self.track_spec_symlink(root)
+
+            completed = self.invoke(root, "all", capture)
+
+            self.assertEqual(completed.returncode, 2)
+            self.assertIn(
+                "docs/spec/typed.md is not a regular file",
                 completed.stderr,
             )
             self.assertFalse(capture.exists())

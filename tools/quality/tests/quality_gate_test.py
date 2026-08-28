@@ -5,6 +5,11 @@ import sys
 import tempfile
 import unittest
 
+from tools.quality.tests.git_repository import (
+    initialize_python_repository,
+    initialize_repository,
+)
+
 
 QUALITY_GATE = Path(__file__).parents[1] / "quality_gate.py"
 
@@ -20,6 +25,9 @@ def invoke_gate(
     project_root: Path | None = None,
     scope: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    root = project_root or working_directory
+    if not (root / ".git").exists():
+        initialize_repository(root)
     arguments = [sys.executable, str(QUALITY_GATE), "--config", str(config)]
     if project_root is not None:
         arguments.extend(["--root", str(project_root)])
@@ -161,13 +169,114 @@ class QualityGateTest(unittest.TestCase):
                     }
                 ],
             )
-            completed = invoke_gate(config, root, scope="staged")
+            completed = invoke_gate(config, root, project_root=root, scope="staged")
 
             self.assertEqual(marker.read_text(encoding="utf-8"), "staged")
 
         self.assertEqual(completed.returncode, 0)
         self.assertEqual(completed.stdout, "")
         self.assertEqual(completed.stderr, "")
+
+    def test_staged_scope_reads_python_from_index_instead_of_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = initialize_python_repository(root)
+            source.write_text("result = 'staged violation'\n", encoding="utf-8")
+            subprocess.run(["git", "add", "tools/quality/probe.py"], cwd=root, check=True)
+            source.write_text("result = 'worktree clean'\n", encoding="utf-8")
+            config = root / "checks.json"
+            write_config(
+                config,
+                [
+                    {
+                        "name": "staged-python",
+                        "argv": [
+                            sys.executable,
+                            "-c",
+                            "from pathlib import Path; "
+                            "content = Path('tools/quality/probe.py').read_text(); "
+                            "print(content); "
+                            "raise SystemExit(7 if 'staged violation' in content else 0)",
+                        ],
+                    }
+                ],
+            )
+
+            completed = invoke_gate(
+                config,
+                root,
+                project_root=root,
+                scope="staged",
+            )
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("staged-python", completed.stderr)
+        self.assertIn("staged violation", completed.stderr)
+
+    def test_all_scope_checks_tracked_python_in_a_clean_checkout(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = initialize_python_repository(root)
+            source.write_text("tracked_value = 'inspect me'\n", encoding="utf-8")
+            subprocess.run(["git", "add", "tools/quality/probe.py"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "add probe"], cwd=root, check=True)
+            config = root / "checks.json"
+            write_config(
+                config,
+                [
+                    {
+                        "name": "tracked-python",
+                        "argv": [
+                            sys.executable,
+                            "-c",
+                            "from pathlib import Path; "
+                            "content = Path('tools/quality/probe.py').read_text(); "
+                            "print(content); "
+                            "raise SystemExit(8 if 'inspect me' in content else 0)",
+                        ],
+                    }
+                ],
+            )
+
+            completed = invoke_gate(config, root, project_root=root, scope="all")
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("tracked-python", completed.stderr)
+        self.assertIn("inspect me", completed.stderr)
+
+    def test_snapshot_creation_failure_blocks_the_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / "checks.json"
+            write_config(
+                config,
+                [
+                    {
+                        "name": "passing-check",
+                        "argv": [sys.executable, "-c", "raise SystemExit(0)"],
+                    }
+                ],
+            )
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(QUALITY_GATE),
+                    "--config",
+                    str(config),
+                    "--root",
+                    str(root),
+                    "--scope",
+                    "staged",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("snapshot", completed.stderr)
 
 
 if __name__ == "__main__":

@@ -16,9 +16,7 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
     for path_option in ("--config", "--root"):
         parser.add_argument(path_option, type=Path)
     parser.add_argument(
-        "--scope",
-        choices=("worktree", "staged"),
-        default="worktree",
+        "--scope", choices=("worktree", "staged", "all"), default="worktree"
     )
     return parser.parse_args(arguments)
 
