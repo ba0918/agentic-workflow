@@ -26,3 +26,21 @@ def initialize_python_repository(root: Path) -> Path:
     subprocess.run(["git", "add", "tools/quality/probe.py"], cwd=root, check=True)
     subprocess.run(["git", "commit", "-qm", "add probe"], cwd=root, check=True)
     return source
+
+
+def install_quality_checks(root: Path, config_text: str) -> Path:
+    canonical_config = root / "tools" / "quality" / "checks.json"
+    canonical_config.parent.mkdir(parents=True, exist_ok=True)
+    canonical_config.write_text(config_text, encoding="utf-8")
+    subprocess.run(
+        ["git", "add", "tools/quality/checks.json"], cwd=root, check=True
+    )
+    subprocess.run(
+        [
+            "git", "commit", "-qm", "quality checks fixture", "--",
+            "tools/quality/checks.json",
+        ],
+        cwd=root,
+        check=True,
+    )
+    return canonical_config

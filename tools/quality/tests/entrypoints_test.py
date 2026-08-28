@@ -5,7 +5,10 @@ import sys
 import tempfile
 import unittest
 
-from tools.quality.tests.git_repository import initialize_repository
+from tools.quality.tests.git_repository import (
+    initialize_repository,
+    install_quality_checks,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -38,7 +41,9 @@ def invoke(
     root: Path,
     config: Path,
 ) -> subprocess.CompletedProcess[str]:
+    config_text = config.read_text(encoding="utf-8")
     initialize_repository(root)
+    canonical_config = install_quality_checks(root, config_text)
     working_directory = root / "nested"
     working_directory.mkdir(exist_ok=True)
     return subprocess.run(
@@ -48,7 +53,7 @@ def invoke(
             "--root",
             str(root),
             "--config",
-            str(config),
+            str(canonical_config),
             "--scope",
             "worktree",
         ],

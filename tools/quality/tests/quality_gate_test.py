@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from tools.quality.tests.git_repository import (
+    install_quality_checks,
     initialize_python_repository,
     initialize_repository,
 )
@@ -28,9 +29,12 @@ def invoke_gate(
     root = project_root or working_directory
     if not (root / ".git").exists():
         initialize_repository(root)
-    arguments = [sys.executable, str(QUALITY_GATE), "--config", str(config)]
-    if project_root is not None:
-        arguments.extend(["--root", str(project_root)])
+    config_text = config.read_text(encoding="utf-8")
+    canonical_config = install_quality_checks(root, config_text)
+    arguments = [
+        sys.executable, str(QUALITY_GATE), "--config", str(canonical_config),
+        "--root", str(root),
+    ]
     if scope is not None:
         arguments.extend(["--scope", scope])
     return subprocess.run(
@@ -63,6 +67,35 @@ class QualityGateTest(unittest.TestCase):
 
         self.assertEqual(completed.returncode, 0)
         self.assertEqual(completed.stdout, "")
+
+    def test_external_config_cannot_replace_canonical_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            weak = root / "weak.json"
+            write_config(weak, [{
+                "name": "passing-check",
+                "argv": [sys.executable, "-c", "raise SystemExit(0)"],
+            }])
+            initialize_repository(root)
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(QUALITY_GATE),
+                    "--config",
+                    str(weak),
+                    "--root",
+                    str(root),
+                    "--scope",
+                    "all",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("configuration", completed.stderr)
 
     def test_failed_check_returns_failure_with_its_diagnostic(self) -> None:
         completed = self.run_gate(
@@ -247,7 +280,8 @@ class QualityGateTest(unittest.TestCase):
     def test_snapshot_creation_failure_blocks_the_gate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            config = root / "checks.json"
+            config = root / "tools" / "quality" / "checks.json"
+            config.parent.mkdir(parents=True)
             write_config(
                 config,
                 [

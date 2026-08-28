@@ -122,12 +122,16 @@ def main(arguments: Sequence[str] | None = None) -> int:
     options = parse_arguments(arguments)
     project_root = resolve_project_root(options.root, Path(__file__))
     try:
-        with create_repository_snapshot(project_root, options.scope) as snapshot:
-            config_path = (
-                options.config.resolve()
-                if options.config is not None
-                else snapshot.root / "tools" / "quality" / "checks.json"
+        canonical_config = (project_root / "tools" / "quality" / "checks.json").resolve()
+        if (
+            options.config is not None
+            and options.config.resolve() != canonical_config
+        ):
+            raise ConfigurationError(
+                "--config cannot replace the canonical tools/quality/checks.json"
             )
+        with create_repository_snapshot(project_root, options.scope) as snapshot:
+            config_path = snapshot.root / "tools" / "quality" / "checks.json"
             checks = load_checks(config_path)
             failures = run_checks(checks, snapshot.root, options.scope)
     except SnapshotError as error:
