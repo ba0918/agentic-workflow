@@ -7,7 +7,8 @@ from runtime.gitio import run_git
 from runtime.safety import content_safety
 from runtime.staging import assess_paths
 from runtime.types import (
-    JsonObject, RuntimeFailure, RuntimeResult, failure, object_values, ok, string_values,
+    JsonObject, RuntimeFailure, RuntimeResult, failure, object_value, object_values, ok,
+    string_values,
 )
 
 
@@ -238,30 +239,49 @@ def _history_completion(
 
 
 def _final_verification_completion(
-    checkout: Path, events: list[JsonObject], value: JsonObject,
+    events: list[JsonObject], value: JsonObject,
 ) -> RuntimeResult[None]:
     steps = object_values(value.get("steps")) or []
     final_step = steps[-1] if steps else None
     if final_step is None or final_step.get("completion") != "check":
         return ok(None)
     final_step_id = final_step.get("id")
-    final_check = next(
+    final_check_index = next(
         (
-            event for event in reversed(events)
-            if event.get("event_type") == "check"
+            index for index in range(len(events) - 1, -1, -1)
+            if (event := events[index]).get("event_type") == "check"
             and event.get("step") == final_step_id
         ),
         None,
     )
-    head = run_git(checkout, "rev-parse", "HEAD")
-    if (
-        final_check is None
-        or head.returncode != 0
-        or final_check.get("verified_commit") != head.stdout.strip()
-    ):
+    if final_check_index is None:
+        return failure(
+            "final_verification_stale", "final implementation check is missing"
+        )
+    final_check = events[final_check_index]
+    later_events = events[final_check_index + 1:]
+    commits = [
+        event for event in later_events
+        if event.get("event_type") == "commit"
+    ]
+    revision_changed = any(
+        event.get("event_type") in {"recovering", "rebound"}
+        for event in later_events
+    )
+    commit_safety = object_value(commits[0].get("safety")) if len(commits) == 1 else None
+    commit_paths = (
+        string_values(commit_safety.get("paths"))
+        if commit_safety is not None else None
+    )
+    matching_step_commit = (
+        len(commits) == 1
+        and commits[0].get("step") == final_step_id
+        and string_values(final_check.get("changed_paths")) == commit_paths
+    )
+    if revision_changed or commits and not matching_step_commit:
         return failure(
             "final_verification_stale",
-            "final check must verify the current implementation commit",
+            "final check must be the last broad verification of implementation changes",
         )
     return ok(None)
 
@@ -285,9 +305,7 @@ def completion_fields(
         return _forward_failure(
             history.error, "commit_bijection_invalid", "implementation history is invalid"
         )
-    verification = _final_verification_completion(
-        checkout_path, events, derived.required()
-    )
+    verification = _final_verification_completion(events, derived.required())
     if not verification.ok:
         return _forward_failure(
             verification.error,
