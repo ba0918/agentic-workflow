@@ -13,7 +13,7 @@ from runtime import (
     context, deliverables, events, evidence as runtime_evidence, gates, repository,
     secret_detect, storage, tdd,
 )
-from runtime.types import JsonObject, ResolvedPlan, object_value, object_values
+from runtime.types import JsonObject, ResolvedPlan, Run, object_value, object_values
 
 def resolved_plan(
     approval: str, *, expected_paths: tuple[str, ...] = (),
@@ -27,14 +27,46 @@ def resolved_plan(
         "plan-a", "docs/plans/plan-a.md", approval, "text", (), expected_paths, steps=normalized_steps,
     )
 
-def approved_plan_text(step_id: str = "1", completion: str = "check") -> str:
+def approved_plan_text(
+    step_id: str = "1", completion: str = "check", scope: str | None = "app.txt",
+) -> str:
     checks = "\n**Checks:**\n\n- `lint`\n" if completion == "check" else ""
+    scope_block = f"## Scope\n\n```text\n{scope}\n```\n\n" if scope is not None else ""
     return (
         "# Plan\n\n**Verification coverage:**\n\n"
         f"- `docs/spec/a.md` / `Contract` -> `{step_id}:{completion}`\n\n"
-        "## Scope\n\n```text\napp.txt\n```\n\n"
+        f"{scope_block}"
         f"## Step {step_id}: Implement\n{checks}"
     )
+
+
+def rebound_fixture(root: Path) -> tuple[Run, str]:
+    """A bound run whose plan is then revised; returns the run and the revision commit."""
+    subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+    (root / ".gitignore").write_text(".agents/\n", encoding="utf-8")
+    (root / "docs/spec").mkdir(parents=True)
+    (root / "docs/plans").mkdir(parents=True)
+    (root / "docs/spec/a.md").write_text("# Contract\n", encoding="utf-8")
+    (root / "docs/plans/plan-a.md").write_text(approved_plan_text(), encoding="utf-8")
+    (root / "app.txt").write_text("base\n", encoding="utf-8")
+    (root / "lib.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", ".gitignore", "docs", "app.txt", "lib.txt"], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "approval"], check=True)
+    approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+    plan = resolved_plan(approval, expected_paths=("app.txt",), steps=({"id": "1", "completion": "check"},))
+    run = repository.bind_run(
+        root, plan, run_id="run-1", delegated=False, branch="main", worktree=str(root),
+    ).required()
+    return run, approval
+
+
+def commit_plan_revision(root: Path, plan_text: str) -> str:
+    (root / "docs/plans/plan-a.md").write_text(plan_text, encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "docs/plans/plan-a.md"], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "approved revision"], check=True)
+    return subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
 
 class ImplementDistributionTest(unittest.TestCase):
     def test_plan_reader_is_loaded_from_the_same_distribution(self) -> None:
@@ -588,6 +620,79 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
             }).ok)
             completed = context.complete_run(run)
             self.assertTrue(completed.ok, completed.error)
+
+    def test_rebound_records_the_revised_scope_and_safety_judges_against_it(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _ = rebound_fixture(root)
+            revised = commit_plan_revision(root, approved_plan_text(scope="lib.txt"))
+
+            rebound = context.rebound_run(
+                run, revised, "scope moved to lib", mappings=[{"old": "1", "new": "1"}],
+            )
+            self.assertTrue(rebound.ok, rebound.error)
+            self.assertEqual(context.load_events(run).required()[-1].get("expected_paths"), ["lib.txt"])
+
+            (root / "app.txt").write_text("changed\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
+            old_scope_only = context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}],
+            })
+            self.assertEqual(
+                old_scope_only.error.code if old_scope_only.error is not None else None,
+                "unplanned_reason_missing",
+            )
+
+            subprocess.run(["git", "-C", str(root), "restore", "--staged", "--worktree", "app.txt"], check=True)
+            (root / "lib.txt").write_text("changed\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "lib.txt"], check=True)
+            new_scope = context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}],
+            })
+            self.assertTrue(new_scope.ok, new_scope.error)
+
+    def test_completion_treats_paths_outside_the_rebound_scope_as_outside_scope(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _ = rebound_fixture(root)
+            revised = commit_plan_revision(root, approved_plan_text(scope="lib.txt"))
+            self.assertTrue(context.rebound_run(
+                run, revised, "scope moved to lib", mappings=[{"old": "1", "new": "1"}],
+            ).ok)
+            (root / "lib.txt").write_text("changed\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "lib.txt"], check=True)
+            self.assertTrue(context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}],
+            }).ok)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "implementation"], check=True)
+            implementation = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+            self.assertTrue(context.record_commit(run, "1", implementation).ok)
+            self.assertTrue(context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            }).ok)
+            (root / "app.txt").write_text("left over\n", encoding="utf-8")
+
+            completed = context.complete_run(run)
+
+            self.assertTrue(completed.ok, completed.error)
+            self.assertEqual(completed.required().get("uncommitted_outside_scope"), ["app.txt"])
+
+    def test_rebound_rejects_a_plan_whose_scope_cannot_be_read(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _ = rebound_fixture(root)
+            revised = commit_plan_revision(root, approved_plan_text(scope=None))
+
+            rebound = context.rebound_run(
+                run, revised, "scope missing", mappings=[{"old": "1", "new": "1"}],
+            )
+
+            self.assertEqual(
+                rebound.error.code if rebound.error is not None else None, "document_commit_invalid",
+            )
 
 class ImplementSafetyEvidenceTest(unittest.TestCase):
     def test_document_follow_rejects_a_duplicate_specification_heading(self) -> None:

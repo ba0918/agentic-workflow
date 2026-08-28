@@ -569,6 +569,36 @@ class ImplementationEvidenceTest(_EvidenceTestCase):
         ])
         self.assertEqual(result.required()["commits"], ["c" * 40])
 
+    def test_expected_paths_follow_the_latest_rebound_and_fall_back_to_the_binding(self) -> None:
+        binding = {**self.binding([{"id": "1", "completion": "check"}]), "expected_paths": ["app.txt"]}
+        rebound_with_scope = self.event(
+            1, "rebound", approval_commit="d" * 40, steps=[{"id": "1", "completion": "check"}],
+            mappings=[{"old": "1", "new": "1"}], reason="approved", expected_paths=["lib.txt"],
+        )
+        rebound_without_scope = self.event(
+            1, "rebound", approval_commit="d" * 40, steps=[{"id": "1", "completion": "check"}],
+            mappings=[{"old": "1", "new": "1"}], reason="approved",
+        )
+
+        initial = implementation_evidence.derive_implementation(binding, [])
+        rebound = implementation_evidence.derive_implementation(binding, [rebound_with_scope])
+        legacy = implementation_evidence.derive_implementation(binding, [rebound_without_scope])
+
+        self.assertEqual(initial.required()["expected_paths"], ["app.txt"])
+        self.assertEqual(rebound.required()["expected_paths"], ["lib.txt"])
+        self.assertEqual(legacy.required()["expected_paths"], ["app.txt"])
+
+    def test_rebound_with_malformed_expected_paths_is_rejected(self) -> None:
+        binding = {**self.binding([{"id": "1", "completion": "check"}]), "expected_paths": ["app.txt"]}
+        malformed = self.event(
+            1, "rebound", approval_commit="d" * 40, steps=[{"id": "1", "completion": "check"}],
+            mappings=[{"old": "1", "new": "1"}], reason="approved", expected_paths=["lib.txt", 1],
+        )
+
+        result = implementation_evidence.derive_implementation(binding, [malformed])
+
+        self.assertEqual(result.required_error().code, "evidence_invalid")
+
     def test_frozen_red_snapshot_must_match_green_and_refactor(self) -> None:
         binding = self.binding([{"id": "1", "completion": "test"}])
         other = {"files": {"tests/b.py": "sha256:" + "2" * 64}, "command": "sha256:" + "3" * 64}

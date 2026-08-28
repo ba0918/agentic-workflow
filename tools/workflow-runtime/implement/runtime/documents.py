@@ -1,7 +1,7 @@
 """Document-following decisions and approved-plan validation."""
 from pathlib import Path
 import re
-from typing import Protocol
+from typing import NamedTuple, Protocol
 
 from runtime.deps import plan_artifact
 from runtime.gitio import run_git
@@ -23,6 +23,11 @@ class PlanStep(Protocol):
 class PlanHeader(Protocol):
     specifications: tuple[Specification, ...]
     steps: tuple[PlanStep, ...]
+
+
+class DocumentCommit(NamedTuple):
+    header: PlanHeader
+    scope: tuple[str, ...]
 
 
 def document_context(
@@ -66,7 +71,7 @@ def stop_event(
 
 def validate_document_commit(
     run: Run, binding: JsonObject, commit: str,
-) -> RuntimeResult[PlanHeader]:
+) -> RuntimeResult[DocumentCommit]:
     if COMMIT_SHA.fullmatch(commit) is None or run_git(
         run.root, "cat-file", "-e", f"{commit}^{{commit}}"
     ).returncode != 0:
@@ -83,6 +88,7 @@ def validate_document_commit(
         )
     try:
         header: PlanHeader = plan_artifact.read_plan_header(plan.stdout)
+        scope: tuple[str, ...] = plan_artifact.read_plan_scope(plan.stdout)
     except plan_artifact.PlanArtifactError:
         return failure(
             "document_commit_invalid", "plan cannot be read from the document commit"
@@ -92,7 +98,7 @@ def validate_document_commit(
             "document_commit_invalid",
             "target specification is unavailable in the document commit",
         )
-    return ok(header)
+    return ok(DocumentCommit(header, scope))
 
 
 def _specifications_available(
