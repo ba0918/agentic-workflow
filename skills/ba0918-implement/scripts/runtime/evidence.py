@@ -17,7 +17,7 @@ from runtime.documents import (
     validate_document_commit,
 )
 from runtime.events import EventCandidate, derive_implementation, validate_event
-from runtime.gitio import commit_paths, staged_paths
+from runtime.gitio import commit_paths, run_git, staged_paths
 from runtime.safety import assess_safety, content_safety, test_bytes, worktree
 from runtime.storage import canonical_json, read_json, write_atomic, write_once
 from runtime.types import (
@@ -204,6 +204,16 @@ def _prepare_safety(
     return ok(assessed.required())
 
 
+def _verified_commit(checkout: Path) -> RuntimeResult[str]:
+    result = run_git(checkout, "rev-parse", "HEAD")
+    commit = result.stdout.strip()
+    if result.returncode != 0 or not commit:
+        return failure(
+            "git_inspection_failed", "check verification commit is unavailable"
+        )
+    return ok(commit)
+
+
 def append_event(
     run: Run,
     event_type: str,
@@ -224,11 +234,21 @@ def append_event(
                 binding.error, "evidence_unavailable", "implementation binding is unavailable"
             )
         if binding.required().get("worktree"):
-            assessed = _prepare_safety(run, binding.required(), prepared)
+            active_binding = binding.required()
+            assessed = _prepare_safety(run, active_binding, prepared)
             if not assessed.ok:
                 return forward_failure(assessed.error, "dangerous_path", "changed paths are unsafe")
             prepared["changed_paths"] = assessed.required()["paths"]
             prepared["safety"] = assessed.required()
+            if event_type == "check":
+                verified = _verified_commit(worktree(active_binding, run))
+                if not verified.ok:
+                    return forward_failure(
+                        verified.error,
+                        "git_inspection_failed",
+                        "check verification commit is unavailable",
+                    )
+                prepared["verified_commit"] = verified.required()
         else:
             prepared["changed_paths"] = []
             prepared["safety"] = {"paths": [], "unplanned": []}

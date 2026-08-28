@@ -237,6 +237,35 @@ def _history_completion(
     return ok(None)
 
 
+def _final_verification_completion(
+    checkout: Path, events: list[JsonObject], value: JsonObject,
+) -> RuntimeResult[None]:
+    steps = object_values(value.get("steps")) or []
+    final_step = steps[-1] if steps else None
+    if final_step is None or final_step.get("completion") != "check":
+        return ok(None)
+    final_step_id = final_step.get("id")
+    final_check = next(
+        (
+            event for event in reversed(events)
+            if event.get("event_type") == "check"
+            and event.get("step") == final_step_id
+        ),
+        None,
+    )
+    head = run_git(checkout, "rev-parse", "HEAD")
+    if (
+        final_check is None
+        or head.returncode != 0
+        or final_check.get("verified_commit") != head.stdout.strip()
+    ):
+        return failure(
+            "final_verification_stale",
+            "final check must verify the current implementation commit",
+        )
+    return ok(None)
+
+
 def completion_fields(
     binding: JsonObject, events: list[JsonObject],
 ) -> RuntimeResult[JsonObject]:
@@ -255,6 +284,15 @@ def completion_fields(
     if not history.ok:
         return _forward_failure(
             history.error, "commit_bijection_invalid", "implementation history is invalid"
+        )
+    verification = _final_verification_completion(
+        checkout_path, events, derived.required()
+    )
+    if not verification.ok:
+        return _forward_failure(
+            verification.error,
+            "final_verification_stale",
+            "final implementation verification is stale",
         )
     completed_steps = string_values(derived.required().get("completed_steps")) or []
     return ok({

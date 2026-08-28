@@ -327,7 +327,7 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
             self.assertEqual(status["completed_steps"], ["1"])
             self.assertEqual(status["last_event"]["event_type"], "returned")
 
-    def test_check_without_changed_paths_needs_no_commit(self) -> None:
+    def test_final_check_must_verify_the_current_branch_head(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -339,7 +339,7 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
             commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
             branch = subprocess.run(["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True).stdout.strip()
-            plan = resolved_plan(commit)
+            plan = resolved_plan(commit, expected_paths=("app.txt",))
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False, branch=branch, worktree=str(root),
             ).required()
@@ -348,6 +348,24 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
             })
             self.assertTrue(checked.ok, checked.error)
             self.assertEqual(checked.required()["changed_paths"], [])
+
+            (root / "app.txt").write_text("implemented\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "implement"], check=True)
+            implementation = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                text=True, capture_output=True, check=True,
+            ).stdout.strip()
+            self.assertTrue(context.record_commit(run, "1", implementation).ok)
+
+            stale = context.complete_run(run)
+            self.assertFalse(stale.ok)
+            self.assertEqual(stale.required_error().code, "final_verification_stale")
+
+            rechecked = context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            })
+            self.assertTrue(rechecked.ok, rechecked.error)
             self.assertTrue(context.complete_run(run).ok)
 
     def test_check_requires_every_plan_command_in_declared_order(self) -> None:
@@ -455,6 +473,9 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
             ).ok)
             status = json.loads((run.evidence_path / "current-status").read_text(encoding="utf-8"))
             self.assertEqual(status["plan"]["approval_commit"], revised)
+            self.assertTrue(context.append_event(wording_run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            }).ok)
             self.assertTrue(context.complete_run(wording_run).ok)
             self.assertTrue(context.rebound_run(
                 run, revised, "approved revision", mappings=[{"old": "1", "new": "1"}],
@@ -464,6 +485,9 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
             if not steps:
                 self.fail("rebound steps are unavailable")
             self.assertEqual(steps[0].get("checks"), ["lint"])
+            self.assertTrue(context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            }).ok)
             completed = context.complete_run(run)
             self.assertTrue(completed.ok, completed.error)
 

@@ -506,6 +506,10 @@ class ImplementCliTest(RepositoryFixture, unittest.TestCase):
                 "record-commit", *selector, "--step", "1", "--commit", commit,
                 "--unplanned-reason", "helper.py=required helper",
             ]), 0)
+            self.assertEqual(cli.main([
+                "stage", *selector, "--step", "1", "--phase", "check", "--command", "check",
+                "--exit-code", "0",
+            ]), 0)
             self.assertEqual(cli.main(["complete", *selector]), 0)
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             cli.main([
