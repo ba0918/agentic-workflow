@@ -468,10 +468,13 @@ def _apply_boundary(state: _Derivation, event: JsonObject) -> EvidenceFailure | 
 
 def _apply_event(state: _Derivation, event: JsonObject) -> EvidenceFailure | None:
     event_type = _text(event, "event_type")
-    if state.stopped and event_type not in {"resumed", "rebound", "resume-candidate-retired"}:
+    if state.stopped and event_type not in {
+        "returned", "resumed", "rebound", "resume-candidate-retired",
+    }:
         return EvidenceFailure("transition_invalid", "stopped implementation requires resumed or rebound")
-    state.stopped = event_type == "stopped"
-    if event_type in {"resumed", "rebound"}:
+    if event_type == "stopped":
+        state.stopped = True
+    elif event_type in {"resumed", "rebound", "resume-candidate-retired"}:
         state.stopped = False
     if event_type == "resume-candidate-retired":
         state.resume_candidate_retired = True
