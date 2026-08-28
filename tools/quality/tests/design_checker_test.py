@@ -83,6 +83,25 @@ class DesignCheckerTest(unittest.TestCase):
         self.assertIn("E9003", completed.stdout)
         self.assertIn("Type escape hatch Any is forbidden", completed.stdout)
 
+    def test_typing_alias_cannot_hide_any_type_escape_hatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "aliased.py"
+            source.write_text(
+                "import typing as typing_module\n\n"
+                "def decode(value: typing_module.Any) -> typing_module.Any:\n"
+                "    return value\n",
+                encoding="utf-8",
+            )
+
+            completed = self.run_pylint(
+                source,
+                "--enable=forbidden-type-escape-hatch",
+            )
+
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("E9003", completed.stdout)
+        self.assertIn("Type escape hatch Any is forbidden", completed.stdout)
+
     def test_declared_pure_layer_rejects_direct_io_calls(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             domain = Path(directory) / "domain"

@@ -156,8 +156,12 @@ class DesignChecker(CheckerBase):
 
     def visit_attribute(self, node: AttributeNode) -> None:
         expression_name = getattr(node.expr, "name", None)
+        module_names = {expression_name}
+        inferred = infer(node.expr)
+        if isinstance(inferred, QualifiedNode):
+            module_names.add(inferred.qname())
         if (
-            expression_name in TYPE_MODULES
+            not module_names.isdisjoint(TYPE_MODULES)
             and node.attrname in TYPE_ESCAPE_HATCHES
         ):
             self._check_type_escape_hatch(node, node.attrname)
