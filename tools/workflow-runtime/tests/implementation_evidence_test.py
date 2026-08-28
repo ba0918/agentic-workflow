@@ -312,6 +312,23 @@ class CompletionFreshnessEvidenceTest(_EvidenceTestCase):
         self.assertTrue(result.ok, result.error)
         self.assertEqual(result.required()["completed_steps"], ["1"])
 
+    def test_artifact_declared_paths_must_be_observed_as_changed(self) -> None:
+        binding = self.binding([{"id": "1", "completion": "artifact"}])
+        events = [
+            self.event(
+                1, "artifact", step="1", checks=[], paths=["report.md"],
+                changed_paths=["other.md"],
+            ),
+            self.event(
+                2, "commit", step="1", commit="b" * 40,
+                safety={"paths": ["report.md"], "unplanned": []},
+            ),
+        ]
+
+        result = implementation_evidence.derive_implementation(binding, events)
+
+        self.assertEqual(result.required_error().code, "transition_invalid")
+
 
 class ImplementationEvidenceTest(_EvidenceTestCase):
 

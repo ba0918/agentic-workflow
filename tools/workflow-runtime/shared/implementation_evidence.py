@@ -211,6 +211,12 @@ def _artifact_paths(event: JsonObject) -> list[str] | None:
     return _strings(event.get("changed_paths"))
 
 
+def _artifact_paths_observed(event: JsonObject) -> bool:
+    targets = set(_artifact_paths(event) or [])
+    observed = set(_strings(event.get("changed_paths")) or [])
+    return bool(targets) and targets <= observed
+
+
 def _valid_evidence(step: JsonObject, event: JsonObject) -> bool:
     completion = _text(step, "completion")
     event_type = _text(event, "event_type")
@@ -223,7 +229,7 @@ def _valid_evidence(step: JsonObject, event: JsonObject) -> bool:
     checks = _objects(event.get("checks"))
     if checks is None or completion == "check" and not checks:
         return False
-    if completion == "artifact" and not _artifact_paths(event):
+    if completion == "artifact" and not _artifact_paths_observed(event):
         return False
     succeeded = all(check.get("exit_code") == 0 for check in checks)
     return succeeded and (completion != "check" or _declared_checks_match(step, checks))
