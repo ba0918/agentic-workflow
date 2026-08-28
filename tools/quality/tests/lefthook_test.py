@@ -22,7 +22,7 @@ class LefthookConfigurationTest(unittest.TestCase):
         configuration = json.loads(completed.stdout)
         self.assertEqual(
             configuration["pre-commit"]["commands"]["quality-gate"]["run"],
-            "python3 .codex/quality/quality_gate.py --output cli --scope staged",
+            "python3 tools/quality/quality_gate.py --scope staged",
         )
 
     def test_codex_stop_hooks_check_the_worktree_scope(self) -> None:
@@ -32,7 +32,7 @@ class LefthookConfigurationTest(unittest.TestCase):
 
         for event in ("Stop", "SubagentStop"):
             command = configuration["hooks"][event][0]["hooks"][0]["command"]
-            self.assertTrue(command.endswith("quality_gate.py\" --scope worktree"))
+            self.assertTrue(command.endswith("agents/codex_stop.py\" --scope worktree"))
 
 
 if __name__ == "__main__":

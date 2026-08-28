@@ -91,15 +91,6 @@ def run_checks(
     return failures
 
 
-def stop_response(failures: list[CheckFailure]) -> dict[str, object]:
-    if not failures:
-        return {"continue": True}
-    return {
-        "decision": "block",
-        "reason": f"Quality gate failed. Fix every reported check:\n\n{failure_diagnostics(failures)}",
-    }
-
-
 def failure_diagnostics(failures: list[CheckFailure]) -> str:
     return "\n\n".join(
         f"[{failure.name}] exited {failure.exit_code}\n{failure.output}"
@@ -111,7 +102,6 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path)
     parser.add_argument("--root", type=Path)
-    parser.add_argument("--output", choices=("hook", "cli"), default="hook")
     parser.add_argument("--scope", choices=("worktree", "staged"), default="worktree")
     return parser.parse_args(arguments)
 
@@ -122,7 +112,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     config_path = (
         options.config.resolve()
         if options.config is not None
-        else project_root / ".codex" / "quality" / "checks.json"
+        else project_root / "tools" / "quality" / "checks.json"
     )
     try:
         checks = load_checks(config_path)
@@ -136,12 +126,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
         ]
     else:
         failures = run_checks(checks, project_root, options.scope)
-    if options.output == "cli":
-        if failures:
-            print(failure_diagnostics(failures), file=sys.stderr)
-            return 1
-        return 0
-    print(json.dumps(stop_response(failures)))
+    if failures:
+        print(failure_diagnostics(failures), file=sys.stderr)
+        return 1
     return 0
 
 

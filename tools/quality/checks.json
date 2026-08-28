@@ -4,7 +4,7 @@
       "name": "python-structure",
       "argv": [
         "env",
-        "PYTHONPATH=.codex/quality",
+        "PYTHONPATH=tools/quality",
         "UV_CACHE_DIR=/tmp/agentic-workflow-uv-cache",
         "uv",
         "run",
@@ -17,7 +17,7 @@
         "--disable=all",
         "--enable=F,E,W,too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-return-statements,too-many-branches,too-many-statements,too-many-boolean-expressions,too-many-nested-blocks,duplicate-code,forbidden-lint-suppression,forbidden-layer-import,forbidden-type-escape-hatch,forbidden-pure-layer-call",
         "--score=no",
-        ".codex/quality"
+        "tools/quality"
       ]
     },
     {
@@ -34,14 +34,14 @@
         "mypy",
         "--strict",
         "--follow-untyped-imports",
-        ".codex/quality"
+        "tools/quality"
       ]
     },
     {
       "name": "spec-textlint",
       "argv": [
         "python3",
-        ".codex/quality/spec_textlint.py"
+        "tools/quality/spec_textlint.py"
       ]
     }
   ]

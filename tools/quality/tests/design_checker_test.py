@@ -6,7 +6,7 @@ import unittest
 
 
 PROJECT_ROOT = Path(__file__).parents[3]
-PLUGIN_ROOT = PROJECT_ROOT / ".codex" / "quality"
+PLUGIN_ROOT = PROJECT_ROOT / "tools" / "quality"
 
 
 class DesignCheckerTest(unittest.TestCase):

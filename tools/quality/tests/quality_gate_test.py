@@ -18,14 +18,11 @@ def invoke_gate(
     config: Path,
     working_directory: Path,
     project_root: Path | None = None,
-    output: str | None = None,
     scope: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     arguments = [sys.executable, str(QUALITY_GATE), "--config", str(config)]
     if project_root is not None:
         arguments.extend(["--root", str(project_root)])
-    if output is not None:
-        arguments.extend(["--output", output])
     if scope is not None:
         arguments.extend(["--scope", scope])
     return subprocess.run(
@@ -46,7 +43,7 @@ class QualityGateTest(unittest.TestCase):
             write_config(config, checks)
             return invoke_gate(config, root)
 
-    def test_all_successful_checks_allow_the_turn_to_stop(self) -> None:
+    def test_all_successful_checks_return_success(self) -> None:
         completed = self.run_gate(
             [
                 {
@@ -57,9 +54,9 @@ class QualityGateTest(unittest.TestCase):
         )
 
         self.assertEqual(completed.returncode, 0)
-        self.assertEqual(json.loads(completed.stdout), {"continue": True})
+        self.assertEqual(completed.stdout, "")
 
-    def test_failed_check_keeps_the_turn_running_with_its_diagnostic(self) -> None:
+    def test_failed_check_returns_failure_with_its_diagnostic(self) -> None:
         completed = self.run_gate(
             [
                 {
@@ -73,11 +70,9 @@ class QualityGateTest(unittest.TestCase):
             ]
         )
 
-        response = json.loads(completed.stdout)
-        self.assertEqual(completed.returncode, 0)
-        self.assertEqual(response["decision"], "block")
-        self.assertIn("broken-check", response["reason"])
-        self.assertIn("repair this", response["reason"])
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("broken-check", completed.stderr)
+        self.assertIn("repair this", completed.stderr)
 
     def test_unavailable_check_does_not_hide_later_check_results(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -105,26 +100,21 @@ class QualityGateTest(unittest.TestCase):
 
             self.assertTrue(marker.exists())
 
-        response = json.loads(completed.stdout)
-        self.assertEqual(response["decision"], "block")
-        self.assertIn("missing-check", response["reason"])
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("missing-check", completed.stderr)
 
     def test_empty_check_list_blocks_instead_of_silently_disabling_the_gate(self) -> None:
         completed = self.run_gate([])
 
-        response = json.loads(completed.stdout)
-        self.assertEqual(completed.returncode, 0)
-        self.assertEqual(response["decision"], "block")
-        self.assertIn("no checks configured", response["reason"])
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("no checks configured", completed.stderr)
 
     def test_invalid_check_definition_blocks_with_a_configuration_diagnostic(self) -> None:
         completed = self.run_gate([{"name": "missing-command"}])
 
-        response = json.loads(completed.stdout)
-        self.assertEqual(completed.returncode, 0)
-        self.assertEqual(response["decision"], "block")
-        self.assertIn("configuration", response["reason"])
-        self.assertIn("argv", response["reason"])
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("configuration", completed.stderr)
+        self.assertIn("argv", completed.stderr)
 
     def test_checks_run_from_the_project_root(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -149,7 +139,7 @@ class QualityGateTest(unittest.TestCase):
             completed = invoke_gate(config, root / ".codex", project_root=root)
 
         self.assertEqual(completed.returncode, 0)
-        self.assertEqual(json.loads(completed.stdout), {"continue": True})
+        self.assertEqual(completed.stdout, "")
 
     def test_selected_scope_is_forwarded_to_checks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -174,47 +164,6 @@ class QualityGateTest(unittest.TestCase):
             completed = invoke_gate(config, root, scope="staged")
 
             self.assertEqual(marker.read_text(encoding="utf-8"), "staged")
-
-        self.assertEqual(completed.returncode, 0)
-        self.assertEqual(json.loads(completed.stdout), {"continue": True})
-
-    def test_cli_output_returns_failure_to_the_calling_git_hook(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            config = root / "checks.json"
-            write_config(
-                config,
-                [
-                    {
-                        "name": "broken-check",
-                        "argv": [
-                            sys.executable,
-                            "-c",
-                            "print('repair this'); raise SystemExit(7)",
-                        ],
-                    }
-                ],
-            )
-            completed = invoke_gate(config, root, output="cli")
-
-        self.assertEqual(completed.returncode, 1)
-        self.assertIn("broken-check", completed.stderr)
-        self.assertIn("repair this", completed.stderr)
-
-    def test_cli_output_allows_the_calling_git_hook_after_success(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            config = root / "checks.json"
-            write_config(
-                config,
-                [
-                    {
-                        "name": "passing-check",
-                        "argv": [sys.executable, "-c", "raise SystemExit(0)"],
-                    }
-                ],
-            )
-            completed = invoke_gate(config, root, output="cli")
 
         self.assertEqual(completed.returncode, 0)
         self.assertEqual(completed.stdout, "")
