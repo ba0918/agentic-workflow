@@ -613,6 +613,7 @@ def _apply_test_stage(
         return EvidenceFailure("transition_invalid", "test stages must follow RED, GREEN, REFACTOR")
     snapshot = event.get("snapshot")
     if event_type == "red":
+        state.completed.discard(contract_id)
         state.red_snapshots[contract_id] = snapshot
     elif snapshot != state.red_snapshots.get(contract_id):
         return EvidenceFailure("frozen_red_mismatch", "GREEN and REFACTOR must use the accepted RED snapshot")

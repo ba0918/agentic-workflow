@@ -239,6 +239,29 @@ class CompletionFreshnessEvidenceTest(_EvidenceTestCase):
         self.assertTrue(refreshed.ok, refreshed.error)
         self.assertEqual(refreshed.required()["completed_steps"], ["1"])
 
+    def test_red_after_recovering_invalidates_the_completed_test_step(self) -> None:
+        binding = self.binding([{"id": "1", "completion": "test"}])
+        events = [
+            self.event(1, "red", step="1", command="tests", exit_code=1, snapshot=self.snapshot()),
+            self.event(2, "green", step="1", command="tests", exit_code=0, snapshot=self.snapshot()),
+            self.event(3, "refactor", step="1", command="tests", exit_code=0, snapshot=self.snapshot()),
+            self.event(
+                4, "commit", step="1", commit="b" * 40,
+                safety={"paths": ["app.txt"], "unplanned": []},
+            ),
+            self.event(
+                5, "recovering", current_commit="c" * 40,
+                changed_documents=["docs/spec/example.md"], reason="wording only",
+            ),
+            self.event(6, "red", step="1", command="tests", exit_code=1, snapshot=self.snapshot()),
+        ]
+
+        result = implementation_evidence.derive_implementation(binding, events)
+
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.required()["completed_steps"], [])
+        self.assertEqual(result.required()["resume_step"], "1")
+
     def test_artifact_requires_a_nonempty_target_and_a_covering_commit(self) -> None:
         binding = self.binding([{"id": "1", "completion": "artifact"}])
         empty = implementation_evidence.derive_implementation(binding, [
