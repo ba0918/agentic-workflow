@@ -7,8 +7,7 @@ from runtime.gitio import run_git
 from runtime.safety import content_safety
 from runtime.staging import assess_paths
 from runtime.types import (
-    JsonObject, RuntimeFailure, RuntimeResult, failure, object_value, object_values, ok,
-    string_values,
+    JsonObject, RuntimeFailure, RuntimeResult, failure, object_values, ok, string_values,
 )
 
 
@@ -258,27 +257,12 @@ def _final_verification_completion(
         return failure(
             "final_verification_stale", "final implementation check is missing"
         )
-    final_check = events[final_check_index]
     later_events = events[final_check_index + 1:]
-    commits = [
-        event for event in later_events
-        if event.get("event_type") == "commit"
-    ]
-    revision_changed = any(
-        event.get("event_type") in {"recovering", "rebound"}
+    implementation_changed = any(
+        event.get("event_type") in {"commit", "recovering", "rebound"}
         for event in later_events
     )
-    commit_safety = object_value(commits[0].get("safety")) if len(commits) == 1 else None
-    commit_paths = (
-        string_values(commit_safety.get("paths"))
-        if commit_safety is not None else None
-    )
-    matching_step_commit = (
-        len(commits) == 1
-        and commits[0].get("step") == final_step_id
-        and string_values(final_check.get("changed_paths")) == commit_paths
-    )
-    if revision_changed or commits and not matching_step_commit:
+    if implementation_changed:
         return failure(
             "final_verification_stale",
             "final check must be the last broad verification of implementation changes",

@@ -369,7 +369,7 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
             self.assertTrue(rechecked.ok, rechecked.error)
             self.assertTrue(context.complete_run(run).ok)
 
-    def test_final_check_accepts_its_matching_step_commit(self) -> None:
+    def test_final_check_must_follow_a_commit_with_the_same_changed_paths(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -387,9 +387,7 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
                 ["git", "-C", str(root), "branch", "--show-current"],
                 text=True, capture_output=True, check=True,
             ).stdout.strip()
-            plan = resolved_plan(
-                approval, expected_paths=("app.txt", "helper.py")
-            )
+            plan = resolved_plan(approval, expected_paths=("app.txt",))
             run = repository.bind_run(
                 root,
                 plan,
@@ -398,45 +396,30 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
                 branch=branch,
                 worktree=str(root),
             ).required()
-            stale_run = repository.bind_run(
-                root,
-                plan,
-                run_id="stale",
-                delegated=False,
-                branch=branch,
-                worktree=str(root),
-            ).required()
-
-            (root / "app.txt").write_text("implemented\n", encoding="utf-8")
+            (root / "app.txt").write_text("checked bytes\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
             checked = context.append_event(run, "check", {
                 "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
             })
             self.assertTrue(checked.ok, checked.error)
             self.assertNotIn("verified_commit", checked.required())
-            self.assertTrue(context.append_event(stale_run, "check", {
-                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
-            }).ok)
+            (root / "app.txt").write_text("committed bytes\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "implement"], check=True)
             implementation = subprocess.run(
                 ["git", "-C", str(root), "rev-parse", "HEAD"],
                 text=True, capture_output=True, check=True,
             ).stdout.strip()
             self.assertTrue(context.record_commit(run, "1", implementation).ok)
-            self.assertTrue(context.record_commit(stale_run, "1", implementation).ok)
 
-            self.assertTrue(context.complete_run(run).ok)
-            (root / "helper.py").write_text("value = 1\n", encoding="utf-8")
-            subprocess.run(["git", "-C", str(root), "add", "helper.py"], check=True)
-            subprocess.run(["git", "-C", str(root), "commit", "-qm", "later"], check=True)
-            later = subprocess.run(
-                ["git", "-C", str(root), "rev-parse", "HEAD"],
-                text=True, capture_output=True, check=True,
-            ).stdout.strip()
-            self.assertTrue(context.record_commit(stale_run, "1", later).ok)
-            stale = context.complete_run(stale_run)
+            stale = context.complete_run(run)
             self.assertFalse(stale.ok)
             self.assertEqual(stale.required_error().code, "final_verification_stale")
+            rechecked = context.append_event(run, "check", {
+                "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            })
+            self.assertTrue(rechecked.ok, rechecked.error)
+            self.assertTrue(context.complete_run(run).ok)
 
     def test_check_requires_every_plan_command_in_declared_order(self) -> None:
         import tempfile
