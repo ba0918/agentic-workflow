@@ -796,6 +796,10 @@ def _apply_boundary(state: _Derivation, event: JsonObject) -> EvidenceFailure | 
         return None
     _close_segment(state)
     if event_type == "recovering":
+        state.approvals = {
+            key: _GateApproval(approval.event, carried=True)
+            for key, approval in state.approvals.items()
+        }
         state.approval_commit = event.get("current_commit")
         state.segment = []
         return None

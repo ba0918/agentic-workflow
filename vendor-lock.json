@@ -39,7 +39,7 @@
       },
       "scripts/implementation_evidence.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:f1d67166b6ad9d1a6b322740720760670eb807621ae0aa229fcfe1f9e18239cf",
+        "digest": "sha256:282b4671a15688c17c4370d8ad742ecdf4f548d000f9aec948ceefdc0b58aa43",
         "src": "tools/workflow-runtime/shared/implementation_evidence.py"
       },
       "scripts/path_safety.py": {
@@ -168,7 +168,7 @@
       },
       "scripts/implementation_evidence.py": {
         "contract": "review-runtime",
-        "digest": "sha256:f1d67166b6ad9d1a6b322740720760670eb807621ae0aa229fcfe1f9e18239cf",
+        "digest": "sha256:282b4671a15688c17c4370d8ad742ecdf4f548d000f9aec948ceefdc0b58aa43",
         "src": "tools/workflow-runtime/shared/implementation_evidence.py"
       },
       "scripts/path_safety.py": {
@@ -244,7 +244,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:59c32fd0ac96788cf7194a9e37b76a0237c7a9b3b7449a1a16757f2eb4bbc3c1",
+      "digest": "sha256:55939cfca20f9219064de0a3f76d957848e6b82fc5b80938feac25c04a667c1f",
       "kind": "raw"
     },
     "plan-runtime": {
@@ -252,7 +252,7 @@
       "kind": "raw"
     },
     "review-runtime": {
-      "digest": "sha256:2600ec35290954a0fe39d57d7f3a123e7b3d5a9f53930efdfb21693c6134099a",
+      "digest": "sha256:a0ef1d222b2de7f2ecd31db743dd716392856a52e6e0c39013ca694f0e8d38ec",
       "kind": "raw"
     }
   }

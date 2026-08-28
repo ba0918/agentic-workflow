@@ -173,6 +173,31 @@ class HumanGateEvidenceTest(_EvidenceTestCase):
         self.assertEqual(changed_result.required()["completed_steps"], [])
         self.assertEqual(changed_result.required()["resume_step"], "changed")
 
+    def test_before_edit_approval_survives_wording_only_recovering(self) -> None:
+        binding = self.binding([{
+            "id": "1", "completion": "artifact", "human_gates": [self.gate("before_edit")],
+        }])
+        events = [
+            self.approval(1),
+            self.event(
+                2, "recovering", current_commit="b" * 40,
+                changed_documents=["docs/spec/example.md"], reason="wording only",
+            ),
+            self.event(
+                3, "artifact", step="1", checks=[], changed_paths=["report.md"],
+            ),
+            self.event(
+                4, "commit", step="1", commit="c" * 40,
+                safety={"paths": ["report.md"], "unplanned": []},
+            ),
+        ]
+
+        result = implementation_evidence.derive_implementation(binding, events)
+
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.required()["completed_steps"], ["1"])
+        self.assertIsNone(result.required()["resume_step"])
+
     def test_later_target_changes_allow_work_but_require_a_fresh_final_gate(self) -> None:
         binding = self.binding([
             {
