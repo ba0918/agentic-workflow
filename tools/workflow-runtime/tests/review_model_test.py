@@ -4,13 +4,16 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[3]
 MODULE = ROOT / "tools/workflow-runtime/review/review_model.py"
-SPEC = importlib.util.spec_from_file_location("review_model", MODULE)
+SPEC = importlib.util.spec_from_file_location("review_model_for_test", MODULE)
+assert SPEC is not None
 model = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(model)
+JsonObject = dict[str, object]
 
-def finding(**changes) -> dict:
-    value = {
+
+def finding(**changes: object) -> JsonObject:
+    value: JsonObject = {
         "severity": "critical",
         "action": "fix_and_verify",
         "specification": {"path": "docs/spec/review.md", "section": "指摘（finding）"},
