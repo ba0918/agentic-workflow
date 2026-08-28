@@ -2,6 +2,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -59,21 +60,25 @@ def file_gate(**changes: object) -> dict[str, object]:
     gate.update(changes)
     return gate
 
+def make_repository() -> Path:
+    root = Path(tempfile.mkdtemp())
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
+    (root / "docs/spec").mkdir(parents=True)
+    (root / "docs/plans").mkdir(parents=True)
+    (root / "docs/spec/example.md").write_text(
+        "# Contract\n\nBody\n\n## Failure handling\n\nFailure body\n", encoding="utf-8",
+    )
+    (root / "docs/plans/example.md").write_text(PLAN, encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(root), "add", "docs/spec/example.md", "docs/plans/example.md"], check=True,
+    )
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
+    return root
+
+
 class PlanArtifactTest(unittest.TestCase):
-    def make_repository(self) -> Path:
-        root = Path(tempfile.mkdtemp())
-        subprocess.run(["git", "init", "-q", str(root)], check=True)
-        subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.invalid"], check=True)
-        subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
-        (root / "docs/spec").mkdir(parents=True)
-        (root / "docs/plans").mkdir(parents=True)
-        (root / "docs/spec/example.md").write_text(
-            "# Contract\n\nBody\n\n## Failure handling\n\nFailure body\n", encoding="utf-8",
-        )
-        (root / "docs/plans/example.md").write_text(PLAN, encoding="utf-8")
-        subprocess.run(["git", "-C", str(root), "add", "docs/spec/example.md", "docs/plans/example.md"], check=True)
-        subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
-        return root
 
     def test_reads_coverage_scope_and_step_contracts(self) -> None:
         header = plan_artifact.read_plan_header(PLAN)
@@ -195,7 +200,7 @@ class PlanArtifactTest(unittest.TestCase):
             plan_artifact.read_plan_header(invalid)
 
     def test_plan_path_is_directly_under_docs_plans(self) -> None:
-        root = self.make_repository()
+        root = make_repository()
         loaded = plan_artifact.read_plan(root, "docs/plans/example.md")
         head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
         self.assertEqual(loaded.approval_commit, head)
@@ -203,19 +208,19 @@ class PlanArtifactTest(unittest.TestCase):
             plan_artifact.read_plan(root, "docs/plans/../spec/example.md")
 
     def test_symlinked_plan_is_rejected(self) -> None:
-        root = self.make_repository()
+        root = make_repository()
         (root / "docs/plans/link.md").symlink_to(root / "docs/plans/example.md")
         with self.assertRaises(plan_artifact.UnsafePlanPath):
             plan_artifact.read_plan(root, "docs/plans/link.md")
 
     def test_uncommitted_or_post_approval_plan_bytes_are_rejected(self) -> None:
-        root = self.make_repository()
+        root = make_repository()
         (root / "docs/plans/example.md").write_bytes(PLAN.encode("utf-8") + b"\nUnapproved edit\n")
         with self.assertRaises(plan_artifact.PlanArtifactError):
             plan_artifact.read_plan(root, "docs/plans/example.md")
 
     def test_target_sections_must_exist_in_committed_specifications(self) -> None:
-        root = self.make_repository()
+        root = make_repository()
         plan_artifact.validate_plan(root, PLAN, approval_commit="HEAD")
         with self.assertRaises(plan_artifact.TargetSpecificationMismatch):
             plan_artifact.validate_plan(
@@ -223,7 +228,7 @@ class PlanArtifactTest(unittest.TestCase):
             )
 
     def test_target_sections_must_be_unique_in_committed_specifications(self) -> None:
-        root = self.make_repository()
+        root = make_repository()
         path = root / "docs/spec/example.md"
         path.write_text(path.read_text(encoding="utf-8") + "\n## Contract\n\nDuplicate\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(root), "add", "docs/spec/example.md"], check=True)
@@ -232,13 +237,13 @@ class PlanArtifactTest(unittest.TestCase):
             plan_artifact.validate_plan(root, PLAN, approval_commit="HEAD")
 
     def test_uncommitted_target_specification_is_rejected(self) -> None:
-        root = self.make_repository()
+        root = make_repository()
         (root / "docs/spec/example.md").write_text("# Contract\n\nChanged\n", encoding="utf-8")
         with self.assertRaises(plan_artifact.TargetSpecificationMismatch):
             plan_artifact.validate_plan(root, PLAN, approval_commit="HEAD")
 
     def test_approved_plan_can_expose_committed_specification_wording_drift(self) -> None:
-        root = self.make_repository()
+        root = make_repository()
         (root / "docs/spec/example.md").write_text("# Contract\n\nBody clarified\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(root), "add", "docs/spec/example.md"], check=True)
         subprocess.run(["git", "-C", str(root), "commit", "-qm", "clarify spec"], check=True)
@@ -255,6 +260,78 @@ class PlanArtifactTest(unittest.TestCase):
         source = MODULE_PATH.read_text(encoding="utf-8")
         self.assertNotIn("Plan ID", source)
         self.assertNotIn("Plan revision", source)
+
+
+class PlanArtifactCliTest(unittest.TestCase):
+    def test_cli_help_and_uncommitted_candidate_validation(self) -> None:
+        root = make_repository()
+        plan_path = root / "docs/plans/example.md"
+        plan_path.write_text(PLAN + "\nCandidate note.\n", encoding="utf-8")
+
+        help_result = subprocess.run(
+            [sys.executable, str(MODULE_PATH), "--help"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(MODULE_PATH),
+                "validate-candidate",
+                "--repo",
+                str(root),
+                "--plan",
+                "docs/plans/example.md",
+                "--approval-commit",
+                "HEAD",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        self.assertIn("validate-candidate", help_result.stdout)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertEqual(output["scope"], ["src/app.py", "tests/app_test.py"])
+        self.assertEqual(
+            output["steps"],
+            [
+                {"checks": [], "completion": "test", "id": "1"},
+                {"checks": ["first-check", "second-check"], "completion": "check", "id": "2"},
+            ],
+        )
+
+    def test_cli_rejects_working_specification_drift_and_unsafe_plan_keys(self) -> None:
+        root = make_repository()
+        (root / "docs/spec/example.md").write_text("# Contract\n\nChanged\n", encoding="utf-8")
+        base_command = [
+            sys.executable,
+            str(MODULE_PATH),
+            "validate-candidate",
+            "--repo",
+            str(root),
+            "--plan",
+            "docs/plans/example.md",
+            "--approval-commit",
+            "HEAD",
+        ]
+
+        drift = subprocess.run(base_command, text=True, capture_output=True, check=False)
+        unknown = subprocess.run(
+            [*base_command, "--unknown-key", "value"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertNotEqual(drift.returncode, 0)
+        self.assertIn("differs from approval commit", drift.stderr)
+        self.assertEqual(unknown.returncode, 2)
+        self.assertIn("unrecognized arguments", unknown.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path, PurePosixPath
 import difflib
 import json
@@ -374,3 +375,69 @@ def read_plan(project_root: Path, relative_path: str) -> ApprovedPlan:
     return ApprovedPlan(
         relative_path, text, commit, header.specifications, header.coverage, header.steps, scope, changes,
     )
+
+
+def validate_candidate(
+    project_root: Path, relative_path: str, *, approval_commit: str,
+) -> dict[str, object]:
+    target = _safe_plan_path(project_root, relative_path)
+    if not target.is_file():
+        raise PlanArtifactError(f"plan does not exist: {relative_path}")
+    try:
+        text = target.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise PlanArtifactError("candidate plan is not UTF-8") from error
+    validate_plan(project_root, text, approval_commit=approval_commit)
+    header = read_plan_header(text)
+    return {
+        "coverage": [
+            {
+                "completion": item.completion,
+                "path": item.path,
+                "section": item.section,
+                "step": item.step_id,
+            }
+            for item in header.coverage
+        ],
+        "scope": list(read_plan_scope(text)),
+        "steps": [
+            {
+                "checks": list(step.checks),
+                "completion": step.completion,
+                "id": step.id,
+            }
+            for step in header.steps
+        ],
+    }
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Read and validate a machine-shaped plan")
+    commands = parser.add_subparsers(dest="command", required=True)
+    candidate = commands.add_parser(
+        "validate-candidate",
+        help="validate an uncommitted candidate plan against committed specifications",
+    )
+    candidate.add_argument("--repo", required=True)
+    candidate.add_argument("--plan", required=True)
+    candidate.add_argument("--approval-commit", required=True)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _parser()
+    args = parser.parse_args(argv)
+    try:
+        if args.command != "validate-candidate":
+            raise PlanArtifactError(f"unsupported command: {args.command}")
+        result = validate_candidate(
+            Path(args.repo), args.plan, approval_commit=args.approval_commit,
+        )
+    except PlanArtifactError as error:
+        parser.error(str(error))
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -59,3 +59,18 @@ brainstorm before the plan is written.
 
 Write the canonical file under `docs/plans/`, run the plan reader, then perform independent review.
 Stage the converged file for human approval and commit only after explicit acceptance.
+
+Before review, run the read-only candidate command from the skill directory. It reads the working
+plan bytes, but resolves every referenced specification from the named commit:
+
+```sh
+repo_root="$(git rev-parse --show-toplevel)"
+python3 scripts/plan_artifact.py validate-candidate \
+  --repo "$repo_root" \
+  --plan docs/plans/20260829000000_example.md \
+  --approval-commit "$(git -C "$repo_root" rev-parse HEAD)"
+```
+
+Replace only the example plan filename with the canonical candidate path. A successful command
+writes its coverage, Steps, Checks, and Scope as JSON. A missing or changed committed
+specification, an unsafe plan path, or malformed plan content exits unsuccessfully.

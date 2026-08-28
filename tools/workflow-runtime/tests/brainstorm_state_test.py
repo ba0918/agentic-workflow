@@ -1,6 +1,9 @@
 import importlib.util
+import json
 import multiprocessing
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -16,7 +19,78 @@ SPEC.loader.exec_module(state)
 def progress(revision: int, topic: str = "next") -> dict[str, object]:
     return {"session_id": "session-1", "revision": revision, "current_position": "here", "next_topic": topic, "items": []}
 
+
+def run_state(*arguments: str, document: object | None = None) -> subprocess.CompletedProcess[str]:
+    input_text = None if document is None else json.dumps(document)
+    return subprocess.run(
+        [sys.executable, str(MODULE), *arguments],
+        input=input_text,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
 class BrainstormStateTest(unittest.TestCase):
+    def test_cli_help_lists_the_state_operations(self) -> None:
+        result = run_state("--help")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for command in ("validate", "load", "save", "finish"):
+            self.assertIn(command, result.stdout)
+
+    def test_cli_round_trips_state_through_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            value = progress(1)
+
+            validated = run_state("validate", document=value)
+            saved = run_state(
+                "save", "--repo", str(root), "--expected-revision", "0", document=value,
+            )
+            loaded = run_state("load", "--repo", str(root), "--session-id", "session-1")
+            finished = run_state(
+                "finish", "--repo", str(root), "--session-id", "session-1",
+                "--approved", "--write-succeeded",
+            )
+
+            self.assertEqual(validated.returncode, 0, validated.stderr)
+            self.assertEqual(json.loads(validated.stdout), value)
+            self.assertEqual(saved.returncode, 0, saved.stderr)
+            self.assertEqual(json.loads(saved.stdout), {"path": ".agents/tmp/ideas/session-1.md"})
+            self.assertEqual(loaded.returncode, 0, loaded.stderr)
+            self.assertEqual(json.loads(loaded.stdout), value)
+            self.assertEqual(finished.returncode, 0, finished.stderr)
+            self.assertEqual(json.loads(finished.stdout), {"removed": True})
+            self.assertFalse(root.joinpath(".agents/tmp/ideas/session-1.md").exists())
+
+    def test_cli_preserves_secret_and_revision_conflict_rejections(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            rejected_value = "".join(("api", "_key", "=", "example-value"))
+            initial = run_state(
+                "save", "--repo", str(root), "--expected-revision", "0", document=progress(1),
+            )
+            rejected_save = run_state(
+                "save", "--repo", str(root), "--expected-revision", "1",
+                document={**progress(2), "next_topic": rejected_value},
+            )
+            conflict = run_state(
+                "save", "--repo", str(root), "--expected-revision", "0", document=progress(2),
+            )
+
+            self.assertEqual(initial.returncode, 0, initial.stderr)
+            self.assertNotEqual(rejected_save.returncode, 0)
+            self.assertIn("secret-like", rejected_save.stderr)
+            self.assertNotEqual(conflict.returncode, 0)
+            self.assertIn("revision conflict", conflict.stderr)
+            self.assertEqual(state.load_progress(root, "session-1"), progress(1))
+
+    def test_cli_rejects_unexpected_state_keys(self) -> None:
+        result = run_state("validate", document={**progress(1), "unexpected": "value"})
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unexpected progress key", result.stderr)
+
     def test_progress_lives_in_the_temporary_ideas_directory_without_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
