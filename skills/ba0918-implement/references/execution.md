@@ -25,8 +25,10 @@ follow the current commit with `follow-documents` when no consequential decision
 appends `recovering` with the changed documents, existing Git commit, and reason. Ask between
 rebound and a new run only when one did. A rebound supplies the new approval commit, complete new
 plan, and a one-to-one `old=new` mapping; the runtime re-derives the complete new Step contracts
-from that commit rather than accepting them from the caller. Carry only completed steps whose
-completion kind is unchanged, and resume at the first changed or new step.
+from that commit rather than accepting them from the caller. Map only Steps whose implementation
+content is unchanged. Carry a mapped completion only when the completion kind and complete Human
+gate contract are also identical; a change to the Step content, completion kind, or any Human gate
+field resumes that Step. Resume at the first changed or new Step.
 
 When the active Step declares a Human gate, return control to the human before crossing its
 declared timing boundary. After the answer, record it with the complete dedicated command and then
