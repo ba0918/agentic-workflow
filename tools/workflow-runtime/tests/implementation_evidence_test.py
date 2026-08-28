@@ -37,6 +37,25 @@ class _EvidenceTestCase(unittest.TestCase):
 
 
 class HumanGateEvidenceTest(_EvidenceTestCase):
+    def test_binding_human_gate_requires_both_allowed_results_exactly_once(self) -> None:
+        invalid_results = (
+            ["approved"],
+            ["rejected"],
+            ["approved", "approved"],
+            ["approved", "rejected", "unknown"],
+        )
+
+        for results in invalid_results:
+            with self.subTest(results=results):
+                gate = {**self.gate("before_edit"), "allowed_results": results}
+                binding = self.binding([{
+                    "id": "1", "completion": "check", "human_gates": [gate],
+                }])
+
+                result = implementation_evidence.derive_implementation(binding, [])
+
+                self.assertEqual(result.required_error().code, "step_contract_invalid")
+
     def test_before_edit_gate_must_be_approved_before_step_work(self) -> None:
         binding = self.binding([{
             "id": "1", "completion": "check", "human_gates": [self.gate("before_edit")],

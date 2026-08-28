@@ -163,8 +163,8 @@ def _human_gates(value: object) -> list[JsonObject] | None:
             and all(section.strip() for section in sections)
         )
         results_valid = bool(
-            results and len(results) == len(set(results))
-            and all(result in GATE_RESULTS for result in results)
+            results is not None and len(results) == len(GATE_RESULTS)
+            and set(results) == GATE_RESULTS
         )
         if not all((
             identity_valid, sections_valid, criterion is not None,
