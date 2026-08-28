@@ -34,6 +34,19 @@ def run_python(skill: Path, *arguments: str) -> subprocess.CompletedProcess[str]
 
 
 class VendorEntrypointsTest(unittest.TestCase):
+    def test_directory_markers_need_no_git_whitespace_exception(self) -> None:
+        attributes = ROOT / ".gitattributes"
+        attribute_text = (
+            attributes.read_text(encoding="utf-8") if attributes.is_file() else ""
+        )
+        markers = sorted((ROOT / "skills").glob("*/scripts/**/.vendored"))
+
+        self.assertNotIn("blank-at-eof", attribute_text)
+        self.assertTrue(markers)
+        for marker in markers:
+            with self.subTest(marker=marker.relative_to(ROOT)):
+                self.assertFalse(marker.read_bytes().endswith(b"\n\n"))
+
     def test_entry_scripts_reach_help_from_an_isolated_skill_copy(self) -> None:
         entries = (
             ("ba0918-brainstorm", "scripts/draft.py"),

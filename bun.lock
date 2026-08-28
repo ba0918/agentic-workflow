@@ -12,6 +12,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@ba0918-dev/agentic-skill-vendor@0.4.0": "patches/@ba0918-dev%2Fagentic-skill-vendor@0.4.0.patch",
+  },
   "packages": {
     "@azu/format-text": ["@azu/format-text@1.0.2", "", {}, "sha512-Swi4N7Edy1Eqq82GxgEECXSSLyn6GOb5htRFPzBDdUkECGXtlf12ynO5oJSpWKPwCaUssOu7NfhDcCWpIC6Ywg=="],
 
