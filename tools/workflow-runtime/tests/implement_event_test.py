@@ -69,6 +69,19 @@ class ImplementEventTest(unittest.TestCase):
         )
         self.assertTrue(result.ok, result.error)
 
+    def test_delegated_requires_runner_and_model(self) -> None:
+        binding: JsonObject = {"version": 2, "delegated": True, "steps": []}
+
+        without_runner = validate_event(binding, [], EventCandidate("delegated", {"model": "claude-fable-5"}, "cycle"))
+        without_model = validate_event(binding, [], EventCandidate("delegated", {"role": "codex"}, "cycle"))
+        complete = validate_event(
+            binding, [], EventCandidate("delegated", {"role": "codex", "model": "claude-fable-5"}, "cycle"),
+        )
+
+        self.assertFalse(without_runner.ok)
+        self.assertFalse(without_model.ok)
+        self.assertTrue(complete.ok, complete.error)
+
     def test_stopped_delegation_can_return_before_cycle_resumes_it(self) -> None:
         binding: JsonObject = {"version": 2, "delegated": True, "steps": []}
         events: list[JsonObject] = [
@@ -89,7 +102,7 @@ class ImplementEventTest(unittest.TestCase):
         })
 
         delegated_while_stopped = validate_event(
-            binding, events, EventCandidate("delegated", {}, "cycle")
+            binding, events, EventCandidate("delegated", {"role": "implementer", "model": "claude-fable-5"}, "cycle")
         )
         self.assertFalse(delegated_while_stopped.ok)
         self.assertEqual(
@@ -105,7 +118,7 @@ class ImplementEventTest(unittest.TestCase):
             "branch_head": "a" * 40, "unexplained_commits": [], "uncommitted_paths": [],
         })
 
-        delegated = EventCandidate("delegated", {}, "cycle")
+        delegated = EventCandidate("delegated", {"role": "implementer", "model": "claude-fable-5"}, "cycle")
         self.assertTrue(validate_event(binding, events, delegated).ok)
         events.append({"version": 2, "sequence": 5, "event_type": "delegated"})
 

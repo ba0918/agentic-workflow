@@ -144,7 +144,7 @@ class ImplementDistributionTest(unittest.TestCase):
             ).stdout.strip()
             plan = resolved_plan(approval)
             run = repository.bind_run(root, plan, run_id="run-1", delegated=True).required()
-            first = context.append_event(run, "delegated", {"role": "implementer"})
+            first = context.append_event(run, "delegated", {"role": "implementer", "model": "claude-fable-5"})
             second = context.append_event(run, "returned", {"outcome": "completed"})
             self.assertTrue(first.ok and second.ok)
             names = [path.name for path in sorted(run.evidence_path.glob("*.json"))]
@@ -165,7 +165,7 @@ class ImplementDistributionTest(unittest.TestCase):
             run = repository.bind_run(root, plan, run_id="run-1", delegated=False).required()
             result = context.append_event(run, "human_gate", {"reason": "writer contract check"}, actor="implement")
             self.assertTrue(result.ok, result.error)
-            blocked = context.append_event(run, "delegated", {}, actor="cycle")
+            blocked = context.append_event(run, "delegated", {"role": "implementer", "model": "claude-fable-5"}, actor="cycle")
             self.assertFalse(blocked.ok)
             self.assertEqual(blocked.required_error().code, "writer_not_allowed")
 
@@ -175,7 +175,7 @@ class ImplementDistributionTest(unittest.TestCase):
             root = Path(directory)
             plan = resolved_plan("a" * 40)
             run = repository.bind_run(root, plan, run_id="run-1", delegated=True).required()
-            self.assertTrue(context.append_event(run, "delegated", {"role": "implementer"}, actor="cycle").ok)
+            self.assertTrue(context.append_event(run, "delegated", {"role": "implementer", "model": "claude-fable-5"}, actor="cycle").ok)
             blocked = context.append_event(run, "human_gate", {"reason": "not cycle evidence"}, actor="cycle")
             self.assertFalse(blocked.ok)
             self.assertEqual(blocked.required_error().code, "writer_not_allowed")
@@ -201,7 +201,7 @@ class ImplementDistributionTest(unittest.TestCase):
             root = Path(directory)
             plan = resolved_plan("a" * 40)
             run = repository.bind_run(root, plan, run_id="run-1", delegated=True).required()
-            self.assertTrue(context.append_event(run, "delegated", {}, actor="cycle").ok)
+            self.assertTrue(context.append_event(run, "delegated", {"role": "implementer", "model": "claude-fable-5"}, actor="cycle").ok)
             self.assertTrue(context.append_event(run, "returned", {}, actor="cycle").ok)
             blocked = context.append_event(run, "recovering", {"reason": "after delegation"}, actor="implement")
             self.assertFalse(blocked.ok)
@@ -324,7 +324,7 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=True, branch=branch, worktree=str(root),
             ).required()
-            self.assertTrue(context.append_event(run, "delegated", {"role": "implementer"}, actor="cycle").ok)
+            self.assertTrue(context.append_event(run, "delegated", {"role": "implementer", "model": "claude-fable-5"}, actor="cycle").ok)
             self.assertTrue(context.record_stage(
                 run, "1", "red", context.StageObservation(
                     "test cmd", 1, ["tests/example_test.py"]

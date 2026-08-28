@@ -302,7 +302,7 @@ class ImplementResumeTest(RepositoryFixture, unittest.TestCase):
                     root, plan, run_id="run-1", delegated=True,
                     branch=branch, worktree=str(root),
                 ).value
-                self.assertTrue(context.append_event(run, "delegated", {}, actor="cycle").ok)
+                self.assertTrue(context.append_event(run, "delegated", {"role": "implementer", "model": "claude-fable-5"}, actor="cycle").ok)
                 self.assertTrue(context.append_event(run, "returned", {}, actor="cycle").ok)
 
                 if action == "resume":
@@ -451,6 +451,33 @@ class ImplementCliTest(RepositoryFixture, unittest.TestCase):
                 "human-gate", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
                 "--step", "1", "--gate-id", "approve-app", "--result", "approved",
             ])
+    def test_delegated_cli_records_runner_and_model_readable_from_current_status(self) -> None:
+        root = self.fixture()
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"],
+            text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        selector = ["--repo", str(root), "--plan-key", "example", "--run-id", "run-1"]
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main([
+                "bind", "--repo", str(root), "--plan-path", "docs/plans/example.md",
+                "--run-id", "run-1", "--branch", branch, "--worktree", str(root), "--delegated",
+            ]), 0)
+            self.assertEqual(cli.main([
+                "delegated", *selector, "--role", "codex", "--model", "claude-fable-5",
+            ]), 0)
+        run = repository.load_run(root, "example", "run-1").required()
+        status = json.loads((run.evidence_path / "current-status").read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            {key: status["last_event"].get(key) for key in ("event_type", "role", "model")},
+            {"event_type": "delegated", "role": "codex", "model": "claude-fable-5"},
+        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main(["returned", *selector, "--outcome", "done"]), 0)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            cli.main(["delegated", *selector, "--model", "claude-fable-5"])
+
     def test_cli_resumes_a_stopped_delegation_after_cycle_returns_it(self) -> None:
         root = self.fixture()
         branch = subprocess.run(
@@ -465,11 +492,11 @@ class ImplementCliTest(RepositoryFixture, unittest.TestCase):
                 "--run-id", "run-1", "--branch", branch, "--worktree", str(root),
                 "--delegated",
             ]), 0)
-            self.assertEqual(cli.main(["delegated", *selector]), 0)
+            self.assertEqual(cli.main(["delegated", *selector, "--role", "implementer", "--model", "claude-fable-5"]), 0)
             self.assertEqual(cli.main(["stop", *selector, "--reason", "human decision"]), 0)
             self.assertEqual(cli.main(["returned", *selector]), 0)
             self.assertEqual(cli.main(["resume", *selector]), 0)
-            self.assertEqual(cli.main(["delegated", *selector]), 0)
+            self.assertEqual(cli.main(["delegated", *selector, "--role", "implementer", "--model", "claude-fable-5"]), 0)
             self.assertEqual(cli.main([
                 "stage", *selector, "--step", "1", "--phase", "check",
                 "--command", "lint", "--exit-code", "0",

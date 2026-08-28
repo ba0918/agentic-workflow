@@ -94,8 +94,11 @@ def _transition_parsers(add_parser: Callable[[str], argparse.ArgumentParser]) ->
     _run_arguments(complete)
     delegated = add_parser("delegated")
     _run_arguments(delegated)
+    delegated.add_argument("--role", required=True, help="who received the delegation")
+    delegated.add_argument("--model", required=True, help="full model id of the delegate")
     returned = add_parser("returned")
     _run_arguments(returned)
+    returned.add_argument("--outcome")
 
 
 def _string(args: argparse.Namespace, name: str) -> str:
@@ -304,8 +307,13 @@ def _bound_command(
         )
     if command in {"rebound", "follow-documents", "complete"}:
         return _document_command(parser, args, run, command)
-    actor = "cycle" if command in {"delegated", "returned"} else None
-    return append_event(run, command, {}, actor=actor)
+    if command == "delegated":
+        fields: JsonObject = {"role": _string(args, "role"), "model": _string(args, "model")}
+        return append_event(run, command, fields, actor="cycle")
+    outcome = _optional_string(args, "outcome")
+    return append_event(
+        run, command, {} if outcome is None else {"outcome": outcome}, actor="cycle",
+    )
 
 
 def _history_command(

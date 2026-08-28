@@ -83,7 +83,11 @@ def _status(binding: JsonObject, event_values: list[JsonObject], event: JsonObje
     return {
         "plan": {"path": binding.get("plan_path"), "approval_commit": approval_commit},
         "completed_steps": completed,
-        "last_event": {"event_type": event["event_type"], "reason": reason},
+        "last_event": {
+            "event_type": event["event_type"],
+            "reason": reason,
+            **{name: event[name] for name in ("role", "model") if name in event},
+        },
         "worktree": {"branch": binding.get("branch"), "path": binding.get("worktree")},
     }
 

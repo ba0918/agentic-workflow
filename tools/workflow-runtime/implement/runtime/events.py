@@ -80,6 +80,12 @@ def _boundary_error(
         return RuntimeFailure(
             "worktree_binding_invalid", "worktree-bound must be the first event and match binding"
         )
+    if event_type == "delegated" and any(
+        not isinstance(fields.get(name), str) or not fields[name] for name in ("role", "model")
+    ):
+        return RuntimeFailure(
+            "event_field_missing", "delegated must record the runner (role) and the model"
+        )
     return None
 
 
