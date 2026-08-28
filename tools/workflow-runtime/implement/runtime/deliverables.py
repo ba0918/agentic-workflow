@@ -1,6 +1,7 @@
 """Evidence payloads for non-test completion kinds."""
+from runtime.types import JsonObject
 
-def artifact_event(step: str, paths: list[str], checks: list[dict]) -> dict:
+def artifact_event(step: str, paths: list[str], checks: list[JsonObject]) -> JsonObject:
     return {
         "event_type": "artifact",
         "step": step,
@@ -8,7 +9,7 @@ def artifact_event(step: str, paths: list[str], checks: list[dict]) -> dict:
         "checks": list(checks),
     }
 
-def external_event(step: str, checked: str, summary: str) -> dict:
+def external_event(step: str, checked: str, summary: str) -> JsonObject:
     return {
         "event_type": "external",
         "step": step,
@@ -16,7 +17,7 @@ def external_event(step: str, checked: str, summary: str) -> dict:
         "summary": summary,
     }
 
-def check_event(step: str, checks: list[dict], paths: list[str]) -> dict:
+def check_event(step: str, checks: list[JsonObject], paths: list[str]) -> JsonObject:
     return {
         "event_type": "check",
         "step": step,

@@ -1,4 +1,5 @@
 from pathlib import Path
+import inspect
 import json
 import subprocess
 import sys
@@ -8,12 +9,12 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/workflow-runtime/implement"))
 from runtime import deps
-from runtime import context, deliverables, gates, repository, secret_detect, storage, tdd
-from runtime.types import ResolvedPlan
+from runtime import context, deliverables, events, gates, repository, secret_detect, storage, tdd
+from runtime.types import JsonObject, ResolvedPlan, object_value, object_values
 
 def resolved_plan(
     approval: str, *, expected_paths: tuple[str, ...] = (),
-    steps: tuple[dict, ...] = ({"id": "1", "completion": "check"},),
+    steps: tuple[JsonObject, ...] = ({"id": "1", "completion": "check"},),
 ) -> ResolvedPlan:
     normalized_steps = tuple({
         **step,
@@ -44,12 +45,15 @@ class ImplementDistributionTest(unittest.TestCase):
             plan = resolved_plan("a" * 40, expected_paths=("src/app.py",))
             result = repository.bind_run(root, plan, run_id="run-1", delegated=True)
             self.assertTrue(result.ok, result.error)
-            run = result.value
+            run = result.required()
             self.assertEqual(run.evidence_path.relative_to(root).as_posix(), ".agents/evidence/plan-a/run-1")
             binding = storage.read_json(run.binding_path)
-            self.assertEqual(binding.value["approval_commit"], "a" * 40)
-            self.assertEqual(binding.value["steps"][0]["checks"], ["lint"])
-            self.assertNotIn("identity", str(binding.value))
+            self.assertEqual(binding.required()["approval_commit"], "a" * 40)
+            steps = object_values(binding.required().get("steps"))
+            if not steps:
+                self.fail("binding steps are unavailable")
+            self.assertEqual(steps[0].get("checks"), ["lint"])
+            self.assertNotIn("identity", str(binding.required()))
 
     def test_bind_validates_every_contract_before_creation_and_cleans_failed_initial_event(self) -> None:
         import tempfile
@@ -104,43 +108,46 @@ class ImplementDistributionTest(unittest.TestCase):
                 ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
             ).stdout.strip()
             plan = resolved_plan(approval)
-            run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
+            run = repository.bind_run(root, plan, run_id="run-1", delegated=True).required()
             first = context.append_event(run, "delegated", {"role": "implementer"})
             second = context.append_event(run, "returned", {"outcome": "completed"})
             self.assertTrue(first.ok and second.ok)
             names = [path.name for path in sorted(run.evidence_path.glob("*.json"))]
             self.assertEqual(names, ["000001-delegated.json", "000002-returned.json", "binding.json"])
             self.assertTrue((run.evidence_path / "current-status").is_file())
-            self.assertNotIn("identity", second.value)
+            self.assertNotIn("identity", second.required())
             with self.assertRaises(FileExistsError):
-                storage.write_once(first.value["path"], b"replacement")
+                event_path = first.required().get("path")
+                if not isinstance(event_path, Path):
+                    self.fail("event path is unavailable")
+                storage.write_once(event_path, b"replacement")
 
     def test_direct_implementations_can_append_evidence(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plan = resolved_plan("a" * 40)
-            run = repository.bind_run(root, plan, run_id="run-1", delegated=False).value
+            run = repository.bind_run(root, plan, run_id="run-1", delegated=False).required()
             result = context.append_event(run, "human_gate", {"reason": "writer contract check"}, actor="implement")
             self.assertTrue(result.ok, result.error)
             blocked = context.append_event(run, "delegated", {}, actor="cycle")
             self.assertFalse(blocked.ok)
-            self.assertEqual(blocked.error.code, "writer_not_allowed")
+            self.assertEqual(blocked.required_error().code, "writer_not_allowed")
 
     def test_cycle_cannot_write_implementation_evidence_during_delegation(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plan = resolved_plan("a" * 40)
-            run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
+            run = repository.bind_run(root, plan, run_id="run-1", delegated=True).required()
             self.assertTrue(context.append_event(run, "delegated", {"role": "implementer"}, actor="cycle").ok)
             blocked = context.append_event(run, "human_gate", {"reason": "not cycle evidence"}, actor="cycle")
             self.assertFalse(blocked.ok)
-            self.assertEqual(blocked.error.code, "writer_not_allowed")
+            self.assertEqual(blocked.required_error().code, "writer_not_allowed")
             self.assertTrue(context.append_event(run, "human_gate", {"reason": "implement evidence"}, actor="implement").ok)
             wrong_boundary_writer = context.append_event(run, "returned", {}, actor="implement")
             self.assertFalse(wrong_boundary_writer.ok)
-            self.assertEqual(wrong_boundary_writer.error.code, "writer_not_allowed")
+            self.assertEqual(wrong_boundary_writer.required_error().code, "writer_not_allowed")
             self.assertTrue(context.append_event(run, "returned", {"outcome": "returned"}, actor="cycle").ok)
 
     def test_delegated_implement_cannot_write_before_delegation_starts(self) -> None:
@@ -148,22 +155,22 @@ class ImplementDistributionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plan = resolved_plan("a" * 40)
-            run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
+            run = repository.bind_run(root, plan, run_id="run-1", delegated=True).required()
             blocked = context.append_event(run, "recovering", {"reason": "before delegation"}, actor="implement")
             self.assertFalse(blocked.ok)
-            self.assertEqual(blocked.error.code, "writer_not_allowed")
+            self.assertEqual(blocked.required_error().code, "writer_not_allowed")
 
     def test_delegated_implement_cannot_write_after_delegation_finishes(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plan = resolved_plan("a" * 40)
-            run = repository.bind_run(root, plan, run_id="run-1", delegated=True).value
+            run = repository.bind_run(root, plan, run_id="run-1", delegated=True).required()
             self.assertTrue(context.append_event(run, "delegated", {}, actor="cycle").ok)
             self.assertTrue(context.append_event(run, "returned", {}, actor="cycle").ok)
             blocked = context.append_event(run, "recovering", {"reason": "after delegation"}, actor="implement")
             self.assertFalse(blocked.ok)
-            self.assertEqual(blocked.error.code, "writer_not_allowed")
+            self.assertEqual(blocked.required_error().code, "writer_not_allowed")
 
     def test_implementation_green_cannot_be_appended_or_faked(self) -> None:
         import tempfile
@@ -172,12 +179,14 @@ class ImplementDistributionTest(unittest.TestCase):
             plan = resolved_plan("a" * 40, steps=({"id": "1", "completion": "test"},))
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
-            ).value
+            ).required()
             result = context.append_event(run, "implementation_green", {}, actor="implement")
             self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "event_not_recordable")
+            self.assertEqual(result.required_error().code, "event_not_recordable")
             with self.assertRaises(TypeError):
-                context.append_event(run, "implementation_green", {}, actor="implement", _derived=True)
+                inspect.signature(context.append_event).bind(
+                    run, "implementation_green", {}, actor="implement", _derived=True
+                )
 
     def test_generic_append_cannot_record_commit_evidence(self) -> None:
         import tempfile
@@ -186,10 +195,10 @@ class ImplementDistributionTest(unittest.TestCase):
             plan = resolved_plan("a" * 40)
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
-            ).value
+            ).required()
             result = context.append_event(run, "commit", {"step": "1", "commit": "b" * 40})
             self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "event_not_recordable")
+            self.assertEqual(result.required_error().code, "event_not_recordable")
 
     def test_empty_run_and_invalid_test_transition_cannot_complete(self) -> None:
         import tempfile
@@ -198,24 +207,29 @@ class ImplementDistributionTest(unittest.TestCase):
             empty = repository.bind_run(
                 root, resolved_plan("a" * 40, steps=()), run_id="empty", delegated=False,
             )
-            self.assertEqual(empty.error.code, "step_contract_invalid")
+            self.assertEqual(empty.required_error().code, "step_contract_invalid")
             (root / "tests").mkdir()
             (root / "tests/example_test.py").write_text("test bytes\n", encoding="utf-8")
             plan = resolved_plan("a" * 40, steps=({"id": "1", "completion": "test"},))
             run = repository.bind_run(
                 root, plan, run_id="ordered", delegated=False,
-            ).value
+            ).required()
             self.assertTrue(context.record_stage(
-                run, "1", "red", command="test", exit_code=1, test_paths=["tests/example_test.py"],
+                run, "1", "red", context.StageObservation("test", 1, ["tests/example_test.py"]),
             ).ok)
-            self.assertTrue(context.record_stage(run, "1", "green", command="test", exit_code=0).ok)
             self.assertTrue(context.record_stage(
-                run, "1", "red", command="new test", exit_code=1, test_paths=["tests/example_test.py"],
+                run, "1", "green", context.StageObservation("test", 0),
             ).ok)
-            invalid = context.record_stage(run, "1", "refactor", command="new test", exit_code=0)
+            self.assertTrue(context.record_stage(
+                run, "1", "red", context.StageObservation("new test", 1, ["tests/example_test.py"]),
+            ).ok)
+            invalid = context.record_stage(
+                run, "1", "refactor", context.StageObservation("new test", 0),
+            )
             self.assertFalse(invalid.ok)
-            self.assertEqual(invalid.error.code, "transition_invalid")
+            self.assertEqual(invalid.required_error().code, "transition_invalid")
 
+class ImplementLifecycleEvidenceTest(unittest.TestCase):
     def test_stopped_run_accepts_only_resume_or_rebound_and_status_tracks_rebound(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
@@ -235,7 +249,7 @@ class ImplementDistributionTest(unittest.TestCase):
             plan = resolved_plan(approval)
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
-            ).value
+            ).required()
             self.assertTrue(context.stop_run(run, "important decision").ok)
             blocked = context.append_event(
                 run, "check", {"step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": []}
@@ -274,19 +288,29 @@ class ImplementDistributionTest(unittest.TestCase):
             )
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=True, branch=branch, worktree=str(root),
-            ).value
+            ).required()
             self.assertTrue(context.append_event(run, "delegated", {"role": "implementer"}, actor="cycle").ok)
             self.assertTrue(context.record_stage(
-                run, "1", "red", command="test cmd", exit_code=1, test_paths=["tests/example_test.py"],
+                run, "1", "red", context.StageObservation(
+                    "test cmd", 1, ["tests/example_test.py"]
+                ),
             ).ok)
-            command_drift = context.record_stage(run, "1", "green", command="other cmd", exit_code=0)
-            self.assertEqual(command_drift.error.code, "frozen_red_mismatch")
+            command_drift = context.record_stage(
+                run, "1", "green", context.StageObservation("other cmd", 0),
+            )
+            self.assertEqual(command_drift.required_error().code, "frozen_red_mismatch")
             test_path.write_text("changed fixture\n", encoding="utf-8")
-            fixture_drift = context.record_stage(run, "1", "green", command="test cmd", exit_code=0)
-            self.assertEqual(fixture_drift.error.code, "frozen_red_mismatch")
+            fixture_drift = context.record_stage(
+                run, "1", "green", context.StageObservation("test cmd", 0),
+            )
+            self.assertEqual(fixture_drift.required_error().code, "frozen_red_mismatch")
             test_path.write_text("test bytes\n", encoding="utf-8")
-            self.assertTrue(context.record_stage(run, "1", "green", command="test cmd", exit_code=0).ok)
-            self.assertTrue(context.record_stage(run, "1", "refactor", command="test cmd", exit_code=0).ok)
+            self.assertTrue(context.record_stage(
+                run, "1", "green", context.StageObservation("test cmd", 0),
+            ).ok)
+            self.assertTrue(context.record_stage(
+                run, "1", "refactor", context.StageObservation("test cmd", 0),
+            ).ok)
             (root / "README.md").write_text("implemented\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "README.md"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "implement"], check=True)
@@ -296,7 +320,7 @@ class ImplementDistributionTest(unittest.TestCase):
             self.assertTrue(context.record_commit(run, "1", implementation_commit).ok)
             completed = context.complete_run(run)
             self.assertTrue(completed.ok, completed.error)
-            self.assertEqual(completed.value["event_type"], "implementation_green")
+            self.assertEqual(completed.required()["event_type"], "implementation_green")
             returned = context.append_event(run, "returned", {"outcome": "completed"}, actor="cycle")
             self.assertTrue(returned.ok, returned.error)
             status = json.loads((run.evidence_path / "current-status").read_text(encoding="utf-8"))
@@ -318,12 +342,12 @@ class ImplementDistributionTest(unittest.TestCase):
             plan = resolved_plan(commit)
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False, branch=branch, worktree=str(root),
-            ).value
+            ).required()
             checked = context.append_event(run, "check", {
                 "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
             })
             self.assertTrue(checked.ok, checked.error)
-            self.assertEqual(checked.value["changed_paths"], [])
+            self.assertEqual(checked.required()["changed_paths"], [])
             self.assertTrue(context.complete_run(run).ok)
 
     def test_check_requires_every_plan_command_in_declared_order(self) -> None:
@@ -350,7 +374,7 @@ class ImplementDistributionTest(unittest.TestCase):
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
                 branch=branch, worktree=str(root),
-            ).value
+            ).required()
 
             partial = context.append_event(run, "check", {
                 "step": "1", "checks": [{"command": "first-check", "exit_code": 0}], "paths": [],
@@ -376,9 +400,9 @@ class ImplementDistributionTest(unittest.TestCase):
     def test_existing_v2_check_contract_without_declared_commands_keeps_its_meaning(self) -> None:
         binding = {"version": 2, "delegated": False, "steps": [{"id": "1", "completion": "check"}]}
 
-        result = context._validate_event(binding, [], "check", {
+        result = events.validate_event(binding, [], events.EventCandidate("check", {
             "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
-        }, "implement", False)
+        }, "implement"))
 
         self.assertTrue(result.ok, result.error)
 
@@ -403,10 +427,10 @@ class ImplementDistributionTest(unittest.TestCase):
             )
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False, branch="main", worktree=str(root),
-            ).value
+            ).required()
             wording_run = repository.bind_run(
                 root, plan, run_id="wording", delegated=False, branch="main", worktree=str(root),
-            ).value
+            ).required()
             (root / "app.txt").write_text("done\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
             self.assertTrue(context.append_event(run, "check", {
@@ -435,10 +459,15 @@ class ImplementDistributionTest(unittest.TestCase):
             self.assertTrue(context.rebound_run(
                 run, revised, "approved revision", mappings=[{"old": "1", "new": "1"}],
             ).ok)
-            self.assertEqual(context.load_events(run).value[-1]["steps"][0]["checks"], ["lint"])
+            last_event = context.load_events(run).required()[-1]
+            steps = object_values(last_event.get("steps"))
+            if not steps:
+                self.fail("rebound steps are unavailable")
+            self.assertEqual(steps[0].get("checks"), ["lint"])
             completed = context.complete_run(run)
             self.assertTrue(completed.ok, completed.error)
 
+class ImplementSafetyEvidenceTest(unittest.TestCase):
     def test_document_follow_rejects_a_duplicate_specification_heading(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
@@ -460,7 +489,7 @@ class ImplementDistributionTest(unittest.TestCase):
             run = repository.bind_run(
                 root, resolved_plan(approval), run_id="run-1", delegated=False,
                 branch="main", worktree=str(root),
-            ).value
+            ).required()
             (root / "docs/spec/a.md").write_text(
                 "# Contract\n\n## Contract\n", encoding="utf-8",
             )
@@ -476,7 +505,7 @@ class ImplementDistributionTest(unittest.TestCase):
             )
 
             self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "document_commit_invalid")
+            self.assertEqual(result.required_error().code, "document_commit_invalid")
 
     def test_dangerous_commit_path_cannot_be_recorded_or_completed(self) -> None:
         import tempfile
@@ -493,7 +522,7 @@ class ImplementDistributionTest(unittest.TestCase):
             plan = resolved_plan(approval, expected_paths=(".env.production",))
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False, branch=branch, worktree=str(root),
-            ).value
+            ).required()
             (root / ".env.production").write_text("SECRET=value\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "-f", ".env.production"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "dangerous"], check=True)
@@ -503,7 +532,7 @@ class ImplementDistributionTest(unittest.TestCase):
             })
             recorded = context.record_commit(run, "1", dangerous)
             self.assertFalse(recorded.ok)
-            self.assertEqual(recorded.error.code, "dangerous_path")
+            self.assertEqual(recorded.required_error().code, "dangerous_path")
             self.assertFalse(context.complete_run(run).ok)
 
     def test_secret_shaped_content_is_rejected_without_exposing_its_value(self) -> None:
@@ -521,7 +550,7 @@ class ImplementDistributionTest(unittest.TestCase):
             plan = resolved_plan(approval, expected_paths=("config.py",))
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False, branch=branch, worktree=str(root),
-            ).value
+            ).required()
             for name in ("api_token", "TOKEN", "Secret", "CREDENTIAL"):
                 with self.subTest(name=name):
                     fake_value = f"fake_{name.lower()}_value_123456789"
@@ -531,7 +560,7 @@ class ImplementDistributionTest(unittest.TestCase):
                         "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": ["config.py"],
                     })
                     self.assertFalse(rejected.ok)
-                    self.assertEqual(rejected.error.code, "secret_content")
+                    self.assertEqual(rejected.required_error().code, "secret_content")
                     self.assertNotIn(fake_value, str(rejected.error))
 
     def test_secret_detector_covers_credentials_and_private_key_headers(self) -> None:
@@ -561,7 +590,7 @@ class ImplementDistributionTest(unittest.TestCase):
             plan = resolved_plan(approval, expected_paths=("config.py",))
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False, branch="main", worktree=str(root),
-            ).value
+            ).required()
             self.assertTrue(context.append_event(run, "check", {
                 "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
             }).ok)
@@ -572,7 +601,7 @@ class ImplementDistributionTest(unittest.TestCase):
             commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
             rejected = context.record_commit(run, "1", commit)
             self.assertFalse(rejected.ok)
-            self.assertEqual(rejected.error.code, "secret_content")
+            self.assertEqual(rejected.required_error().code, "secret_content")
             self.assertNotIn(fake_value, str(rejected.error))
             evidence = "".join(path.read_text(encoding="utf-8") for path in run.evidence_path.glob("*.json"))
             self.assertNotIn(fake_value, evidence)
@@ -596,7 +625,7 @@ class ImplementDistributionTest(unittest.TestCase):
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False,
                 branch="main", worktree=str(root),
-            ).value
+            ).required()
             subprocess.run(["git", "-C", str(root), "switch", "-qc", "side"], check=True)
             (root / "app.txt").write_text("side\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
@@ -607,7 +636,7 @@ class ImplementDistributionTest(unittest.TestCase):
                 "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
             }).ok)
             rejected = context.record_commit(run, "1", side)
-            self.assertEqual(rejected.error.code, "commit_not_on_branch")
+            self.assertEqual(rejected.required_error().code, "commit_not_on_branch")
             (root / "app.txt").write_text("main\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "app.txt"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "main change"], check=True)
@@ -617,15 +646,20 @@ class ImplementDistributionTest(unittest.TestCase):
                 "step": "2", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
             }).ok)
             duplicate = context.record_commit(run, "2", commit)
-            self.assertEqual(duplicate.error.code, "commit_already_recorded")
+            self.assertEqual(duplicate.required_error().code, "commit_already_recorded")
 
     def test_red_test_snapshot_freezes_files_and_command(self) -> None:
         snapshot = tdd.freeze_test(
             {"tests/example_test.py": b"test bytes"},
             command="python3 -m unittest tests.example_test",
         )
-        self.assertRegex(snapshot["files"]["tests/example_test.py"], r"^sha256:[0-9a-f]{64}$")
-        self.assertRegex(snapshot["command"], r"^sha256:[0-9a-f]{64}$")
+        files = object_value(snapshot.get("files"))
+        command = snapshot.get("command")
+        digest = files.get("tests/example_test.py") if files is not None else None
+        if not isinstance(digest, str) or not isinstance(command, str):
+            self.fail("test snapshot is invalid")
+        self.assertRegex(digest, r"^sha256:[0-9a-f]{64}$")
+        self.assertRegex(command, r"^sha256:[0-9a-f]{64}$")
         self.assertFalse(tdd.frozen_test_matches(
             snapshot,
             {"tests/example_test.py": b"test bytes"},
@@ -646,7 +680,7 @@ class ImplementDistributionTest(unittest.TestCase):
         for kind in ("artifact", "external", "step_commit", "history"):
             result = gates.validate_gate({"kind": kind, "reason": "ritual"})
             self.assertFalse(result.ok)
-            self.assertEqual(result.error.code, "human_gate_not_allowed")
+            self.assertEqual(result.required_error().code, "human_gate_not_allowed")
 
     def test_recovery_escalates_only_after_diagnosis_and_one_changed_method(self) -> None:
         self.assertEqual(gates.recovery_action(diagnosed=False, method_changed=False, still_stuck=True), "diagnose")

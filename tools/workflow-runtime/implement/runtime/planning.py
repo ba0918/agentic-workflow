@@ -2,7 +2,7 @@
 from pathlib import Path, PurePosixPath
 
 from runtime.deps import plan_artifact
-from runtime.types import ResolvedPlan, RuntimeResult, failure, ok
+from runtime.types import ResolvedPlan, RuntimeResult, failure, forward_failure, ok
 
 def safe_relative_path(value: object) -> bool:
     if not isinstance(value, str) or not value:
@@ -10,8 +10,8 @@ def safe_relative_path(value: object) -> bool:
     path = PurePosixPath(value)
     return not path.is_absolute() and ".." not in path.parts and "" not in path.parts
 
-def validate_relative_path(relative_path: object) -> RuntimeResult:
-    if not safe_relative_path(relative_path):
+def validate_relative_path(relative_path: object) -> RuntimeResult[str]:
+    if not isinstance(relative_path, str) or not safe_relative_path(relative_path):
         return failure("unsafe_path", "path must be repository-relative without traversal")
     return ok(relative_path)
 
@@ -24,7 +24,7 @@ def plan_candidates(project_root: Path) -> list[str]:
         if path.is_file() and not path.is_symlink() and path.suffix == ".md"
     )
 
-def locate_plan(project_root: Path, plan_path: str | None = None) -> RuntimeResult:
+def locate_plan(project_root: Path, plan_path: str | None = None) -> RuntimeResult[str]:
     if plan_path is not None:
         return ok(plan_path)
     candidates = plan_candidates(project_root)
@@ -34,12 +34,16 @@ def locate_plan(project_root: Path, plan_path: str | None = None) -> RuntimeResu
         return failure("plan_candidate_ambiguous", "several plans exist; name one explicitly", ", ".join(candidates))
     return ok(candidates[0])
 
-def resolve_plan(project_root: Path, *, plan_path: str | None = None) -> RuntimeResult:
+def resolve_plan(
+    project_root: Path, *, plan_path: str | None = None,
+) -> RuntimeResult[ResolvedPlan]:
     located = locate_plan(project_root, plan_path)
     if not located.ok:
-        return located
+        return forward_failure(
+            located.error, "plan_candidate_missing", "plan could not be located"
+        )
     try:
-        approved = plan_artifact.read_plan(project_root, located.value)
+        approved = plan_artifact.read_plan(project_root, located.required())
     except plan_artifact.PlanArtifactError as error:
         return failure("plan_invalid", str(error))
     return ok(ResolvedPlan(

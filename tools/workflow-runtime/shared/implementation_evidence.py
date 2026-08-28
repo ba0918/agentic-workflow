@@ -25,6 +25,16 @@ class EvidenceResult(NamedTuple):
     def ok(self) -> bool:
         return self.error is None
 
+    def required(self) -> JsonObject:
+        if self.value is None:
+            raise RuntimeError("implementation evidence result has no value")
+        return self.value
+
+    def required_error(self) -> EvidenceFailure:
+        if self.error is None:
+            raise RuntimeError("implementation evidence result has no failure")
+        return self.error
+
 
 def _ok(value: JsonObject) -> EvidenceResult:
     return EvidenceResult(value, None)

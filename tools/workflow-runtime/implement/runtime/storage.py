@@ -5,11 +5,10 @@ import json
 import os
 from pathlib import Path
 import tempfile
-from typing import Any
 
-from runtime.types import RuntimeResult, failure, ok
+from runtime.types import JsonObject, RuntimeResult, failure, ok
 
-def canonical_json(value: Any) -> bytes:
+def canonical_json(value: object) -> bytes:
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
 def write_once(path: Path, data: bytes) -> Path:
@@ -42,10 +41,13 @@ def write_atomic(path: Path, data: bytes) -> Path:
         temporary.unlink(missing_ok=True)
     return path
 
-def read_json(path: Path) -> RuntimeResult:
+def read_json(path: Path) -> RuntimeResult[JsonObject]:
     if path.is_symlink() or not path.is_file():
         return failure("evidence_unavailable", f"evidence is unavailable: {path.name}")
     try:
-        return ok(json.loads(path.read_text(encoding="utf-8")))
+        loaded: object = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict) or not all(isinstance(key, str) for key in loaded):
+            return failure("evidence_invalid", f"evidence is invalid: {path.name}")
+        return ok({str(key): value for key, value in loaded.items()})
     except (OSError, json.JSONDecodeError) as error:
         return failure("evidence_invalid", f"evidence is invalid: {path.name}", str(error))
