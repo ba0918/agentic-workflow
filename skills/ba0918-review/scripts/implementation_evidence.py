@@ -330,13 +330,14 @@ def _gate_satisfied(
     completion_carried: bool = False,
 ) -> bool:
     step_id = _text(step, "id")
-    gate_id = _text(gate, "gate_id")
-    approval = approvals.get((step_id or "", gate_id or ""))
+    timing = gate.get("timing")
+    raw = _raw_completion(step, events)
+    if timing == "before_commit" and raw is not None and raw[0] == raw[1]:
+        return True
+    approval = approvals.get((step_id or "", _text(gate, "gate_id") or ""))
     if approval is None or approval.event.get("result") != "approved":
         return False
-    timing = gate.get("timing")
     approval_index = _event_position(events, approval.event.get("sequence"))
-    raw = _raw_completion(step, events)
     if timing == "before_edit":
         return approval.carried or 0 <= approval_index < _first_step_work(events, step_id)
     if raw is None:
@@ -348,13 +349,15 @@ def _gate_satisfied(
         )
     evidence_position, completion_position = raw
     if timing == "before_commit":
-        if not approval.carried and not evidence_position < approval_index < completion_position:
-            return False
+        correctly_timed = approval.carried or (
+            evidence_position < approval_index < completion_position
+        )
         end = completion_position
     else:
-        if not approval.carried and approval_index <= completion_position:
-            return False
+        correctly_timed = approval.carried or approval_index > completion_position
         end = len(events)
+    if not correctly_timed:
+        return False
     start = approval_index + 1 if approval_index >= 0 else 0
     return not _target_changed(_object(gate.get("target")) or {}, events[start:end])
 

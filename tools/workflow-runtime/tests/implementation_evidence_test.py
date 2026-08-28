@@ -105,6 +105,37 @@ class HumanGateEvidenceTest(_EvidenceTestCase):
         self.assertTrue(approved.ok, approved.error)
         self.assertEqual(changed_after_approval.required_error().code, "human_gate_required")
 
+    def test_before_commit_gate_is_not_required_for_a_no_change_check(self) -> None:
+        binding = self.binding([{
+            "id": "1", "completion": "check",
+            "human_gates": [self.gate("before_commit")],
+        }])
+        events = [
+            self.event(1, "check", step="1", checks=[{"exit_code": 0}], changed_paths=[]),
+        ]
+
+        result = implementation_evidence.derive_implementation(binding, events)
+
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.required()["completed_steps"], ["1"])
+
+    def test_before_commit_gate_is_not_required_for_a_no_change_external_check(self) -> None:
+        binding = self.binding([{
+            "id": "1", "completion": "external",
+            "human_gates": [self.gate("before_commit")],
+        }])
+        events = [
+            self.event(
+                1, "external", step="1", checked="deployment", summary="available",
+                condition_met=True, changed_paths=[],
+            ),
+        ]
+
+        result = implementation_evidence.derive_implementation(binding, events)
+
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.required()["completed_steps"], ["1"])
+
     def test_before_implementation_green_gate_must_follow_step_completion_and_stay_current(self) -> None:
         binding = self.binding([{
             "id": "1", "completion": "check",

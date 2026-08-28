@@ -30,6 +30,9 @@ python3 scripts/implement_runtime.py human-gate \
 
 The runtime obtains the target, timing, and allowed results from the active binding. Do not accept
 caller replacements for those declaration fields or append a generic approval in their place.
+A `before_commit` gate applies only when Git-observed changed paths require the completed Step to
+produce a commit. When a check or external Step has no observed changed paths, do not request or
+record that gate; complete the Step without a commit.
 
 Bindings and events use version 2. Reject legacy version 1 rather than guessing its completion
 state. Binding stays append-only: `recovering` records harmless document following, while
