@@ -20,8 +20,17 @@ never implement, review, or fix the work in this context.
   only the selected run. Logical retirement preserves all resources and explicit recovery; cycle
   never physically deletes them or guesses abandonment from age. Do not repeat this startup choice
   between synchronous delegates in the same cycle.
-- Delegate synchronously. While a delegate is active it is the only evidence writer; outside a
-  delegation cycle records the delegation start and finish.
+- When the human starts a new run, create the run id, the branch `implement/<run-id>` and its
+  linked worktree from the plan's approval commit, and bind them with
+  `implement_runtime.py bind --delegated`. When the human continues an existing run, reuse its
+  binding and do not bind again. Record `delegated --role <runner> --model <full model id>`
+  before handing over and `returned [--outcome <summary>]` when the delegate returns.
+- Delegate synchronously. While a delegate is active it is the only evidence writer; cycle is the
+  only writer of the delegation boundaries and of `resumed` and `resume-candidate-retired`, which
+  it records only while no delegation is active: at startup before the first `delegated`, or
+  between `returned` and the next `delegated`. A stopped run refuses `delegated` until `resumed`
+  is appended. When the human chooses rebound, append `resumed` if the run is stopped, record
+  `delegated`, and have the delegated implement append `rebound` first; cycle cannot write it.
 - Delegate the whole remaining implementation phase at once. Do not split delegation by plan
   step. If context or quota ends a delegate, use the evidence to start the next delegate at the
   recorded boundary.

@@ -12,11 +12,11 @@ implementation, cycle records `delegated` and `returned`; implement writes only 
 boundaries and remains the sole writer of implementation steps, commands, and results until
 control returns.
 
-Use the runtime commands for branch/worktree binding, stage evidence, commit records, stop,
-declared Human gates, rebound, and completion. It validates event fields and order, derives safety
-from the actual Git
-staging area and commit objects, and derives
-`implementation_green`; never append it directly. The same append operation atomically refreshes
+Use the runtime commands for stage evidence, commit records, stop, declared Human gates, rebound,
+and completion. The runtime validates event fields and order, derives safety from the actual Git
+staging area and commit objects, and derives `implementation_green`; never append it directly.
+Branch/worktree binding belongs to whoever creates the run: implement in a direct run, cycle
+before delegating. The same append operation atomically refreshes
 `current-status` with the plan Git version, committed steps, last event/reason, and bound
 branch/worktree.
 
@@ -36,8 +36,8 @@ record that gate; complete the Step without a commit.
 
 Bindings and events use version 2. Reject legacy version 1 rather than guessing its completion
 state. Binding stays append-only: `recovering` records harmless document following, while
-`rebound` records the effective approval commit, Step contracts re-derived from that committed
-plan, and a caller-supplied validated one-to-one mapping.
+`rebound` records the effective approval commit, Step contracts and Scope re-derived from that
+committed plan, and a caller-supplied validated one-to-one mapping.
 
 Keep only bounded facts required for verification and hand-off: steps, commands and exit codes,
 safe summaries, commit SHAs, delegation boundaries, document-meaning decisions, recovery, stops,
@@ -50,7 +50,8 @@ checked, a bounded result summary, and whether the condition was met.
 
 Discovery validates the version 2 binding and complete event stream before choosing a run. Derive
 the resume point and a safe Git-backed summary before appending the single `resumed` event; a unique
-candidate is still shown to the human without automatic mutation. Binding records `started_at` at
+candidate is still shown to the human without automatic mutation. In a delegated run, cycle performs
+discovery and appends `resumed`; the delegated implement continues from the recorded boundary. Binding records `started_at` at
 creation; an older version 2 binding without it reports the value as unavailable and never guesses
 from file timestamps. A legacy or malformed run must return an error without changing its events or
 `current-status`. `resume-candidate-retired` is an append-only logical exclusion from default

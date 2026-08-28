@@ -23,8 +23,8 @@ Implement does not review, merge, publish, complete the plan, or delete executio
 
 - Read the named committed plan through `scripts/implement_runtime.py`. Its path stem is the plan
   key. Require its working bytes to equal the last commit that changed that plan, parse those
-  approved bytes, and return approved/current specification versions plus their Git diff for the
-  agent's semantic decision; wording-only specification drift is not an automatic rejection.
+  approved bytes, and return the approval and current commits of each changed specification plus
+  their Git diff for the agent's semantic decision; wording-only specification drift is not an automatic rejection.
 - Treat the approved plan's `Verification coverage` and `## Step N` sections as the sole source of
   complete Step contracts. Bind and rebound through the runtime without caller-supplied Step ids or
   completion kinds. Caller Step ids select an already-derived contract only for stage and commit

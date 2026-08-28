@@ -328,7 +328,6 @@ implement の証拠を参照する部分だけがありません。
 - 同じ実行に対して、2 つの review を同時に走らせません。review の記録ディレクトリが
   すでにあって終わっていなければ、人に見せて確認します。リポジトリ全体に 1 つの「使用中」の
   印は置きません
-- `.agents/evidence/reviews/` は人向けの報告の置き場で、機械が読む記録ではありません
 - 実行の全出力や外部サービスのログは記録に複製しません。秘密情報、個人情報、内部の
   ホスト名も記録しません
 
@@ -377,6 +376,22 @@ skills/ba0918-review/
 │       ├── skill.md          skill の文書用の観点（ステップ間の受け渡しを含む）
 │       └── document.md       説明文書と仕様書用の観点
 └── scripts/
-    ├── review_model.py       指摘と状態の構造
-    └── review_runtime.py     入力、確かめ方、記録の操作
+    ├── review_model.py             指摘と状態の構造
+    ├── review_runtime.py           入力、確かめ方、記録の操作の公開面
+    ├── review_support/             review_runtime.py が使う内部モジュール
+    │   ├── binding.py              入力の束ねと比較元の解決
+    │   ├── cli.py                  コマンドラインの受け口
+    │   ├── events.py               記録の追記と読み込み
+    │   ├── finding_validation.py   指摘の形の検査
+    │   ├── findings.py             指摘の集合の操作と収束の判定
+    │   ├── repository.py           記録の置き場所の解決
+    │   ├── types.py                共有するデータ型
+    │   └── validation.py           確かめ方の操作と文字列の安全検査
+    ├── implementation_evidence.py  implement の証拠から現在の状態を導く共有処理
+    ├── git_status.py               git status の解釈（implement と共有）
+    ├── path_safety.py              危険なパスの判定（implement と共有）
+    └── runtime/
+        └── secret_detect.py        秘密らしい内容の検出（implement と共有）
 ```
+
+パッケージの目印（`__init__.py`）は省いています。
