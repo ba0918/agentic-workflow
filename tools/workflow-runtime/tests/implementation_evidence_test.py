@@ -206,6 +206,90 @@ class HumanGateEvidenceTest(_EvidenceTestCase):
         self.assertTrue(refreshed.ok, refreshed.error)
 
 
+class CompletionFreshnessEvidenceTest(_EvidenceTestCase):
+    def test_only_the_latest_red_green_refactor_commit_chain_completes_a_test_step(self) -> None:
+        binding = self.binding([{"id": "1", "completion": "test"}])
+        first_chain = [
+            self.event(1, "red", step="1", command="tests", exit_code=1, snapshot=self.snapshot()),
+            self.event(2, "green", step="1", command="tests", exit_code=0, snapshot=self.snapshot()),
+            self.event(3, "refactor", step="1", command="tests", exit_code=0, snapshot=self.snapshot()),
+            self.event(
+                4, "commit", step="1", commit="b" * 40,
+                safety={"paths": ["app.txt"], "unplanned": []},
+            ),
+        ]
+        restarted = implementation_evidence.derive_implementation(binding, [
+            *first_chain,
+            self.event(5, "red", step="1", command="tests", exit_code=1, snapshot=self.snapshot()),
+        ])
+        refreshed = implementation_evidence.derive_implementation(binding, [
+            *first_chain,
+            self.event(5, "red", step="1", command="tests", exit_code=1, snapshot=self.snapshot()),
+            self.event(6, "green", step="1", command="tests", exit_code=0, snapshot=self.snapshot()),
+            self.event(7, "refactor", step="1", command="tests", exit_code=0, snapshot=self.snapshot()),
+            self.event(
+                8, "commit", step="1", commit="c" * 40,
+                safety={"paths": ["app.txt"], "unplanned": []},
+            ),
+        ])
+
+        self.assertTrue(restarted.ok, restarted.error)
+        self.assertEqual(restarted.required()["completed_steps"], [])
+        self.assertEqual(restarted.required()["resume_step"], "1")
+        self.assertTrue(refreshed.ok, refreshed.error)
+        self.assertEqual(refreshed.required()["completed_steps"], ["1"])
+
+    def test_artifact_requires_a_nonempty_target_and_a_covering_commit(self) -> None:
+        binding = self.binding([{"id": "1", "completion": "artifact"}])
+        empty = implementation_evidence.derive_implementation(binding, [
+            self.event(
+                1, "artifact", step="1", checks=[], paths=[], changed_paths=["report.md"],
+            ),
+        ])
+        artifact = self.event(
+            1, "artifact", step="1", checks=[], paths=["report.md"],
+            changed_paths=["report.md"],
+        )
+        unrelated = implementation_evidence.derive_implementation(binding, [
+            artifact,
+            self.event(
+                2, "commit", step="1", commit="b" * 40,
+                safety={"paths": ["other.txt"], "unplanned": []},
+            ),
+        ])
+        covering = implementation_evidence.derive_implementation(binding, [
+            artifact,
+            self.event(
+                2, "commit", step="1", commit="b" * 40,
+                safety={"paths": ["other.txt", "report.md"], "unplanned": []},
+            ),
+        ])
+
+        self.assertEqual(empty.required_error().code, "transition_invalid")
+        self.assertTrue(unrelated.ok, unrelated.error)
+        self.assertEqual(unrelated.required()["completed_steps"], [])
+        self.assertEqual(unrelated.required()["resume_step"], "1")
+        self.assertTrue(covering.ok, covering.error)
+        self.assertEqual(covering.required()["completed_steps"], ["1"])
+
+    def test_existing_version_two_artifact_without_paths_uses_its_changed_paths(self) -> None:
+        binding = self.binding([{"id": "1", "completion": "artifact"}])
+        events = [
+            self.event(
+                1, "artifact", step="1", checks=[], changed_paths=["legacy-report.md"],
+            ),
+            self.event(
+                2, "commit", step="1", commit="b" * 40,
+                safety={"paths": ["legacy-report.md"], "unplanned": []},
+            ),
+        ]
+
+        result = implementation_evidence.derive_implementation(binding, events)
+
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(result.required()["completed_steps"], ["1"])
+
+
 class ImplementationEvidenceTest(_EvidenceTestCase):
 
     def test_completion_and_resume_follow_each_completion_kind(self) -> None:

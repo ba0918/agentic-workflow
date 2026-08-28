@@ -205,6 +205,12 @@ def _declared_checks_match(step: JsonObject, checks: list[JsonObject]) -> bool:
     return declared is None or [check.get("command") for check in checks] == declared
 
 
+def _artifact_paths(event: JsonObject) -> list[str] | None:
+    if "paths" in event:
+        return _strings(event.get("paths"))
+    return _strings(event.get("changed_paths"))
+
+
 def _valid_evidence(step: JsonObject, event: JsonObject) -> bool:
     completion = _text(step, "completion")
     event_type = _text(event, "event_type")
@@ -217,6 +223,8 @@ def _valid_evidence(step: JsonObject, event: JsonObject) -> bool:
     checks = _objects(event.get("checks"))
     if checks is None or completion == "check" and not checks:
         return False
+    if completion == "artifact" and not _artifact_paths(event):
+        return False
     succeeded = all(check.get("exit_code") == 0 for check in checks)
     return succeeded and (completion != "check" or _declared_checks_match(step, checks))
 
@@ -228,9 +236,18 @@ class _GateApproval(NamedTuple):
 
 def _raw_completion(step: JsonObject, events: list[JsonObject]) -> tuple[int, int] | None:
     step_id = _text(step, "id")
+    last_red = -1
+    if _text(step, "completion") == "test":
+        last_red = max(
+            (
+                index for index, event in enumerate(events)
+                if event.get("step") == step_id and event.get("event_type") == "red"
+            ),
+            default=-1,
+        )
     positions = [
         index for index, event in enumerate(events)
-        if event.get("step") == step_id and _valid_evidence(step, event)
+        if index > last_red and event.get("step") == step_id and _valid_evidence(step, event)
     ]
     if not positions:
         return None
@@ -246,10 +263,22 @@ def _raw_completion(step: JsonObject, events: list[JsonObject]) -> tuple[int, in
             index for index in range(evidence_position + 1, len(events))
             if events[index].get("event_type") == "commit"
             and events[index].get("step") == step_id
+            and _commit_covers_artifact(step, events[evidence_position], events[index])
         ),
         None,
     )
     return None if commit_position is None else (evidence_position, commit_position)
+
+
+def _commit_covers_artifact(
+    step: JsonObject, evidence: JsonObject, commit: JsonObject,
+) -> bool:
+    if _text(step, "completion") != "artifact":
+        return True
+    safety = _object(commit.get("safety")) or {}
+    committed = set(_strings(safety.get("paths")) or [])
+    targets = set(_artifact_paths(evidence) or [])
+    return bool(targets) and targets <= committed
 
 
 def _target_changed(target: JsonObject, events: list[JsonObject]) -> bool:
@@ -596,12 +625,7 @@ def _stage_evidence_valid(contract: JsonObject, event: JsonObject, event_type: s
         return completion == "external"
     if event_type not in {"check", "artifact"}:
         return True
-    checks = _objects(event.get("checks"))
-    if checks is None or any(check.get("exit_code") != 0 for check in checks):
-        return False
-    return completion == event_type and (
-        event_type != "check" or _declared_checks_match(contract, checks)
-    )
+    return completion == event_type and _valid_evidence(contract, event)
 
 
 def _apply_step_event(state: _Derivation, event: JsonObject) -> EvidenceFailure | None:
