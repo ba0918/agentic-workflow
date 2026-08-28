@@ -1,3 +1,4 @@
+import configparser
 from pathlib import Path
 import shutil
 import subprocess
@@ -27,6 +28,22 @@ class ConfigurationContractTest(unittest.TestCase):
         replacements = (
             ("pylint.rc", "duplicate-code", ""),
             ("pylint.rc", "plugins.design_checker", ""),
+            (
+                "pylint.rc",
+                "pure-layer-patterns=*/tools/workflow-runtime/review/review_model.py,"
+                "*/tools/workflow-runtime/shared/implementation_evidence.py",
+                "pure-layer-patterns=",
+            ),
+            (
+                "pylint.rc",
+                "pure-layer-forbidden-imports=fcntl,os,pathlib,shutil,socket,subprocess,tempfile",
+                "pure-layer-forbidden-imports=",
+            ),
+            (
+                "pylint.rc",
+                "pure-layer-forbidden-calls=input,open,print",
+                "pure-layer-forbidden-calls=",
+            ),
             ("mypy.ini", "strict = True", "strict = False"),
             ("mypy.ini", "[mypy]", "[mypy]\nignore_errors = True"),
             ("mypy.ini", "[mypy]", "[mypy]\nexclude = tools/quality"),
@@ -44,6 +61,24 @@ class ConfigurationContractTest(unittest.TestCase):
                 self.assertIn(before, text)
                 target.write_text(text.replace(before, after, 1), encoding="utf-8")
                 self.assertTrue(validate_configuration(root))
+
+    def test_pure_layer_boundaries_are_declared_in_canonical_configuration(self) -> None:
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.read(QUALITY_ROOT / "pylint.rc", encoding="utf-8")
+
+        self.assertEqual(
+            parser.get("BA0918-DESIGN", "pure-layer-patterns", fallback=""),
+            "*/tools/workflow-runtime/review/review_model.py,"
+            "*/tools/workflow-runtime/shared/implementation_evidence.py",
+        )
+        self.assertEqual(
+            parser.get("BA0918-DESIGN", "pure-layer-forbidden-imports", fallback=""),
+            "fcntl,os,pathlib,shutil,socket,subprocess,tempfile",
+        )
+        self.assertEqual(
+            parser.get("BA0918-DESIGN", "pure-layer-forbidden-calls", fallback=""),
+            "input,open,print",
+        )
 
 
 class QualityToolConfigurationTest(unittest.TestCase):

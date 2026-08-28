@@ -124,6 +124,33 @@ class DesignCheckerTest(unittest.TestCase):
         self.assertIn("E9004", completed.stdout)
         self.assertIn("Pure layer cannot call open directly", completed.stdout)
 
+    def test_canonical_pure_layer_rejects_direct_io_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = (
+                Path(directory)
+                / "tools"
+                / "workflow-runtime"
+                / "review"
+                / "review_model.py"
+            )
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                "import pathlib\n\n"
+                "def read_state() -> str:\n"
+                "    return open('state.txt').read()\n",
+                encoding="utf-8",
+            )
+
+            completed = self.run_pylint(
+                source,
+                f"--rcfile={PLUGIN_ROOT / 'pylint.rc'}",
+                "--enable=forbidden-layer-import,forbidden-pure-layer-call",
+            )
+
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("E9002", completed.stdout)
+        self.assertIn("E9004", completed.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,3 +8,8 @@ enable=F,E,W,invalid-name,disallowed-name,too-many-arguments,too-many-positional
 
 [REPORTS]
 score=no
+
+[BA0918-DESIGN]
+pure-layer-patterns=*/tools/workflow-runtime/review/review_model.py,*/tools/workflow-runtime/shared/implementation_evidence.py
+pure-layer-forbidden-imports=fcntl,os,pathlib,shutil,socket,subprocess,tempfile
+pure-layer-forbidden-calls=input,open,print

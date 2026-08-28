@@ -52,6 +52,16 @@ REQUIRED_PYLINT = frozenset(
         "forbidden-pure-layer-call",
     }
 )
+PURE_LAYER_OPTIONS = {
+    "pure-layer-patterns": frozenset({
+        "*/tools/workflow-runtime/review/review_model.py",
+        "*/tools/workflow-runtime/shared/implementation_evidence.py",
+    }),
+    "pure-layer-forbidden-imports": frozenset({
+        "fcntl", "os", "pathlib", "shutil", "socket", "subprocess", "tempfile",
+    }),
+    "pure-layer-forbidden-calls": frozenset({"input", "open", "print"}),
+}
 EXPECTED_CHECKS = (
     Check(
         "configuration-contract",
@@ -115,6 +125,16 @@ def _pylint_errors(path: Path) -> list[str]:
         errors.append("Pylint must select its canonical rules from disable=all")
     if parser.get("MAIN", "load-plugins", fallback="") != "plugins.design_checker":
         errors.append("Pylint must load the canonical design plugin")
+    for option, expected in PURE_LAYER_OPTIONS.items():
+        configured = frozenset(
+            item.strip()
+            for item in parser.get(
+                "BA0918-DESIGN", option, fallback=""
+            ).split(",")
+            if item.strip()
+        )
+        if configured != expected:
+            errors.append(f"Pylint {option} differs from the canonical boundary")
     return errors
 
 
