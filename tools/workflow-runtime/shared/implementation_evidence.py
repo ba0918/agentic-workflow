@@ -1,286 +1,547 @@
 """Canonical interpretation of version 2 implementation evidence."""
 from __future__ import annotations
 
-from typing import Any, NamedTuple
+import re
+from typing import NamedTuple
 
+
+JsonObject = dict[str, object]
 COMPLETIONS = {"test", "check", "artifact", "external"}
-SHA = __import__("re").compile(r"[0-9a-f]{40,64}")
+STEP_EVENTS = {"red", "green", "refactor", "check", "artifact", "external", "commit"}
+SHA = re.compile(r"[0-9a-f]{40,64}")
+DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
+
 
 class EvidenceFailure(NamedTuple):
     code: str
     message: str
 
+
 class EvidenceResult(NamedTuple):
-    value: Any | None
+    value: JsonObject | None
     error: EvidenceFailure | None
 
     @property
     def ok(self) -> bool:
         return self.error is None
 
-def _ok(value: Any) -> EvidenceResult:
+
+def _ok(value: JsonObject) -> EvidenceResult:
     return EvidenceResult(value, None)
+
 
 def _failure(code: str, message: str) -> EvidenceResult:
     return EvidenceResult(None, EvidenceFailure(code, message))
 
-def _steps(value: object) -> list[dict] | None:
-    if not isinstance(value, list):
+
+def _object(value: object) -> JsonObject | None:
+    if not isinstance(value, dict):
         return None
-    normalized: list[dict] = []
-    ids: set[str] = set()
-    for item in value:
-        if (
-            not isinstance(item, dict) or not isinstance(item.get("id"), str)
-            or not item["id"] or item.get("completion") not in COMPLETIONS or item["id"] in ids
-        ):
+    normalized: JsonObject = {}
+    for key, item in value.items():
+        if not isinstance(key, str):
             return None
-        checks = item.get("checks")
-        if checks is not None and (
-            not isinstance(checks, list)
-            or item["completion"] == "check" and (
-                not checks or not all(isinstance(command, str) and command for command in checks)
-            )
-            or item["completion"] != "check" and bool(checks)
-        ):
-            return None
-        ids.add(item["id"])
-        normalized.append({
-            "id": item["id"], "completion": item["completion"],
-            **({"checks": list(checks)} if checks is not None else {}),
-        })
+        normalized[key] = item
     return normalized
 
-def _declared_checks_match(step: dict, checks: list[dict]) -> bool:
+
+def _objects(value: object) -> list[JsonObject] | None:
+    if not isinstance(value, list):
+        return None
+    normalized: list[JsonObject] = []
+    for item in value:
+        object_value = _object(item)
+        if object_value is None:
+            return None
+        normalized.append(object_value)
+    return normalized
+
+
+def _text(value: JsonObject, field_name: str) -> str | None:
+    candidate = value.get(field_name)
+    return candidate if isinstance(candidate, str) and candidate else None
+
+
+def _steps(value: object) -> list[JsonObject] | None:
+    candidates = _objects(value)
+    if candidates is None:
+        return None
+    normalized: list[JsonObject] = []
+    identifiers: set[str] = set()
+    for item in candidates:
+        step_id = _text(item, "id")
+        completion = _text(item, "completion")
+        if step_id is None or completion not in COMPLETIONS or step_id in identifiers:
+            return None
+        checks = item.get("checks")
+        if not _valid_declared_checks(completion, checks):
+            return None
+        identifiers.add(step_id)
+        step: JsonObject = {"id": step_id, "completion": completion}
+        if isinstance(checks, list):
+            step["checks"] = list(checks)
+        normalized.append(step)
+    return normalized
+
+
+def _valid_declared_checks(completion: str, value: object) -> bool:
+    if value is None:
+        return True
+    if not isinstance(value, list):
+        return False
+    if completion != "check":
+        return not value
+    return bool(value) and all(isinstance(command, str) and command for command in value)
+
+
+def _declared_checks_match(step: JsonObject, checks: list[JsonObject]) -> bool:
     declared = step.get("checks")
     return declared is None or [check.get("command") for check in checks] == declared
 
-def _valid_evidence(step: dict, event: dict) -> bool:
-    kind = step["completion"]
-    if kind == "test":
-        return event.get("event_type") == "refactor" and event.get("exit_code") == 0
-    if event.get("event_type") != kind:
-        return False
-    if kind in {"check", "artifact"}:
-        checks = event.get("checks")
-        return isinstance(checks, list) and (kind == "artifact" or bool(checks)) and all(
-            isinstance(check, dict) and check.get("exit_code") == 0 for check in checks
-        ) and (kind != "check" or _declared_checks_match(step, checks))
-    return event.get("condition_met") is True
 
-def _completed_steps(steps: list[dict], events: list[dict]) -> set[str]:
+def _valid_evidence(step: JsonObject, event: JsonObject) -> bool:
+    completion = _text(step, "completion")
+    event_type = _text(event, "event_type")
+    if completion == "test":
+        return event_type == "refactor" and event.get("exit_code") == 0
+    if event_type != completion:
+        return False
+    if completion not in {"check", "artifact"}:
+        return event.get("condition_met") is True
+    checks = _objects(event.get("checks"))
+    if checks is None or completion == "check" and not checks:
+        return False
+    succeeded = all(check.get("exit_code") == 0 for check in checks)
+    return succeeded and (completion != "check" or _declared_checks_match(step, checks))
+
+
+def _completed_steps(steps: list[JsonObject], events: list[JsonObject]) -> set[str]:
     completed: set[str] = set()
     for step in steps:
-        positions = [index for index, event in enumerate(events) if event.get("step") == step["id"] and _valid_evidence(step, event)]
-        if not positions:
+        step_id = _text(step, "id")
+        if step_id is None:
             continue
-        evidence = events[positions[-1]]
-        commit_required = step["completion"] in {"test", "artifact"} or bool(evidence.get("changed_paths"))
-        has_commit = any(
-            event.get("event_type") == "commit" and event.get("step") == step["id"]
-            for event in events[positions[-1] + 1:]
-        )
-        if not commit_required or has_commit:
-            completed.add(step["id"])
+        positions = [
+            index
+            for index, event in enumerate(events)
+            if event.get("step") == step_id and _valid_evidence(step, event)
+        ]
+        if positions and _completion_has_commit(step, events, positions[-1]):
+            completed.add(step_id)
     return completed
 
-def _mapping(old_steps: list[dict], new_steps: list[dict], value: object) -> dict[str, str] | None:
-    if not isinstance(value, list):
-        return None
-    old = {step["id"]: step["completion"] for step in old_steps}
-    new = {step["id"]: step["completion"] for step in new_steps}
-    mapping: dict[str, str] = {}
-    targets: set[str] = set()
-    for item in value:
-        if (
-            not isinstance(item, dict) or item.get("old") not in old or item.get("new") not in new
-            or item["old"] in mapping or item["new"] in targets or old[item["old"]] != new[item["new"]]
-        ):
-            return None
-        mapping[item["old"]] = item["new"]
-        targets.add(item["new"])
-    return mapping
 
-def _safe_paths(value: object) -> bool:
-    return isinstance(value, list) and all(isinstance(path, str) and path for path in value)
-
-def _snapshot(value: object) -> bool:
-    if not isinstance(value, dict) or not isinstance(value.get("files"), dict):
-        return False
-    digest = __import__("re").compile(r"sha256:[0-9a-f]{64}")
-    return (
-        isinstance(value.get("command"), str) and digest.fullmatch(value["command"]) is not None
-        and all(isinstance(path, str) and path and isinstance(item, str) and digest.fullmatch(item) is not None
-                for path, item in value["files"].items())
+def _completion_has_commit(
+    step: JsonObject,
+    events: list[JsonObject],
+    evidence_position: int,
+) -> bool:
+    evidence = events[evidence_position]
+    completion = _text(step, "completion")
+    commit_required = completion in {"test", "artifact"} or bool(
+        evidence.get("changed_paths")
+    )
+    if not commit_required:
+        return True
+    step_id = _text(step, "id")
+    return any(
+        event.get("event_type") == "commit" and event.get("step") == step_id
+        for event in events[evidence_position + 1 :]
     )
 
-def _valid_event(event: dict) -> bool:
-    kind = event.get("event_type")
-    if not isinstance(kind, str) or not kind:
+
+def _mapping(
+    old_steps: list[JsonObject],
+    new_steps: list[JsonObject],
+    value: object,
+) -> dict[str, str] | None:
+    candidates = _objects(value)
+    if candidates is None:
+        return None
+    old = {_text(step, "id"): _text(step, "completion") for step in old_steps}
+    new = {_text(step, "id"): _text(step, "completion") for step in new_steps}
+    mapping: dict[str, str] = {}
+    targets: set[str] = set()
+    for item in candidates:
+        old_id = _text(item, "old")
+        new_id = _text(item, "new")
+        if old_id is None or new_id is None:
+            return None
+        if (
+            old_id not in old
+            or new_id not in new
+            or old_id in mapping
+            or new_id in targets
+            or old[old_id] != new[new_id]
+        ):
+            return None
+        mapping[old_id] = new_id
+        targets.add(new_id)
+    return mapping
+
+
+def _safe_paths(value: object) -> bool:
+    return isinstance(value, list) and all(
+        isinstance(path, str) and path for path in value
+    )
+
+
+def _snapshot(value: object) -> bool:
+    snapshot = _object(value)
+    if snapshot is None:
         return False
-    if kind in {"red", "green", "refactor"}:
+    files = _object(snapshot.get("files"))
+    command = _text(snapshot, "command")
+    if files is None or command is None or DIGEST.fullmatch(command) is None:
+        return False
+    return all(
+        path and isinstance(digest, str) and DIGEST.fullmatch(digest) is not None
+        for path, digest in files.items()
+    )
+
+
+def _valid_test_event(event: JsonObject) -> bool:
+    return (
+        _text(event, "step") is not None
+        and _text(event, "command") is not None
+        and isinstance(event.get("exit_code"), int)
+        and _snapshot(event.get("snapshot"))
+    )
+
+
+def _valid_check_event(event: JsonObject, event_type: str) -> bool:
+    checks = _objects(event.get("checks"))
+    if _text(event, "step") is None or checks is None:
+        return False
+    if event_type == "check" and not checks:
+        return False
+    return all(isinstance(check.get("exit_code"), int) for check in checks) and _safe_paths(
+        event.get("changed_paths")
+    )
+
+
+def _valid_external_event(event: JsonObject) -> bool:
+    return (
+        _text(event, "step") is not None
+        and isinstance(event.get("condition_met"), bool)
+        and _text(event, "checked") is not None
+        and _text(event, "summary") is not None
+        and _safe_paths(event.get("changed_paths"))
+    )
+
+
+def _valid_commit_event(event: JsonObject) -> bool:
+    safety = _object(event.get("safety"))
+    commit = _text(event, "commit")
+    return (
+        _text(event, "step") is not None
+        and commit is not None
+        and SHA.fullmatch(commit) is not None
+        and safety is not None
+        and _safe_paths(safety.get("paths"))
+        and isinstance(safety.get("unplanned"), list)
+    )
+
+
+def _valid_step_event(event: JsonObject, event_type: str) -> bool | None:
+    if event_type in {"red", "green", "refactor"}:
+        return _valid_test_event(event)
+    if event_type in {"check", "artifact"}:
+        return _valid_check_event(event, event_type)
+    if event_type == "external":
+        return _valid_external_event(event)
+    if event_type == "commit":
+        return _valid_commit_event(event)
+    return None
+
+
+def _valid_document_event(event: JsonObject, event_type: str) -> bool | None:
+    if event_type == "recovering":
+        commit = _text(event, "current_commit")
         return (
-            isinstance(event.get("step"), str) and bool(event["step"])
-            and isinstance(event.get("command"), str) and bool(event["command"])
-            and isinstance(event.get("exit_code"), int)
-            and _snapshot(event.get("snapshot"))
-        )
-    if kind in {"check", "artifact"}:
-        checks = event.get("checks")
-        return (
-            isinstance(event.get("step"), str) and bool(event["step"])
-            and isinstance(checks, list) and (kind == "artifact" or bool(checks))
-            and all(isinstance(check, dict) and isinstance(check.get("exit_code"), int) for check in checks)
-            and _safe_paths(event.get("changed_paths"))
-        )
-    if kind == "external":
-        return (
-            isinstance(event.get("step"), str) and bool(event["step"])
-            and isinstance(event.get("condition_met"), bool)
-            and isinstance(event.get("checked"), str) and bool(event["checked"].strip())
-            and isinstance(event.get("summary"), str) and bool(event["summary"].strip())
-            and _safe_paths(event.get("changed_paths"))
-        )
-    if kind == "commit":
-        safety = event.get("safety")
-        return (
-            isinstance(event.get("step"), str) and bool(event["step"])
-            and isinstance(event.get("commit"), str) and SHA.fullmatch(event["commit"]) is not None
-            and isinstance(safety, dict) and _safe_paths(safety.get("paths"))
-            and isinstance(safety.get("unplanned"), list)
-        )
-    if kind == "recovering":
-        return (
-            isinstance(event.get("current_commit"), str) and SHA.fullmatch(event["current_commit"]) is not None
+            commit is not None
+            and SHA.fullmatch(commit) is not None
             and _safe_paths(event.get("changed_documents"))
-            and isinstance(event.get("reason"), str) and bool(event["reason"].strip())
+            and _text(event, "reason") is not None
         )
-    if kind == "rebound":
+    if event_type == "rebound":
+        commit = _text(event, "approval_commit")
         return (
-            isinstance(event.get("approval_commit"), str) and SHA.fullmatch(event["approval_commit"]) is not None
-            and isinstance(event.get("reason"), str) and bool(event["reason"].strip())
+            commit is not None
+            and SHA.fullmatch(commit) is not None
+            and _text(event, "reason") is not None
         )
-    if kind == "implementation_green":
-        return _safe_paths(event.get("completed_steps")) and _safe_paths(event.get("uncommitted_outside_scope", []))
-    if kind == "worktree-bound":
-        return isinstance(event.get("branch"), str) and bool(event["branch"]) and isinstance(event.get("worktree"), str) and bool(event["worktree"])
-    if kind == "human_gate":
-        return isinstance(event.get("reason"), str) and bool(event["reason"].strip())
-    if kind in {"delegated", "returned"}:
-        field = "role" if kind == "delegated" else "outcome"
-        return field not in event or isinstance(event[field], str)
-    if kind == "resumed":
+    return None
+
+
+def _valid_resume_event(event: JsonObject, event_type: str) -> bool | None:
+    if event_type == "resumed":
+        branch_head = _text(event, "branch_head")
         return (
-            isinstance(event.get("branch_head"), str) and SHA.fullmatch(event["branch_head"]) is not None
-            and _safe_paths(event.get("unexplained_commits")) and _safe_paths(event.get("uncommitted_paths"))
+            branch_head is not None
+            and SHA.fullmatch(branch_head) is not None
+            and _safe_paths(event.get("unexplained_commits"))
+            and _safe_paths(event.get("uncommitted_paths"))
         )
-    if kind == "stopped":
-        return isinstance(event.get("reason"), str) and bool(event["reason"].strip())
-    if kind == "resume-candidate-retired":
-        return isinstance(event.get("reason"), str) and bool(event["reason"].strip())
+    if event_type in {"stopped", "resume-candidate-retired", "human_gate"}:
+        return _text(event, "reason") is not None
+    return None
+
+
+def _valid_boundary_event(event: JsonObject, event_type: str) -> bool:
+    document_result = _valid_document_event(event, event_type)
+    if document_result is not None:
+        return document_result
+    resume_result = _valid_resume_event(event, event_type)
+    if resume_result is not None:
+        return resume_result
+    if event_type == "implementation_green":
+        return _safe_paths(event.get("completed_steps")) and _safe_paths(
+            event.get("uncommitted_outside_scope", [])
+        )
+    if event_type == "worktree-bound":
+        return _text(event, "branch") is not None and _text(event, "worktree") is not None
+    if event_type in {"delegated", "returned"}:
+        field_name = "role" if event_type == "delegated" else "outcome"
+        return field_name not in event or isinstance(event[field_name], str)
     return False
 
-def derive_implementation(binding: object, events: object) -> EvidenceResult:
-    if not isinstance(binding, dict) or not isinstance(events, list):
-        return _failure("evidence_invalid", "implementation binding and events must be structured values")
-    if binding.get("version") == 1 or any(isinstance(event, dict) and event.get("version") == 1 for event in events):
-        return _failure("legacy_evidence_unsupported", "version 1 implementation evidence is unsupported")
-    if binding.get("version") != 2:
-        return _failure("evidence_invalid", "implementation binding version must be 2")
-    steps = _steps(binding.get("steps"))
+
+def _valid_event(event: JsonObject) -> bool:
+    event_type = _text(event, "event_type")
+    if event_type is None:
+        return False
+    step_result = _valid_step_event(event, event_type)
+    return step_result if step_result is not None else _valid_boundary_event(event, event_type)
+
+
+class _Derivation:
+    def __init__(self, active_steps: list[JsonObject], approval_commit: object) -> None:
+        self.active_steps = active_steps
+        self.approval_commit = approval_commit
+        self.completed: set[str] = set()
+        self.segment: list[JsonObject] = []
+        self.segments: list[JsonObject] = []
+        self.test_stages: dict[str, str] = {}
+        self.red_snapshots: dict[str, object] = {}
+        self.stopped = False
+        self.resume_candidate_retired = False
+
+
+def _step_contract(state: _Derivation, event: JsonObject) -> JsonObject | None:
+    event_step = _text(event, "step")
+    return next(
+        (step for step in state.active_steps if _text(step, "id") == event_step),
+        None,
+    )
+
+
+def _step_order_valid(
+    state: _Derivation,
+    contract: JsonObject,
+) -> bool:
+    completed_now = state.completed | _completed_steps(state.active_steps, state.segment)
+    next_step = next(
+        (
+            _text(step, "id")
+            for step in state.active_steps
+            if _text(step, "id") not in completed_now
+        ),
+        None,
+    )
+    contract_id = _text(contract, "id")
+    contract_index = state.active_steps.index(contract)
+    prior_incomplete = any(
+        _text(step, "id") not in completed_now
+        for step in state.active_steps[:contract_index]
+    )
+    return contract_id in completed_now or contract_id == next_step or not prior_incomplete
+
+
+def _apply_test_stage(
+    state: _Derivation,
+    contract: JsonObject,
+    event: JsonObject,
+    event_type: str,
+) -> EvidenceFailure | None:
+    if _text(contract, "completion") != "test":
+        return EvidenceFailure("transition_invalid", "test stage belongs to a non-test step")
+    contract_id = _text(contract, "id")
+    if contract_id is None:
+        return EvidenceFailure("transition_invalid", "test stage has no step")
+    previous = state.test_stages.get(contract_id)
+    exit_code = event.get("exit_code")
+    valid = (
+        event_type == "red" and exit_code != 0
+        or event_type == "green" and exit_code == 0 and previous == "red"
+        or event_type == "refactor" and exit_code == 0 and previous == "green"
+    )
+    if not valid:
+        return EvidenceFailure("transition_invalid", "test stages must follow RED, GREEN, REFACTOR")
+    snapshot = event.get("snapshot")
+    if event_type == "red":
+        state.red_snapshots[contract_id] = snapshot
+    elif snapshot != state.red_snapshots.get(contract_id):
+        return EvidenceFailure("frozen_red_mismatch", "GREEN and REFACTOR must use the accepted RED snapshot")
+    state.test_stages[contract_id] = event_type
+    return None
+
+
+def _stage_evidence_valid(contract: JsonObject, event: JsonObject, event_type: str) -> bool:
+    completion = _text(contract, "completion")
+    if event_type == "external":
+        return completion == "external"
+    if event_type not in {"check", "artifact"}:
+        return True
+    checks = _objects(event.get("checks"))
+    if checks is None or any(check.get("exit_code") != 0 for check in checks):
+        return False
+    return completion == event_type and (
+        event_type != "check" or _declared_checks_match(contract, checks)
+    )
+
+
+def _apply_step_event(state: _Derivation, event: JsonObject) -> EvidenceFailure | None:
+    event_type = _text(event, "event_type")
+    if event_type not in STEP_EVENTS:
+        return None
+    contract = _step_contract(state, event)
+    if contract is None:
+        return EvidenceFailure("transition_invalid", "implementation event names an unknown active step")
+    if not _step_order_valid(state, contract):
+        return EvidenceFailure("step_order_invalid", "implementation evidence must follow plan step order")
+    if event_type in {"red", "green", "refactor"}:
+        return _apply_test_stage(state, contract, event, event_type)
+    if not _stage_evidence_valid(contract, event, event_type):
+        return EvidenceFailure("transition_invalid", "check or artifact evidence does not complete its step")
+    return None
+
+
+def _close_segment(state: _Derivation) -> None:
+    state.completed |= _completed_steps(state.active_steps, state.segment)
+    state.segments.append(
+        {
+            "approval_commit": state.approval_commit,
+            "commits": [
+                item["commit"]
+                for item in state.segment
+                if item.get("event_type") == "commit"
+            ],
+        }
+    )
+
+
+def _apply_boundary(state: _Derivation, event: JsonObject) -> EvidenceFailure | None:
+    event_type = _text(event, "event_type")
+    if event_type not in {"recovering", "rebound"}:
+        state.segment.append(event)
+        return None
+    _close_segment(state)
+    if event_type == "recovering":
+        state.approval_commit = event.get("current_commit")
+        state.segment = []
+        return None
+    new_steps = _steps(event.get("steps"))
+    mapping = _mapping(state.active_steps, new_steps or [], event.get("mappings"))
+    if new_steps is None or mapping is None:
+        return EvidenceFailure("rebound_mapping_invalid", "rebound step mapping is invalid")
+    state.completed = {
+        mapping[step_id] for step_id in state.completed if step_id in mapping
+    }
+    state.active_steps = new_steps
+    state.test_stages = {}
+    state.red_snapshots = {}
+    state.approval_commit = event.get("approval_commit")
+    state.segment = []
+    return None
+
+
+def _apply_event(state: _Derivation, event: JsonObject) -> EvidenceFailure | None:
+    event_type = _text(event, "event_type")
+    if state.stopped and event_type not in {"resumed", "rebound", "resume-candidate-retired"}:
+        return EvidenceFailure("transition_invalid", "stopped implementation requires resumed or rebound")
+    state.stopped = event_type == "stopped"
+    if event_type in {"resumed", "rebound"}:
+        state.stopped = False
+    if event_type == "resume-candidate-retired":
+        state.resume_candidate_retired = True
+    elif event_type == "resumed":
+        state.resume_candidate_retired = False
+    step_failure = _apply_step_event(state, event)
+    return step_failure or _apply_boundary(state, event)
+
+
+def _legacy_evidence(binding: JsonObject | None, events: object) -> bool:
+    binding_is_legacy = binding is not None and binding.get("version") == 1
+    if not isinstance(events, list):
+        return binding_is_legacy
+    return binding_is_legacy or any(
+        isinstance(event, dict) and event.get("version") == 1 for event in events
+    )
+
+
+def _validated_input(
+    binding: object,
+    events: object,
+) -> tuple[JsonObject, list[JsonObject], list[JsonObject]] | EvidenceFailure:
+    binding_object = _object(binding)
+    if _legacy_evidence(binding_object, events):
+        return EvidenceFailure("legacy_evidence_unsupported", "version 1 implementation evidence is unsupported")
+    event_objects = _objects(events)
+    if binding_object is None or event_objects is None:
+        return EvidenceFailure("evidence_invalid", "implementation binding and events must be structured values")
+    if binding_object.get("version") != 2:
+        return EvidenceFailure("evidence_invalid", "implementation binding version must be 2")
+    steps = _steps(binding_object.get("steps"))
     if steps is None:
-        return _failure("step_contract_invalid", "implementation steps are invalid")
-    for expected, event in enumerate(events, 1):
-        if not isinstance(event, dict) or event.get("version") != 2 or event.get("sequence") != expected:
-            return _failure("evidence_invalid", "implementation events must be contiguous version 2 values")
-        if not _valid_event(event):
-            return _failure("evidence_invalid", "implementation event schema is invalid")
-    active_steps = steps
-    approval_commit = binding.get("approval_commit")
-    completed: set[str] = set()
-    segment: list[dict] = []
-    segments: list[dict] = []
-    test_stages: dict[str, str] = {}
-    red_snapshots: dict[str, dict] = {}
-    stopped = False
-    resume_candidate_retired = False
-    for event in events:
-        kind = event["event_type"]
-        if stopped and kind not in {"resumed", "rebound", "resume-candidate-retired"}:
-            return _failure("transition_invalid", "stopped implementation requires resumed or rebound")
-        stopped = kind == "stopped"
-        if kind in {"resumed", "rebound"}:
-            stopped = False
-        if kind == "resume-candidate-retired":
-            resume_candidate_retired = True
-        elif kind == "resumed":
-            resume_candidate_retired = False
-        if kind in {"red", "green", "refactor", "check", "artifact", "external", "commit"}:
-            contract = next((step for step in active_steps if step["id"] == event.get("step")), None)
-            if contract is None:
-                return _failure("transition_invalid", "implementation event names an unknown active step")
-            completed_now = completed | _completed_steps(active_steps, segment)
-            next_step = next((step["id"] for step in active_steps if step["id"] not in completed_now), None)
-            contract_index = next(index for index, step in enumerate(active_steps) if step["id"] == contract["id"])
-            if contract["id"] not in completed_now and contract["id"] != next_step and any(
-                step["id"] not in completed_now for step in active_steps[:contract_index]
-            ):
-                return _failure("step_order_invalid", "implementation evidence must follow plan step order")
-            if kind in {"red", "green", "refactor"}:
-                if contract["completion"] != "test":
-                    return _failure("transition_invalid", "test stage belongs to a non-test step")
-                previous = test_stages.get(contract["id"])
-                valid = (
-                    (kind == "red" and event["exit_code"] != 0)
-                    or (kind == "green" and event["exit_code"] == 0 and previous == "red")
-                    or (kind == "refactor" and event["exit_code"] == 0 and previous == "green")
-                )
-                if not valid:
-                    return _failure("transition_invalid", "test stages must follow RED, GREEN, REFACTOR")
-                if kind == "red":
-                    red_snapshots[contract["id"]] = event["snapshot"]
-                elif event["snapshot"] != red_snapshots.get(contract["id"]):
-                    return _failure("frozen_red_mismatch", "GREEN and REFACTOR must use the accepted RED snapshot")
-                test_stages[contract["id"]] = kind
-            elif kind in {"check", "artifact"} and (
-                kind != contract["completion"] or any(check["exit_code"] != 0 for check in event["checks"])
-                or kind == "check" and not _declared_checks_match(contract, event["checks"])
-            ):
-                return _failure("transition_invalid", "check or artifact evidence does not complete its step")
-            elif kind == "external" and contract["completion"] != "external":
-                return _failure("transition_invalid", "external evidence belongs to a non-external step")
-        if event.get("event_type") not in {"recovering", "rebound"}:
-            segment.append(event)
-            continue
-        completed |= _completed_steps(active_steps, segment)
-        segments.append({
-            "approval_commit": approval_commit,
-            "commits": [item["commit"] for item in segment if item.get("event_type") == "commit"],
-        })
-        if event.get("event_type") == "recovering":
-            approval_commit = event["current_commit"]
-            segment = []
-            continue
-        new_steps = _steps(event.get("steps"))
-        mapping = _mapping(active_steps, new_steps or [], event.get("mappings"))
-        if new_steps is None or mapping is None:
-            return _failure("rebound_mapping_invalid", "rebound step mapping is invalid")
-        completed = {mapping[step_id] for step_id in completed if step_id in mapping}
-        active_steps = new_steps
-        test_stages = {}
-        red_snapshots = {}
-        approval_commit = event.get("approval_commit")
-        segment = []
-    completed |= _completed_steps(active_steps, segment)
-    segments.append({
-        "approval_commit": approval_commit,
-        "commits": [item["commit"] for item in segment if item.get("event_type") == "commit"],
-    })
-    ordered_completed = [step["id"] for step in active_steps if step["id"] in completed]
-    resume_step = next((step["id"] for step in active_steps if step["id"] not in completed), None)
-    return _ok({
-        "approval_commit": approval_commit, "steps": active_steps,
-        "completed_steps": ordered_completed, "resume_step": resume_step, "segments": segments,
-        "commits": [commit for segment in segments for commit in segment["commits"]],
-        "resume_candidate_retired": resume_candidate_retired,
-    })
+        return EvidenceFailure("step_contract_invalid", "implementation steps are invalid")
+    for expected, event in enumerate(event_objects, 1):
+        if event.get("version") != 2 or event.get("sequence") != expected or not _valid_event(event):
+            return EvidenceFailure("evidence_invalid", "implementation events must be contiguous valid version 2 values")
+    return binding_object, event_objects, steps
+
+
+def _commits(segments: list[JsonObject]) -> list[str]:
+    commits: list[str] = []
+    for segment in segments:
+        candidates = segment.get("commits")
+        if isinstance(candidates, list):
+            commits.extend(commit for commit in candidates if isinstance(commit, str))
+    return commits
+
+
+def derive_implementation(binding: object, events: object) -> EvidenceResult:
+    validated = _validated_input(binding, events)
+    if isinstance(validated, EvidenceFailure):
+        return _failure(validated.code, validated.message)
+    binding_object, event_objects, steps = validated
+    state = _Derivation(steps, binding_object.get("approval_commit"))
+    for event in event_objects:
+        event_failure = _apply_event(state, event)
+        if event_failure is not None:
+            return _failure(event_failure.code, event_failure.message)
+    _close_segment(state)
+    ordered_completed = [
+        step_id
+        for step in state.active_steps
+        if (step_id := _text(step, "id")) in state.completed
+    ]
+    resume_step = next(
+        (
+            step_id
+            for step in state.active_steps
+            if (step_id := _text(step, "id")) not in state.completed
+        ),
+        None,
+    )
+    return _ok(
+        {
+            "approval_commit": state.approval_commit,
+            "steps": state.active_steps,
+            "completed_steps": ordered_completed,
+            "resume_step": resume_step,
+            "segments": state.segments,
+            "commits": _commits(state.segments),
+            "resume_candidate_retired": state.resume_candidate_retired,
+        }
+    )

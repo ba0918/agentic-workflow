@@ -4,6 +4,8 @@ import subprocess
 import tempfile
 import unittest
 
+from tools.quality.configuration_contract import uv_command
+
 
 PROJECT_ROOT = Path(__file__).parents[3]
 PLUGIN_ROOT = PROJECT_ROOT / "tools" / "quality"
@@ -15,13 +17,7 @@ class DesignCheckerTest(unittest.TestCase):
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
-                "uv",
-                "run",
-                "--with",
-                "pylint==4.0.5",
-                "python",
-                "-m",
-                "pylint",
+                *uv_command("pylint==4.0.5", "python", "-m", "pylint"),
                 "--load-plugins=plugins.design_checker",
                 "--disable=all",
                 *arguments,

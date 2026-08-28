@@ -3,14 +3,74 @@ from __future__ import annotations
 from fnmatch import fnmatch
 import re
 import tokenize
-from typing import TYPE_CHECKING
-
-from astroid import nodes
-from pylint.checkers import BaseTokenChecker
-from pylint.checkers.utils import safe_infer
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from pylint.lint import PyLinter
+    class CheckerBase:
+        linter: "CheckerLinter"
+
+        def __init__(self, _linter: "CheckerLinter") -> None: ...
+
+        def add_message(
+            self,
+            _message_id: str,
+            **_message: int | str,
+        ) -> None: ...
+
+    def infer(_node: object) -> object | None: ...
+else:
+    from pylint.checkers import BaseTokenChecker as CheckerBase
+    from pylint.checkers.utils import safe_infer as infer
+
+
+class CheckerConfig(Protocol):
+    pure_layer_forbidden_calls: Sequence[str]
+    pure_layer_forbidden_imports: Sequence[str]
+    pure_layer_patterns: Sequence[str]
+
+
+class CheckerLinter(Protocol):
+    config: CheckerConfig
+
+    def register_checker(self, checker: object) -> None: ...
+
+
+class RootNode(Protocol):
+    file: str | None
+
+
+class Node(Protocol):
+    col_offset: int
+    fromlineno: int
+
+    def root(self) -> RootNode: ...
+
+
+class ImportNode(Node, Protocol):
+    names: list[tuple[str, str | None]]
+
+
+class ImportFromNode(ImportNode, Protocol):
+    modname: str | None
+
+
+class Expression(Protocol):
+    def as_string(self) -> str: ...
+
+
+class AttributeNode(Node, Protocol):
+    attrname: str
+    expr: object
+
+
+class CallNode(Node, Protocol):
+    func: Expression
+
+
+@runtime_checkable
+class QualifiedNode(Protocol):
+    def qname(self) -> str: ...
 
 
 SUPPRESSION = re.compile(
@@ -22,7 +82,7 @@ TYPE_MODULES = {"typing", "typing_extensions"}
 TYPE_ESCAPE_HATCHES = {"Any", "cast"}
 
 
-class DesignChecker(BaseTokenChecker):
+class DesignChecker(CheckerBase):
     name = "ba0918-design"
     msgs = {
         "E9001": (
@@ -83,31 +143,31 @@ class DesignChecker(BaseTokenChecker):
                     args=token.string,
                 )
 
-    def visit_import(self, node: nodes.Import) -> None:
+    def visit_import(self, node: ImportNode) -> None:
         for imported, _alias in node.names:
             self._check_layer_import(node, imported)
 
-    def visit_importfrom(self, node: nodes.ImportFrom) -> None:
+    def visit_importfrom(self, node: ImportFromNode) -> None:
         if node.modname in TYPE_MODULES:
             for imported, _alias in node.names:
                 self._check_type_escape_hatch(node, imported)
         if node.modname:
             self._check_layer_import(node, node.modname)
 
-    def visit_attribute(self, node: nodes.Attribute) -> None:
+    def visit_attribute(self, node: AttributeNode) -> None:
+        expression_name = getattr(node.expr, "name", None)
         if (
-            isinstance(node.expr, nodes.Name)
-            and node.expr.name in TYPE_MODULES
+            expression_name in TYPE_MODULES
             and node.attrname in TYPE_ESCAPE_HATCHES
         ):
             self._check_type_escape_hatch(node, node.attrname)
 
-    def visit_call(self, node: nodes.Call) -> None:
+    def visit_call(self, node: CallNode) -> None:
         if not self._is_pure_layer(node):
             return
         names = {node.func.as_string()}
-        inferred = safe_infer(node.func)
-        if inferred is not None and hasattr(inferred, "qname"):
+        inferred = infer(node.func)
+        if isinstance(inferred, QualifiedNode):
             names.add(inferred.qname())
         forbidden = self.linter.config.pure_layer_forbidden_calls
         matched = next(
@@ -127,7 +187,7 @@ class DesignChecker(BaseTokenChecker):
                 args=matched,
             )
 
-    def _check_type_escape_hatch(self, node: nodes.NodeNG, name: str) -> None:
+    def _check_type_escape_hatch(self, node: Node, name: str) -> None:
         if name in TYPE_ESCAPE_HATCHES:
             self.add_message(
                 "forbidden-type-escape-hatch",
@@ -136,7 +196,7 @@ class DesignChecker(BaseTokenChecker):
                 args=name,
             )
 
-    def _check_layer_import(self, node: nodes.NodeNG, imported: str) -> None:
+    def _check_layer_import(self, node: Node, imported: str) -> None:
         forbidden = self.linter.config.pure_layer_forbidden_imports
         if not self._is_pure_layer(node):
             return
@@ -149,7 +209,7 @@ class DesignChecker(BaseTokenChecker):
                 args=imported_root,
             )
 
-    def _is_pure_layer(self, node: nodes.NodeNG) -> bool:
+    def _is_pure_layer(self, node: Node) -> bool:
         module_path = str(node.root().file).replace("\\", "/")
         return any(
             fnmatch(module_path, pattern)
@@ -157,5 +217,5 @@ class DesignChecker(BaseTokenChecker):
         )
 
 
-def register(linter: PyLinter) -> None:
+def register(linter: CheckerLinter) -> None:
     linter.register_checker(DesignChecker(linter))

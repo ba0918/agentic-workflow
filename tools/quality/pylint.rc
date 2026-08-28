@@ -1,0 +1,10 @@
+[MAIN]
+load-plugins=plugins.design_checker
+persistent=no
+
+[MESSAGES CONTROL]
+disable=all
+enable=F,E,W,invalid-name,disallowed-name,too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-return-statements,too-many-branches,too-many-statements,too-many-boolean-expressions,too-many-nested-blocks,duplicate-code,too-many-public-methods,too-many-ancestors,forbidden-lint-suppression,forbidden-layer-import,forbidden-type-escape-hatch,forbidden-pure-layer-call
+
+[REPORTS]
+score=no
