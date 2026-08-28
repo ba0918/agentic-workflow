@@ -118,6 +118,20 @@ class PlanArtifactTest(unittest.TestCase):
             with self.subTest(gates=gates), self.assertRaises(plan_artifact.InvalidPlanFormat):
                 plan_artifact.read_plan_header(with_human_gates(PLAN, gates))
 
+    def test_human_gate_requires_both_allowed_results_exactly_once(self) -> None:
+        invalid_results = (
+            ["approved"],
+            ["rejected"],
+            ["approved", "approved"],
+            ["approved", "rejected", "unknown"],
+        )
+
+        for results in invalid_results:
+            with self.subTest(results=results), self.assertRaises(plan_artifact.InvalidPlanFormat):
+                plan_artifact.read_plan_header(with_human_gates(
+                    PLAN, [file_gate(allowed_results=results)],
+                ))
+
     def test_rejects_legacy_target_specifications(self) -> None:
         legacy = PLAN.replace(
             "**Verification coverage:**\n\n"

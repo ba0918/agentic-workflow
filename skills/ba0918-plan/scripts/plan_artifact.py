@@ -179,9 +179,8 @@ def _gate(value: object, *, step_id: str) -> dict[str, object]:
         and len(sections) == len(set(sections))
         and isinstance(criterion, str) and bool(criterion.strip())
         and target is not None and timing in GATE_TIMINGS
-        and results is not None and bool(results)
-        and len(results) == len(set(results))
-        and all(result in GATE_RESULTS for result in results)
+        and results is not None and len(results) == len(GATE_RESULTS)
+        and set(results) == GATE_RESULTS
     )
     if not valid or sections is None or results is None:
         raise InvalidPlanFormat(f"invalid Human gate in Step {step_id}")
