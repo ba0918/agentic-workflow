@@ -37,9 +37,19 @@ class VendorEntrypointsTest(unittest.TestCase):
     def test_runtime_files_are_vendored_without_directory_markers(self) -> None:
         manifest = (ROOT / "vendor-manifest.yaml").read_text(encoding="utf-8")
         markers = sorted((ROOT / "skills").glob("*/scripts/**/.vendored"))
+        review_contract = manifest.split("  review-runtime:", maxsplit=1)[1]
 
         self.assertNotIn("tools/workflow-runtime/implement/runtime/:", manifest)
         self.assertNotIn("tools/workflow-runtime/review/review_support/:", manifest)
+        self.assertIn(
+            "tools/workflow-runtime/shared/git_status.py: scripts/git_status.py",
+            review_contract,
+        )
+        self.assertIn(
+            "tools/workflow-runtime/review/review_support/finding_validation.py: "
+            "scripts/review_support/finding_validation.py",
+            review_contract,
+        )
         self.assertEqual(markers, [])
 
     def test_entry_scripts_reach_help_from_an_isolated_skill_copy(self) -> None:

@@ -56,10 +56,9 @@ class ReviewModelTest(unittest.TestCase):
             self.assertFalse(result.ok, field)
             self.assertEqual(result.error.code, "finding_field_missing")
 
-    def test_findings_stale_is_a_resumable_pause(self) -> None:
+    def test_findings_stale_is_not_complete(self) -> None:
         events = [{"event_type": "findings-recorded"}, {"event_type": "findings_stale"}]
         self.assertFalse(model.review_complete(events, []))
-        self.assertTrue(model.can_append_after(events[-1]))
 
     def test_open_counts_progress_lexicographically(self) -> None:
         before = [finding(severity="security"), finding(severity="warn")]

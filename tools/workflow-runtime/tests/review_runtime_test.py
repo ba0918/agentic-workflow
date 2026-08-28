@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/workflow-runtime/review"))
@@ -24,6 +25,7 @@ runtime = importlib.util.module_from_spec(RUNTIME_SPEC)
 assert RUNTIME_SPEC.loader is not None
 RUNTIME_SPEC.loader.exec_module(runtime)
 from review_model import JsonObject
+from review_support import repository as review_repository
 from review_support.binding import selected_profiles
 from review_support.validation import review_execution
 
@@ -99,6 +101,34 @@ def execution_fixture() -> tuple[Path, str, str]:
 
 
 class ReviewBindingRuntimeTest(unittest.TestCase):
+
+    def test_uncommitted_paths_rejects_an_incomplete_porcelain_record(self) -> None:
+        status = subprocess.CompletedProcess(
+            args=["git", "status"], returncode=0, stdout="??\0", stderr="",
+        )
+
+        with mock.patch.object(review_repository, "git", return_value=status):
+            result = review_repository.uncommitted_paths(Path("."))
+
+        self.assertEqual(result.required_error().code, "execution_input_invalid")
+
+    def test_finding_validation_is_available_below_event_orchestration(self) -> None:
+        module = importlib.import_module("review_support.finding_validation")
+        spec_commit = "a" * 40
+        binding: JsonObject = {
+            "spec_commit": spec_commit,
+            "spec_paths": ["docs/spec/review.md"],
+            "review_options": {"profiles": ["default"]},
+        }
+
+        result = module.validate_finding_for_binding(
+            binding,
+            finding(spec_commit=spec_commit),
+            spec_commit=spec_commit,
+            commit_exists=lambda value: value == spec_commit,
+        )
+
+        self.assertTrue(result.ok, result.error)
 
     def test_resolves_real_branch_commits_and_implementation_run(self) -> None:
         root, base, head = execution_fixture()

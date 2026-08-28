@@ -5,7 +5,8 @@ import json
 from pathlib import Path
 
 import review_model
-from review_support.repository import review_directory, write_once
+from review_support.finding_validation import validate_finding_for_binding
+from review_support.repository import commit, review_directory, write_once
 from review_support.types import JsonObject, RuntimeResult, failure, object_values, ok
 from review_support.validation import safe_finding_strings
 
@@ -47,8 +48,6 @@ def _validate_finding_references(
     binding: JsonObject,
     events: list[JsonObject],
 ) -> RuntimeResult[None]:
-    from review_support.findings import validate_finding_for_binding
-
     active_spec_commit = str(binding.get("spec_commit") or binding.get("approval_commit") or "")
     for event in events:
         findings = (object_values(event.get("findings")) or []) + (
@@ -56,10 +55,10 @@ def _validate_finding_references(
         )
         for item in findings:
             checked = validate_finding_for_binding(
-                root,
                 binding,
                 item,
                 spec_commit=active_spec_commit,
+                commit_exists=lambda value: commit(root, value).ok,
             )
             if not checked.ok:
                 return RuntimeResult(None, checked.error)
