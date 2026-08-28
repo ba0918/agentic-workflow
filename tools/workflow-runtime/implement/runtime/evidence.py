@@ -32,7 +32,8 @@ class StageObservation(NamedTuple):
 
 
 class _HumanGateContext(NamedTuple):
-    binding: JsonObject
+    source_binding: JsonObject
+    active_binding: JsonObject
     events: list[JsonObject]
     gate: JsonObject
 
@@ -127,12 +128,12 @@ def _store_event(
         return forward_failure(checked.error, "event_invalid", "implementation event is invalid")
     sequence = len(event_values) + 1
     event: JsonObject = {
+        **event_candidate.fields,
         "version": 2,
         "sequence": sequence,
         "event_type": event_candidate.event_type,
         "run_id": run.run_id,
         "writer": event_candidate.actor,
-        **event_candidate.fields,
     }
     if any("identity" in key.lower() for key in event):
         return failure(
@@ -177,16 +178,9 @@ def _append_event(
             return forward_failure(
                 loaded.error, "evidence_unavailable", "implementation events are unavailable"
             )
-        binding = _effective_binding(binding_result.required(), loaded.required())
-        if not binding.ok:
-            return forward_failure(
-                binding.error,
-                "implementation_evidence_invalid",
-                "implementation evidence is invalid",
-            )
         return _store_event(
             run,
-            binding.required(),
+            binding_result.required(),
             loaded.required(),
             EventCandidate(event_type, fields, writer, derived),
         )
@@ -418,8 +412,8 @@ def record_human_gate(
         return forward_failure(
             context.error, "implementation_evidence_invalid", "Human gate context is invalid",
         )
-    effective, event_values, declared = context.required()
-    clean = _gate_target_clean(run, effective, declared)
+    source_binding, active_binding, event_values, declared = context.required()
+    clean = _gate_target_clean(run, active_binding, declared)
     if not clean.ok:
         return forward_failure(clean.error, "human_gate_target_changed", "Human gate target changed")
     fields: JsonObject = {
@@ -434,7 +428,7 @@ def record_human_gate(
         "event_type": "human_gate",
         **fields,
     }
-    derived = derive_implementation(effective, [*event_values, candidate])
+    derived = derive_implementation(source_binding, [*event_values, candidate])
     if not derived.ok:
         return forward_failure(
             derived.error, "implementation_evidence_invalid", "Human gate evidence is invalid"
@@ -460,7 +454,9 @@ def _human_gate_context(
     if not declared.ok:
         return forward_failure(declared.error, "human_gate_unknown", "Human gate is unavailable")
     return ok(
-        _HumanGateContext(effective.required(), loaded.required(), declared.required()),
+        _HumanGateContext(
+            binding.required(), effective.required(), loaded.required(), declared.required(),
+        ),
     )
 
 

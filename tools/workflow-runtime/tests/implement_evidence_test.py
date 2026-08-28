@@ -9,7 +9,10 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tools/workflow-runtime/implement"))
 from runtime import deps
-from runtime import context, deliverables, events, gates, repository, secret_detect, storage, tdd
+from runtime import (
+    context, deliverables, events, evidence as runtime_evidence, gates, repository,
+    secret_detect, storage, tdd,
+)
 from runtime.types import JsonObject, ResolvedPlan, object_value, object_values
 
 def resolved_plan(
@@ -327,6 +330,47 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
             self.assertEqual(status["completed_steps"], ["1"])
             self.assertEqual(status["last_event"]["event_type"], "returned")
 
+    def test_human_gate_after_rebound_is_validated_against_the_original_history(self) -> None:
+        import tempfile
+        gate: JsonObject = {
+            "gate_id": "approve-step",
+            "sections": ["Contract"],
+            "criterion": "Approved?",
+            "target": {"kind": "files", "paths": ["app.txt"]},
+            "timing": "before_implementation_green",
+            "allowed_results": ["approved", "rejected"],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan = resolved_plan(
+                "a" * 40,
+                steps=({
+                    "id": "old", "completion": "check", "human_gates": (gate,),
+                },),
+            )
+            run = repository.bind_run(root, plan, run_id="run-1", delegated=False).required()
+            self.assertTrue(context.append_event(run, "check", {
+                "step": "old", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            }).ok)
+            self.assertTrue(context.append_event(run, "rebound", {
+                "approval_commit": "b" * 40,
+                "steps": [{
+                    "id": "new", "completion": "check", "checks": ["lint"],
+                    "human_gates": [gate],
+                }],
+                "mappings": [{"old": "old", "new": "new"}],
+                "reason": "approved revision",
+            }).ok)
+            self.assertTrue(context.append_event(run, "check", {
+                "step": "new", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            }).ok)
+
+            result = runtime_evidence.record_human_gate(
+                run, "new", "approve-step", "approved",
+            )
+
+            self.assertTrue(result.ok, result.error)
+
     def test_final_check_must_verify_the_current_branch_head(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
@@ -473,6 +517,7 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
 
         result = events.validate_event(binding, [], events.EventCandidate("check", {
             "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
+            "changed_paths": [],
         }, "implement"))
 
         self.assertTrue(result.ok, result.error)

@@ -556,6 +556,7 @@ class _Derivation:
         self.seen_events: list[JsonObject] = []
         self.stopped = False
         self.resume_candidate_retired = False
+        self.complete = False
 
 
 def _step_contract(state: _Derivation, event: JsonObject) -> JsonObject | None:
@@ -651,7 +652,7 @@ def _step_contract_failure(
 ) -> EvidenceFailure | None:
     if contract is None:
         return EvidenceFailure(
-            "transition_invalid", "implementation event names an unknown active step",
+            "step_unknown", "implementation event names an unknown active step",
         )
     if not _step_order_valid(state, contract):
         return EvidenceFailure(
@@ -868,15 +869,26 @@ def _update_run_state(state: _Derivation, event_type: str | None) -> None:
 
 def _apply_event(state: _Derivation, event: JsonObject) -> EvidenceFailure | None:
     event_type = _text(event, "event_type")
+    returning_completed_delegation = (
+        state.complete
+        and event_type == "returned"
+        and bool(state.seen_events)
+        and state.seen_events[-1].get("event_type") == "implementation_green"
+    )
+    if state.complete and not returning_completed_delegation:
+        return EvidenceFailure(
+            "run_already_complete", "completed implementation evidence cannot be extended",
+        )
     if state.stopped and event_type not in {
         "returned", "resumed", "rebound", "resume-candidate-retired",
     }:
-        return EvidenceFailure("transition_invalid", "stopped implementation requires resumed or rebound")
+        return EvidenceFailure("run_stopped", "stopped implementation requires resumed or rebound")
     _update_run_state(state, event_type)
     if event_type == "implementation_green":
         completion_failure = _implementation_green_failure(state, event)
         if completion_failure is not None:
             return completion_failure
+        state.complete = True
     if event_type == "human_gate" and "gate_id" in event:
         gate_failure = _human_gate_failure(state, event)
         if gate_failure is not None:
