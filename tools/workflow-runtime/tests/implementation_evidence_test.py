@@ -126,6 +126,50 @@ class HumanGateEvidenceTest(_EvidenceTestCase):
         self.assertEqual(too_early.required_error().code, "human_gate_timing_invalid")
         self.assertTrue(approved.ok, approved.error)
 
+    def test_final_approval_and_completion_survive_wording_only_recovering(self) -> None:
+        binding = self.binding([{
+            "id": "1", "completion": "check",
+            "human_gates": [self.gate("before_implementation_green")],
+        }])
+        events = [
+            self.event(1, "check", step="1", checks=[{"exit_code": 0}], changed_paths=[]),
+            self.approval(2),
+            self.event(
+                3, "recovering", current_commit="b" * 40,
+                changed_documents=["docs/spec/example.md"], reason="wording only",
+            ),
+            self.event(4, "implementation_green", completed_steps=["1"]),
+        ]
+
+        result = implementation_evidence.derive_implementation(binding, events)
+
+        self.assertTrue(result.ok, result.error)
+
+    def test_final_approval_and_completion_survive_equivalent_rebound(self) -> None:
+        gate = self.gate("before_implementation_green")
+        binding = self.binding([{
+            "id": "old", "completion": "check", "human_gates": [gate],
+        }])
+        events = [
+            self.event(
+                1, "check", step="old", checks=[{"exit_code": 0}], changed_paths=[],
+            ),
+            self.event(
+                2, "human_gate", step="old", gate_id="approve-step", result="approved",
+                reason="approved",
+            ),
+            self.event(
+                3, "rebound", approval_commit="b" * 40,
+                steps=[{"id": "same", "completion": "check", "human_gates": [gate]}],
+                mappings=[{"old": "old", "new": "same"}], reason="approved",
+            ),
+            self.event(4, "implementation_green", completed_steps=["same"]),
+        ]
+
+        result = implementation_evidence.derive_implementation(binding, events)
+
+        self.assertTrue(result.ok, result.error)
+
     def test_implementation_green_lists_the_steps_completed_under_human_gates(self) -> None:
         binding = self.binding([{
             "id": "1", "completion": "check",

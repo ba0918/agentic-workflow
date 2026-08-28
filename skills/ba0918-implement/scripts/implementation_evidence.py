@@ -326,6 +326,8 @@ def _gate_satisfied(
     gate: JsonObject,
     events: list[JsonObject],
     approvals: dict[tuple[str, str], _GateApproval],
+    *,
+    completion_carried: bool = False,
 ) -> bool:
     step_id = _text(step, "id")
     gate_id = _text(gate, "gate_id")
@@ -338,7 +340,12 @@ def _gate_satisfied(
     if timing == "before_edit":
         return approval.carried or 0 <= approval_index < _first_step_work(events, step_id)
     if raw is None:
-        return False
+        return bool(
+            timing == "before_implementation_green"
+            and completion_carried
+            and approval.carried
+            and not _target_changed(_object(gate.get("target")) or {}, events)
+        )
     evidence_position, completion_position = raw
     if timing == "before_commit":
         if not approval.carried and not evidence_position < approval_index < completion_position:
@@ -852,7 +859,10 @@ def _implementation_green_failure(
         if gate.get("timing") == "before_implementation_green"
     ]
     if not all(
-        _gate_satisfied(step, gate, state.segment, state.approvals)
+        _gate_satisfied(
+            step, gate, state.segment, state.approvals,
+            completion_carried=_text(step, "id") in state.completed,
+        )
         for step, gate in final_gates
     ):
         return EvidenceFailure("human_gate_required", "declared Human gate needs approval")
