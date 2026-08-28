@@ -1,6 +1,7 @@
 """Temporary, resumable brainstorm state."""
 from __future__ import annotations
 
+import argparse
 from datetime import datetime, timezone
 from contextlib import contextmanager
 import fcntl
@@ -8,12 +9,14 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import tempfile
 from collections.abc import Iterator
 
 SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 ITEM_ID = re.compile(r"[A-Za-z][A-Za-z0-9._-]{0,63}\Z")
 ITEM_KINDS = {"agreement", "prohibition", "undecided", "delegated", "rejected", "revision"}
+STATE_KEYS = {"session_id", "revision", "current_position", "next_topic", "items"}
 SECRET = re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)\s*[:=]\s*\S+|\bsk-[A-Za-z0-9_-]{8,}")
 JSON_BLOCK = re.compile(r"\A# Brainstorm progress\n\n```json\n(?P<body>.*)\n```\n\Z", re.DOTALL)
 JsonObject = dict[str, object]
@@ -230,3 +233,80 @@ def finish_wrap(project_root: Path, session_id: str, *, approved: bool, write_su
     path.unlink(missing_ok=True)
     path.with_name(f".{path.stem}.lock").unlink(missing_ok=True)
     return True
+
+
+def _read_json() -> JsonObject:
+    try:
+        decoded: object = json.load(sys.stdin)
+    except json.JSONDecodeError as error:
+        raise InvalidProgress(f"invalid progress JSON: {error.msg}") from error
+    value = _object(decoded)
+    if value is None:
+        raise InvalidProgress("progress root must be an object")
+    unexpected = sorted(set(value) - STATE_KEYS)
+    if unexpected:
+        raise InvalidProgress(f"unexpected progress key: {unexpected[0]}")
+    return value
+
+
+def _write_json(value: JsonObject) -> None:
+    print(json.dumps(value, ensure_ascii=False, sort_keys=True))
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Validate and persist brainstorm progress")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("validate", help="validate progress JSON from standard input")
+
+    load = commands.add_parser("load", help="load progress as JSON")
+    load.add_argument("--repo", required=True)
+    load.add_argument("--session-id", required=True)
+
+    save = commands.add_parser("save", help="save progress JSON from standard input")
+    save.add_argument("--repo", required=True)
+    save.add_argument("--expected-revision", required=True, type=int)
+
+    finish = commands.add_parser("finish", help="remove progress after an approved successful wrap")
+    finish.add_argument("--repo", required=True)
+    finish.add_argument("--session-id", required=True)
+    finish.add_argument("--approved", action="store_true", required=True)
+    finish.add_argument("--write-succeeded", action="store_true", required=True)
+    return parser
+
+
+def _run_command(args: argparse.Namespace) -> JsonObject:
+    if args.command == "validate":
+        value = _read_json()
+        errors = validate_state(value)
+        if errors:
+            raise InvalidProgress("; ".join(errors))
+        return value
+    if args.command == "load":
+        return load_progress(Path(args.repo), args.session_id)
+    if args.command == "save":
+        project_root = Path(args.repo)
+        path = save_progress(project_root, _read_json(), expected_revision=args.expected_revision)
+        return {"path": path.relative_to(project_root.resolve()).as_posix()}
+    if args.command == "finish":
+        removed = finish_wrap(
+            Path(args.repo),
+            args.session_id,
+            approved=args.approved,
+            write_succeeded=args.write_succeeded,
+        )
+        return {"removed": removed}
+    raise InvalidProgress(f"unsupported command: {args.command}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _parser()
+    try:
+        result = _run_command(parser.parse_args(argv))
+    except ProgressError as error:
+        parser.error(str(error))
+    _write_json(result)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

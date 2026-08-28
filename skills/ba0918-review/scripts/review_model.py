@@ -433,11 +433,6 @@ def reduce_review(events: object) -> Result:
     return ok(state.result())
 
 
-def can_append_after(event: JsonObject) -> bool:
-    del event
-    return True
-
-
 def review_complete(events: list[JsonObject], findings: list[JsonObject]) -> bool:
     del findings
     reduced = reduce_review(events)

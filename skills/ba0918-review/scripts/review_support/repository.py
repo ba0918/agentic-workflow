@@ -8,6 +8,8 @@ import subprocess
 import tempfile
 from typing import Protocol
 
+import git_status
+
 from review_support.types import COMMIT, JsonObject, RuntimeResult, failure, object_value, ok
 from review_support.validation import validate_review_binding
 
@@ -79,18 +81,15 @@ def uncommitted_paths(worktree: Path) -> RuntimeResult[list[str]]:
     result = git(worktree, "status", "--porcelain=v1", "-z", "--untracked-files=all")
     if result.returncode != 0:
         return RuntimeResult(None, failure("execution_input_invalid", "implementation worktree status is unavailable").error)
-    paths: set[str] = set()
-    records = iter(result.stdout.split("\0"))
-    for record in records:
-        if len(record) < 4:
-            continue
-        paths.add(record[3:])
-        if "R" in record[:2] or "C" in record[:2]:
-            renamed = next(records, "")
-            if not renamed:
-                return RuntimeResult(None, failure("execution_input_invalid", "implementation rename status is incomplete").error)
-            paths.add(renamed)
-    return ok(sorted(paths))
+    try:
+        return ok(git_status.parse_porcelain_v1_z(result.stdout))
+    except ValueError:
+        return RuntimeResult(
+            None,
+            failure(
+                "execution_input_invalid", "implementation worktree status is invalid",
+            ).error,
+        )
 
 
 def read_object(path: Path, code: str, message: str) -> RuntimeResult[JsonObject]:

@@ -87,6 +87,20 @@ class VendorEntrypointsTest(unittest.TestCase):
                     result = run_python(skill, "-c", loader, script)
                     self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_helper_cli_help_from_an_isolated_skill_copy(self) -> None:
+        entries = (
+            ("ba0918-brainstorm", "scripts/state.py", "validate"),
+            ("ba0918-plan", "scripts/plan_artifact.py", "validate-candidate"),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            for skill_name, script, command in entries:
+                with self.subTest(skill=skill_name):
+                    skill = isolated_skill(skill_name, temporary)
+                    result = run_python(skill, script, "--help")
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(command, result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
