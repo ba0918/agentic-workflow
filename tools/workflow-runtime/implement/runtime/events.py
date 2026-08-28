@@ -59,7 +59,16 @@ def _run_state_error(events: list[JsonObject], candidate: EventCandidate) -> Run
     if implementation_complete and not returning_completed_delegation:
         return RuntimeFailure("run_already_complete", "completed implementation evidence cannot be extended")
     stopped = events and events[-1].get("event_type") == "stopped"
-    if stopped and candidate.event_type not in {"resumed", "rebound", "resume-candidate-retired"}:
+    returning_stopped_delegation = (
+        stopped
+        and candidate.event_type == "returned"
+        and candidate.actor == "cycle"
+    )
+    if (
+        stopped
+        and not returning_stopped_delegation
+        and candidate.event_type not in {"resumed", "rebound", "resume-candidate-retired"}
+    ):
         return RuntimeFailure(
             "run_stopped", "stopped implementation must be resumed or rebound before more work"
         )

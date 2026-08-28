@@ -29,6 +29,29 @@ class ImplementEventTest(unittest.TestCase):
         )
         self.assertTrue(result.ok, result.error)
 
+    def test_stopped_delegation_can_return_before_cycle_resumes_it(self) -> None:
+        binding: JsonObject = {"delegated": True, "steps": []}
+        events: list[JsonObject] = [{"event_type": "delegated"}]
+
+        stopped = EventCandidate("stopped", {"reason": "human decision"}, "implement")
+        self.assertTrue(validate_event(binding, events, stopped).ok)
+        events.append({"event_type": "stopped", "reason": "human decision"})
+
+        returned = EventCandidate("returned", {"outcome": "stopped"}, "cycle")
+        self.assertTrue(validate_event(binding, events, returned).ok)
+        events.append({"event_type": "returned", "outcome": "stopped"})
+
+        resumed = EventCandidate("resumed", {}, "cycle")
+        self.assertTrue(validate_event(binding, events, resumed).ok)
+        events.append({"event_type": "resumed"})
+
+        delegated = EventCandidate("delegated", {}, "cycle")
+        self.assertTrue(validate_event(binding, events, delegated).ok)
+        events.append({"event_type": "delegated"})
+
+        continued = EventCandidate("recovering", {"reason": "continue"}, "implement")
+        self.assertTrue(validate_event(binding, events, continued).ok)
+
 
 if __name__ == "__main__":
     unittest.main()
