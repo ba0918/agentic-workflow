@@ -373,6 +373,34 @@ class ImplementResumeTest(RepositoryFixture, unittest.TestCase):
         self.assertEqual(json.loads(output.getvalue())["resume_step"], "1")
 
 class ImplementCliTest(RepositoryFixture, unittest.TestCase):
+    def test_resolve_cli_reports_each_changed_specification_as_commits_and_diff(self) -> None:
+        root = self.fixture()
+        approval = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+        (root / "docs/spec/example.md").write_text("# Contract\n\nWording clarified\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "docs/spec/example.md"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "clarify wording"], check=True)
+        current = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(cli.main(["resolve", "--repo", str(root)]), 0)
+        changes = json.loads(output.getvalue())["specification_changes"]
+
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(set(changes[0]), {"path", "approval_commit", "current_commit", "diff"})
+        self.assertEqual(changes[0]["path"], "docs/spec/example.md")
+        self.assertEqual((changes[0]["approval_commit"], changes[0]["current_commit"]), (approval, current))
+        self.assertIn("+Wording clarified", changes[0]["diff"])
+
+    def test_resolve_cli_reports_no_specification_changes_when_specs_are_unchanged(self) -> None:
+        root = self.fixture()
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(cli.main(["resolve", "--repo", str(root)]), 0)
+
+        self.assertEqual(json.loads(output.getvalue())["specification_changes"], [])
+
     def test_cli_records_only_the_declared_human_gate_result(self) -> None:
         root = self.fixture()
         plan_path = root / "docs/plans/example.md"

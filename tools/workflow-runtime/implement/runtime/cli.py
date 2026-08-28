@@ -177,6 +177,15 @@ def _resolve_command(parser: argparse.ArgumentParser, args: argparse.Namespace) 
         "plan_key": plan.plan_key,
         "path": plan.path,
         "approval_commit": plan.approval_commit,
+        "specification_changes": [
+            {
+                "path": change.path,
+                "approval_commit": plan.approval_commit,
+                "current_commit": change.current_commit,
+                "diff": change.diff,
+            }
+            for change in plan.specification_changes
+        ],
     }, ensure_ascii=False))
     return 0
 
