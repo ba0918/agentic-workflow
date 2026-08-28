@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path, PurePosixPath
 import difflib
+import json
 import os
 import re
 import subprocess
@@ -17,6 +18,9 @@ COVERAGE_ROW = re.compile(
 )
 STEP_HEADING = re.compile(r"^## Step ([1-9][0-9]*): (\S.*)$", re.MULTILINE)
 CHECK_ROW = re.compile(r"^- `([^`]+)`$")
+GATE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+GATE_TIMINGS = {"before_edit", "before_commit", "before_implementation_green"}
+GATE_RESULTS = {"approved", "rejected"}
 
 class PlanArtifactError(Exception):
     pass
@@ -44,6 +48,7 @@ class StepContract(NamedTuple):
     id: str
     completion: str
     checks: tuple[str, ...]
+    human_gates: tuple[dict[str, object], ...] = ()
 
 class PlanHeader(NamedTuple):
     specifications: tuple[TargetSpecification, ...]
@@ -126,6 +131,89 @@ def _checks(body: str, *, step_id: str, completion: str) -> tuple[str, ...]:
         raise InvalidPlanFormat(f"check Step {step_id} needs at least one command")
     return tuple(checks)
 
+def _safe_gate_path(value: object) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    path = PurePosixPath(value)
+    return not path.is_absolute() and ".." not in path.parts and "." not in path.parts
+
+def _string_list(value: object) -> list[str] | None:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        return None
+    return list(value)
+
+def _gate_target(value: object) -> dict[str, object] | None:
+    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
+        return None
+    if value.get("kind") == "files" and set(value) == {"kind", "paths"}:
+        paths = _string_list(value.get("paths"))
+        if (
+            paths and len(paths) == len(set(paths))
+            and all(_safe_gate_path(path) for path in paths)
+        ):
+            return {"kind": "files", "paths": list(paths)}
+    sequence = value.get("sequence")
+    if (
+        value.get("kind") == "event" and set(value) == {"kind", "sequence"}
+        and isinstance(sequence, int) and not isinstance(sequence, bool) and sequence > 0
+    ):
+        return {"kind": "event", "sequence": sequence}
+    return None
+
+def _gate(value: object, *, step_id: str) -> dict[str, object]:
+    if not isinstance(value, dict) or set(value) != {
+        "gate_id", "sections", "criterion", "target", "timing", "allowed_results",
+    }:
+        raise InvalidPlanFormat(f"invalid Human gate in Step {step_id}")
+    gate_id = value.get("gate_id")
+    sections = _string_list(value.get("sections"))
+    criterion = value.get("criterion")
+    target = _gate_target(value.get("target"))
+    timing = value.get("timing")
+    results = _string_list(value.get("allowed_results"))
+    valid = (
+        isinstance(gate_id, str) and GATE_ID.fullmatch(gate_id) is not None
+        and sections is not None and bool(sections)
+        and all(section.strip() for section in sections)
+        and len(sections) == len(set(sections))
+        and isinstance(criterion, str) and bool(criterion.strip())
+        and target is not None and timing in GATE_TIMINGS
+        and results is not None and bool(results)
+        and len(results) == len(set(results))
+        and all(result in GATE_RESULTS for result in results)
+    )
+    if not valid or sections is None or results is None:
+        raise InvalidPlanFormat(f"invalid Human gate in Step {step_id}")
+    return {
+        "gate_id": gate_id,
+        "sections": list(sections),
+        "criterion": criterion,
+        "target": target,
+        "timing": timing,
+        "allowed_results": list(results),
+    }
+
+def _human_gates(body: str, *, step_id: str) -> tuple[dict[str, object], ...]:
+    labels = list(re.finditer(r"^\*\*Human gates:\*\*[ \t]*$", body, re.MULTILINE))
+    if not labels:
+        return ()
+    if len(labels) != 1:
+        raise InvalidPlanFormat(f"Step {step_id} has multiple **Human gates:** blocks")
+    tail = body[labels[0].end():].lstrip("\n")
+    match = re.match(r"```json[ \t]*\n(.*?)\n```", tail, re.DOTALL)
+    if match is None:
+        raise InvalidPlanFormat(f"Step {step_id} has an invalid **Human gates:** block")
+    try:
+        document: object = json.loads(match.group(1))
+    except json.JSONDecodeError as error:
+        raise InvalidPlanFormat(f"Step {step_id} has invalid Human gate JSON") from error
+    if not isinstance(document, dict) or set(document) != {"version", "gates"}:
+        raise InvalidPlanFormat(f"Step {step_id} has an invalid Human gate document")
+    values = document.get("gates")
+    if document.get("version") != 1 or not isinstance(values, list) or not values:
+        raise InvalidPlanFormat(f"Step {step_id} has an invalid Human gate document")
+    return tuple(_gate(value, step_id=step_id) for value in values)
+
 def _read_steps(text: str, coverage: tuple[VerificationCoverage, ...]) -> tuple[StepContract, ...]:
     matches = list(STEP_HEADING.finditer(text))
     numbers = [int(match.group(1)) for match in matches]
@@ -149,7 +237,17 @@ def _read_steps(text: str, coverage: tuple[VerificationCoverage, ...]) -> tuple[
         )
         body = text[match.end():body_end]
         completion = next(iter(completions[step_id]))
-        steps.append(StepContract(step_id, completion, _checks(body, step_id=step_id, completion=completion)))
+        steps.append(StepContract(
+            step_id,
+            completion,
+            _checks(body, step_id=step_id, completion=completion),
+            _human_gates(body, step_id=step_id),
+        ))
+    gate_ids = [
+        gate["gate_id"] for step in steps for gate in step.human_gates
+    ]
+    if len(gate_ids) != len(set(gate_ids)):
+        raise InvalidPlanFormat("Human gate ids must be unique across the plan")
     return tuple(steps)
 
 def _specifications(coverage: tuple[VerificationCoverage, ...]) -> tuple[TargetSpecification, ...]:

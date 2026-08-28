@@ -13,11 +13,23 @@ boundaries and remains the sole writer of implementation steps, commands, and re
 control returns.
 
 Use the runtime commands for branch/worktree binding, stage evidence, commit records, stop,
-rebound, and completion. It validates event fields and order, derives safety from the actual Git
+declared Human gates, rebound, and completion. It validates event fields and order, derives safety
+from the actual Git
 staging area and commit objects, and derives
 `implementation_green`; never append it directly. The same append operation atomically refreshes
 `current-status` with the plan Git version, committed steps, last event/reason, and bound
 branch/worktree.
+
+Record a declared Human gate only through the dedicated command after the human answers:
+
+```sh
+python3 scripts/implement_runtime.py human-gate \
+  --repo <repository> --plan-key <plan-key> --run-id <run-id> \
+  --step <step> --gate-id <gate-id> --result <approved-or-rejected>
+```
+
+The runtime obtains the target, timing, and allowed results from the active binding. Do not accept
+caller replacements for those declaration fields or append a generic approval in their place.
 
 Bindings and events use version 2. Reject legacy version 1 rather than guessing its completion
 state. Binding stays append-only: `recovering` records harmless document following, while

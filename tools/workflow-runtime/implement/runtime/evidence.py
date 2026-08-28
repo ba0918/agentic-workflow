@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import NamedTuple
 
-from runtime import tdd
+from runtime import gates, tdd
 from runtime.completion import completion_fields, validate_commit_ancestry
 from runtime.documents import (
     document_context as _document_context,
@@ -17,7 +17,7 @@ from runtime.documents import (
     validate_document_commit,
 )
 from runtime.events import EventCandidate, derive_implementation, validate_event
-from runtime.gitio import commit_paths, staged_paths
+from runtime.gitio import commit_paths, run_git, staged_paths
 from runtime.safety import assess_safety, content_safety, test_bytes, worktree
 from runtime.storage import canonical_json, read_json, write_atomic, write_once
 from runtime.types import (
@@ -29,6 +29,12 @@ class StageObservation(NamedTuple):
     command: str
     exit_code: int
     test_paths: list[str] | None = None
+
+
+class _HumanGateContext(NamedTuple):
+    binding: JsonObject
+    events: list[JsonObject]
+    gate: JsonObject
 
 
 def _reason_mapping(value: object) -> Mapping[str, str] | None:
@@ -404,6 +410,82 @@ def stop_run(run: Run, reason: str) -> RuntimeResult[JsonObject]:
     return append_event(run, "stopped", {"reason": reason})
 
 
+def record_human_gate(
+    run: Run, step: str, gate_id: str, result: str,
+) -> RuntimeResult[JsonObject]:
+    context = _human_gate_context(run, step, gate_id, result)
+    if not context.ok:
+        return forward_failure(
+            context.error, "implementation_evidence_invalid", "Human gate context is invalid",
+        )
+    effective, event_values, declared = context.required()
+    clean = _gate_target_clean(run, effective, declared)
+    if not clean.ok:
+        return forward_failure(clean.error, "human_gate_target_changed", "Human gate target changed")
+    fields: JsonObject = {
+        "step": step,
+        "gate_id": gate_id,
+        "result": result,
+        "reason": f"declared Human gate recorded as {result}",
+    }
+    candidate: JsonObject = {
+        "version": 2,
+        "sequence": len(event_values) + 1,
+        "event_type": "human_gate",
+        **fields,
+    }
+    derived = derive_implementation(effective, [*event_values, candidate])
+    if not derived.ok:
+        return forward_failure(
+            derived.error, "implementation_evidence_invalid", "Human gate evidence is invalid"
+        )
+    return _append_event(run, "human_gate", fields)
+
+
+def _human_gate_context(
+    run: Run, step: str, gate_id: str, result: str,
+) -> RuntimeResult[_HumanGateContext]:
+    binding = read_json(run.binding_path)
+    loaded = load_events(run)
+    if not binding.ok:
+        return forward_failure(binding.error, "evidence_unavailable", "binding is unavailable")
+    if not loaded.ok:
+        return forward_failure(loaded.error, "evidence_unavailable", "events are unavailable")
+    effective = _effective_binding(binding.required(), loaded.required())
+    if not effective.ok:
+        return forward_failure(
+            effective.error, "implementation_evidence_invalid", "implementation evidence is invalid"
+        )
+    declared = gates.declared_gate(effective.required(), step, gate_id, result)
+    if not declared.ok:
+        return forward_failure(declared.error, "human_gate_unknown", "Human gate is unavailable")
+    return ok(
+        _HumanGateContext(effective.required(), loaded.required(), declared.required()),
+    )
+
+
+def _gate_target_clean(
+    run: Run, binding: JsonObject, gate: JsonObject,
+) -> RuntimeResult[None]:
+    if gate.get("timing") != "before_edit":
+        return ok(None)
+    target = object_value(gate.get("target")) or {}
+    paths = string_values(target.get("paths")) if target.get("kind") == "files" else None
+    if not paths or not binding.get("worktree"):
+        return ok(None)
+    checkout = worktree(binding, run)
+    status = run_git(
+        checkout, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--", *paths,
+    )
+    if status.returncode != 0:
+        return failure("git_inspection_failed", "Human gate target status is unavailable")
+    if status.stdout:
+        return failure(
+            "human_gate_target_changed", "before_edit target is already modified", paths[0],
+        )
+    return ok(None)
+
+
 def follow_documents(
     run: Run, current_commit: str, changed_documents: list[str], reason: str,
 ) -> RuntimeResult[JsonObject]:
@@ -441,7 +523,12 @@ def rebound_run(
             checked.error, "document_commit_invalid", "document commit is invalid"
         )
     steps: list[JsonObject] = [
-        {"id": step.id, "completion": step.completion, "checks": list(step.checks)}
+        {
+            "id": step.id,
+            "completion": step.completion,
+            "checks": list(step.checks),
+            "human_gates": list(step.human_gates),
+        }
         for step in checked.required().steps
     ]
     fields: JsonObject = {

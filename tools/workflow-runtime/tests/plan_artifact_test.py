@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -40,6 +41,24 @@ Run the behavior test.
 - `second-check`
 """
 
+def with_human_gates(plan: str, gates: list[dict[str, object]]) -> str:
+    block = "\n\n**Human gates:**\n\n```json\n" + json.dumps(
+        {"version": 1, "gates": gates}, ensure_ascii=False, indent=2,
+    ) + "\n```"
+    return plan.replace("\n\n## Step 2:", block + "\n\n## Step 2:")
+
+def file_gate(**changes: object) -> dict[str, object]:
+    gate: dict[str, object] = {
+        "gate_id": "approve-app",
+        "sections": ["Contract"],
+        "criterion": "May the implementation edit this file?",
+        "target": {"kind": "files", "paths": ["src/app.py"]},
+        "timing": "before_edit",
+        "allowed_results": ["approved", "rejected"],
+    }
+    gate.update(changes)
+    return gate
+
 class PlanArtifactTest(unittest.TestCase):
     def make_repository(self) -> Path:
         root = Path(tempfile.mkdtemp())
@@ -72,6 +91,27 @@ class PlanArtifactTest(unittest.TestCase):
             [("1", "test", ()), ("2", "check", ("first-check", "second-check"))],
         )
         self.assertEqual(plan_artifact.read_plan_scope(PLAN), ("src/app.py", "tests/app_test.py"))
+
+    def test_reads_human_gate_contracts_from_their_step(self) -> None:
+        header = plan_artifact.read_plan_header(with_human_gates(PLAN, [file_gate()]))
+
+        self.assertEqual(header.steps[0].human_gates, (file_gate(),))
+        self.assertEqual(header.steps[1].human_gates, ())
+
+    def test_rejects_malformed_or_duplicate_human_gate_contracts(self) -> None:
+        invalid_gates = (
+            [file_gate(gate_id="../unsafe")],
+            [file_gate(criterion="")],
+            [file_gate(target={"kind": "files", "paths": ["../outside"]})],
+            [file_gate(target={"kind": "event", "sequence": 0})],
+            [file_gate(timing="after_commit")],
+            [file_gate(allowed_results=["approved", "maybe"])],
+            [file_gate(), file_gate()],
+        )
+
+        for gates in invalid_gates:
+            with self.subTest(gates=gates), self.assertRaises(plan_artifact.InvalidPlanFormat):
+                plan_artifact.read_plan_header(with_human_gates(PLAN, gates))
 
     def test_rejects_legacy_target_specifications(self) -> None:
         legacy = PLAN.replace(

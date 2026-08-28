@@ -8,6 +8,7 @@ from runtime.context import (
     StageObservation, append_event, complete_run, follow_documents, rebound_run, record_commit,
     record_stage, stop_run,
 )
+from runtime.evidence import record_human_gate
 from runtime.planning import resolve_plan
 from runtime.repository import bind_run, load_run
 from runtime.resume import discover_unfinished, resume_run, retire_run
@@ -71,6 +72,11 @@ def _transition_parsers(add_parser: Callable[[str], argparse.ArgumentParser]) ->
     commit.add_argument("--commit", required=True)
     commit.add_argument("--recorded-late", action="store_true")
     commit.add_argument("--unplanned-reason", action="append", default=[])
+    human_gate = add_parser("human-gate")
+    _run_arguments(human_gate)
+    human_gate.add_argument("--step", required=True)
+    human_gate.add_argument("--gate-id", required=True)
+    human_gate.add_argument("--result", choices=("approved", "rejected"), required=True)
     stop = add_parser("stop")
     _run_arguments(stop)
     stop.add_argument("--reason", required=True)
@@ -280,6 +286,13 @@ def _bound_command(
         return _stage_command(parser, args, run)
     if command in {"retire", "record-commit", "stop"}:
         return _history_command(parser, args, run, command)
+    if command == "human-gate":
+        return record_human_gate(
+            run,
+            _string(args, "step"),
+            _string(args, "gate_id"),
+            _string(args, "result"),
+        )
     if command in {"rebound", "follow-documents", "complete"}:
         return _document_command(parser, args, run, command)
     actor = "cycle" if command in {"delegated", "returned"} else None

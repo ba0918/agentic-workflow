@@ -28,5 +28,19 @@ plan, and a one-to-one `old=new` mapping; the runtime re-derives the complete ne
 from that commit rather than accepting them from the caller. Carry only completed steps whose
 completion kind is unchanged, and resume at the first changed or new step.
 
+When the active Step declares a Human gate, return control to the human before crossing its
+declared timing boundary. After the answer, record it with the complete dedicated command and then
+resume the same Step:
+
+```sh
+python3 scripts/implement_runtime.py human-gate \
+  --repo <repository> --plan-key <plan-key> --run-id <run-id> \
+  --step <step> --gate-id <gate-id> --result <approved-or-rejected>
+```
+
+Use only the declared gate id and one of the declared results. The runtime resolves the gate target
+and timing from the binding, rejects an answer outside that boundary, and keeps a rejected answer
+distinct from approval.
+
 Do not discard uncommitted work, unexplained commits, branches, worktrees, or evidence. Investigate
 their meaning and carry safe ordinary work with an explicit terminal note.

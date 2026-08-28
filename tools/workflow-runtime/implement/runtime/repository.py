@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 from typing import NamedTuple, Protocol, runtime_checkable
 
+from runtime.deps import implementation_evidence
 from runtime.gitio import run_git
 from runtime.storage import canonical_json, read_json, write_once
 from runtime.types import (
@@ -17,6 +18,7 @@ class StepValue(Protocol):
     id: str
     completion: str
     checks: tuple[str, ...]
+    human_gates: tuple[object, ...]
 
 
 class BindingData(NamedTuple):
@@ -42,10 +44,12 @@ def _step(value: object) -> JsonObject | None:
         identifier = value.get("id")
         completion = value.get("completion")
         checks_value = value.get("checks", ())
+        gates_value = value.get("human_gates", ())
     elif isinstance(value, StepValue):
         identifier = value.id
         completion = value.completion
         checks_value = value.checks
+        gates_value = value.human_gates
     else:
         return None
     if not isinstance(identifier, str) or not isinstance(completion, str):
@@ -54,7 +58,14 @@ def _step(value: object) -> JsonObject | None:
         isinstance(command, str) for command in checks_value
     ):
         return None
-    return {"id": identifier, "completion": completion, "checks": list(checks_value)}
+    if not isinstance(gates_value, (list, tuple)):
+        return None
+    return {
+        "id": identifier,
+        "completion": completion,
+        "checks": list(checks_value),
+        "human_gates": list(gates_value),
+    }
 
 
 def _normalized_steps(plan: ResolvedPlan) -> RuntimeResult[list[JsonObject]]:
@@ -64,6 +75,12 @@ def _normalized_steps(plan: ResolvedPlan) -> RuntimeResult[list[JsonObject]]:
             "step_contract_invalid", "steps need unique ids and a supported completion kind"
         )
     steps = [value for value in normalized if value is not None]
+    canonical = implementation_evidence.normalize_steps(steps)
+    if canonical is None:
+        return failure(
+            "step_contract_invalid", "steps need unique ids and a supported completion kind"
+        )
+    steps = canonical
     identifiers = [value.get("id") for value in steps]
     supported = all(
         step.get("completion") in {"test", "check", "artifact", "external"}

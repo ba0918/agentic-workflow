@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import sys
 import tempfile
 import unittest
@@ -21,6 +22,29 @@ class ImplementBindingTest(unittest.TestCase):
                 Path(directory), plan, run_id="run-1", delegated=False
             )
         self.assertTrue(result.ok, result.error)
+
+    def test_binding_preserves_human_gate_declarations(self) -> None:
+        gate: JsonObject = {
+            "gate_id": "approve-app",
+            "sections": ["Contract"],
+            "criterion": "May the implementation edit this file?",
+            "target": {"kind": "files", "paths": ["src/app.py"]},
+            "timing": "before_edit",
+            "allowed_results": ["approved", "rejected"],
+        }
+        step: JsonObject = {
+            "id": "1", "completion": "check", "checks": ["lint"],
+            "human_gates": [gate],
+        }
+        plan = ResolvedPlan(
+            "plan-a", "docs/plans/plan-a.md", "a" * 40, "plan", (), (), steps=(step,)
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            result = bind_run(Path(directory), plan, run_id="run-1", delegated=False)
+            self.assertTrue(result.ok, result.error)
+            binding = json.loads(result.required().binding_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(binding["steps"][0]["human_gates"], [gate])
 
 
 if __name__ == "__main__":

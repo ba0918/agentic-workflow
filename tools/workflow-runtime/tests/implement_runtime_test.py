@@ -41,6 +41,21 @@ src/
 - `lint`
 """
 
+def plan_with_before_edit_gate() -> str:
+    gate = {
+        "version": 1,
+        "gates": [{
+            "gate_id": "approve-app",
+            "sections": ["Contract"],
+            "criterion": "May the implementation edit this file?",
+            "target": {"kind": "files", "paths": ["src/app.py"]},
+            "timing": "before_edit",
+            "allowed_results": ["approved", "rejected"],
+        }],
+    }
+    block = "\n\n**Human gates:**\n\n```json\n" + json.dumps(gate, indent=2) + "\n```"
+    return PLAN + block
+
 def resolved_plan(
     approval: str, *, expected_paths: tuple[str, ...] = (),
     steps: tuple[JsonObject, ...] = ({"id": "1", "completion": "check"},),
@@ -358,6 +373,56 @@ class ImplementResumeTest(RepositoryFixture, unittest.TestCase):
         self.assertEqual(json.loads(output.getvalue())["resume_step"], "1")
 
 class ImplementCliTest(RepositoryFixture, unittest.TestCase):
+    def test_cli_records_only_the_declared_human_gate_result(self) -> None:
+        root = self.fixture()
+        plan_path = root / "docs/plans/example.md"
+        plan_path.write_text(plan_with_before_edit_gate(), encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "docs/plans/example.md"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "human gate"], check=True)
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"],
+            text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        selector = ["--repo", str(root), "--plan-key", "example", "--run-id", "run-1"]
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main([
+                "bind", "--repo", str(root), "--plan-path", "docs/plans/example.md",
+                "--run-id", "run-1", "--branch", branch, "--worktree", str(root),
+            ]), 0)
+            self.assertEqual(cli.main([
+                "human-gate", *selector, "--step", "1", "--gate-id", "approve-app",
+                "--result", "approved",
+            ]), 0)
+        run = repository.load_run(root, "example", "run-1").required()
+        event = context.load_events(run).required()[-1]
+
+        self.assertEqual(
+            {key: event[key] for key in ("event_type", "step", "gate_id", "result")},
+            {"event_type": "human_gate", "step": "1", "gate_id": "approve-app", "result": "approved"},
+        )
+
+    def test_before_edit_gate_rejects_an_already_modified_target(self) -> None:
+        root = self.fixture()
+        plan_path = root / "docs/plans/example.md"
+        plan_path.write_text(plan_with_before_edit_gate(), encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "docs/plans/example.md"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "human gate"], check=True)
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"],
+            text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main([
+                "bind", "--repo", str(root), "--plan-path", "docs/plans/example.md",
+                "--run-id", "run-1", "--branch", branch, "--worktree", str(root),
+            ]), 0)
+        (root / "src").mkdir()
+        (root / "src/app.py").write_text("value = 1\n", encoding="utf-8")
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            cli.main([
+                "human-gate", "--repo", str(root), "--plan-key", "example", "--run-id", "run-1",
+                "--step", "1", "--gate-id", "approve-app", "--result", "approved",
+            ])
     def test_cli_resumes_a_stopped_delegation_after_cycle_returns_it(self) -> None:
         root = self.fixture()
         branch = subprocess.run(

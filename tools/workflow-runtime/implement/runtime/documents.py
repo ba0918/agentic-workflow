@@ -17,6 +17,7 @@ class PlanStep(Protocol):
     id: str
     completion: str
     checks: tuple[str, ...]
+    human_gates: tuple[JsonObject, ...]
 
 
 class PlanHeader(Protocol):

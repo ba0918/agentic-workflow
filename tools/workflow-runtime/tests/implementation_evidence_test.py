@@ -7,7 +7,7 @@ sys.path.insert(0, str(ROOT / "tools/workflow-runtime/shared"))
 import implementation_evidence
 from implementation_evidence import JsonObject
 
-class ImplementationEvidenceTest(unittest.TestCase):
+class _EvidenceTestCase(unittest.TestCase):
     def binding(self, steps: list[JsonObject]) -> JsonObject:
         return {"version": 2, "approval_commit": "a" * 40, "steps": steps}
 
@@ -16,6 +16,197 @@ class ImplementationEvidenceTest(unittest.TestCase):
 
     def snapshot(self) -> JsonObject:
         return {"files": {"tests/a.py": "sha256:" + "0" * 64}, "command": "sha256:" + "1" * 64}
+
+    def gate(
+        self, timing: str, *, target: JsonObject | None = None, criterion: str = "Approved?",
+    ) -> JsonObject:
+        return {
+            "gate_id": "approve-step",
+            "sections": ["Contract"],
+            "criterion": criterion,
+            "target": target or {"kind": "files", "paths": ["app.txt"]},
+            "timing": timing,
+            "allowed_results": ["approved", "rejected"],
+        }
+
+    def approval(self, sequence: int, *, result: str = "approved") -> JsonObject:
+        return self.event(
+            sequence, "human_gate", step="1", gate_id="approve-step", result=result,
+            reason="human answered the declared gate",
+        )
+
+
+class HumanGateEvidenceTest(_EvidenceTestCase):
+    def test_before_edit_gate_must_be_approved_before_step_work(self) -> None:
+        binding = self.binding([{
+            "id": "1", "completion": "check", "human_gates": [self.gate("before_edit")],
+        }])
+        check = self.event(
+            1, "check", step="1", checks=[{"exit_code": 0}], changed_paths=[],
+        )
+        missing = implementation_evidence.derive_implementation(binding, [check])
+        rejected = implementation_evidence.derive_implementation(
+            binding, [self.approval(1, result="rejected"), {**check, "sequence": 2}],
+        )
+        approved = implementation_evidence.derive_implementation(
+            binding, [self.approval(1), {**check, "sequence": 2}],
+        )
+
+        self.assertEqual(missing.required_error().code, "human_gate_required")
+        self.assertEqual(rejected.required_error().code, "human_gate_required")
+        self.assertTrue(approved.ok, approved.error)
+        self.assertEqual(approved.required()["completed_steps"], ["1"])
+
+    def test_before_commit_gate_must_follow_evidence_and_immediately_guard_target_changes(self) -> None:
+        binding = self.binding([{
+            "id": "1", "completion": "artifact", "human_gates": [self.gate("before_commit")],
+        }])
+        artifact = self.event(
+            1, "artifact", step="1", checks=[], changed_paths=["app.txt"],
+        )
+        gate = self.approval(2)
+        commit = self.event(
+            3, "commit", step="1", commit="b" * 40,
+            safety={"paths": ["app.txt"], "unplanned": []},
+        )
+        too_early = implementation_evidence.derive_implementation(
+            binding, [self.approval(1), {**artifact, "sequence": 2}, commit],
+        )
+        missing = implementation_evidence.derive_implementation(binding, [artifact, {**commit, "sequence": 2}])
+        approved = implementation_evidence.derive_implementation(binding, [artifact, gate, commit])
+        changed_after_approval = implementation_evidence.derive_implementation(binding, [
+            artifact,
+            gate,
+            self.event(3, "artifact", step="1", checks=[], changed_paths=["app.txt"]),
+            {**commit, "sequence": 4},
+        ])
+
+        self.assertEqual(too_early.required_error().code, "human_gate_timing_invalid")
+        self.assertEqual(missing.required_error().code, "human_gate_required")
+        self.assertTrue(approved.ok, approved.error)
+        self.assertEqual(changed_after_approval.required_error().code, "human_gate_required")
+
+    def test_before_implementation_green_gate_must_follow_step_completion_and_stay_current(self) -> None:
+        binding = self.binding([{
+            "id": "1", "completion": "check",
+            "human_gates": [self.gate("before_implementation_green")],
+        }])
+        check = self.event(
+            1, "check", step="1", checks=[{"exit_code": 0}], changed_paths=[],
+        )
+        green = self.event(3, "implementation_green", completed_steps=["1"])
+        missing = implementation_evidence.derive_implementation(
+            binding, [check, {**green, "sequence": 2}],
+        )
+        too_early = implementation_evidence.derive_implementation(
+            binding, [self.approval(1), {**check, "sequence": 2}, green],
+        )
+        approved = implementation_evidence.derive_implementation(binding, [check, self.approval(2), green])
+
+        self.assertEqual(missing.required_error().code, "human_gate_required")
+        self.assertEqual(too_early.required_error().code, "human_gate_timing_invalid")
+        self.assertTrue(approved.ok, approved.error)
+
+    def test_implementation_green_lists_the_steps_completed_under_human_gates(self) -> None:
+        binding = self.binding([{
+            "id": "1", "completion": "check",
+            "human_gates": [self.gate("before_implementation_green")],
+        }])
+        events = [
+            self.event(1, "check", step="1", checks=[{"exit_code": 0}], changed_paths=[]),
+            self.approval(2),
+            self.event(3, "implementation_green", completed_steps=[]),
+        ]
+
+        result = implementation_evidence.derive_implementation(binding, events)
+
+        self.assertEqual(result.required_error().code, "transition_invalid")
+
+    def test_event_gate_requires_the_declared_existing_sequence(self) -> None:
+        target = {"kind": "event", "sequence": 1}
+        binding = self.binding([{
+            "id": "1", "completion": "check",
+            "human_gates": [self.gate("before_implementation_green", target=target)],
+        }])
+        check = self.event(1, "check", step="1", checks=[{"exit_code": 0}], changed_paths=[])
+        approved = implementation_evidence.derive_implementation(binding, [check, self.approval(2)])
+        missing_target_binding = self.binding([{
+            "id": "1", "completion": "check",
+            "human_gates": [self.gate(
+                "before_implementation_green", target={"kind": "event", "sequence": 9},
+            )],
+        }])
+        missing_target = implementation_evidence.derive_implementation(
+            missing_target_binding, [check, self.approval(2)],
+        )
+
+        self.assertTrue(approved.ok, approved.error)
+        self.assertEqual(missing_target.required_error().code, "human_gate_target_invalid")
+
+    def test_rebound_carries_completion_only_for_identical_human_gates(self) -> None:
+        gate = self.gate("before_edit")
+        binding = self.binding([{
+            "id": "old", "completion": "check", "human_gates": [gate],
+        }])
+        completed = [
+            self.event(
+                1, "human_gate", step="old", gate_id="approve-step", result="approved",
+                reason="approved",
+            ),
+            self.event(2, "check", step="old", checks=[{"exit_code": 0}], changed_paths=[]),
+        ]
+        same = self.event(
+            3, "rebound", approval_commit="b" * 40,
+            steps=[{"id": "same", "completion": "check", "human_gates": [gate]}],
+            mappings=[{"old": "old", "new": "same"}], reason="approved",
+        )
+        changed_gate = {**gate, "criterion": "A changed question?"}
+        changed = self.event(
+            3, "rebound", approval_commit="b" * 40,
+            steps=[{"id": "changed", "completion": "check", "human_gates": [changed_gate]}],
+            mappings=[{"old": "old", "new": "changed"}], reason="approved",
+        )
+        same_result = implementation_evidence.derive_implementation(binding, [*completed, same])
+        changed_result = implementation_evidence.derive_implementation(binding, [*completed, changed])
+
+        self.assertEqual(same_result.required()["completed_steps"], ["same"])
+        self.assertEqual(changed_result.required()["completed_steps"], [])
+        self.assertEqual(changed_result.required()["resume_step"], "changed")
+
+    def test_later_target_changes_allow_work_but_require_a_fresh_final_gate(self) -> None:
+        binding = self.binding([
+            {
+                "id": "1", "completion": "check",
+                "human_gates": [self.gate("before_implementation_green")],
+            },
+            {"id": "2", "completion": "check"},
+        ])
+        work = [
+            self.event(1, "check", step="1", checks=[{"exit_code": 0}], changed_paths=[]),
+            self.approval(2),
+            self.event(
+                3, "check", step="2", checks=[{"exit_code": 0}], changed_paths=["app.txt"],
+            ),
+            self.event(
+                4, "commit", step="2", commit="b" * 40,
+                safety={"paths": ["app.txt"], "unplanned": []},
+            ),
+        ]
+        stale = implementation_evidence.derive_implementation(
+            binding, [*work, self.event(5, "implementation_green", completed_steps=["1", "2"])],
+        )
+        refreshed = implementation_evidence.derive_implementation(binding, [
+            *work,
+            self.approval(5),
+            self.event(6, "implementation_green", completed_steps=["1", "2"]),
+        ])
+
+        self.assertTrue(implementation_evidence.derive_implementation(binding, work).ok)
+        self.assertEqual(stale.required_error().code, "human_gate_required")
+        self.assertTrue(refreshed.ok, refreshed.error)
+
+
+class ImplementationEvidenceTest(_EvidenceTestCase):
 
     def test_completion_and_resume_follow_each_completion_kind(self) -> None:
         steps: list[JsonObject] = [
