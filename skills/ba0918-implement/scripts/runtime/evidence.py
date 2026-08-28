@@ -83,7 +83,11 @@ def _status(binding: JsonObject, event_values: list[JsonObject], event: JsonObje
     return {
         "plan": {"path": binding.get("plan_path"), "approval_commit": approval_commit},
         "completed_steps": completed,
-        "last_event": {"event_type": event["event_type"], "reason": reason},
+        "last_event": {
+            "event_type": event["event_type"],
+            "reason": reason,
+            **{name: event[name] for name in ("role", "model") if name in event},
+        },
         "worktree": {"branch": binding.get("branch"), "path": binding.get("worktree")},
     }
 
@@ -99,6 +103,16 @@ def _event_lock(run: Run) -> Iterator[None]:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
+def _overlay_derived(binding: JsonObject, derived: JsonObject) -> JsonObject:
+    """Binding as it currently applies: rebound-aware steps, approval commit and scope."""
+    return {
+        **binding,
+        "steps": derived.get("steps"),
+        "approval_commit": derived.get("approval_commit"),
+        "expected_paths": derived.get("expected_paths"),
+    }
+
+
 def _effective_binding(
     binding: JsonObject, event_values: list[JsonObject],
 ) -> RuntimeResult[JsonObject]:
@@ -109,12 +123,7 @@ def _effective_binding(
         return forward_failure(
             derived.error, "implementation_evidence_invalid", "implementation evidence is invalid"
         )
-    value = derived.required()
-    return ok({
-        **binding,
-        "steps": value.get("steps"),
-        "approval_commit": value.get("approval_commit"),
-    })
+    return ok(_overlay_derived(binding, derived.required()))
 
 
 def _store_event(
@@ -224,7 +233,18 @@ def append_event(
                 binding.error, "evidence_unavailable", "implementation binding is unavailable"
             )
         if binding.required().get("worktree"):
-            active_binding = binding.required()
+            loaded = load_events(run)
+            if not loaded.ok:
+                return forward_failure(
+                    loaded.error, "evidence_unavailable", "implementation events are unavailable"
+                )
+            effective = _effective_commit_binding(binding.required(), loaded.required())
+            if not effective.ok:
+                return forward_failure(
+                    effective.error, "implementation_evidence_invalid",
+                    "implementation evidence is invalid",
+                )
+            active_binding = effective.required()
             assessed = _prepare_safety(run, active_binding, prepared)
             if not assessed.ok:
                 return forward_failure(assessed.error, "dangerous_path", "changed paths are unsafe")
@@ -318,12 +338,7 @@ def _effective_commit_binding(
         return forward_failure(
             derived.error, "implementation_evidence_invalid", "implementation evidence is invalid"
         )
-    value = derived.required()
-    return ok({
-        **binding,
-        "steps": value.get("steps"),
-        "approval_commit": value.get("approval_commit"),
-    })
+    return ok(_overlay_derived(binding, derived.required()))
 
 
 def record_commit(
@@ -525,10 +540,11 @@ def rebound_run(
             "checks": list(step.checks),
             "human_gates": list(step.human_gates),
         }
-        for step in checked.required().steps
+        for step in checked.required().header.steps
     ]
     fields: JsonObject = {
         "approval_commit": approval_commit,
+        "expected_paths": list(checked.required().scope),
         "steps": steps,
         "mappings": mappings,
         "reason": reason,

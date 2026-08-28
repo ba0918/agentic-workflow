@@ -278,7 +278,8 @@ def completion_fields(
         return _forward_failure(
             derived.error, "completion_invalid", "implementation evidence is invalid"
         )
-    checkout = _checkout_completion(binding, events)
+    effective_binding = {**binding, "expected_paths": derived.required().get("expected_paths")}
+    checkout = _checkout_completion(effective_binding, events)
     if not checkout.ok:
         return _forward_failure(
             checkout.error, "completion_invalid", "worktree cannot complete"

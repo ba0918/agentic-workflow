@@ -2,7 +2,7 @@
 from pathlib import Path
 from dataclasses import dataclass
 import re
-from typing import Generic, NamedTuple, Never, TypeVar
+from typing import Generic, NamedTuple, Never, Protocol, TypeVar
 
 RUN_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,95}")
 COMMIT_SHA = re.compile(r"[0-9a-f]{40,64}")
@@ -33,6 +33,13 @@ class RuntimeResult(NamedTuple, Generic[ResultValue]):
             raise RuntimeError("runtime result has no failure")
         return self.error
 
+class SpecificationChange(Protocol):
+    """A referenced specification whose committed text moved after plan approval."""
+    path: str
+    diff: str
+    current_commit: str
+
+
 @dataclass(frozen=True)
 class ResolvedPlan:
     plan_key: str
@@ -41,7 +48,7 @@ class ResolvedPlan:
     text: str
     specifications: tuple[object, ...]
     expected_paths: tuple[str, ...]
-    specification_changes: tuple[object, ...] = ()
+    specification_changes: tuple[SpecificationChange, ...] = ()
     steps: tuple[object, ...] = ()
 
 class Run(NamedTuple):

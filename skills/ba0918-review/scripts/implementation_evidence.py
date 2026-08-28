@@ -509,6 +509,7 @@ def _valid_document_event(event: JsonObject, event_type: str) -> bool | None:
             commit is not None
             and SHA.fullmatch(commit) is not None
             and _text(event, "reason") is not None
+            and ("expected_paths" not in event or _safe_paths(event["expected_paths"]))
         )
     return None
 
@@ -560,9 +561,12 @@ def _valid_event(event: JsonObject) -> bool:
 
 
 class _Derivation:
-    def __init__(self, active_steps: list[JsonObject], approval_commit: object) -> None:
+    def __init__(
+        self, active_steps: list[JsonObject], approval_commit: object, expected_paths: list[str],
+    ) -> None:
         self.active_steps = active_steps
         self.approval_commit = approval_commit
+        self.expected_paths = expected_paths
         self.completed: set[str] = set()
         self.segment: list[JsonObject] = []
         self.segments: list[JsonObject] = []
@@ -836,6 +840,9 @@ def _apply_boundary(state: _Derivation, event: JsonObject) -> EvidenceFailure | 
     state.test_stages = {}
     state.red_snapshots = {}
     state.approval_commit = event.get("approval_commit")
+    rebound_paths = _strings(event.get("expected_paths"))
+    if rebound_paths is not None:
+        state.expected_paths = rebound_paths
     state.segment = []
     return None
 
@@ -954,6 +961,10 @@ def _validated_input(
     return binding_object, event_objects, steps
 
 
+def _binding_paths(binding: JsonObject) -> list[str]:
+    return _strings(binding.get("expected_paths")) or []
+
+
 def _commits(segments: list[JsonObject]) -> list[str]:
     commits: list[str] = []
     for segment in segments:
@@ -968,7 +979,9 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
     if isinstance(validated, EvidenceFailure):
         return _failure(validated.code, validated.message)
     binding_object, event_objects, steps = validated
-    state = _Derivation(steps, binding_object.get("approval_commit"))
+    state = _Derivation(
+        steps, binding_object.get("approval_commit"), _binding_paths(binding_object),
+    )
     for event in event_objects:
         event_failure = _apply_event(state, event)
         if event_failure is not None:
@@ -990,6 +1003,7 @@ def derive_implementation(binding: object, events: object) -> EvidenceResult:
     return _ok(
         {
             "approval_commit": state.approval_commit,
+            "expected_paths": state.expected_paths,
             "steps": state.active_steps,
             "completed_steps": ordered_completed,
             "resume_step": resume_step,
