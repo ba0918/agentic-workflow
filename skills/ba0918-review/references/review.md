@@ -44,9 +44,12 @@ implementation, specification, and tooling, change the method once, and return t
 if it still does not decrease.
 
 An oracle stored in a finding is a proposed decision method, not a shell command. Read its intent,
-then choose a safe local operation rooted at the reviewed worktree. Do not accept absolute paths,
-outside writes, irreversible commands, external publication, or credential-dependent operations.
-Record the operation actually chosen, its exit code, and a bounded result summary independently of
+then choose a safe local operation rooted at the reviewed worktree. Never run a proposal that uses
+an absolute path, writes outside the worktree, is irreversible, publishes externally, or depends on
+credentials; rebuild it as a safe equivalent first. This is your discipline, not a runtime gate: the
+runtime records whatever operation you ran exactly as you give it and checks only that the text is
+non-empty, NUL-free, and within its length limit.
+Record the operation actually run, its exit code, and a bounded result summary independently of
 the proposal. A safe equivalent may close the finding; the absence of one becomes a human-judgment
 reason and never a fabricated passing result.
 

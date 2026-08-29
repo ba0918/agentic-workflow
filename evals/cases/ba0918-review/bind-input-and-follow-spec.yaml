@@ -36,7 +36,7 @@ expectations:
     critical: true
   - text: 同じreviewerの安全確認結果が未完了または未解決ならfinding集合を成功記録しない
     critical: true
-  - text: finding全nested文字列をsecret scanし、profile・相対spec path・実在spec commitをactive bindingへ束縛して拒否時はeventを増やさない
+  - text: finding全nested文字列を形式（空でない・長さ上限・NULを含まない）で検証し、profile・相対spec path・実在spec commitをactive bindingへ束縛して拒否時はeventを増やさない
     critical: true
   - text: second reviewerはskillがplanとdiffだけをsecret scan後に一度渡し、利用不能なら警告して単独reviewを続ける
     critical: true

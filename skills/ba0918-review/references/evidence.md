@@ -29,7 +29,8 @@ reject symlinks in every parent. On every read, reduce the complete version 2 ev
 the same schema and stage-order rules used for writing. A final result cannot exist before a valid
 initial start/result and convergence.
 
-Before writing or reading a finding, scan every nested string without returning matched values.
+Before writing or reading a finding, check every nested string as bounded text: non-empty where
+required, within its length limit, and free of NUL.
 Repository paths must be relative, specification paths and Git versions must match the active
 binding, and the profile must be one selected by that review. Apply the same safe bounded-text rule
 to added findings, terminal observations, reviewer contexts, decisions, and summaries.

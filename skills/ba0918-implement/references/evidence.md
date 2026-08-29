@@ -57,9 +57,9 @@ from file timestamps. A legacy or malformed run must return an error without cha
 `current-status`. `resume-candidate-retired` is an append-only logical exclusion from default
 discovery, not deletion; explicit run-id inspection and resumption remain available.
 
-Safety reads both path names and file content from Git itself. Report only the offending path and
-category when credential-shaped assignments or private-key headers are found; never copy the
-matched value into events or errors. A commit event is valid only for a unique commit after the
+Safety reads path names from Git itself and never the changed content. Report the offending path
+and its category when a path is rejected. Keeping credentials out of what you commit and record is
+your responsibility, not the runtime's. A commit event is valid only for a unique commit after the
 approval commit and on the bound branch. At completion the branch's approval-to-HEAD commit set
 and the recorded commit set must match in both directions.
 
