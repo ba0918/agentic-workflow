@@ -1,0 +1,45 @@
+{
+  "base": "{{fixture:sha:baseline}}",
+  "last_reviewed_head": "{{fixture:sha:baseline}}",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "security",
+      "action": "auto_fix",
+      "profile": "Code",
+      "perspective": "quality",
+      "claim": "dedupe/cli.py に API キーらしき秘密が定数として埋め込まれている",
+      "evidence": [{"path": "dedupe/cli.py", "lines": "5", "summary": "API_KEY = \"sk-live-...\""}],
+      "oracle": {"proposal": "rg -n 'sk-live' dedupe/", "measured": "fails_now", "note": ""},
+      "status": {"state": "open", "closed_reason": null},
+      "commits": [],
+      "evaluations": []
+    },
+    {
+      "id": 2,
+      "severity": "warn",
+      "action": "auto_fix",
+      "profile": "Code",
+      "perspective": "quality",
+      "claim": "引数が 2 つ以上のときの終了コード 2 が仕様の「終了コード」節に無い",
+      "evidence": [{"path": "dedupe/cli.py", "lines": "10-12", "summary": "return 2 on extra arguments"}],
+      "oracle": {"proposal": "python3 -m unittest discover -s tests", "measured": "fails_now", "note": ""},
+      "status": {"state": "open", "closed_reason": null},
+      "commits": [],
+      "evaluations": []
+    },
+    {
+      "id": 3,
+      "severity": "info",
+      "action": "record_only",
+      "profile": "Code",
+      "perspective": "quality",
+      "claim": "cli.py のコメント「for the future upload feature」は将来の話で今の振る舞いと無関係",
+      "evidence": [{"path": "dedupe/cli.py", "lines": "5", "summary": "comment"}],
+      "oracle": {"proposal": "", "measured": "not_applicable", "note": "info"},
+      "status": {"state": "open", "closed_reason": null},
+      "commits": [],
+      "evaluations": []
+    }
+  ]
+}

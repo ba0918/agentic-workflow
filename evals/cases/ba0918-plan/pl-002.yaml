@@ -1,0 +1,32 @@
+skill: ba0918-plan
+id: pl-002
+title: 仕様書がコミットされていなければ手順書を作らない
+source: acceptance:20260830
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - docs/spec/dedupe.md
+  - dedupe/__init__.py
+git:
+  init: true
+  commit:
+    - README.md
+    - dedupe/__init__.py
+  message: baseline
+
+exercises:
+  - skills/ba0918-plan/SKILL.md
+
+prompt: |
+  docs/spec/dedupe.md から実装の手順書を作って。
+expected_output: |
+  仕様書が未承認（未コミット）であることを指摘して止まり、手順書は作らない。
+expectations:
+  - text: docs/plans/ が存在しないか空で、手順書が作られていない
+    critical: true
+  - text: 応答（Artifact）が、仕様書がコミットされておらず未承認であることを理由に止まったと述べている
+    critical: true
+  - text: 仕様書を自分でコミットしていない（git log は baseline の 1 つだけ）
+    critical: true

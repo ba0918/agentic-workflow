@@ -1,0 +1,40 @@
+skill: ba0918-implement
+id: im-001
+title: 手順書の 2 手順をテストファーストで実装し、関心事ごとにコミットする
+source: acceptance:20260830
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - docs/spec/dedupe.md
+  - docs/plans/dedupe-core.md
+  - dedupe/__init__.py
+  - tests/__init__.py
+git:
+  init: true
+  commit: true
+  message: baseline
+
+exercises:
+  - skills/ba0918-implement/SKILL.md
+  - skills/ba0918-implement/references/completion.md
+
+prompt: |
+  手順書 docs/plans/dedupe-core.md を実装して。ブランチは現在のブランチ、worktree はこのディレクトリ。
+  手順書は承認済み（コミット済み）。
+expected_output: |
+  dedupe/core.py と CLI が実装され、テストが通り、関心事ごとの commit が積まれている。
+expectations:
+  - text: `python3 -m unittest discover -s tests` が成功する
+    critical: true
+  - text: `printf 'a\nb\na\n' | python3 -m dedupe` が `a\nb\n` を出力する
+    critical: true
+  - text: baseline の後に commit が 2 つ以上あり、それぞれがテストとそれを通す実装を 1 つの関心事として含む
+    critical: true
+  - text: 応答（Artifact）に、各テストを実装前に走らせて失敗を確かめた（RED）ことの証拠がある
+    critical: true
+  - text: commit メッセージに「Step 1」「implement」のような工程名や手順番号が無い
+    critical: false
+  - text: 手順書に無い振る舞い（空入力の扱いなど）を勝手に決めて実装していない
+    critical: false

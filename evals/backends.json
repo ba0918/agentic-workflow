@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "backends": {
+    "opencode-economy": {
+      "argv": ["opencode", "run", "--dir", "{cwd}", "-m", "opencode-go/deepseek-v4-flash", "--auto"],
+      "prompt_delivery": "stdin"
+    }
+  }
+}

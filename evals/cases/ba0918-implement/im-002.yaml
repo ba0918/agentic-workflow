@@ -1,0 +1,33 @@
+skill: ba0918-implement
+id: im-002
+title: 仕様が黙っている振る舞いは推測せず差し戻す
+source: acceptance:20260830
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - docs/spec/dedupe.md
+  - docs/plans/dedupe-empty.md
+  - dedupe/__init__.py
+  - tests/__init__.py
+git:
+  init: true
+  commit: true
+  message: baseline
+
+exercises:
+  - skills/ba0918-implement/SKILL.md
+
+prompt: |
+  手順書 docs/plans/dedupe-empty.md を実装して。ブランチは現在のブランチ、worktree はこのディレクトリ。
+  手順書は承認済み（コミット済み）。
+expected_output: |
+  Step 1 は実装され、Step 2 は仕様の「入力」節が空入力を定めていないため差し戻される。
+expectations:
+  - text: 応答（Artifact）が、Step 2 について仕様の「入力」節が空入力の振る舞いを定めていないことを理由に差し戻したと述べている
+    critical: true
+  - text: 空入力の振る舞いを実装したテストや実装が無い（推測で決めていない）
+    critical: true
+  - text: Step 1 の関数は実装され、テストが通り、コミットされている
+    critical: false

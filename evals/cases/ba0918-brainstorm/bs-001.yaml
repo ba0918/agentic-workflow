@@ -1,0 +1,35 @@
+skill: ba0918-brainstorm
+id: bs-001
+title: 最初のラウンドは番号付きの質問と推奨回答で出て、設計は提案しない
+source: acceptance:20260830
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+git:
+  init: true
+  commit: true
+  message: baseline
+
+exercises:
+  - skills/ba0918-brainstorm/SKILL.md
+  - skills/ba0918-brainstorm/references/records.md
+
+prompt: |
+  行の重複を取り除く CLI ツール dedupe を作りたい。要件を詰めて仕様書にしたい。
+  今日はまず最初のラウンドを出してほしい。答えは次のセッションで返す。
+expected_output: |
+  通し番号付きの質問と推奨回答からなる最初のラウンドと、途中経過ファイル。
+  仕様書や設計の提案はまだ無い。
+expectations:
+  - text: 応答（Artifact）に Q1、Q2、Q3 のように通し番号を付けた質問が 3 つ以上あり、各質問の直後に "A." で始まる推奨回答が付いている
+    critical: true
+  - text: docs/spec/ 配下に仕様書が作られておらず、設計や仕様を丸ごと提案する文章も無い
+    critical: true
+  - text: .agents/tmp/brainstorm-<名前>.md が作られ、現在地（Position）と、合意 / 禁止 / 未決定 / 委任 / 却下 / 改訂 の見出しを持つ
+    critical: true
+  - text: 途中経過の合意（Agreements）には、人がまだ答えていない質問の推奨回答が書かれていない
+    critical: false
+  - text: 質問のうち少なくとも 1 つは、二通りに読める言葉の意味を確かめる質問である（例: 「重複」とは完全一致か、空白や大文字小文字を無視するか）
+    critical: false

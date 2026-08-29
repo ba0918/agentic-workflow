@@ -1,0 +1,151 @@
+{
+  "coverage_exempt": {},
+  "skills": {
+    "ba0918-brainstorm": {
+      "file_sha256": {
+        "skills/ba0918-brainstorm/SKILL.md": "b9ab40df4ef2390008262953a8749b215c3044e1872c868f6688dacaeb8ed628",
+        "skills/ba0918-brainstorm/references/records.md": "1401807345a643b486a4da90dcf95f64ff15a2fa48e99228faf491f827182c1e"
+      },
+      "note": "opencode economy route; bs-001/bs-002 pass on artifacts (progress file, no spec); executor pre-filled Delegated before the person answered (observation)",
+      "result": "pass",
+      "scenarios": {
+        "bs-001": {
+          "result": "pass",
+          "scenario_sha256": "e809eab9e6bc09e83083c29ba9e4e97c6e260240db6a38d460c10b97286d4db7",
+          "verified": "2026-08-30"
+        },
+        "bs-002": {
+          "result": "pass",
+          "scenario_sha256": "26aa311021ee0af4118adf0221b00e74cbaddc78b0a80ba8b49f75e34c41bc4c",
+          "verified": "2026-08-30"
+        }
+      },
+      "structural_sha256": {
+        "skills/ba0918-brainstorm/SKILL.md": "db2616038839319502d6d6d8192f3acce5d4b06f729274ffbfcb067849662b43",
+        "skills/ba0918-brainstorm/references/records.md": "3412023280c1a18d4eae3c09e12f633e0c442cbef1c98094038101951ca33db0"
+      },
+      "surface": [
+        "skills/ba0918-brainstorm/SKILL.md",
+        "skills/ba0918-brainstorm/references/records.md"
+      ],
+      "surface_sha256": "1c94cd0c9fdc8dc92de36f22cb41981698fc38c982ba5ba3aa820ba5a1a89e4b",
+      "verified": "2026-08-30"
+    },
+    "ba0918-cycle": {
+      "file_sha256": {
+        "skills/ba0918-cycle/SKILL.md": "fc26a8e1d2ce0c75a19371a9d2789944d7df54c180ba13edc869faebb6008626"
+      },
+      "note": "opencode economy route; cy-001 pass on artifacts (no commit, finding 1 open, question relayed); delegation path not measurable here",
+      "result": "pass",
+      "scenarios": {
+        "cy-001": {
+          "result": "pass",
+          "scenario_sha256": "214dbf7ebcbe16ef43efec56d8728b20bc4aad557b657e338b6ad84dcd630aa2",
+          "verified": "2026-08-30"
+        }
+      },
+      "structural_sha256": {
+        "skills/ba0918-cycle/SKILL.md": "ef91f2d4c512c22e30ef8ee2d8b0b7d57dd86f4c423720f772d6cdad31373e92"
+      },
+      "surface": [
+        "skills/ba0918-cycle/SKILL.md"
+      ],
+      "surface_sha256": "d9a28ab92fd4500aa0b474482dd4cb52df9eae835bbd4418d05c7d65fefde329",
+      "verified": "2026-08-30"
+    },
+    "ba0918-implement": {
+      "file_sha256": {
+        "skills/ba0918-implement/SKILL.md": "2cb4a334b4020ae48d1b6436b6faaead1d944361a34915ee95318850bdca66e5",
+        "skills/ba0918-implement/references/completion.md": "6499e7d056405b4ae1fcde3fb1d70167bed8adb6ebe73a03fcf69164b2d99cbf"
+      },
+      "note": "opencode economy route; im-001 pass (unittest OK, CLI OK, 2 one-concern commits), im-002 pass (step 2 handed back, no guess); first im-002 attempt died on opencode 'database is locked' under parallel 2, rerun alone",
+      "result": "pass",
+      "scenarios": {
+        "im-001": {
+          "result": "pass",
+          "scenario_sha256": "e7d822279e1bba976c61bd56b4e1aba988c51eed6e2df19a330bdc39be0e9f17",
+          "verified": "2026-08-30"
+        },
+        "im-002": {
+          "result": "pass",
+          "scenario_sha256": "17b814fa13023906843721eb72841ae3a1520c0d83dcce49f3292d318ef896c0",
+          "verified": "2026-08-30"
+        }
+      },
+      "structural_sha256": {
+        "skills/ba0918-implement/SKILL.md": "c2c42972c114d48b4499d08838a1a3a80ef88e8d87ad47959534071504341833",
+        "skills/ba0918-implement/references/completion.md": "b7982f8e2e47b1ad06b41461640935e73a541a9e8b6697a4e6daf151e63ddf5e"
+      },
+      "surface": [
+        "skills/ba0918-implement/SKILL.md",
+        "skills/ba0918-implement/references/completion.md"
+      ],
+      "surface_sha256": "aeb86b723133dcc1e1dac1a8238e9a90696f176b726dba6b339be761ad9f2d2f",
+      "verified": "2026-08-30"
+    },
+    "ba0918-plan": {
+      "file_sha256": {
+        "skills/ba0918-plan/SKILL.md": "0797c9f2869fa648cf03192d373a7c3257d79d4cc4b52fe917cac5ee2aae71e7",
+        "skills/ba0918-plan/references/step-template.md": "659a256cdf0cc708e1d03b7e19ef0a2abcba1387b14c7d9c8e44f010438c7b6d"
+      },
+      "note": "opencode economy route; pl-001/pl-002 pass on artifacts (plan uncommitted, spec headings real, unapproved spec refused)",
+      "result": "pass",
+      "scenarios": {
+        "pl-001": {
+          "result": "pass",
+          "scenario_sha256": "ef7b923c404a57adf85c22197d028445ed4d19b3d60c98799a36581f243f4fd8",
+          "verified": "2026-08-30"
+        },
+        "pl-002": {
+          "result": "pass",
+          "scenario_sha256": "48b841cbb4aaa33105e03025be85199c6eaea3b6d9b843c5389f5b2266c2dacf",
+          "verified": "2026-08-30"
+        }
+      },
+      "structural_sha256": {
+        "skills/ba0918-plan/SKILL.md": "2c7941b80a3f19dcc231817fad22e06dea73f25a7a7bac6c2de468c3c04b711f",
+        "skills/ba0918-plan/references/step-template.md": "7177de42e1af7ae3a0543dc0a125052a881e9249a6e06002caadee3e27ccd902"
+      },
+      "surface": [
+        "skills/ba0918-plan/SKILL.md",
+        "skills/ba0918-plan/references/step-template.md"
+      ],
+      "surface_sha256": "f258381413273a3c284aa682c87c9798afd768271fa584cab9a9b712a4e7f2cd",
+      "verified": "2026-08-30"
+    },
+    "ba0918-review": {
+      "file_sha256": {
+        "skills/ba0918-review/SKILL.md": "61aa7a8b68f86650a923ab5c790901a6edc9d99f8d295b924dfb2c4f0b991a30",
+        "skills/ba0918-review/references/finding-schema.md": "d930cdc0902e30468888c677b0367f87fc656ecbba2ae4ffe161f871f6d41721",
+        "skills/ba0918-review/references/profiles.md": "eb912e0916e9515d08bb3b19792e541074ebb5b0cb45371dbfe97dc6ea7fe39d"
+      },
+      "note": "opencode economy route; rv-001 pass (review.json written in unit cwd, scenario said ./); rv-002 pass on artifact diff-review.json, executor's report.json was malformed JSON",
+      "result": "pass",
+      "scenarios": {
+        "rv-001": {
+          "result": "pass",
+          "scenario_sha256": "3a7da9d1e9822707a21a1c99a4bd0d31445248b4921944ef65729adaabf813d7",
+          "verified": "2026-08-30"
+        },
+        "rv-002": {
+          "result": "pass",
+          "scenario_sha256": "162228d582821e070fe6c611ccc90be130102a3d4c82e16de0f08f500456f7b7",
+          "verified": "2026-08-30"
+        }
+      },
+      "structural_sha256": {
+        "skills/ba0918-review/SKILL.md": "b41640c558a33a200ba6fcc2fb3e508cd4219658bb1d6a4dcf29c6319562cf5b",
+        "skills/ba0918-review/references/finding-schema.md": "42f1f2a1d12b47e0cd008101806e1f23fd4616da973ab9500e483165a2c94daf",
+        "skills/ba0918-review/references/profiles.md": "e65e83693b7e09cd7f99e66a66562183a7bbdd709eec143ec73529706bb9df5a"
+      },
+      "surface": [
+        "skills/ba0918-review/SKILL.md",
+        "skills/ba0918-review/references/finding-schema.md",
+        "skills/ba0918-review/references/profiles.md"
+      ],
+      "surface_sha256": "55b7bfdc6826785275478bd79e67b87a462d9853fe1b72f807fcc46f2b9f8abb",
+      "verified": "2026-08-30"
+    }
+  },
+  "version": 1
+}

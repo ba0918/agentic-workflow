@@ -1,0 +1,32 @@
+{
+  "base": "{{fixture:sha:baseline}}",
+  "last_reviewed_head": "{{fixture:sha:commits[0]}}",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "security",
+      "action": "fix_and_verify",
+      "profile": "Code",
+      "perspective": "quality",
+      "claim": "dedupe/cli.py に API キーらしき秘密が定数として埋め込まれている",
+      "evidence": [{"path": "dedupe/cli.py", "lines": "5", "summary": "API_KEY = \"sk-live-...\""}],
+      "oracle": {"proposal": "rg -n 'sk-live' dedupe/", "measured": "fails_now", "note": ""},
+      "status": {"state": "open", "closed_reason": null},
+      "commits": [],
+      "evaluations": []
+    },
+    {
+      "id": 2,
+      "severity": "critical",
+      "action": "fix_and_verify",
+      "profile": "Code",
+      "perspective": "conformance",
+      "claim": "dedupe_lines が最後の出現を残しており、仕様の「重複の定義と残し方」（最初の出現を残す）に反する",
+      "evidence": [{"path": "dedupe/core.py", "lines": "1-6", "summary": "last occurrence is kept"}],
+      "oracle": {"proposal": "python3 -c \"from dedupe.core import dedupe_lines; assert dedupe_lines(['a','b','a'])==['a','b']\"", "measured": "fails_now", "note": ""},
+      "status": {"state": "open", "closed_reason": null},
+      "commits": [],
+      "evaluations": []
+    }
+  ]
+}
