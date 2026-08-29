@@ -6,12 +6,14 @@ from pathlib import Path
 import sys
 
 
-REVIEW_DIR = Path(__file__).resolve().parent
-if str(REVIEW_DIR) not in sys.path:
-    sys.path.insert(0, str(REVIEW_DIR))
-SHARED_DIR = Path(__file__).resolve().parents[1] / "shared"
-if str(SHARED_DIR) not in sys.path:
-    sys.path.insert(0, str(SHARED_DIR))
+# Shared modules live in ../shared in the development tree and flattened next to
+# this file in a distributed skill copy.
+for _candidate in (
+    Path(__file__).resolve().parent,
+    Path(__file__).resolve().parents[1] / "shared",
+):
+    if str(_candidate) not in sys.path:
+        sys.path.insert(0, str(_candidate))
 
 from review_support.binding import (
     bind_review,

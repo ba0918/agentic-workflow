@@ -21,10 +21,12 @@ never implement, review, or fix the work in this context.
   never physically deletes them or guesses abandonment from age. Do not repeat this startup choice
   between synchronous delegates in the same cycle.
 - When the human starts a new run, create the run id, the branch `implement/<run-id>` and its
-  linked worktree from the plan's approval commit, and bind them with
-  `implement_runtime.py bind --delegated`. When the human continues an existing run, reuse its
-  binding and do not bind again; only a run bound with `--delegated` can be continued, because a
-  run created directly by implement refuses `delegated`. Record `delegated --role <runner> --model <full model id>`
+  linked worktree from the plan's approval commit, and bind them with the installed
+  ba0918-implement skill's `scripts/implement_runtime.py bind --delegated`; cycle ships no
+  runtime of its own and requires the ba0918-implement and ba0918-review skills. When the human
+  continues an existing run, reuse its binding and do not bind again; only a run bound with
+  `--delegated` can be continued, because a run created directly by implement refuses
+  `delegated`. Record `delegated --role <runner> --model <full model id>`
   before handing over and `returned [--outcome <summary>]` when the delegate returns.
 - Delegate synchronously. While a delegate is active it is the only evidence writer; cycle is the
   only writer of the delegation boundaries and of `resumed` and `resume-candidate-retired`, which

@@ -34,9 +34,14 @@ from review_support.types import (
 from review_support.validation import bounded_text, validate_review_binding
 
 
-SHARED_DIR = Path(__file__).resolve().parents[2] / "shared"
-if str(SHARED_DIR) not in sys.path:
-    sys.path.insert(0, str(SHARED_DIR))
+# Shared modules live in ../../shared in the development tree and flattened into
+# the parent scripts directory in a distributed skill copy.
+for _candidate in (
+    Path(__file__).resolve().parents[1],
+    Path(__file__).resolve().parents[2] / "shared",
+):
+    if str(_candidate) not in sys.path:
+        sys.path.insert(0, str(_candidate))
 import implementation_evidence
 
 
@@ -533,13 +538,30 @@ def selected_profiles(root: Path, binding: JsonObject, explicit: list[str]) -> t
     changed = git(root, "diff", "--name-only", str(base), str(head)).stdout.splitlines() if base and head else []
     profiles: set[str] = set()
     for path in changed:
-        if path.startswith(("skills/", "evals/")):
+        parts = PurePosixPath(path).parts
+        if not parts:
+            continue
+        if _skill_path(parts):
             profiles.add("skill")
         elif path.endswith(".md"):
             profiles.add("document")
         else:
             profiles.add("default")
     return sorted(profiles or {"default"}), "changed_files"
+
+
+def _skill_path(parts: tuple[str, ...]) -> bool:
+    """Match skill content by convention, not by this repository's layout."""
+
+    if parts[-1] == "SKILL.md":
+        return True
+    directories = parts[:-1]
+    if directories and directories[0] in {"skills", "evals"}:
+        return True
+    return any(
+        earlier in {".claude", ".codex", ".opencode"} and later == "skills"
+        for earlier, later in zip(directories, directories[1:])
+    )
 
 
 class BindingOptions(NamedTuple):

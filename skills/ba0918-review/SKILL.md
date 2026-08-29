@@ -16,6 +16,8 @@ delegate fixes.
 - Read [review.md](references/review.md) for input binding and the three review stages.
 - Read [evidence.md](references/evidence.md) before writing findings or verdicts.
 - Load only the profiles selected by changed file type from `references/profile/`.
+- The review runtime named by these documents is `scripts/review_runtime.py`; run it with
+  `python3` from the skill directory.
 
 ## Boundary
 
@@ -38,7 +40,9 @@ delegate fixes.
 - A specification change is semantically judged. Follow a new Git version when no consequential
   decision changed; append resumable `findings_stale` only when one did.
 - Accept `light` or `standard`; only the `default`, `document`, and `skill` profiles; and the
-  requested reviewer model and its selection source. Evaluation fixtures use the `skill` profile.
+  requested reviewer model and its selection source. `SKILL.md` files and changed paths under a
+  repository-root `skills/` or `evals/` directory or an agent skill home such as
+  `.claude/skills/` select the `skill` profile.
   Supply the actual first-reviewer model explicitly with every initial and final stage result,
   even when it differs from the requested model. Never substitute the requested model when the
   actual model is missing.

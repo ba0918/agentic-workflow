@@ -48,7 +48,10 @@ then choose a safe local operation rooted at the reviewed worktree. Do not accep
 outside writes, irreversible commands, external publication, or credential-dependent operations.
 Record the operation actually chosen, its exit code, and a bounded result summary independently of
 the proposal. A safe equivalent may close the finding; the absence of one becomes a human-judgment
-reason and never a fabricated passing result.
+reason and never a fabricated passing result. The runtime's fixed operation list holds only
+portable read-only and test commands; a repository-specific check command cannot be recorded even
+when project documents name it, so reconstruct a portable equivalent from that list or record the
+bounded human-judgment reason.
 
 When all findings close, start a fresh-context reviewer for exactly one final full review. Record
 `final-full-review-started` separately from its safety check and findings result. Add its findings

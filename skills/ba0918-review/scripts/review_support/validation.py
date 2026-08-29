@@ -17,9 +17,14 @@ from review_support.types import (
 )
 
 
-IMPLEMENT_HOME = Path(__file__).resolve().parents[2] / "implement"
-if str(IMPLEMENT_HOME) not in sys.path:
-    sys.path.insert(0, str(IMPLEMENT_HOME))
+# The secret detector lives under ../../implement/runtime in the development tree
+# and under the parent scripts directory's runtime/ in a distributed skill copy.
+for _candidate in (
+    Path(__file__).resolve().parents[1],
+    Path(__file__).resolve().parents[2] / "implement",
+):
+    if str(_candidate) not in sys.path:
+        sys.path.insert(0, str(_candidate))
 from runtime.secret_detect import contains_secret
 
 
@@ -150,8 +155,6 @@ def review_operation_allowed(tokens: list[str]) -> bool:
         return len(tokens) >= 2 and tokens[1] in git_commands and not _has_command_option(tokens[2:], forbidden)
     if command in allowed:
         return len(tokens) >= 2 and tokens[1] in allowed[command]
-    if command == "bunx":
-        return len(tokens) >= 3 and tokens[1:] == ["agentic-skill-vendor", "verify"]
     if command == "rg":
         return not _has_command_option(tokens[1:], {"--pre"})
     return command == "pytest"

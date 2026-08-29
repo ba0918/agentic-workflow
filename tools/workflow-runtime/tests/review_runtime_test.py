@@ -620,6 +620,26 @@ class ReviewFindingRuntimeTest(unittest.TestCase):
                 result = review_execution(operation, 0, "local read-only check passed")
                 self.assertTrue(result.ok, result.error)
 
+    def test_fixed_operation_list_excludes_repository_specific_checks(self) -> None:
+        repository_specific = (
+            "bunx agentic-skill-vendor verify",
+            "bunx eslint .",
+        )
+        portable_operations = (
+            "python3 -m unittest tests.review_test",
+            "bun test",
+        )
+
+        for operation in repository_specific:
+            with self.subTest(operation=operation):
+                result = review_execution(operation, 0, "operation was not executed")
+                self.assertFalse(result.ok)
+                self.assertEqual(result.required_error().code, "review_operation_unsafe")
+        for operation in portable_operations:
+            with self.subTest(operation=operation):
+                result = review_execution(operation, 0, "portable check passed")
+                self.assertTrue(result.ok, result.error)
+
     def test_review_operations_exclude_sed_and_retain_read_only_alternatives(self) -> None:
         sed_operations = (
             "sed -ibak s/old/new/ app.txt",
@@ -737,6 +757,32 @@ class ReviewFindingRuntimeTest(unittest.TestCase):
         self.assertIn("skill", selected)
         self.assertNotIn("document", selected)
         self.assertEqual(source, "changed_files")
+
+    def test_profile_selection_recognizes_skill_homes_without_claiming_ordinary_code(self) -> None:
+        root, _, _ = repository()
+        binding = runtime.resolve_input(root, review_id="nested-skill", branch="feature", base="main").value
+        (root / ".claude/skills/demo").mkdir(parents=True)
+        (root / ".claude/skills/demo/SKILL.md").write_text("demo\n", encoding="utf-8")
+        (root / "docs/guide.md").write_text("guide\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", ".claude", "docs"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "nested skill"], check=True)
+        skill_home_commit = run_git(root, "rev-parse", "HEAD").stdout.strip()
+        binding["input"]["head"] = skill_home_commit
+        selected, source = selected_profiles(root, binding, [])
+        self.assertIn("skill", selected)
+        self.assertIn("document", selected)
+        self.assertEqual(source, "changed_files")
+
+        (root / ".claude/skills/demo/references").mkdir()
+        (root / ".claude/skills/demo/references/helper.py").write_text("value = 1\n", encoding="utf-8")
+        (root / "src/skills").mkdir(parents=True)
+        (root / "src/skills/attack.py").write_text("damage = 1\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", ".claude", "src"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", "skill helper and ordinary code"], check=True)
+        binding["input"]["base"] = skill_home_commit
+        binding["input"]["head"] = run_git(root, "rev-parse", "HEAD").stdout.strip()
+        selected, _ = selected_profiles(root, binding, [])
+        self.assertEqual(selected, ["default", "skill"])
 
     def test_bounded_review_text_rejects_secrets_and_stage_records_actual_model(self) -> None:
         root, _, _ = repository()
