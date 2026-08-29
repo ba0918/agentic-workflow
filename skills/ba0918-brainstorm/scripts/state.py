@@ -17,7 +17,6 @@ SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 ITEM_ID = re.compile(r"[A-Za-z][A-Za-z0-9._-]{0,63}\Z")
 ITEM_KINDS = {"agreement", "prohibition", "undecided", "delegated", "rejected", "revision"}
 STATE_KEYS = {"session_id", "revision", "current_position", "next_topic", "items"}
-SECRET = re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)\s*[:=]\s*\S+|\bsk-[A-Za-z0-9_-]{8,}")
 JSON_BLOCK = re.compile(r"\A# Brainstorm progress\n\n```json\n(?P<body>.*)\n```\n\Z", re.DOTALL)
 JsonObject = dict[str, object]
 
@@ -208,8 +207,6 @@ def save_progress(project_root: Path, value: JsonObject, *, expected_revision: i
         if "unsafe session id" in errors:
             raise UnsafeProgress("; ".join(errors))
         raise InvalidProgress("; ".join(errors))
-    if SECRET.search(json.dumps(value, ensure_ascii=False)):
-        raise UnsafeProgress("progress contains a secret-like value")
     session_id = value.get("session_id")
     if not isinstance(session_id, str):
         raise UnsafeProgress("unsafe session id")

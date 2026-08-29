@@ -22,7 +22,7 @@
       },
       "scripts/state.py": {
         "contract": "brainstorm-runtime",
-        "digest": "sha256:30880f0b82f9544bcc5c7df68e15805ab5f2f70019df3a4413388fc95f57dd06",
+        "digest": "sha256:b2a6dcedadc18eb8ccb6d816ff9b287b1f8fc2653f251a1da66416e5cec67a96",
         "src": "tools/workflow-runtime/brainstorm/state.py"
       }
     },
@@ -64,7 +64,7 @@
       },
       "scripts/runtime/completion.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:2b844235061510f462b376f79e35c88353c2d33285e7c8187b91ec3d85ccf54f",
+        "digest": "sha256:d03d6f5c991dc2c9c520dff0990aae26c7a78b7838f0b785e013c30e32d8e071",
         "src": "tools/workflow-runtime/implement/runtime/completion.py"
       },
       "scripts/runtime/context.py": {
@@ -94,7 +94,7 @@
       },
       "scripts/runtime/evidence.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:1d01921ea81eb220965b07670f3a5c6bac4a5fdf831c094d5ba50fae5c81817d",
+        "digest": "sha256:53d6924216ad9bb251f052c9f74436c58deefc44f81dc50eae78a18068f44866",
         "src": "tools/workflow-runtime/implement/runtime/evidence.py"
       },
       "scripts/runtime/gates.py": {
@@ -119,18 +119,13 @@
       },
       "scripts/runtime/resume.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:aa0d11525addfa2433ef82975d7d6f9176d1d79d5dbc408a2af60e3c3678a908",
+        "digest": "sha256:4e76bc276e67161b8e396538d79a8d93186ee6122028aad42cd815b3b925d18c",
         "src": "tools/workflow-runtime/implement/runtime/resume.py"
       },
       "scripts/runtime/safety.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:9bb626ab951ae9a5a3bd504415455527d8fe3f6aab807b704414dfe233175c5b",
+        "digest": "sha256:b36fbe7656a939fabfe2d72ebfc8846642ce4c90b7c46ca6f122dea2657f1e94",
         "src": "tools/workflow-runtime/implement/runtime/safety.py"
-      },
-      "scripts/runtime/secret_detect.py": {
-        "contract": "implement-runtime",
-        "digest": "sha256:1bd6430dbb19e594846e8f4615f9922a000c01ff6c9bf052dfad982db79ad405",
-        "src": "tools/workflow-runtime/implement/runtime/secret_detect.py"
       },
       "scripts/runtime/staging.py": {
         "contract": "implement-runtime",
@@ -228,23 +223,18 @@
       },
       "scripts/review_support/validation.py": {
         "contract": "review-runtime",
-        "digest": "sha256:16bb75668f80e663867e18bb6ec633d9bef43b64cf7101905c200a7a3abe239f",
+        "digest": "sha256:94b6643d4436966baab10af851bc1f46b38faf8023e00b4bb603a15c05dd4781",
         "src": "tools/workflow-runtime/review/review_support/validation.py"
-      },
-      "scripts/runtime/secret_detect.py": {
-        "contract": "review-runtime",
-        "digest": "sha256:1bd6430dbb19e594846e8f4615f9922a000c01ff6c9bf052dfad982db79ad405",
-        "src": "tools/workflow-runtime/implement/runtime/secret_detect.py"
       }
     }
   },
   "resolutions": {
     "brainstorm-runtime": {
-      "digest": "sha256:fa043528346384f48a6e7404adcf6ef2936651772333b642cc62c8745b508e21",
+      "digest": "sha256:ef869885ecefde3e382559c5bd638ec77459b89af43c63894d02b4cffb2576a3",
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:db2ea6cfcd61e17fe9dc8c84d3b2aff705e3ad64844267a6ec8ec0ea1f8d3c92",
+      "digest": "sha256:545695a0acc5c05fe1c15647b6b530f3b74dd883a7ba931b674eb0aaabf27901",
       "kind": "raw"
     },
     "plan-runtime": {
@@ -252,7 +242,7 @@
       "kind": "raw"
     },
     "review-runtime": {
-      "digest": "sha256:d9529b5756b6363dadd8fe96db0ee8a45a50b35c1ced61bebfd15bbff8c51c24",
+      "digest": "sha256:ac9370077d5677b64d165475b2790814b935dfb155ebdf68c3963a04fc79bd2b",
       "kind": "raw"
     }
   }

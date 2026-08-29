@@ -1,9 +1,7 @@
-"""Pure validation for review bindings, text, and targeted commands."""
+"""Pure validation for review bindings, text, and recorded executions."""
 from __future__ import annotations
 
-from pathlib import Path, PurePosixPath
-import shlex
-import sys
+from pathlib import PurePosixPath
 
 from review_support.types import (
     COMMIT,
@@ -15,12 +13,6 @@ from review_support.types import (
     ok,
     string_values,
 )
-
-
-IMPLEMENT_HOME = Path(__file__).resolve().parents[2] / "implement"
-if str(IMPLEMENT_HOME) not in sys.path:
-    sys.path.insert(0, str(IMPLEMENT_HOME))
-from runtime.secret_detect import contains_secret
 
 
 def _validate_execution_binding(binding: JsonObject) -> RuntimeResult[JsonObject]:
@@ -78,9 +70,9 @@ def bounded_text(value: object, *, required: bool = True) -> RuntimeResult[str]:
     if not isinstance(value, str):
         return RuntimeResult(None, failure("bounded_text_invalid", "review text must be a bounded string").error)
     normalized = value.strip()
-    invalid = (required and not normalized) or len(normalized) > 2000
-    if invalid or contains_secret(normalized.encode()):
-        return RuntimeResult(None, failure("bounded_text_invalid", "review text is empty, too long, or secret-shaped").error)
+    invalid = (required and not normalized) or len(normalized) > 2000 or "\x00" in normalized
+    if invalid:
+        return RuntimeResult(None, failure("bounded_text_invalid", "review text is empty, too long, or contains NUL").error)
     return ok(normalized)
 
 
@@ -102,7 +94,7 @@ def _safe_sequence_strings(value: list[object], field: str) -> RuntimeResult[Non
 
 def _safe_string(value: str, field: str) -> RuntimeResult[None]:
     limit = 4096 if field == "oracle" else 512 if field == "path" else 2000
-    if len(value) > limit or "\x00" in value or contains_secret(value.encode()):
+    if len(value) > limit or "\x00" in value:
         return RuntimeResult(None, failure("finding_content_invalid", f"finding {field} is unsafe").error)
     candidate = PurePosixPath(value)
     if field == "path" and (candidate.is_absolute() or ".." in candidate.parts):
@@ -123,56 +115,15 @@ def safe_finding_strings(value: object, *, field: str = "finding") -> RuntimeRes
     return ok()
 
 
-def _has_command_option(arguments: list[str], long_options: set[str]) -> bool:
-    for argument in arguments:
-        if argument == "--":
-            return False
-        if argument.startswith("--") and argument.split("=", 1)[0] in long_options:
-            return True
-    return False
-
-
-def review_operation_allowed(tokens: list[str]) -> bool:
-    """Return whether a targeted review command stays read-only or test-only."""
-
-    command = tokens[0]
-    allowed: dict[str, set[str]] = {
-        "cargo": {"check", "clippy", "test"},
-        "go": {"test", "vet"},
-        "npm": {"test"},
-        "bun": {"test"},
-    }
-    if command in {"python", "python3"}:
-        return len(tokens) >= 3 and tokens[1] == "-m" and tokens[2] in {"unittest", "pytest"}
-    if command == "git":
-        git_commands = {"diff", "grep", "log", "ls-files", "merge-base", "rev-parse", "show", "status"}
-        forbidden = {"--ext-diff", "--open-files-in-pager", "--output", "--textconv"}
-        return len(tokens) >= 2 and tokens[1] in git_commands and not _has_command_option(tokens[2:], forbidden)
-    if command in allowed:
-        return len(tokens) >= 2 and tokens[1] in allowed[command]
-    if command == "bunx":
-        return len(tokens) >= 3 and tokens[1:] == ["agentic-skill-vendor", "verify"]
-    if command == "rg":
-        return not _has_command_option(tokens[1:], {"--pre"})
-    return command == "pytest"
-
-
 def review_execution(operation: str, exit_code: int, summary: str) -> RuntimeResult[JsonObject]:
-    """Validate and normalize a recorded targeted-review execution."""
+    """Record a targeted-review execution exactly as the reviewer ran it."""
 
     checked_operation = bounded_text(operation)
     checked_summary = bounded_text(summary)
-    if not checked_operation.ok or not checked_summary.ok:
-        return RuntimeResult(None, failure("review_operation_unsafe", "targeted review operation and result must be safe bounded text").error)
-    try:
-        tokens = shlex.split(checked_operation.required())
-    except ValueError:
-        return RuntimeResult(None, failure("review_operation_unsafe", "targeted review operation cannot be parsed safely").error)
-    shell_tokens = {";", "&", "&&", "|", "||", ">", ">>", "2>", "2>>"}
-    unsafe_path = any(token.startswith("/") or ".." in PurePosixPath(token).parts for token in tokens)
-    unsafe_shell = any(token in shell_tokens or token.startswith((">", "2>")) for token in tokens)
-    if not tokens or not review_operation_allowed(tokens) or unsafe_path or unsafe_shell:
-        return RuntimeResult(None, failure("review_operation_unsafe", "targeted review operation must stay local, reversible, and worktree-relative").error)
+    if not checked_operation.ok:
+        return RuntimeResult(None, checked_operation.error)
+    if not checked_summary.ok:
+        return RuntimeResult(None, checked_summary.error)
     return ok({
         "operation": checked_operation.required(),
         "working_directory": ".",
