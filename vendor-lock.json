@@ -84,7 +84,7 @@
       },
       "scripts/runtime/documents.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:feeccdf335cdd0085c0ccc2c5a031e40e1ef8e7db5406106f36dcc687e84df93",
+        "digest": "sha256:98c9e06114805e838b3e8caaa7c5979407b1f6c7632df1a32f1aab0287315107",
         "src": "tools/workflow-runtime/implement/runtime/documents.py"
       },
       "scripts/runtime/events.py": {
@@ -94,7 +94,7 @@
       },
       "scripts/runtime/evidence.py": {
         "contract": "implement-runtime",
-        "digest": "sha256:f50c3d6d94422439b41bbe11714b50837224149c691dad054d47552af6d1939d",
+        "digest": "sha256:1d01921ea81eb220965b07670f3a5c6bac4a5fdf831c094d5ba50fae5c81817d",
         "src": "tools/workflow-runtime/implement/runtime/evidence.py"
       },
       "scripts/runtime/gates.py": {
@@ -244,7 +244,7 @@
       "kind": "raw"
     },
     "implement-runtime": {
-      "digest": "sha256:a4ccdcc4736751485bcdb46522ba9f8b5c29d8510e816b2821951645a38c63d1",
+      "digest": "sha256:db2ea6cfcd61e17fe9dc8c84d3b2aff705e3ad64844267a6ec8ec0ea1f8d3c92",
       "kind": "raw"
     },
     "plan-runtime": {

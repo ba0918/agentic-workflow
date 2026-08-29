@@ -101,6 +101,30 @@ def validate_document_commit(
     return ok(DocumentCommit(header, scope))
 
 
+def plan_scope_unchanged(
+    run: Run, binding: JsonObject, current_scope: tuple[str, ...],
+) -> RuntimeResult[None]:
+    """Following may move wording; a moved Scope changes what is judged and needs a rebound."""
+    plan_path = binding.get("plan_path")
+    approval_commit = binding.get("approval_commit")
+    if not isinstance(plan_path, str) or not isinstance(approval_commit, str):
+        return failure("document_commit_invalid", "plan is unavailable in the approval commit")
+    approved = run_git(run.root, "show", f"{approval_commit}:{plan_path}")
+    if approved.returncode != 0:
+        return failure("document_commit_invalid", "plan is unavailable in the approval commit")
+    try:
+        approved_scope = plan_artifact.read_plan_scope(approved.stdout)
+    except plan_artifact.PlanArtifactError:
+        return failure("document_commit_invalid", "plan cannot be read from the approval commit")
+    if approved_scope != current_scope:
+        return failure(
+            "rebound_or_new_run_required",
+            "plan Scope changed after approval; rebound or start a new run",
+            plan_path,
+        )
+    return ok(None)
+
+
 def _specifications_available(
     root: Path, commit: str, specifications: tuple[Specification, ...],
 ) -> bool:
