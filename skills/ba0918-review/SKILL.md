@@ -80,7 +80,8 @@ cannot run it safely, record why and mark it `not_run`.
 ## Output
 
 Reviewers return only the JSON in `references/finding-schema.md`. The caller assigns IDs (a
-diff review keeps the IDs it was given), merges reviewers, and dedupes.
+diff review keeps the IDs it was given), merges reviewers, dedupes, and is the one who writes
+the snapshot shape (`id`, `status`, `commits`, `evaluations`) — a direct call included.
 
 When a person calls review directly, the main session transcribes the merged JSON into a
 Markdown report under `.agents/tmp/`, verifies each finding itself, and marks it `confirmed`,
