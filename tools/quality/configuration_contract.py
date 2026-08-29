@@ -15,6 +15,7 @@ PYTHON_PATH = (
     "PYTHONPATH=tools/quality:tools/workflow-runtime/implement:"
     "tools/workflow-runtime/review:tools/workflow-runtime/shared"
 )
+UV_CACHE = "UV_CACHE_DIR=/tmp/agentic-workflow-uv-cache"
 
 
 def uv_command(package: str, executable: str, *arguments: str) -> tuple[str, ...]:
@@ -25,6 +26,44 @@ def uv_command(package: str, executable: str, *arguments: str) -> tuple[str, ...
         package,
         executable,
         *arguments,
+    )
+
+
+def python_structure_check(*target_paths: str) -> Check:
+    """Build a pylint check for the given target paths."""
+    return Check(
+        "python-structure",
+        (
+            "env",
+            PYTHON_PATH,
+            UV_CACHE,
+            *uv_command(
+                "pylint==4.0.5",
+                "python",
+                "-m",
+                "pylint",
+                "--rcfile=tools/quality/pylint.rc",
+                *target_paths,
+            ),
+        ),
+    )
+
+
+def python_types_check(*target_paths: str) -> Check:
+    """Build a mypy check for the given target paths."""
+    return Check(
+        "python-types",
+        (
+            "env",
+            UV_CACHE,
+            *uv_command(
+                "mypy==1.18.2",
+                "mypy",
+                "--config-file",
+                "tools/quality/mypy.ini",
+                *target_paths,
+            ),
+        ),
     )
 
 
@@ -67,36 +106,8 @@ EXPECTED_CHECKS = (
         "configuration-contract",
         ("python3", "tools/quality/configuration_contract.py"),
     ),
-    Check(
-        "python-structure",
-        (
-            "env",
-            PYTHON_PATH,
-            "UV_CACHE_DIR=/tmp/agentic-workflow-uv-cache",
-            *uv_command(
-                "pylint==4.0.5",
-                "python",
-                "-m",
-                "pylint",
-                "--rcfile=tools/quality/pylint.rc",
-                *PYTHON_ROOTS,
-            ),
-        ),
-    ),
-    Check(
-        "python-types",
-        (
-            "env",
-            "UV_CACHE_DIR=/tmp/agentic-workflow-uv-cache",
-            *uv_command(
-                "mypy==1.18.2",
-                "mypy",
-                "--config-file",
-                "tools/quality/mypy.ini",
-                *PYTHON_ROOTS,
-            ),
-        ),
-    ),
+    python_structure_check(*PYTHON_ROOTS),
+    python_types_check(*PYTHON_ROOTS),
     Check(
         "spec-textlint",
         ("python3", "tools/quality/spec_textlint.py"),

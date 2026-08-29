@@ -38,6 +38,17 @@ class LefthookConfigurationTest(unittest.TestCase):
                     f"{configuration_path.name} {event}: {command}",
                 )
 
+    def test_claude_code_checks_each_written_file_right_after_the_edit(self) -> None:
+        configuration = json.loads(
+            (PROJECT_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8")
+        )
+
+        entry = configuration["hooks"]["PostToolUse"][0]
+        self.assertEqual(entry["matcher"], "Write|Edit")
+        command = entry["hooks"][0]["command"]
+        self.assertTrue(command.endswith("agents/post_tool_use.py\""), command)
+        self.assertLessEqual(entry["hooks"][0]["timeout"], 120)
+
 
 if __name__ == "__main__":
     unittest.main()
