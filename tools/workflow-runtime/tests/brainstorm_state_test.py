@@ -63,27 +63,36 @@ class BrainstormStateTest(unittest.TestCase):
             self.assertEqual(json.loads(finished.stdout), {"removed": True})
             self.assertFalse(root.joinpath(".agents/tmp/ideas/session-1.md").exists())
 
-    def test_cli_preserves_secret_and_revision_conflict_rejections(self) -> None:
+    def test_cli_preserves_the_revision_conflict_rejection(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            rejected_value = "".join(("api", "_key", "=", "example-value"))
             initial = run_state(
                 "save", "--repo", str(root), "--expected-revision", "0", document=progress(1),
-            )
-            rejected_save = run_state(
-                "save", "--repo", str(root), "--expected-revision", "1",
-                document={**progress(2), "next_topic": rejected_value},
             )
             conflict = run_state(
                 "save", "--repo", str(root), "--expected-revision", "0", document=progress(2),
             )
 
             self.assertEqual(initial.returncode, 0, initial.stderr)
-            self.assertNotEqual(rejected_save.returncode, 0)
-            self.assertIn("secret-like", rejected_save.stderr)
             self.assertNotEqual(conflict.returncode, 0)
             self.assertIn("revision conflict", conflict.stderr)
             self.assertEqual(state.load_progress(root, "session-1"), progress(1))
+
+    def test_credential_shaped_item_text_is_saved_and_read_back(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            texts = ("".join(("pass", "word", ": ", "example-value")), "sk-example-key-value")
+            value = {**progress(1), "items": [
+                {"id": f"item-{index}", "kind": "agreement", "text": text}
+                for index, text in enumerate(texts)
+            ]}
+
+            saved = run_state(
+                "save", "--repo", str(root), "--expected-revision", "0", document=value,
+            )
+
+            self.assertEqual(saved.returncode, 0, saved.stderr)
+            self.assertEqual(state.load_progress(root, "session-1"), value)
 
     def test_cli_rejects_unexpected_state_keys(self) -> None:
         result = run_state("validate", document={**progress(1), "unexpected": "value"})
