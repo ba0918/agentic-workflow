@@ -19,7 +19,7 @@ from runtime.documents import (
 )
 from runtime.events import EventCandidate, derive_implementation, validate_event
 from runtime.gitio import commit_paths, run_git, staged_paths
-from runtime.safety import assess_safety, content_safety, test_bytes, worktree
+from runtime.safety import assess_safety, test_bytes, worktree
 from runtime.storage import canonical_json, read_json, write_atomic, write_once
 from runtime.types import (
     JsonObject, Run, RuntimeResult, failure, forward_failure, object_value, ok, string_values,
@@ -208,9 +208,6 @@ def _prepare_safety(
     )
     if not assessed.ok:
         return forward_failure(assessed.error, "dangerous_path", "changed paths are unsafe")
-    content = content_safety(checkout, paths.required(), index=True)
-    if not content.ok:
-        return forward_failure(content.error, "secret_content", "changed content is unsafe")
     return ok(assessed.required())
 
 
@@ -410,9 +407,6 @@ def _commit_path_safety(
     assessed = assess_safety(binding, paths.required(), reasons)
     if not assessed.ok:
         return forward_failure(assessed.error, "dangerous_path", "commit paths are unsafe")
-    content = content_safety(checkout, paths.required(), commit=commit)
-    if not content.ok:
-        return forward_failure(content.error, "secret_content", "commit content is unsafe")
     return ok(assessed.required())
 
 

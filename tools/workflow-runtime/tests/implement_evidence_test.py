@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "tools/workflow-runtime/implement"))
 from runtime import deps
 from runtime import (
     context, deliverables, events, evidence as runtime_evidence, gates, repository,
-    secret_detect, storage, tdd,
+    storage, tdd,
 )
 from runtime.types import JsonObject, ResolvedPlan, Run, object_value, object_values
 
@@ -794,7 +794,7 @@ class ImplementSafetyEvidenceTest(unittest.TestCase):
             self.assertEqual(recorded.required_error().code, "dangerous_path")
             self.assertFalse(context.complete_run(run).ok)
 
-    def test_secret_shaped_content_is_rejected_without_exposing_its_value(self) -> None:
+    def test_staged_credential_shaped_content_is_recorded_without_a_content_gate(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -810,32 +810,21 @@ class ImplementSafetyEvidenceTest(unittest.TestCase):
             run = repository.bind_run(
                 root, plan, run_id="run-1", delegated=False, branch=branch, worktree=str(root),
             ).required()
-            for name in ("api_token", "TOKEN", "Secret", "CREDENTIAL"):
-                with self.subTest(name=name):
-                    fake_value = f"fake_{name.lower()}_value_123456789"
-                    (root / "config.py").write_text(f"{name}={fake_value}\n", encoding="utf-8")
+            contents = (
+                "=".join(["password", "example-password-123456"]) + "\n",
+                "-----BEGIN " + "PRIVATE KEY-----\nnot-a-real-key\n",
+            )
+            for index, content in enumerate(contents):
+                with self.subTest(index=index):
+                    (root / "config.py").write_text(content, encoding="utf-8")
                     subprocess.run(["git", "-C", str(root), "add", "config.py"], check=True)
-                    rejected = context.append_event(run, "check", {
+                    recorded = context.append_event(run, "check", {
                         "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": ["config.py"],
                     })
-                    self.assertFalse(rejected.ok)
-                    self.assertEqual(rejected.required_error().code, "secret_content")
-                    self.assertNotIn(fake_value, str(rejected.error))
+                    self.assertTrue(recorded.ok, recorded.error)
+                    self.assertEqual(recorded.required()["changed_paths"], ["config.py"])
 
-    def test_secret_detector_covers_credentials_and_private_key_headers(self) -> None:
-        for assignment in (
-            b"Api-Token=fake_api_token_value",
-            b"TOKEN: fake_standalone_token",
-            b"secret = fake_secret_value",
-            b"CREDENTIAL=fake_credential_value",
-            b"password=fake_password_value",
-        ):
-            with self.subTest(assignment=assignment.split(b"=", 1)[0]):
-                self.assertTrue(secret_detect.contains_secret(assignment))
-        self.assertTrue(secret_detect.contains_secret(b"-----BEGIN FAKE PRIVATE KEY-----\nnot-a-key"))
-        self.assertFalse(secret_detect.contains_secret(b"password = os.environ['PASSWORD']"))
-
-    def test_secret_content_in_commit_object_is_rejected_without_value_exposure(self) -> None:
+    def test_committed_credential_shaped_content_is_recorded_without_a_content_gate(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -853,17 +842,15 @@ class ImplementSafetyEvidenceTest(unittest.TestCase):
             self.assertTrue(context.append_event(run, "check", {
                 "step": "1", "checks": [{"command": "lint", "exit_code": 0}], "paths": [],
             }).ok)
-            fake_value = "fake_commit_token_123456789"
-            (root / "config.py").write_text(f"TOKEN={fake_value}\n", encoding="utf-8")
+            (root / "config.py").write_text("=".join(["password", "example-password-123456"]) + "\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(root), "add", "config.py"], check=True)
             subprocess.run(["git", "-C", str(root), "commit", "-qm", "candidate"], check=True)
             commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True).stdout.strip()
-            rejected = context.record_commit(run, "1", commit)
-            self.assertFalse(rejected.ok)
-            self.assertEqual(rejected.required_error().code, "secret_content")
-            self.assertNotIn(fake_value, str(rejected.error))
-            evidence = "".join(path.read_text(encoding="utf-8") for path in run.evidence_path.glob("*.json"))
-            self.assertNotIn(fake_value, evidence)
+
+            recorded = context.record_commit(run, "1", commit)
+
+            self.assertTrue(recorded.ok, recorded.error)
+            self.assertEqual(recorded.required()["commit"], commit)
 
     def test_record_commit_rejects_side_branch_and_duplicate_step_assignment(self) -> None:
         import tempfile

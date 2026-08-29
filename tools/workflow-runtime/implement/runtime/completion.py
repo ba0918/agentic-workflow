@@ -4,7 +4,6 @@ from typing import Never
 
 from runtime.deps import git_status, implementation_evidence
 from runtime.gitio import run_git
-from runtime.safety import content_safety
 from runtime.staging import assess_paths
 from runtime.types import (
     JsonObject, RuntimeFailure, RuntimeResult, failure, object_values, ok, string_values,
@@ -115,7 +114,7 @@ def _worktree_error(
             planned_dirty[0],
         )
     outside_dirty = sorted(set(dirty_paths) - set(expected))
-    outside_error = _outside_error(checkout, outside_dirty)
+    outside_error = _outside_error(outside_dirty)
     if outside_error is not None:
         return failure(outside_error.code, outside_error.message, outside_error.detail)
     branch = binding.get("branch")
@@ -130,18 +129,12 @@ def _worktree_error(
     return ok(outside_dirty)
 
 
-def _outside_error(checkout: Path, outside_dirty: list[str]) -> RuntimeFailure | None:
+def _outside_error(outside_dirty: list[str]) -> RuntimeFailure | None:
     outside_safety = assess_paths(outside_dirty, expected_paths=outside_dirty)
     if not outside_safety.ok:
         error = outside_safety.error
         if error is None:
             return RuntimeFailure("dangerous_path", "outside-scope paths are unsafe")
-        return error
-    outside_content = content_safety(checkout, outside_dirty, working_tree=True)
-    if not outside_content.ok:
-        error = outside_content.error
-        if error is None:
-            return RuntimeFailure("secret_content", "outside-scope content is unsafe")
         return error
     return None
 

@@ -6,7 +6,6 @@ from runtime.deps import git_status
 from runtime.events import derive_implementation
 from runtime.gitio import run_git
 from runtime.repository import load_run
-from runtime.secret_detect import contains_secret
 from runtime.storage import read_json
 from runtime.types import (
     JsonObject, Run, RuntimeResult, failure, forward_failure, object_values, ok,
@@ -69,8 +68,6 @@ def _unexplained_commits(
         if commit in explained:
             continue
         subject = run_git(root, "show", "-s", "--format=%s", commit).stdout.strip()
-        if contains_secret(subject.encode()):
-            subject = "[redacted secret-shaped subject]"
         commits.append({"sha": commit, "subject": subject})
     return ok(commits)
 

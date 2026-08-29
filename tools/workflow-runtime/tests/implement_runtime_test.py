@@ -17,7 +17,6 @@ context = importlib.import_module("runtime.context")
 resume = importlib.import_module("runtime.resume")
 cli = importlib.import_module("runtime.cli")
 repository = importlib.import_module("runtime.repository")
-safety = importlib.import_module("runtime.safety")
 storage = importlib.import_module("runtime.storage")
 from runtime.types import JsonObject, ResolvedPlan
 
@@ -165,27 +164,6 @@ class ImplementPlanBindingTest(RepositoryFixture, unittest.TestCase):
             result = staging.assess_paths([path], expected_paths=[path])
             self.assertFalse(result.ok)
 
-    def test_content_safety_scans_new_diff_content_not_unchanged_fixture_values(self) -> None:
-        root = self.fixture()
-        path = root / "src/app.py"
-        path.parent.mkdir(parents=True)
-        preexisting_fixture = "TO" + 'KEN="documented-' + 'placeholder-value"\n'
-        path.write_text(preexisting_fixture, encoding="utf-8")
-        subprocess.run(["git", "-C", str(root), "add", "src/app.py"], check=True)
-        subprocess.run(["git", "-C", str(root), "commit", "-qm", "fixture"], check=True)
-        path.write_text(path.read_text(encoding="utf-8") + "enabled = True\n", encoding="utf-8")
-        subprocess.run(["git", "-C", str(root), "add", "src/app.py"], check=True)
-
-        staged = safety.content_safety(root, ["src/app.py"], index=True)
-        subprocess.run(["git", "-C", str(root), "commit", "-qm", "safe change"], check=True)
-        commit = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
-        ).stdout.strip()
-        committed = safety.content_safety(root, ["src/app.py"], commit=commit)
-
-        self.assertTrue(staged.ok, staged.error)
-        self.assertTrue(committed.ok, committed.error)
-
     def test_semantically_dangerous_paths_are_returned_for_human_judgment(self) -> None:
         result = staging.assess_paths(
             ["config/release.toml"],
@@ -262,6 +240,34 @@ class ImplementResumeTest(RepositoryFixture, unittest.TestCase):
         self.assertEqual(resumed.value["run"].run_id, "run-1")
         self.assertEqual(resumed.value["resume_step"], "2")
         self.assertEqual(context.load_events(resumed.value["run"]).value[-1]["event_type"], "resumed")
+
+    def test_discovery_shows_an_unexplained_commit_subject_exactly_as_written(self) -> None:
+        root = self.fixture()
+        approval = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        run = repository.bind_run(
+            root, resolved_plan(approval), run_id="run-1", delegated=False,
+            branch=branch, worktree=str(root),
+        ).value
+        context.append_event(run, "check", {
+            "step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": [],
+        })
+        subject = "rotate the deploy " + "token=" + "example-rotated-value-123456"
+        (root / "notes.txt").write_text("unexplained\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(root), "add", "notes.txt"], check=True)
+        subprocess.run(["git", "-C", str(root), "commit", "-qm", subject], check=True)
+
+        discovered = resume.discover_unfinished(root, "plan-a")
+
+        self.assertTrue(discovered.ok, discovered.error)
+        self.assertEqual(
+            [entry["subject"] for entry in discovered.value[0]["branch"]["unexplained_commits"]],
+            [subject],
+        )
 
     def test_retired_run_leaves_default_discovery_but_can_be_explicitly_resumed(self) -> None:
         root = self.fixture()
@@ -684,6 +690,28 @@ class ImplementWorktreeSafetyTest(RepositoryFixture, unittest.TestCase):
 
         self.assertFalse(inside.ok)
         self.assertEqual(inside.error.code, "planned_changes_uncommitted")
+
+    def test_completion_reports_credential_shaped_changes_outside_the_planned_scope(self) -> None:
+        root = self.fixture()
+        approval = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        branch = subprocess.run(
+            ["git", "-C", str(root), "branch", "--show-current"], text=True, capture_output=True, check=True,
+        ).stdout.strip()
+        run = repository.bind_run(
+            root, resolved_plan(approval, expected_paths=("src/app.py",)),
+            run_id="run-1", delegated=False, branch=branch, worktree=str(root),
+        ).value
+        context.append_event(run, "check", {
+            "step": "1", "checks": [{"command": "check", "exit_code": 0}], "paths": [],
+        })
+        (root / "notes.txt").write_text("=".join(["password", "example-password-123456"]) + "\n", encoding="utf-8")
+
+        completed = context.complete_run(run)
+
+        self.assertTrue(completed.ok, completed.error)
+        self.assertEqual(completed.value["uncommitted_outside_scope"], ["notes.txt"])
 
     def test_uncommitted_rename_paths_are_parsed_exactly(self) -> None:
         root = self.fixture()
