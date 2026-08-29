@@ -9,7 +9,7 @@ do not append a log.
 | agreement | what was decided, in the person's words when possible | specification body |
 | prohibition | what will not be built | the specification's "not built" section |
 | undecided | the open question and **who decides it** (person, or a later brainstorm — never the implementer: that is delegated) | "Undecided" section |
-| delegated | a choice left to implementation and **why** every option keeps approved behavior | "Delegated" section |
+| delegated | a choice the person agreed to leave to implementation, and **why** every option keeps approved behavior — never filed before they answer | "Delegated" section |
 | rejected | the alternative and **why** it lost | "Rejected" section, one line each, no mechanism description |
 | revision | what replaced what, and why | progress file only; git history carries it after approval |
 
