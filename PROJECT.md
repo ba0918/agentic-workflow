@@ -26,6 +26,10 @@ The languages, frameworks and services in use, and where the significant directo
 - Write human-facing artifacts in Japanese. This includes specifications, plans, roadmaps,
   decisions, reviews, and guides. Stable IDs, schema fields, code identifiers, and quoted external
   interfaces may remain in English.
+- A change that has a plan under `docs/plans/` is implemented through the implement runtime —
+  via cycle or a direct implement run — never committed to `main` by hand. The plan's `## Scope`
+  is enforced only when the runtime reads it, so a plan implemented outside the runtime leaves
+  Scope violations unrecorded. A change small enough to need no plan may be committed directly.
 
 ## Constraints
 
