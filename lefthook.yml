@@ -1,0 +1,5 @@
+pre-commit:
+  commands:
+    textlint:
+      glob: "docs/**/*.md"
+      run: bunx textlint {staged_files}
