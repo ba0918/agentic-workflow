@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from tools.quality.agents import post_tool_use
-from tools.quality.agents.post_tool_use import edited_path, repository_relative_path
+from tools.quality.agents.post_tool_use import edited_paths, repository_relative_path
 from tools.quality.tests.git_repository import initialize_repository
 
 
@@ -52,7 +52,7 @@ class HookInputTest(unittest.TestCase):
             with self.subTest(tool=tool):
                 hook_input = {"tool_name": tool, "tool_input": {"file_path": "/repo/a.py"}}
 
-                self.assertEqual(edited_path(hook_input), "/repo/a.py")
+                self.assertEqual(edited_paths(hook_input), ("/repo/a.py",))
 
     def test_inputs_without_a_file_path_yield_nothing(self) -> None:
         hook_inputs: tuple[object, ...] = (
@@ -64,21 +64,63 @@ class HookInputTest(unittest.TestCase):
         )
         for hook_input in hook_inputs:
             with self.subTest(hook_input=hook_input):
-                self.assertIsNone(edited_path(hook_input))
+                self.assertEqual(edited_paths(hook_input), ())
+
+    def test_codex_patches_name_every_added_updated_and_moved_file(self) -> None:
+        patch = (
+            "*** Begin Patch\n"
+            "*** Add File: docs/spec/new.md\n"
+            "+# 題\n"
+            "*** Update File: tools/quality/a.py\n"
+            "@@\n"
+            "-x = 1\n"
+            "+x = 2\n"
+            "*** Update File: tools/quality/old.py\n"
+            "*** Move to: tools/quality/renamed.py\n"
+            "@@\n"
+            "+y = 1\n"
+            "*** Delete File: tools/quality/gone.py\n"
+            "*** End Patch\n"
+        )
+        hook_input = {"tool_name": "apply_patch", "tool_input": {"command": patch}}
+
+        self.assertEqual(
+            edited_paths(hook_input),
+            ("docs/spec/new.md", "tools/quality/a.py", "tools/quality/renamed.py"),
+        )
+
+    def test_codex_patches_wrapped_in_a_shell_command_are_still_parsed(self) -> None:
+        command = "apply_patch <<'EOF'\n*** Begin Patch\n*** Update File: x.py\n@@\n+1\n*** End Patch\nEOF\n"
+        hook_input = {"tool_name": "apply_patch", "tool_input": {"command": command}}
+
+        self.assertEqual(edited_paths(hook_input), ("x.py",))
+
+    def test_shell_commands_without_a_patch_name_no_file(self) -> None:
+        hook_input = {"tool_name": "Bash", "tool_input": {"command": "rm *** Update File: x.py"}}
+
+        self.assertEqual(edited_paths(hook_input), ())
 
     def test_paths_inside_the_repository_become_root_relative_posix(self) -> None:
         root = Path("/repo")
 
         self.assertEqual(
-            repository_relative_path("/repo/docs/spec/a.md", root), "docs/spec/a.md"
+            repository_relative_path("/repo/docs/spec/a.md", root, root), "docs/spec/a.md"
         )
-        self.assertEqual(repository_relative_path("/repo/../repo/x.py", root), "x.py")
+        self.assertEqual(repository_relative_path("/repo/../repo/x.py", root, root), "x.py")
+
+    def test_relative_paths_resolve_against_the_tool_working_directory(self) -> None:
+        root = Path("/repo")
+
+        self.assertEqual(
+            repository_relative_path("spec/a.md", root, root / "docs"), "docs/spec/a.md"
+        )
+        self.assertIsNone(repository_relative_path("../x.py", root, root))
 
     def test_paths_outside_the_repository_yield_nothing(self) -> None:
         root = Path("/repo")
 
-        self.assertIsNone(repository_relative_path("/tmp/scratch.md", root))
-        self.assertIsNone(repository_relative_path("/repository/a.md", root))
+        self.assertIsNone(repository_relative_path("/tmp/scratch.md", root, root))
+        self.assertIsNone(repository_relative_path("/repository/a.md", root, root))
 
 
 class PostToolUseHookTest(unittest.TestCase):
@@ -108,6 +150,30 @@ class PostToolUseHookTest(unittest.TestCase):
         self.assertEqual(response["decision"], "block")
         self.assertIn("docs/spec/mixed.md", response["reason"])
         self.assertIn("である", response["reason"])
+
+    def test_a_codex_patch_touching_a_violating_spec_file_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prepare_spec_repository(root)
+            target = root / "docs" / "spec" / "mixed.md"
+            target.write_text("# 題\n\n本文です。\n\n本文である。\n", encoding="utf-8")
+            hook_input: dict[str, object] = {
+                "hook_event_name": "PostToolUse",
+                "cwd": str(root),
+                "tool_name": "apply_patch",
+                "tool_input": {
+                    "command": "*** Begin Patch\n*** Update File: docs/spec/mixed.md\n"
+                    "@@\n+本文である。\n*** End Patch\n"
+                },
+                "tool_response": {"output": "Done!"},
+            }
+
+            completed = invoke(root, hook_input)
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        response = json.loads(completed.stdout)
+        self.assertEqual(response["decision"], "block")
+        self.assertIn("docs/spec/mixed.md", response["reason"])
 
     def test_files_outside_the_checked_set_produce_no_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

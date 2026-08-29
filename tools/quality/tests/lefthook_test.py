@@ -38,16 +38,19 @@ class LefthookConfigurationTest(unittest.TestCase):
                     f"{configuration_path.name} {event}: {command}",
                 )
 
-    def test_claude_code_checks_each_written_file_right_after_the_edit(self) -> None:
-        configuration = json.loads(
-            (PROJECT_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8")
-        )
+    def test_each_agent_checks_the_written_files_right_after_the_edit(self) -> None:
+        for configuration_path, matcher in (
+            (PROJECT_ROOT / ".claude" / "settings.json", "Write|Edit"),
+            (PROJECT_ROOT / ".codex" / "hooks.json", "apply_patch"),
+        ):
+            with self.subTest(configuration=configuration_path.name):
+                configuration = json.loads(configuration_path.read_text(encoding="utf-8"))
 
-        entry = configuration["hooks"]["PostToolUse"][0]
-        self.assertEqual(entry["matcher"], "Write|Edit")
-        command = entry["hooks"][0]["command"]
-        self.assertTrue(command.endswith("agents/post_tool_use.py\""), command)
-        self.assertLessEqual(entry["hooks"][0]["timeout"], 120)
+                entry = configuration["hooks"]["PostToolUse"][0]
+                self.assertEqual(entry["matcher"], matcher)
+                command = entry["hooks"][0]["command"]
+                self.assertTrue(command.endswith("agents/post_tool_use.py\""), command)
+                self.assertLessEqual(entry["hooks"][0]["timeout"], 120)
 
 
 if __name__ == "__main__":
