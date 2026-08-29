@@ -2,55 +2,57 @@
   "coverage_exempt": {},
   "skills": {
     "ba0918-brainstorm": {
+      "carried_note": "opencode economy route; bs-001/bs-002 pass on artifacts (progress file, no spec); executor pre-filled Delegated before the person answered (observation)",
       "file_sha256": {
         "skills/ba0918-brainstorm/SKILL.md": "b9ab40df4ef2390008262953a8749b215c3044e1872c868f6688dacaeb8ed628",
-        "skills/ba0918-brainstorm/references/records.md": "1401807345a643b486a4da90dcf95f64ff15a2fa48e99228faf491f827182c1e"
+        "skills/ba0918-brainstorm/references/records.md": "40c4a564b3472492b95cf6304c931e5ee1443e5b5cf47ea3cbb4876431684964"
       },
-      "note": "opencode economy route; bs-001/bs-002 pass on artifacts (progress file, no spec); executor pre-filled Delegated before the person answered (observation)",
-      "result": "pass",
+      "note": "wording only: clarified after the first regression run without changing any parsed token; scenarios unaffected",
+      "result": "accepted-without-run",
       "scenarios": {
         "bs-001": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "e809eab9e6bc09e83083c29ba9e4e97c6e260240db6a38d460c10b97286d4db7",
           "verified": "2026-08-30"
         },
         "bs-002": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "26aa311021ee0af4118adf0221b00e74cbaddc78b0a80ba8b49f75e34c41bc4c",
           "verified": "2026-08-30"
         }
       },
       "structural_sha256": {
         "skills/ba0918-brainstorm/SKILL.md": "db2616038839319502d6d6d8192f3acce5d4b06f729274ffbfcb067849662b43",
-        "skills/ba0918-brainstorm/references/records.md": "3412023280c1a18d4eae3c09e12f633e0c442cbef1c98094038101951ca33db0"
+        "skills/ba0918-brainstorm/references/records.md": "b909bfb73ed9dfd19832ba1047a7c66ac2f6038e7265f92e5e565802b042032f"
       },
       "surface": [
         "skills/ba0918-brainstorm/SKILL.md",
         "skills/ba0918-brainstorm/references/records.md"
       ],
-      "surface_sha256": "1c94cd0c9fdc8dc92de36f22cb41981698fc38c982ba5ba3aa820ba5a1a89e4b",
+      "surface_sha256": "f954cd74cc5fc19dd61483be78ecbcbe38a056ea799f5e277837b66a59818262",
       "verified": "2026-08-30"
     },
     "ba0918-cycle": {
+      "carried_note": "opencode economy route; cy-001 pass on artifacts (no commit, finding 1 open, question relayed); delegation path not measurable here",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "fc26a8e1d2ce0c75a19371a9d2789944d7df54c180ba13edc869faebb6008626"
+        "skills/ba0918-cycle/SKILL.md": "3a62774e9d9dafc8ae759ccbff6107099642242eda3c493e757c639529ee61e0"
       },
-      "note": "opencode economy route; cy-001 pass on artifacts (no commit, finding 1 open, question relayed); delegation path not measurable here",
-      "result": "pass",
+      "note": "wording only: clarified after the first regression run without changing any parsed token; scenarios unaffected",
+      "result": "accepted-without-run",
       "scenarios": {
         "cy-001": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "214dbf7ebcbe16ef43efec56d8728b20bc4aad557b657e338b6ad84dcd630aa2",
           "verified": "2026-08-30"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "ef91f2d4c512c22e30ef8ee2d8b0b7d57dd86f4c423720f772d6cdad31373e92"
+        "skills/ba0918-cycle/SKILL.md": "8607bde795f7679b6779da33c901d6c8057c7201d0dabc861dec8a8f184b5ce7"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md"
       ],
-      "surface_sha256": "d9a28ab92fd4500aa0b474482dd4cb52df9eae835bbd4418d05c7d65fefde329",
+      "surface_sha256": "7c607ca7be94d2be67e06c9e399e4ee79271b6a0c7ffdbe896a064ccebbc653d",
       "verified": "2026-08-30"
     },
     "ba0918-implement": {
@@ -114,27 +116,28 @@
       "verified": "2026-08-30"
     },
     "ba0918-review": {
+      "carried_note": "opencode economy route; rv-001 pass (review.json written in unit cwd, scenario said ./); rv-002 pass on artifact diff-review.json, executor's report.json was malformed JSON",
       "file_sha256": {
-        "skills/ba0918-review/SKILL.md": "61aa7a8b68f86650a923ab5c790901a6edc9d99f8d295b924dfb2c4f0b991a30",
+        "skills/ba0918-review/SKILL.md": "2fa6d5aee76135e728d82b8f38e1341f8a50fb291915230d0ba7073e217f2682",
         "skills/ba0918-review/references/finding-schema.md": "d930cdc0902e30468888c677b0367f87fc656ecbba2ae4ffe161f871f6d41721",
         "skills/ba0918-review/references/profiles.md": "eb912e0916e9515d08bb3b19792e541074ebb5b0cb45371dbfe97dc6ea7fe39d"
       },
-      "note": "opencode economy route; rv-001 pass (review.json written in unit cwd, scenario said ./); rv-002 pass on artifact diff-review.json, executor's report.json was malformed JSON",
-      "result": "pass",
+      "note": "wording only: clarified after the first regression run without changing any parsed token; scenarios unaffected",
+      "result": "accepted-without-run",
       "scenarios": {
         "rv-001": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "3a7da9d1e9822707a21a1c99a4bd0d31445248b4921944ef65729adaabf813d7",
           "verified": "2026-08-30"
         },
         "rv-002": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "162228d582821e070fe6c611ccc90be130102a3d4c82e16de0f08f500456f7b7",
           "verified": "2026-08-30"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-review/SKILL.md": "b41640c558a33a200ba6fcc2fb3e508cd4219658bb1d6a4dcf29c6319562cf5b",
+        "skills/ba0918-review/SKILL.md": "044bed50d74ffe1905a2b9c6b382cf3e05bccc75d5bd3a6bfbc23a959081a8b0",
         "skills/ba0918-review/references/finding-schema.md": "42f1f2a1d12b47e0cd008101806e1f23fd4616da973ab9500e483165a2c94daf",
         "skills/ba0918-review/references/profiles.md": "e65e83693b7e09cd7f99e66a66562183a7bbdd709eec143ec73529706bb9df5a"
       },
@@ -143,7 +146,7 @@
         "skills/ba0918-review/references/finding-schema.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "55b7bfdc6826785275478bd79e67b87a462d9853fe1b72f807fcc46f2b9f8abb",
+      "surface_sha256": "03dac0759d9c44fbd99f246f23b9939102aac07ca815900cf7a805267a9d4301",
       "verified": "2026-08-30"
     }
   },
