@@ -81,9 +81,9 @@ Reviewers only evaluate; the fixer only reports commits.
 
 ## Stopping inside the loop
 
-- A `security` finding, whatever its action: stop before delegating it and hand its content to
-  the person unchanged. Their answer says whether it is fixed now (it becomes visible) or stays
-  open for the terminal report; nothing closes it mid-loop.
+- A `security` finding, whatever its action: pause the whole loop before delegating anything
+  and hand its content to the person unchanged. Their answer says whether it is fixed now (it
+  becomes visible) or stays open for the terminal report; nothing closes it mid-loop.
 - A delegate stops on an irreversible operation, a privileged operation, a dangerous target, or a
   spreading accident: relay the question verbatim, then resume or re-delegate with the answer.
 - A delegate hands back a missing design decision: ending 4.
