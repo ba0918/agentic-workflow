@@ -13,7 +13,7 @@ from tools.quality.tests.git_repository import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 QUALITY_GATE = PROJECT_ROOT / "tools" / "quality" / "quality_gate.py"
-CODEX_STOP = PROJECT_ROOT / "tools" / "quality" / "agents" / "codex_stop.py"
+STOP_HOOK = PROJECT_ROOT / "tools" / "quality" / "agents" / "stop_hook.py"
 
 
 def write_config(config: Path, exit_code: int) -> None:
@@ -82,7 +82,7 @@ class QualityEntrypointsTest(unittest.TestCase):
         self.assertIn("probe", failed.stderr)
         self.assertIn("probe diagnostic", failed.stderr)
 
-    def test_codex_adapter_translates_common_results_to_stop_responses(self) -> None:
+    def test_stop_hook_translates_common_results_to_stop_responses(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             passing = root / "passing.json"
@@ -90,8 +90,8 @@ class QualityEntrypointsTest(unittest.TestCase):
             write_config(passing, 0)
             write_config(failing, 7)
 
-            passed = invoke(CODEX_STOP, root, passing)
-            failed = invoke(CODEX_STOP, root, failing)
+            passed = invoke(STOP_HOOK, root, passing)
+            failed = invoke(STOP_HOOK, root, failing)
 
         self.assertEqual(passed.returncode, 0)
         self.assertEqual(json.loads(passed.stdout), {"continue": True})
@@ -100,26 +100,36 @@ class QualityEntrypointsTest(unittest.TestCase):
         self.assertEqual(response["decision"], "block")
         self.assertIn("probe diagnostic", response["reason"])
 
-    def test_repository_entrypoints_keep_codex_out_of_the_common_cli(self) -> None:
+    def test_lefthook_calls_the_common_cli_without_the_agent_adapter(self) -> None:
         lefthook = (PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8")
+
+        self.assertIn("python3 tools/quality/quality_gate.py --scope staged", lefthook)
+        self.assertNotIn("agents/stop_hook.py", lefthook)
+
+    def test_codex_and_claude_code_share_the_same_stop_hooks(self) -> None:
         codex_hooks = json.loads(
             (PROJECT_ROOT / ".codex" / "hooks.json").read_text(encoding="utf-8")
         )
-
-        self.assertIn("python3 tools/quality/quality_gate.py --scope staged", lefthook)
-        self.assertNotIn("agents/codex_stop.py", lefthook)
-        for event in ("Stop", "SubagentStop"):
-            command = codex_hooks["hooks"][event][0]["hooks"][0]["command"]
-            self.assertIn("tools/quality/agents/codex_stop.py", command)
-
-    def test_codex_configuration_is_the_only_file_under_dot_codex(self) -> None:
-        files = sorted(
-            path.relative_to(PROJECT_ROOT).as_posix()
-            for path in (PROJECT_ROOT / ".codex").rglob("*")
-            if path.is_file() and "__pycache__" not in path.parts
+        claude_settings = json.loads(
+            (PROJECT_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8")
         )
 
-        self.assertEqual(files, [".codex/hooks.json"])
+        for event in ("Stop", "SubagentStop"):
+            codex_entry = codex_hooks["hooks"][event]
+            self.assertEqual(claude_settings["hooks"][event], codex_entry)
+            command = codex_entry[0]["hooks"][0]["command"]
+            self.assertIn("tools/quality/agents/stop_hook.py", command)
+
+    def test_agent_hook_configuration_is_the_only_tracked_file_per_agent(self) -> None:
+        tracked = subprocess.run(
+            ["git", "ls-files", ".codex", ".claude"],
+            cwd=PROJECT_ROOT,
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout.split()
+
+        self.assertEqual(sorted(tracked), [".claude/settings.json", ".codex/hooks.json"])
 
 
 if __name__ == "__main__":

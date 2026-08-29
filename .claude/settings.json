@@ -1,5 +1,4 @@
 {
-  "description": "Run the repository quality gate before a turn or subagent stops.",
   "hooks": {
     "Stop": [
       {

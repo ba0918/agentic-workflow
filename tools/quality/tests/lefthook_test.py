@@ -25,14 +25,18 @@ class LefthookConfigurationTest(unittest.TestCase):
             "python3 tools/quality/quality_gate.py --scope staged",
         )
 
-    def test_codex_stop_hooks_check_the_worktree_scope(self) -> None:
-        configuration = json.loads(
-            (PROJECT_ROOT / ".codex" / "hooks.json").read_text(encoding="utf-8")
-        )
-
-        for event in ("Stop", "SubagentStop"):
-            command = configuration["hooks"][event][0]["hooks"][0]["command"]
-            self.assertTrue(command.endswith("agents/codex_stop.py\" --scope worktree"))
+    def test_agent_stop_hooks_check_the_worktree_scope(self) -> None:
+        for configuration_path in (
+            PROJECT_ROOT / ".codex" / "hooks.json",
+            PROJECT_ROOT / ".claude" / "settings.json",
+        ):
+            configuration = json.loads(configuration_path.read_text(encoding="utf-8"))
+            for event in ("Stop", "SubagentStop"):
+                command = configuration["hooks"][event][0]["hooks"][0]["command"]
+                self.assertTrue(
+                    command.endswith("agents/stop_hook.py\" --scope worktree"),
+                    f"{configuration_path.name} {event}: {command}",
+                )
 
 
 if __name__ == "__main__":
