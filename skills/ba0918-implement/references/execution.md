@@ -26,7 +26,9 @@ At each step compare the approval commit's plan and specifications with current 
 documents. `resolve` returns the approval and current commits, changed paths and diff for the
 agent's semantic judgment; read a full version with `git show` when needed. Record and
 follow the current commit with `follow-documents` when no consequential decision changed; this
-appends `recovering` with the changed documents, existing Git commit, and reason. Ask between
+appends `recovering` with the changed documents, existing Git commit, and reason. The runtime
+refuses to follow a commit whose plan `## Scope` differs from the effective approval commit;
+that revision needs a rebound because `recovering` carries no Scope. Ask between
 rebound and a new run only when one did. A rebound supplies the new approval commit, complete new
 plan, and a one-to-one `old=new` mapping; the runtime re-derives the complete new Step contracts
 and the revised plan's Scope from that commit rather than accepting them from the caller, and

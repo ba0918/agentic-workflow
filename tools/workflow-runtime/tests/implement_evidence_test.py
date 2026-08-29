@@ -679,6 +679,38 @@ class ImplementLifecycleEvidenceTest(unittest.TestCase):
             self.assertTrue(completed.ok, completed.error)
             self.assertEqual(completed.required().get("uncommitted_outside_scope"), ["app.txt"])
 
+    def test_document_follow_rejects_a_commit_whose_plan_scope_differs_from_the_approval(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _ = rebound_fixture(root)
+            revised = commit_plan_revision(root, approved_plan_text(scope="lib.txt"))
+
+            result = context.follow_documents(
+                run, revised, ["docs/plans/plan-a.md"], "wording-only revision",
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.required_error().code, "rebound_or_new_run_required")
+            self.assertEqual(len(context.load_events(run).required()), 1)
+
+    def test_document_follow_accepts_a_plan_wording_change_that_keeps_the_scope(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run, _ = rebound_fixture(root)
+            reworded = approved_plan_text().replace("# Plan\n\n", "# Plan\n\nClarified wording.\n\n")
+            revised = commit_plan_revision(root, reworded)
+
+            result = context.follow_documents(
+                run, revised, ["docs/plans/plan-a.md"], "wording-only revision",
+            )
+
+            self.assertTrue(result.ok, result.error)
+            self.assertEqual(
+                context.load_events(run).required()[-1].get("event_type"), "recovering",
+            )
+
     def test_rebound_rejects_a_plan_whose_scope_cannot_be_read(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:

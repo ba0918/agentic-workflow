@@ -13,6 +13,7 @@ from runtime.completion import completion_fields, validate_commit_ancestry
 from runtime.documents import (
     document_context as _document_context,
     document_decision as _document_decision,
+    plan_scope_unchanged,
     stop_event as _stop_event,
     validate_document_commit,
 )
@@ -501,12 +502,27 @@ def follow_documents(
     run: Run, current_commit: str, changed_documents: list[str], reason: str,
 ) -> RuntimeResult[JsonObject]:
     binding = read_json(run.binding_path)
+    loaded = load_events(run)
     if not binding.ok:
         return forward_failure(binding.error, "evidence_unavailable", "binding is unavailable")
+    if not loaded.ok:
+        return forward_failure(loaded.error, "evidence_unavailable", "events are unavailable")
     checked = validate_document_commit(run, binding.required(), current_commit)
     if not checked.ok:
         return forward_failure(
             checked.error, "document_commit_invalid", "document commit is invalid"
+        )
+    effective = _effective_binding(binding.required(), loaded.required())
+    if not effective.ok:
+        return forward_failure(
+            effective.error, "implementation_evidence_invalid", "implementation evidence is invalid",
+        )
+    unchanged = plan_scope_unchanged(
+        run, effective.required(), checked.required().scope,
+    )
+    if not unchanged.ok:
+        return forward_failure(
+            unchanged.error, "rebound_or_new_run_required", "plan Scope changed after approval",
         )
     return append_event(run, "recovering", {
         "current_commit": current_commit,
