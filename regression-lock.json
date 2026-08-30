@@ -116,13 +116,13 @@
       "verified": "2026-08-30"
     },
     "ba0918-review": {
-      "carried_note": "opencode economy route; rv-001 pass (review.json written in unit cwd, scenario said ./); rv-002 pass on artifact diff-review.json, executor's report.json was malformed JSON",
+      "carried_note": "wording only: clarified after the first regression run without changing any parsed token; scenarios unaffected",
       "file_sha256": {
-        "skills/ba0918-review/SKILL.md": "2fa6d5aee76135e728d82b8f38e1341f8a50fb291915230d0ba7073e217f2682",
+        "skills/ba0918-review/SKILL.md": "52b2b8fb1e329c21dcb19864e3eff5f65353a23660b7b167a4dfe0631a785142",
         "skills/ba0918-review/references/finding-schema.md": "d930cdc0902e30468888c677b0367f87fc656ecbba2ae4ffe161f871f6d41721",
         "skills/ba0918-review/references/profiles.md": "eb912e0916e9515d08bb3b19792e541074ebb5b0cb45371dbfe97dc6ea7fe39d"
       },
-      "note": "wording only: clarified after the first regression run without changing any parsed token; scenarios unaffected",
+      "note": "description only: trigger words added for diagnosis; scenarios call the skill explicitly, so results are unaffected",
       "result": "accepted-without-run",
       "scenarios": {
         "rv-001": {
@@ -137,7 +137,7 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-review/SKILL.md": "044bed50d74ffe1905a2b9c6b382cf3e05bccc75d5bd3a6bfbc23a959081a8b0",
+        "skills/ba0918-review/SKILL.md": "42b67f5eb35726cac4a43e67228e3a73f16f93994270ae67cbbac9c1e217282c",
         "skills/ba0918-review/references/finding-schema.md": "42f1f2a1d12b47e0cd008101806e1f23fd4616da973ab9500e483165a2c94daf",
         "skills/ba0918-review/references/profiles.md": "e65e83693b7e09cd7f99e66a66562183a7bbdd709eec143ec73529706bb9df5a"
       },
@@ -146,7 +146,7 @@
         "skills/ba0918-review/references/finding-schema.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "03dac0759d9c44fbd99f246f23b9939102aac07ca815900cf7a805267a9d4301",
+      "surface_sha256": "a0fe78a70aaaab23d5ff25c08acf780bd4cbca77a21d36fdecd01818978756f4",
       "verified": "2026-08-30"
     }
   },

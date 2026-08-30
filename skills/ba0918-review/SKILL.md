@@ -1,6 +1,6 @@
 ---
 name: ba0918-review
-description: "Workflow station of the ba0918 workflow: adversarial review of a diff or a document set by separate-context reviewers that return findings as JSON and never edit. Invoked by ba0918-cycle inside its loop, or directly by a person for a codebase diagnosis or a full review. Use when asked for a ba0918 review, a finding list, a full or diff review, or when cycle delegates a review. 日本語キーワード: レビュー 指摘 フルレビュー 差分レビュー 診断 敵対的レビュー"
+description: "Workflow station of the ba0918 workflow: adversarial review of a diff or a document set by separate-context reviewers that return findings as JSON and never edit. Invoked by ba0918-cycle inside its loop, or directly by a person for a codebase diagnosis or a full review. Use when asked for a ba0918 review, a finding list, a full or diff review, or when cycle delegates a review. 日本語キーワード: レビュー 指摘 フルレビュー 差分レビュー 診断 敵対的レビュー 検証 動作確認 実装確認"
 ---
 
 # Review
