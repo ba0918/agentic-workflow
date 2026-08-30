@@ -1,6 +1,6 @@
 # agentic-workflow
 
-開発を進めるための 5 つの skill（brainstorm、plan、cycle、implement、review）を配る skill 集。
+開発を進める 5 つの skill（brainstorm、plan、cycle、implement、review）と、読むだけの調査 1 つ（investigate）を配る skill 集。
 フレームワークではない。
 `skills/ba0918-*/` を `~/.claude/skills/` に置くだけで動き、実行環境や状態ストアや script を持たない。
 
@@ -10,6 +10,7 @@
 |---|---|
 | `docs/principles.md` | 利用者が自分の言葉で書いた理念。最上位 |
 | `docs/spec/workflow.md` | 5 つの skill の約束を人向けに書いた仕様書。skill 本文はこれを写した物 |
+| `docs/spec/investigate.md` | 調査 skill（investigate）の約束を人向けに書いた仕様書。review の description に足した起動語（検証、動作確認、実装確認）の根拠もこの文書 |
 | `CONTEXT.md` | 用語集。二通りに読める言葉の定義と、使わない言い換え |
 | `skills/ba0918-<name>/` | skill 本文（`SKILL.md`）と参照資料（`references/`）。LLM 向けの英語 |
 
@@ -17,7 +18,7 @@
 
 ## 縛り
 
-- 5 つの責務を越える物は、実利用で必要だった実績が無ければ持たない
+- skill の責務を越える物は、実利用で必要だった実績が無ければ持たない
 - 記録するのは git に痕跡が残らない情報だけ。進捗は git log から読む。編集ロックを作らない
 - skill 本文と参照資料は減る方向が基本。行数の上限は仕様書の冒頭にある
 - skill 本文から仕様書や他の文書をパスで参照しない（出力先と実行時の入力は例外）
