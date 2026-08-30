@@ -88,7 +88,7 @@ endings as written, with only these substitutions:
 | the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judge's enumeration, branch, worktree path) |
 | the plan path in the fixer delegation | the request |
 | the fixer contract's "the plan's commands in order, unedited" | check commands come from the project's instructions, then the ecosystem's standard tool |
-| "run more" re-entering at step 1 when steps remain | always the diff loop |
+| "run more" re-entering at step 1 when steps remain | always the diff loop; ending 4 (a hand-back) offers no "run more" — it ends with the guidance alone |
 | the specification path in review delegations | the specification path and the request, both |
 
 The **implementer** is cycle's fixer contract, pasted in full, given the request in place of the
