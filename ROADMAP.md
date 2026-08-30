@@ -7,11 +7,11 @@
 - textlint の直呼び（lefthook の pre-commit と Claude Code の Stop hook）。実地試験で文章の指摘 27 件を弾いたので残す
 - 回帰評価の配線（`evals/`、`regression-lock.json`、opencode の economy ルート）。scenario 9 本が pass
 - 受け入れ試験。investigate skill を brainstorm → plan → cycle で 1 周して取り込んだ。往復 12 回、仕様書の改訂 3 回、security の停止 1 回
+- 旧リポジトリの掃除。Python runtime、旧仕様 8 本、旧 skill、evals を消し、作り直した履歴を `main` に繋いだ。`~/.claude/skills/` の symlink は `skills/ba0918-*` の 6 本を向く
 
 ## 次
 
-1. 旧リポジトリ側の掃除。Python runtime、旧仕様 8 本、旧 skill、evals を消し、`~/.claude/skills/` の symlink を新しい実体に貼り直す
-2. iterate skill（2 本目の題材）。cycle の終端報告との受け渡しを brainstorm で決める
+1. iterate skill（2 本目の題材）。cycle の終端報告との受け渡しを brainstorm で決める
 
 ## 検討中
 
