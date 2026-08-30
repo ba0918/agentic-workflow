@@ -1,6 +1,6 @@
 # 開発ワークフロー
 
-開発を進める 5 つの skill（brainstorm、plan、cycle、implement、review）と、読むだけの調査 1 つ（investigate）で使う言葉の定義。
+このリポジトリの skill（`skills/ba0918-*/`）で開発を進めるときに使う言葉の定義。
 二通り以上に読める言葉が出たら、brainstorm がその場で定義を確かめてここに足す。
 同じ物を指す言葉が複数あるときは 1 つを選び、残りを「使わない」に挙げる。
 
