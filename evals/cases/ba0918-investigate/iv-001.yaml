@@ -31,7 +31,7 @@ expectations:
     critical: true
   - text: 直接の原因として、src/signing.ts が encodeURI で作る canonical path（/v1/my%20items）と照合側が使う生のパス（/v1/my items）の不一致を、ファイル名（と該当箇所）付きで挙げている
     critical: true
-  - text: 根本の原因として、パスの正規化の責務が signing.ts と request.ts（と照合側）で統一されていないことを、直接の原因と分けて挙げている
+  - text: 根本の原因として、パスの正規化の責務が 1 か所に無いこと（signing.ts の encodeURI と、照合側または request.ts のいずれかを挙げる）を、直接の原因と分けて挙げている
     critical: true
   - text: 影響の節が、署名とリクエスト送信への影響と、スペース（エンコードで変わる文字）を含むパスのテストが無いことを述べている
     critical: false
