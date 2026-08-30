@@ -24,22 +24,22 @@ no destination, ask for one instead of choosing.
 
 Allowed: reading files; listing paths; searching for strings or symbols; running commands known
 to be read-only; following code references; delegating wide exploration to subagents. Tests may
-run only when they are known not to update repository state (snapshots, caches, generated
-files). Forbidden, as examples — refuse anything else that could change state the same way:
+run only when known not to update repository state (snapshots, caches, generated files) and to
+have no external side effect (network writes, sent mail, external store updates); `git status`
+cannot detect an external side effect, so do not run a doubtful test. Forbidden, as examples —
+refuse anything else that could change state the same way:
 
 - `rm` `rmdir` `mv` `cp` `chmod` `chown` `touch` `mkdir` `tee`
 - output redirection and in-place rewriting
 - state-changing git operations such as `commit` `push` `reset` `checkout --`
 
-These instructions carry the guarantee, not a separate-context agent with a restricted tool
-set: restricting tools to read/grep/glob would make safe test runs impossible. Take
-`git status` before and after the investigation; success means the two outputs are identical
-apart from the requested destination. Writes to untracked places (caches, `.agents/`,
-temporary directories) are forbidden too but invisible to `git status`; they are covered by
-running only commands known to be read-only and skipping doubtful ones. Outside git, where no
-comparison exists, that alone satisfies the guarantee. If the comparison, or the output of
-something you ran, shows a difference anywhere but the requested destination, the guarantee is
-broken — see "When something goes wrong".
+These instructions carry the guarantee, not a separate-context agent with a restricted tool set.
+Take `git status` before and after the investigation; success means the two outputs are identical
+apart from the requested destination. Writes to untracked places (caches, `.agents/`, temporary
+directories) are forbidden too but invisible to `git status`; running only commands known to be
+read-only and skipping doubtful ones covers them, and outside git, with no comparison, that alone
+satisfies the guarantee. If the comparison, or the output of a command, shows a difference anywhere
+but the requested destination, the guarantee is broken — see "When something goes wrong".
 
 Secrets found along the way (credentials, tokens, keys): report that they exist, never their
 value, and never copy them into a subagent prompt. One character of a key in the report is a
