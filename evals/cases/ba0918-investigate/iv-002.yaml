@@ -32,7 +32,7 @@ expectations:
   - text: 5. Fix options が no fix needed で始まり、将来の改善を添えるとしても、変える場所・概要・長所と短所の案の形式に押し込んでいない
     critical: true
   - text: 6. Recommended action が no further action needed だけを示し、将来の改善があれば 5 節の末尾に 1〜2 点だけ添えている（6 節には出さない）
-    critical: false
+    critical: true
   - text: 確信度（high / medium / low のどれか）に、読んだファイルや検索結果などの根拠が 2 つ以上付いている
     critical: true
   - text: 影響の節が tests/retry.test.ts が 429、503、500、合計 3 回での打ち切りを押さえていることを述べている
