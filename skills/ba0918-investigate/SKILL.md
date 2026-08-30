@@ -77,9 +77,10 @@ or more directories; three or more angles should be explored in parallel; one an
 cross-cutting search over five or more files. When none holds, read yourself. Even when one
 holds, you may read yourself if the target is tightly bounded: a document investigation where
 one search expression enumerates the core files, or a target within ten known paths. Put the
-forbidden list above into every subagent prompt verbatim, and launch several subagents at once.
-A failed subagent is not retried; read that part yourself. A subagent that changes state breaks
-your guarantee.
+whole "Read-only guarantee" section above into every subagent prompt verbatim — the no-edit
+rule, the allowed and forbidden operations, and the secrets rule — and launch several subagents
+at once. A failed subagent is not retried; read that part yourself. A subagent that changes
+state breaks your guarantee.
 
 ## Report
 
