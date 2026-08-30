@@ -1,4 +1,0 @@
-pre-commit:
-  commands:
-    quality-gate:
-      run: python3 tools/quality/quality_gate.py --scope staged

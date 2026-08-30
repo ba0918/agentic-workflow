@@ -1,1 +1,0 @@
-このfileは未commit変更としてfixtureへ残す。
