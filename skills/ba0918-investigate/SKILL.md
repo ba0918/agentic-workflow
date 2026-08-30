@@ -1,0 +1,160 @@
+---
+name: ba0918-investigate
+description: "Read-only investigation, called by a person and outside the ba0918 workflow stations: start from a symptom or a question, trace the direct and root cause, the impact, and whether tests cover it, then report fix options without changing a file. Use when asked to investigate something, to find why something happens, to look for a root cause, or to see the impact scope of a change. Not for checking a finished change — that is review's diagnosis. 日本語キーワード: 調べて 原因を調査 なぜ 影響範囲 調査 根本原因"
+---
+
+# Investigate
+
+Take a symptom or a question a person states, find the cause and the impact by reading only,
+report, and propose the next action. Never fix. Four things are investigated: the problem is
+confirmed, the cause (direct and root) is found, the impact is analysed, and the tests are
+checked. Match the scope to the question: reading the whole repository for a question one
+module answers is too wide; reading one directory when the question spans three is too narrow.
+
+This is an *investigation*: it starts from a symptom or a question, and its result has no
+finding shape (no severity, no action, no oracle). A *diagnosis* is review called directly by a
+person, starting from a target such as a diff or a document set. A person calls this skill on
+its own; cycle never calls it — inside cycle, finding problems is review's job.
+
+## Read-only guarantee
+
+Do not edit, create, overwrite, delete, move, or rename any file, notebooks included. Leave the
+repository and the file system as they were. The one exception: when the person explicitly
+names a destination and asks for the report as a file, write it there. Asked for a file with
+no destination, ask for one instead of choosing.
+
+Allowed: reading files; listing paths; searching for strings or symbols; running commands known
+to be read-only; following code references; delegating wide exploration to subagents. Tests may
+run only when they are known not to update repository state (snapshots, caches, generated
+files). Forbidden, as examples — refuse anything else that could change state the same way:
+
+- `rm` `rmdir` `mv` `cp` `chmod` `chown` `touch` `mkdir` `tee`
+- output redirection and in-place rewriting
+- state-changing git operations such as `commit` `push` `reset` `checkout --`
+
+These instructions carry the guarantee, not a separate-context agent with a restricted tool
+set: restricting tools to read/grep/glob would make safe test runs impossible. Take
+`git status` before and after the investigation; success means the two outputs are identical
+apart from the requested destination. Writes to untracked places (caches, `.agents/`,
+temporary directories) are forbidden too but invisible to `git status`; they are covered by
+running only commands known to be read-only and skipping doubtful ones. Outside git, where no
+comparison exists, that alone satisfies the guarantee. If the comparison, or the output of
+something you ran, shows a difference anywhere but the requested destination, the guarantee is
+broken — see "When something goes wrong".
+
+Secrets found along the way (credentials, tokens, keys): report that they exist, never their
+value, and never copy them into a subagent prompt. One character of a key in the report is a
+counter-example.
+
+## Procedure
+
+### Grasp the context
+
+Take the problem as stated; look at the project's instruction files and the structure of the
+directories involved; collect the errors, logs, stack traces, changed files, and specification
+text that are available.
+
+### Investigate the four
+
+Within the scope the question calls for:
+
+1. **Confirm the problem**: make the observed behaviour and the conditions it occurs under
+   concrete.
+2. **Find the cause**: follow the evidence to the direct cause (the place in the code) and,
+   where it applies, on to a root cause at the design level.
+3. **Analyse the impact**: affected callers, dependants, and other occurrences of the same
+   pattern.
+4. **Check the tests**: whether existing tests let the problem through. With no relevant test,
+   write `no tests` in the impact section.
+
+Do not stop at "probably here": the direct cause names the observed file and, where it applies,
+the line.
+
+### Delegate exploration
+
+Delegate to separate-context subagents when any of these holds: the investigation spans three
+or more directories; three or more angles should be explored in parallel; one angle needs a
+cross-cutting search over five or more files. When none holds, read yourself. Even when one
+holds, you may read yourself if the target is tightly bounded: a document investigation where
+one search expression enumerates the core files, or a target within ten known paths. Put the
+forbidden list above into every subagent prompt verbatim, and launch several subagents at once.
+A failed subagent is not retried; read that part yourself. A subagent that changes state breaks
+your guarantee.
+
+## Report
+
+Return the report in the conversation, not in a file, unless the person explicitly named a
+destination: the only reader is the person in front of you, and no later step reads it by
+machine. Six sections, headings fixed in English, body in the language of the conversation:
+
+```text
+══════════════════════════════════════
+INVESTIGATION REPORT
+══════════════════════════════════════
+
+## 1. Problem overview
+## 2. Cause analysis
+## 3. Impact
+## 4. Confidence
+## 5. Fix options
+## 6. Recommended action
+```
+
+1: what is happening. 2: why — the direct cause and, where it applies, the root cause, kept
+apart. 3: affected files, features, other occurrences of the pattern; `no tests` when none
+exist. 4: the confidence level with two to four pieces of evidence. 5: fix options. 6: the
+recommended next action. A report missing any section is incomplete.
+
+### Confidence
+
+- **high**: checked mechanically against file contents, searches, or command output; any
+  plausible counter-example lies outside the stated scope.
+- **medium**: supported by reasoning, but a counter-example or an out-of-scope uncertainty remains.
+- **low**: rests on limited evidence; more information or investigation is needed.
+
+State uncertainty honestly; `high` on the strength of a file you did not read is a counter-example.
+
+### Fix options
+
+When a fix is needed, give one to three options, each with where to change (file and place), a
+summary, and pros and cons; include `keep as-is` as an option when doing nothing is defensible.
+When no fix is needed, begin section 5 with `no fix needed`; one or two future improvements may
+follow, not forced into the option format. `no fix needed` means there is no problem at all; a
+problem that exists but is defensibly left alone gets `keep as-is` as an option. Only propose,
+never start a fix: "I fixed it" in section 5 is outside this responsibility.
+
+### Recommended action
+
+Pick one main recommendation; when several apply, list alternatives from lightest to heaviest.
+Show invocations in a form that can be used as is.
+
+| Situation | Recommendation | Ready-to-use form |
+|---|---|---|
+| Small fix | the person fixes it, or asks the main session | the place and the change |
+| No specification, no basis for a decision, or two readings | brainstorm | `/ba0918-brainstorm <topic>` |
+| Specification exists, medium or larger change | plan, then cycle | `/ba0918-plan <specification path>` |
+| Deferred | the person notes it down | one line to note |
+| No fix needed | say so | `no further action needed` |
+| Not enough evidence | keep investigating | the scope to investigate next |
+
+A small fix changes at most three files inside one unit (a skill or a module); anything larger,
+or crossing units, is medium or larger, and calling a four-file change "small" is a
+counter-example. There is no issue management here, so "deferred" is the person's own note.
+
+## When something goes wrong
+
+When a difference shows up anywhere but the requested destination (for example, a test you ran
+rewrote a snapshot), continuing would spread damage: stop. Show the person the `git status`
+difference, or the output that revealed the change, and ask for a decision. Do not revert
+yourself — reverting is an edit and breaks the guarantee a second time. Do not produce the
+report; returning the six sections with a rewritten snapshot in place is a counter-example.
+
+## Trigger words and the boundary with diagnosis
+
+This skill starts on 「調べて」「原因を調査して」「なぜ〜が起きる」「影響範囲を見たい」 and their
+English equivalents (investigate, find the cause, why does this happen, what is the impact). It
+does not start on 「検証して」「動作確認して」「実装確認」, verify, validate, or confirm the
+implementation: those look at a finished change, which is diagnosis — review called directly,
+checked against a counterpart when one exists, otherwise returning quality findings only. When a
+person says "check that this change works" and this skill answers with the six-section report,
+the boundary is broken.
