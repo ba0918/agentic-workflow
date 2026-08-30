@@ -5,11 +5,10 @@ description: "Read-only investigation, called by a person and outside the ba0918
 
 # Investigate
 
-Take a symptom or a question a person states, find the cause and the impact by reading only,
-report, and propose the next action. Never fix. Four things are investigated: the problem is
-confirmed, the cause (direct and root) is found, the impact is analysed, and the tests are
-checked. Match the scope to the question: reading the whole repository for a question one
-module answers is too wide; reading one directory when the question spans three is too narrow.
+Take a symptom or a question a person states, find the cause and the impact by reading only, report, and
+propose the next action. Never fix. Four things are investigated: confirm the problem, find the cause
+(direct and root), analyse the impact, check the tests. Match the scope to the question: the whole
+repository for a one-module question is too wide; one directory for one spanning three is too narrow.
 
 This is an *investigation*: it starts from a symptom or a question, and its result has no
 finding shape (no severity, no action, no oracle). A *diagnosis* is review called directly by a
@@ -76,11 +75,14 @@ Delegate to separate-context subagents when any of these holds: the investigatio
 or more directories; three or more angles should be explored in parallel; one angle needs a
 cross-cutting search over five or more files. When none holds, read yourself. Even when one
 holds, you may read yourself if the target is tightly bounded: a document investigation where
-one search expression enumerates the core files, or a target within ten known paths. Put the
-whole "Read-only guarantee" section above into every subagent prompt verbatim — the no-edit
-rule, the allowed and forbidden operations, and the secrets rule — and launch several subagents
-at once. A failed subagent is not retried; read that part yourself. A subagent that changes
-state breaks your guarantee.
+one search expression enumerates the core files, or a target within ten known paths. Put into every
+subagent prompt, verbatim, the five parts of "Read-only guarantee" that bind the subagent: the ban on
+editing, creating, overwriting, deleting, moving, and renaming; the allowed operations minus
+"delegating to subagents" (a subagent never delegates further); running only commands known to be
+read-only; the forbidden operations, and that they are examples; and the secrets rule. The report-file
+exception and the `git status` comparison are the caller's: leave them out and state instead that the
+subagent writes no file at all. Launch several subagents at once. A failed subagent is not retried;
+read that part yourself. A subagent that changes state breaks your guarantee.
 
 ## Report
 
@@ -101,10 +103,9 @@ INVESTIGATION REPORT
 ## 6. Recommended action
 ```
 
-1: what is happening. 2: why — the direct cause and, where it applies, the root cause, kept
-apart. 3: affected files, features, other occurrences of the pattern; `no tests` when none
-exist. 4: the confidence level with two to four pieces of evidence. 5: fix options. 6: the
-recommended next action. A report missing any section is incomplete.
+1: what is happening. 2: why — direct cause and, where applicable, root cause, kept apart. 3: affected
+files, features, other occurrences of the pattern; `no tests` if none. 4: confidence, with two to four
+items of evidence. 5: fix options. 6: recommended next action. A report missing a section is incomplete.
 
 ### Confidence
 
@@ -117,12 +118,13 @@ State uncertainty honestly; `high` on the strength of a file you did not read is
 
 ### Fix options
 
-When a fix is needed, give one to three options, each with where to change (file and place), a
-summary, and pros and cons; include `keep as-is` as an option when doing nothing is defensible.
-When no fix is needed, begin section 5 with `no fix needed`; one or two future improvements may
-follow, not forced into the option format. `no fix needed` means there is no problem at all; a
-problem that exists but is defensibly left alone gets `keep as-is` as an option. Only propose,
-never start a fix: "I fixed it" in section 5 is outside this responsibility.
+Sort each defect by whether it causes the stated symptom or the breakage the question points at.
+One that does is a problem: give one to three options, each with where to change (file and place), a
+summary, and pros and cons; another occurrence of the same pattern is a problem when it breaks the
+same way; `keep as-is` is one option when leaving a problem alone is defensible. One that does not is
+a future improvement. With no problem, begin section 5 with `no fix needed`. Whether or not options
+exist, one or two future improvements may close section 5, outside the option format and never in
+section 6. Only propose, never start a fix: "I fixed it" in section 5 is outside this responsibility.
 
 ### Recommended action
 
