@@ -1,6 +1,6 @@
 # agentic-workflow
 
-開発を進める 5 つの skill（brainstorm、plan、cycle、implement、review）と、読むだけの調査 1 つ（investigate）を配る skill 集。
+開発を進めるための skill（`skills/ba0918-*/`）を配る skill 集。
 フレームワークではない。
 `skills/ba0918-*/` を `~/.claude/skills/` に置くだけで動き、実行環境や状態ストアや script を持たない。
 
