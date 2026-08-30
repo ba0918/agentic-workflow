@@ -7,8 +7,8 @@ description: "Entry point beside the ba0918 workflow for a task too small to nee
 
 Run cycle's loop on a **request** instead of a plan, once a read-only judgment says the task is
 small. Delegate everything: never implement, review, fix, or judge here. A person starts this
-skill from the conversation; cycle never calls it, and cycle's terminal report and findings JSON
-are not inputs — what the main session learned there goes into the request.
+skill from the conversation; cycle never calls it and hands nothing over — what the main session
+learned there goes into the request; a findings file on the branch is inherited state (see the loop).
 
 Required inputs: the request, and the branch with its worktree path, created by the main session
 beforehand; missing either, stop: the main session must prepare them first — never create a branch
