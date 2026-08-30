@@ -37,6 +37,8 @@ expectations:
     critical: true
   - text: `python3 -m unittest discover -s tests` が成功する
     critical: true
+  - text: 引数無しで `python3 -m tally.cli` を走らせると終了コードが 2 のままで、stderr に案内（ファイルパスを渡せという 1 行）が出る
+    critical: true
   - text: 応答（Artifact）に終端報告があり、成果物と commit、検証結果、差分を見る案内が載っている
     critical: true
   - text: 実装の前に、読むだけの判定役を別文脈に委譲し、4 つの条件（要求が一通り、仕様の判断が要らない、仕様書と矛盾しない、影響が読める）を判定したことが報告にある
