@@ -47,11 +47,11 @@ the request, the worktree path, the specification path if given, the four condit
 and these restrictions in full: do not edit, create, overwrite, delete, move, or rename any file,
 notebooks included; allowed are reading files, listing paths, searching, running commands known
 to be read-only, and following references; run only commands known to be read-only; forbidden,
-as examples — refuse anything else that could change state the same way — are `rm` `mv` `cp`
-`chmod` `touch` `mkdir` `tee`, output redirection, in-place rewriting, and state-changing git;
-secrets are reported as existing, never by value; the judge writes no file and never delegates
-further. Take `git status` before and after; any difference is a spreading accident: stop, show
-it to the person, and ask; never revert it yourself.
+as examples — refuse anything else that could change state the same way — are `rm` `rmdir` `mv`
+`cp` `chmod` `chown` `touch` `mkdir` `tee`, output redirection, in-place rewriting, and
+state-changing git; secrets are reported as existing, never by value; the judge writes no file
+and never delegates further. Take `git status` before and after; any difference is a spreading
+accident: stop, show it to the person, and ask; never revert it yourself.
 
 The judge returns the enumeration of places to change (file and change) and a verdict with
 grounds per condition. Given no specification path, it searches the specification home the
