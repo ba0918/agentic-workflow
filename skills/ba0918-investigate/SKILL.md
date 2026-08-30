@@ -152,12 +152,8 @@ difference, or the output that revealed the change, and ask for a decision. Do n
 yourself — reverting is an edit and breaks the guarantee a second time. Do not produce the
 report; returning the six sections with a rewritten snapshot in place is a counter-example.
 
-## Trigger words and the boundary with diagnosis
+## Boundary with diagnosis
 
-This skill starts on 「調べて」「原因を調査して」「なぜ〜が起きる」「影響範囲を見たい」 and their
-English equivalents (investigate, find the cause, why does this happen, what is the impact). It
-does not start on 「検証して」「動作確認して」「実装確認」, verify, validate, or confirm the
-implementation: those look at a finished change, which is diagnosis — review called directly,
-checked against a counterpart when one exists, otherwise returning quality findings only. When a
-person says "check that this change works" and this skill answers with the six-section report,
-the boundary is broken.
+Checking a finished change against what was expected is diagnosis — review called directly by a
+person — and not this skill's job. When that is what was asked, say so and stop without producing
+the six-section report.
