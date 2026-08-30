@@ -11,6 +11,7 @@
 | `docs/principles.md` | 利用者が自分の言葉で書いた理念。最上位 |
 | `docs/spec/workflow.md` | 開発ワークフローの約束を人向けに書いた仕様書。ワークフローの skill 本文はこれを写した物 |
 | `docs/spec/investigate.md` | 調査 skill（investigate）の約束を人向けに書いた仕様書。review の description に足した起動語（検証、動作確認、実装確認）の根拠もこの文書 |
+| `docs/spec/iterate.md` | 小さいタスク skill（iterate）の約束を人向けに書いた仕様書。仕様書も手順書も要らない小さいタスクを review 付きで回す入口で、cycle の本文を読み替えて使う |
 | `CONTEXT.md` | 用語集。二通りに読める言葉の定義と、使わない言い換え |
 | `skills/ba0918-<name>/` | skill 本文（`SKILL.md`）と参照資料（`references/`）。LLM 向けの英語 |
 
