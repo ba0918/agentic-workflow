@@ -11,7 +11,7 @@
 
 ## 次
 
-1. iterate skill（2 本目の題材）。cycle の終端報告との受け渡しを brainstorm で決める
+1. iterate skill（2 本目の題材）。仕様書 `docs/spec/iterate.md` は承認済み。plan → cycle で作る。cycle を起動するときに往復の上限の数を決める
 
 ## 検討中
 
