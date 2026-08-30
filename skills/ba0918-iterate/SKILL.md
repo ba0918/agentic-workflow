@@ -11,14 +11,14 @@ skill from the conversation; cycle never calls it, and cycle's terminal report a
 are not inputs — what the main session learned there goes into the request.
 
 Required inputs: the request, and the branch with its worktree path, created by the main session
-beforehand; the branch name is a short name for the request (no fixed prefix), and right after a
-cycle on the same branch that branch is reused, not re-cut. Never create a branch or a worktree
-here. Optional: cycle's four (round-trip limit, review strength, comparison base, profiles) plus
-the path of the specification to match against; defaults are cycle's. A **request** is the
-person's words completed by what the main session knows — named files, settled direction, a
-preceding cycle's terminal report — into a self-contained text an implementer with no context can
-build from. "Fix that thing from before" arrives expanded into the file and the change; if one or
-two exchanges cannot expand it, this skill does not run.
+beforehand; missing either, stop: the main session must prepare them first — never create a branch
+or a worktree here. The branch name is a short name for the request (no fixed prefix); right after a
+cycle on the same branch, it is reused, not re-cut. Optional: cycle's four (round-trip limit, review
+strength, comparison base, profiles) plus the specification path to match against; defaults are
+cycle's. A **request** is the person's words completed by what the main session knows — named files,
+settled direction, a preceding cycle's terminal report — into a self-contained text an implementer
+with no context can build from. "Fix that thing from before" arrives expanded into the file and the
+change; if one or two exchanges cannot expand it, this skill does not run.
 
 Out: commits on the branch and a terminal report. Stopped at the judgment: no commit, guidance
 only. Stopped by a hand-back during implementation: the commits so far stay (never deleted or
