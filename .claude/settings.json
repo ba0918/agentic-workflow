@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel)\" && bunx textlint docs",
+            "timeout": 120,
+            "statusMessage": "textlint on the approved documents"
+          }
+        ]
+      }
+    ]
+  }
+}

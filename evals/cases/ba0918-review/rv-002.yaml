@@ -1,0 +1,57 @@
+skill: ba0918-review
+id: rv-002
+title: 差分レビューが open の指摘ごとに「まだある / もう見えない」を返す
+source: acceptance:20260830
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - docs/spec/dedupe.md
+  - dedupe/__init__.py
+  - from: dedupe/core.after.py
+    to: dedupe/core.py
+  - dedupe/cli.py
+  - dedupe/__main__.py
+  - tests/__init__.py
+  - from: open-findings.json
+    to: .agents/artifacts/reviews/feat/dedupe.json
+git:
+  init: true
+  commit:
+    - README.md
+    - docs/spec/dedupe.md
+    - dedupe/__init__.py
+    - dedupe/core.py
+    - dedupe/cli.py
+    - dedupe/__main__.py
+    - tests/__init__.py
+  message: baseline
+  commits:
+    - files:
+        - from: dedupe/cli.fixed.py
+          to: dedupe/cli.py
+      message: remove the unused key
+
+exercises:
+  - skills/ba0918-review/SKILL.md
+  - skills/ba0918-review/references/finding-schema.md
+
+prompt: |
+  差分レビューをして。前回のレビュー以降の差分は最新のコミット 1 つ分。
+  open の指摘は .agents/artifacts/reviews/feat/dedupe.json にある（ID 付き）。
+  profile は Code、強さは standard、仕様書は docs/spec/dedupe.md。
+  結果は finding-schema の差分レビューの形（verdicts と new）で ./diff-review.json に書いて。
+expected_output: |
+  ID 1（API キー）は no_longer_visible、ID 2（最後の出現を残す）は still_present。
+expectations:
+  - text: ./diff-review.json が JSON として読め、verdicts に ID 1 と ID 2 の両方がある
+    critical: true
+  - text: ID 1 の verdict が no_longer_visible である
+    critical: true
+  - text: ID 2 の verdict が still_present である
+    critical: true
+  - text: .agents/artifacts/reviews/feat/dedupe.json の status や evaluations を reviewer が書き換えていない
+    critical: true
+  - text: new は配列で、差分に無い問題をでっち上げていない
+    critical: false

@@ -1,0 +1,45 @@
+skill: ba0918-investigate
+id: iv-001
+title: 症状から直接の原因と根本の原因を読むだけで辿り、修正せずに案と次の行動を返す
+source: acceptance:20260830
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - src/signing.ts
+  - src/request.ts
+  - tests/signing.test.ts
+git:
+  init: true
+  commit: true
+  message: baseline
+
+exercises:
+  - skills/ba0918-investigate/SKILL.md
+
+prompt: |
+  リクエストパスにスペースが含まれる場合だけ、staging のサーバで署名の照合が失敗する。
+  サーバ側の検証ログでは、受け取った署名は /v1/my%20items から、期待値は /v1/my items から生成されている。
+  直接の原因と根本の原因、影響範囲、テストの状況を調べて、修正は実行せずに次の行動を提案してほしい。
+expected_output: |
+  6 節の INVESTIGATION REPORT。直接の原因は src/signing.ts の encodeURI による canonical path と、
+  照合側が使う生のパスの不一致。根本の原因は path の正規化の責務が 1 か所に無いこと。
+  修正案は実行されず、リポジトリは baseline のまま。
+expectations:
+  - text: 応答に INVESTIGATION REPORT と、1. Problem overview から 6. Recommended action までの 6 節の見出しがすべてある
+    critical: true
+  - text: 直接の原因として、src/signing.ts が encodeURI で作る canonical path（/v1/my%20items）と照合側が使う生のパス（/v1/my items）の不一致を、ファイル名（と該当箇所）付きで挙げている
+    critical: true
+  - text: 根本の原因として、パスの正規化の責務が 1 か所に無いこと（signing.ts の encodeURI と、照合側または request.ts のいずれかを挙げる）を、直接の原因と分けて挙げている
+    critical: true
+  - text: 影響の節が、署名とリクエスト送信への影響と、スペース（エンコードで変わる文字）を含むパスのテストが無いことを述べている
+    critical: false
+  - text: 確信度（high / medium / low のどれか）に、読んだファイルや検索結果などの根拠が 2 つ以上付いている
+    critical: true
+  - text: 5. Fix options に、変える場所・概要・長所と短所を持つ修正案が 1〜3 案あり、no fix needed を含まず、どの案も実行されていない
+    critical: true
+  - text: git status が clean で、baseline commit からの差分も追跡外のファイルも無い（ファイルの編集・作成・削除が一切無い）
+    critical: true
+  - text: 6. Recommended action が主となる推奨を 1 つ、そのまま使える形（直す場所と内容、または /ba0918-brainstorm や /ba0918-plan の呼び出し）で示している
+    critical: false

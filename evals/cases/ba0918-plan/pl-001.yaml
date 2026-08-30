@@ -1,0 +1,41 @@
+skill: ba0918-plan
+id: pl-001
+title: 承認済みの仕様書から、節名を参照する手順書を 1 本作り、コミットはしない
+source: acceptance:20260830
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - docs/spec/dedupe.md
+  - dedupe/__init__.py
+  - tests/__init__.py
+git:
+  init: true
+  commit: true
+  message: baseline
+
+exercises:
+  - skills/ba0918-plan/SKILL.md
+  - skills/ba0918-plan/references/step-template.md
+
+prompt: |
+  docs/spec/dedupe.md は承認済み（コミット済み）。ここから実装の手順書を作って。
+  言語は Python、テストは標準の unittest で走る。
+expected_output: |
+  docs/plans/<名前>.md が 1 本でき、ステージされているがコミットはされていない。
+expectations:
+  - text: docs/plans/ の下に Markdown の手順書が 1 本ある
+    critical: true
+  - text: 手順書の各手順が、目的、参照する仕様の節名、前提、変更してよい範囲、完了の条件と示し方（test / check / artifact / external のどれか）を持つ
+    critical: true
+  - text: 手順書が参照する仕様の節名（「入力」「重複の定義と残し方」「出力」「終了コード」など）は docs/spec/dedupe.md に実在する見出しである
+    critical: true
+  - text: 仕様書の文章を段落ごと写していない（仕様の本文と同じ文が手順書に無い）
+    critical: true
+  - text: git log の commit は baseline の 1 つだけで、手順書はコミットされていない
+    critical: true
+  - text: 手順書の冒頭に Goal と Specification（仕様書のパス）と Test command（python3 -m unittest ...）がある
+    critical: false
+  - text: 仕様が黙っていること（例: 空の入力）を手順書が勝手に決めていない
+    critical: false

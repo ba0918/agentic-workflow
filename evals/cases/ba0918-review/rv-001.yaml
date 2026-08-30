@@ -1,0 +1,47 @@
+skill: ba0918-review
+id: rv-001
+title: フルレビューが秘密の混入と仕様違反を JSON の指摘として返す
+source: acceptance:20260830
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - docs/spec/dedupe.md
+  - dedupe/__init__.py
+  - dedupe/core.py
+  - tests/__init__.py
+git:
+  init: true
+  commit: true
+  message: baseline
+  commits:
+    - files:
+        - from: dedupe/core.after.py
+          to: dedupe/core.py
+        - dedupe/cli.py
+        - dedupe/__main__.py
+      message: add the CLI
+
+exercises:
+  - skills/ba0918-review/SKILL.md
+  - skills/ba0918-review/references/profiles.md
+  - skills/ba0918-review/references/finding-schema.md
+
+prompt: |
+  このリポジトリの最初のコミット（baseline）から HEAD までの差分をフルレビューして。
+  profile は Code、強さは standard、突き合わせる仕様書は docs/spec/dedupe.md。
+  指摘は finding-schema の形の JSON で ./review.json に書いて。
+expected_output: |
+  review.json に、埋め込まれた API キー（security）と、最後の出現を残す実装（critical、仕様違反）の指摘が入っている。
+expectations:
+  - text: ./review.json が JSON として読め、各指摘が severity / action / evidence / oracle / profile / perspective を持つ
+    critical: true
+  - text: dedupe/cli.py の API_KEY を重さ security の指摘として挙げている
+    critical: true
+  - text: dedupe_lines が最後の出現を残すことを、仕様の「重複の定義と残し方」に反する重さ critical の指摘として挙げ、証拠が dedupe/core.py の行を指している
+    critical: true
+  - text: 重さ info 以外の指摘には確かめ方（oracle.proposal）があり、info の指摘の action は record_only である
+    critical: false
+  - text: 指摘に点数や総合点が付いていない
+    critical: false

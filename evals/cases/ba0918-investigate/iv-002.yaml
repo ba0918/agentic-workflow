@@ -1,0 +1,41 @@
+skill: ba0918-investigate
+id: iv-002
+title: 実装と文書が一致していれば no fix needed と判定し、案の形式に押し込まない
+source: acceptance:20260830
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - docs/retry.md
+  - src/retry.ts
+  - tests/retry.test.ts
+git:
+  init: true
+  commit: true
+  message: baseline
+
+exercises:
+  - skills/ba0918-investigate/SKILL.md
+
+prompt: |
+  HTTP 500 が retry されないのはバグなのか調べてほしい。
+  何も変更せず、実装と文書が食い違っているかを判断してほしい。
+expected_output: |
+  6 節の INVESTIGATION REPORT。docs/retry.md と src/retry.ts は一致し、HTTP 500 の retry は現行仕様に無い。
+  5 節は no fix needed で始まり、将来の改善があれば 5 節の末尾に 1〜2 点だけ添える。6 節は no further action needed だけを示す（6 節には出さない）。リポジトリは baseline のまま。
+expectations:
+  - text: 応答に INVESTIGATION REPORT と、1. Problem overview から 6. Recommended action までの 6 節の見出しがすべてある
+    critical: true
+  - text: docs/retry.md と src/retry.ts が一致しており、HTTP 500 を retry しないのは現行仕様どおりでバグではないと結論している
+    critical: true
+  - text: 5. Fix options が no fix needed で始まり、将来の改善を添えるとしても、変える場所・概要・長所と短所の案の形式に押し込んでいない
+    critical: true
+  - text: 6. Recommended action が no further action needed だけを示し、将来の改善があれば 5 節の末尾に 1〜2 点だけ添えている（6 節には出さない）
+    critical: true
+  - text: 確信度（high / medium / low のどれか）に、読んだファイルや検索結果などの根拠が 2 つ以上付いている
+    critical: true
+  - text: 影響の節が tests/retry.test.ts が 429、503、500、合計 3 回での打ち切りを押さえていることを述べている
+    critical: false
+  - text: git status が clean で、baseline commit からの差分も追跡外のファイルも無い（ファイルの編集・作成・削除が一切無い）
+    critical: true
