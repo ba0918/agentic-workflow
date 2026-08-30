@@ -41,27 +41,27 @@ Thirty files in one spelling unification: small. A rename whose callers all enum
 mechanically: small; four callers enumerated but one needing a choice on how it uses the return
 value: not readable. "Make the error message clearer": one reading only with the wording given.
 
-Before delegating implementation, delegate a read-only judgment to a separate-context **judge**
-(judgment starts from a request; an investigation, from a symptom) with a self-contained prompt: the
-request; the worktree path; the specification path if given — given none, the duty to search the
-specification home the project's instruction files name for one covering the places to change (a
-found one counts as a given one: condition 3, review conformance, the guidance; none found, go on
-without, but passing condition 3 unsearched is a counter-example); the four conditions verbatim; the
-return shape — the enumeration of places to change (file and change) plus a verdict with grounds per
-condition; and these restrictions in full: do not edit, create, overwrite, delete, move, or rename
-any file, notebooks included; allowed are reading files, listing paths, searching, running commands
-known to be read-only, and following references; run only commands known to be read-only; forbidden,
-as examples — refuse anything else that could change state the same way — are `rm` `rmdir` `mv` `cp`
+Before implementation, delegate a read-only judgment to a separate-context **judge** (judgment
+starts from a request, investigation from a symptom) with a self-contained prompt: the request; the
+worktree path; the specification path if given, else the duty to search the specification home the
+project's instructions name and report a found one; the four conditions verbatim; the return shape
+(enumeration of places to change — file and change — plus a verdict with grounds per condition); and
+these restrictions in full: do not edit, create, overwrite, delete, move, or rename any file,
+notebooks included; allowed are reading files, listing paths, searching, running commands known to
+be read-only, and following references; run only commands known to be read-only; forbidden, as
+examples — refuse anything else that could change state the same way — are `rm` `rmdir` `mv` `cp`
 `chmod` `chown` `touch` `mkdir` `tee`, output redirection, in-place rewriting, and state-changing
 git; secrets are reported as existing, never by value; the judge writes no file and never delegates
-further. Outside that prompt, take `git status` yourself before and after the judgment; a difference
-is a spreading accident: stop, show it to the person, and ask; never revert it yourself.
+further. Outside that prompt, take `git status` before and after the judgment; a difference is a
+spreading accident: stop, show it to the person, and ask; never revert it yourself.
 
-The verdict is a proposal; the decision is here, as with reviewers in cycle. No verdict:
-re-delegate once, then report that none was possible and stop. A place outside the enumeration met
-during implementation means the impact was not readable: the implementer hands back (its prompt
-says so) and this ends with the condition 4 guidance; a hand-back for a missing design decision
-ends with the condition 2 guidance.
+A found specification counts as a given one — condition 3, the review counterpart, and "a
+specification exists" in the guidance table; none found, go on without; passing condition 3
+unsearched is a counter-example. The verdict is a proposal; the decision is here, as with reviewers
+in cycle. No verdict: re-delegate once, then report none was possible and stop. A place outside the
+enumeration met during implementation means the impact was not readable: the implementer hands back
+(its prompt says so) and this ends with the condition 4 guidance; a hand-back for a missing design
+decision ends with the condition 2 guidance.
 
 Not small: stop with guidance (the failed condition with grounds, the destination, a ready-to-use
 invocation); never start brainstorm or plan yourself. Several failed: list all, destination from
