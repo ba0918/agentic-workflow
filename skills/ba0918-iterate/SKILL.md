@@ -44,12 +44,12 @@ value: not readable. "Make the error message clearer": one reading only with the
 Before implementation, delegate a read-only judgment to a separate-context **judge** (judgment
 starts from a request, investigation from a symptom) with a self-contained prompt: the request; the
 worktree path; the specification path if given, else the duty to search the specification home the
-project's instructions name and report a found one; the four conditions verbatim; the return shape
-(enumeration of places to change — file and change — plus a verdict with grounds per condition); and
-these restrictions in full: do not edit, create, overwrite, delete, move, or rename any file,
-notebooks included; allowed are reading files, listing paths, searching, running commands known to
-be read-only, and following references; run only commands known to be read-only; forbidden, as
-examples — refuse anything else that could change state the same way — are `rm` `rmdir` `mv` `cp`
+project's instructions name and report one covering the places to change; the four conditions
+verbatim; the return shape (enumeration of places to change — file and change — plus a verdict with
+grounds per condition); and these restrictions in full: do not edit, create, overwrite, delete,
+move, or rename any file, notebooks included; allowed are reading files, listing paths, searching,
+running commands known to be read-only, and following references; run only such commands; forbidden,
+as examples — refuse anything else that could change state the same way — are `rm` `rmdir` `mv` `cp`
 `chmod` `chown` `touch` `mkdir` `tee`, output redirection, in-place rewriting, and state-changing
 git; secrets are reported as existing, never by value; the judge writes no file and never delegates
 further. Outside that prompt, take `git status` before and after the judgment; a difference is a
