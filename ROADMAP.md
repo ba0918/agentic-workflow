@@ -25,6 +25,6 @@
 - ドメインモデルの抽出（用語の定義と境界のシナリオ）を brainstorm から別 skill に切り出す。まずは brainstorm 組み込みで運用し、実利用で分けたくなったら分ける
 - `CONTEXT.md` をドメインモデルごとに分割する。用語が増えて 1 ファイルで読みにくくなったら
 - iterate 仕様書の残件。往復の上限が今回の実行の review の回数を数える約束は skill 本文にだけある。判定役がテストを列挙に入れないとき、iterate が決定権で補う動き（実走で 1 回起きた）を明示するかどうか。実装役の委譲行の裸の条件番号。次に仕様書を触るときに拾う。指摘の記録は `.agents/artifacts/reviews/feat/iterate.json`
-- skill-regression の lock が名前で呼ぶ skill 同士の依存（iterate → cycle → review）を辿れない。cycle の本文が変わっても iterate の scenario が影響ありに挙がらない
+- skill-regression の lock が名前で呼ぶ skill 同士の依存（iterate → cycle → review）を辿れない件は、agentic-meta の PR #1（`evals/dependencies.yml` で宣言し、宣言先の surface を 1 ホップ合流）で対応中。リリースされたらこちらで `evals/dependencies.yml`（iterate → cycle、cycle → review）を置き、iterate と cycle の scenario の `exercises` に依存先の本文を足して lock を取り直す。iterate 仕様書の未決定と、`exercises` 宣言を却下した行の理由も直す。PR の枝で試した結果は期待どおり（cycle の本文の変更で iterate が影響ありに挙がる）
 - investigate 仕様書の残件。scenario を応答テキストで判定する点。委譲先へ写す 5 つがテストの条件を含むかどうか。「1〜3 案」の単位（問題ごとか、5 節全体か）。推奨表の「小さいタスク → iterate」と「仕様書が無い → brainstorm」が同じ状況（仕様書の無い小さいタスク）で重なる件。次に仕様書を触るときに拾う
 - GitHub の tag 保護（Settings > Rules の ruleset）。「公開した tag は動かさない」を GitHub 側でも縛るなら
