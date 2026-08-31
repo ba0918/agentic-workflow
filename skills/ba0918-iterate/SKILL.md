@@ -31,7 +31,8 @@ A **small task** meets all four; file count is irrelevant.
 3. If a specification exists, no contradiction with it.
 4. The impact is readable: the judge enumerates every file to change (files to be created included)
    in a closed list — no "there may be others"; never a count — and says what changes in each without
-   judgment (attached per entry; closure is judged per file). Not readable means large.
+   judgment (attached per entry; closure is judged per file); for an interface change, every caller
+   is enumerated and its change said without judgment the same way. Not readable means large.
 
 Undecidable on 1 or 4 means not small. Thirty files in one spelling unification: small. A rename
 whose callers all enumerate and change mechanically: small; four callers enumerated but one needing
@@ -77,8 +78,8 @@ read before the first review); "cycle" there means this run. Only these substitu
 | the branch name contains the plan name | a short name for the request |
 | the specification path read from the plan | the given path, or the specification the judge found |
 | inferring done steps from the plan and `git log`, then delegating the rest to implement | no inference: the request goes to the implementer in one delegation, after the judgment |
-| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judge's enumeration, the specification path if any, branch, worktree path) |
-| the plan path in the fixer delegation | the request, and the specification path if any |
+| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judge's enumeration, the specification path if any, branch, worktree path), with a hand-back reason added to the contract: a contradiction with the specification (3) |
+| the plan path in the fixer delegation | the request, and the specification path if any, with a hand-back reason added to the contract: a contradiction with the specification (3) |
 | the fixer contract's "the plan's commands in order, unedited" | check commands come from the project's instructions, then the ecosystem's standard tool |
 | "run more" re-entering at step 1 when steps remain | always the diff loop |
 | the specification path in review delegations | the specification path and the request, both |
@@ -106,8 +107,7 @@ two rounds running; three full reviews each with new findings) reset at a start 
 counts across the boundary. No default round-trip limit; one the person set counts this run's
 reviews, not the round numbers, and cycle's ending 2 applies. No counter of consecutive runs.
 
-Cycle's terminal report and "never" list apply, verification results taken from the implementer's
-evidence, plus, here only, the guidance when the task was judged not small or handed back. "Look
-into this" belongs to the investigate skill, "check that it works" and "verify this" to review's
-diagnosis; implementing from such words is a boundary breach. "Fix it" or "add it" alone never
-starts this skill; ask for a reviewed loop.
+Cycle's terminal report and "never" list apply, verification results from the implementer's evidence,
+plus the guidance when not small or handed back. "Look into this" belongs to the investigate skill,
+"check that it works" and "verify this" to review's diagnosis; implementing from them is a boundary
+breach. "Fix it" or "add it" alone never starts this skill; ask for a reviewed loop.
