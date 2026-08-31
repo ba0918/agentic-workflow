@@ -8,16 +8,17 @@
 - 回帰評価の配線（`evals/`、`regression-lock.json`、opencode の economy ルート）。scenario 9 本が pass
 - 受け入れ試験。investigate skill を brainstorm → plan → cycle で 1 周して取り込んだ。往復 12 回、仕様書の改訂 3 回、security の停止 1 回
 - 旧リポジトリの掃除。Python runtime、旧仕様 8 本、旧 skill、evals を消し、作り直した履歴を `main` に繋いだ。`~/.claude/skills/` の symlink は `skills/ba0918-*` の 6 本を向く
+- 受け入れ試験の 2 本目。iterate skill を brainstorm → plan → cycle で 1 周して取り込んだ。往復 16 回、仕様書の改訂 1 回（19 問）、指摘 79 件のうち 40 件を閉じた。scenario 2 本を opencode で実走して lock に登録（合計 11 本）
 
 ## 次
 
-1. iterate 仕様書の改訂（brainstorm）。cycle の受け入れ試験で出た 4 つの決めごとを潰す。差し戻し時の「さらに回す」の扱い、再開規則の拡張と往復番号、実装役への受け渡しの境界、scenario の期待と lock の依存の扱い
-2. 改訂後、`feat/iterate` に残る軽い指摘 5 件を直して取り込む。指摘は worktree の `.agents/artifacts/reviews/feat/iterate.json`
+1. cycle と review の仕様改訂（brainstorm）。iterate の受け入れ試験で、文章を対象にしたフルレビューが収束しなかった（2 回とも新規を返し、大半は受け入れ済みの再発見と圧縮で生まれた文言差）。題材は 4 つ。受け入れ済みの指摘を reviewer に渡す。意味が変わらない表現差を指摘にしない。フルレビューは差分ループの後 1 回で打ち切る。再開規則の空白（往復番号の続け方、「さらに回す」の後の連続、再入口が仕様書と skill 本文で割れている件）を埋める
 
 ## 検討中
 
 - ドメインモデルの抽出（用語の定義と境界のシナリオ）を brainstorm から別 skill に切り出す。まずは brainstorm 組み込みで運用し、実利用で分けたくなったら分ける
 - `CONTEXT.md` をドメインモデルごとに分割する。用語が増えて 1 ファイルで読みにくくなったら
-- cycle のレビューの運用。investigate の受け入れ試験で、standard のフルレビューが 3 回続けて新しい見えている指摘を返した（往復 12）。強さ `light` を既定にするか、往復の上限を最初に付けるか、フルレビューを収束判定のときだけにするか
-- investigate 仕様書の残件。scenario を応答テキストで判定する点、委譲先に写す 5 つにテストの条件が入るか、「1〜3 案」が問題ごとか 5 節全体か。次に仕様書を触るときに拾う
+- iterate 仕様書の残件。往復の上限が今回の実行の review の回数を数える約束は skill 本文にだけある。判定役がテストを列挙に入れないとき、iterate が決定権で補う動き（実走で 1 回起きた）を明示するかどうか。実装役の委譲行の裸の条件番号。次に仕様書を触るときに拾う。指摘の記録は `.agents/artifacts/reviews/feat/iterate.json`
+- skill-regression の lock が名前で呼ぶ skill 同士の依存（iterate → cycle → review）を辿れない。cycle の本文が変わっても iterate の scenario が影響ありに挙がらない
+- investigate 仕様書の残件。scenario を応答テキストで判定する点。委譲先へ写す 5 つがテストの条件を含むかどうか。「1〜3 案」の単位（問題ごとか、5 節全体か）。推奨表の「小さいタスク → iterate」と「仕様書が無い → brainstorm」が同じ状況（仕様書の無い小さいタスク）で重なる件。次に仕様書を触るときに拾う
 - investigate の scenario 2 本の実走と lock への登録。人が頼んだときだけ
