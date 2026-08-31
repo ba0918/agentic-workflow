@@ -142,9 +142,10 @@ Show invocations in a form that can be used as is.
 
 A small task is one the ba0918-iterate skill accepts: the request has one reading, needs no
 specification decision, contradicts no existing specification, and its impact is readable (every
-place to change can be enumerated and the list is closed); file count does not matter. A change
-whose impact cannot be read, or which needs a specification decision, is medium or larger, and
-sending it to iterate as "small" is a counter-example. There is no issue management here, so
+file to change, files to be created included, can be enumerated in a closed list — no "there may be
+others" — and what changes in each can be said without judgment); file count does not matter. A
+change whose impact cannot be read, or which needs a specification decision, is medium or larger,
+and sending it to iterate as "small" is a counter-example. There is no issue management here, so
 "deferred" is the person's own note.
 
 ## When something goes wrong
