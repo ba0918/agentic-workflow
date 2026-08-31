@@ -28,8 +28,18 @@
 ## 検査
 
 - `bun install` のあと `bun run lint:docs`（`docs/` の Markdown に textlint）。pre-commit（lefthook）と Claude Code の Stop hook からも同じ物を呼ぶ
-- `bunx skills-ref validate skills/ba0918-<name>` で skill の形式を検査する
+- `bunx skills-ref@0.1.5 validate skills/ba0918-<name>` で skill の形式を検査する
+- CI（`.github/workflows/ci.yml`）は push と pull request のたびに同じ検査を走らせ、加えて版の宣言 3 つの一致を検査する
 - `.textlintrc.json` の `preferInBody` は「である」。`CONTEXT.md` は定義行に句点を付けない形式なので `.textlintignore` で外している
+
+## 配布と版
+
+- 配る物は `skills/` の中身だけ。配布経路（Claude Code、Codex CLI、OpenCode、APM、`gh skill` / `npx skills`）と入れ方は `README.md` にある
+- 版の正本は `.claude-plugin/plugin.json` の `version`。`.claude-plugin/marketplace.json` の `plugins[0].version` と `package.json` の `version` はそれに従う写しで、CI が一致を検査する
+- 利用者から見える変更（skill の指示が変わる、skill が増える、入れ方が変わる）は `CHANGELOG.md` の `Unreleased` に、その変更を入れる commit で書く。skill の指示の意味が変わる変更は **BREAKING** を付けて分ける
+- 公開は `/release`（`.claude/commands/release.md`）で行う。版を決め、`Unreleased` を版の見出しに昇格し、検査を通し、人の承認の後に commit して `main` に push する。tag は手元で打たない
+- release workflow（`.github/workflows/release.yml`）は `main` への push で動く。`CHANGELOG.md` に版の見出しがある commit だけを公開対象と判定する。CI の検査を通した後でその commit に tag を打ち、見出しの節をそのまま release note にした GitHub release を作る
+- 公開した tag は動かさない。公開後の直しは次の版で出す
 
 ## 置き場
 

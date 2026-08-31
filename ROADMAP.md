@@ -9,6 +9,7 @@
 - 受け入れ試験。investigate skill を brainstorm → plan → cycle で 1 周して取り込んだ。往復 12 回、仕様書の改訂 3 回、security の停止 1 回
 - 旧リポジトリの掃除。Python runtime、旧仕様 8 本、旧 skill、evals を消し、作り直した履歴を `main` に繋いだ。`~/.claude/skills/` の symlink は `skills/ba0918-*` の 6 本を向く
 - 受け入れ試験の 2 本目。iterate skill を brainstorm → plan → cycle で 1 周して取り込んだ。往復 16 回、仕様書の改訂 1 回（19 問）、指摘 79 件のうち 40 件を閉じた。scenario 2 本を opencode で実走して lock に登録（合計 11 本）
+- 配布の配線を足した。plugin manifest、OpenCode plugin、`README.md` の入れ方（APM とコピー経路も）、`CHANGELOG.md`、CI である。公開は `/release` で行う。`main` への push を受けた release workflow が tag と GitHub release を作る
 
 ## 次
 
