@@ -1,0 +1,21 @@
+{
+  "name": "ba0918-workflow",
+  "version": "0.1.0",
+  "description": "Development workflow skills for AI coding agents: brainstorm a specification with the person, plan it, run an implement-review cycle until findings converge, iterate on a small task without a plan, and investigate a symptom read-only",
+  "author": {
+    "name": "ba0918"
+  },
+  "repository": "https://github.com/ba0918/agentic-workflow",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "workflow",
+    "brainstorm",
+    "plan",
+    "cycle",
+    "implement",
+    "review",
+    "iterate",
+    "investigate"
+  ]
+}
