@@ -29,10 +29,11 @@ A **small task** meets all four; file count is irrelevant.
 2. No specification decision: no new input kind, acceptance boundary, or error handling is
    decided for the first time by this task.
 3. If a specification exists, no contradiction with it.
-4. The impact is readable: the judge enumerates every file to change (files to be created included)
-   in a closed list — no "there may be others"; never a count — and says what changes in each without
-   judgment (attached per entry; closure is judged per file); for an interface change, every caller
-   is enumerated and its change said without judgment the same way. Not readable means large.
+4. The impact is readable: the judge enumerates every file to change (files to be created included;
+   for code, the tests the implementer adds test-first are among them) in a closed list — no "there
+   may be others"; never a count — and says what changes in each without judgment (attached per
+   entry; closure is judged per file); for an interface change, every caller is enumerated and its
+   change said without judgment the same way. Not readable means large.
 
 Undecidable on 1 or 4 means not small. Thirty files in one spelling unification: small. A rename
 whose callers all enumerate and change mechanically: small; four callers enumerated but one needing
@@ -78,7 +79,7 @@ read before the first review); "cycle" there means this run. Only these substitu
 | the branch name contains the plan name | a short name for the request |
 | the specification path read from the plan | the given path, or the specification the judge found |
 | inferring done steps from the plan and `git log`, then delegating the rest to implement | no inference: the request goes to the implementer in one delegation, after the judgment |
-| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judge's enumeration, the specification path if any, branch, worktree path), with hand-back reasons added to the contract: a contradiction with the specification (3), or a request that reads two ways (1) |
+| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judge's enumeration, the specification path if any, branch, worktree path), with hand-back reasons added to the contract: a file outside the enumeration — the cap on files to touch (edit, create, delete, rename; tests included) (4); a contradiction with the specification (3); or a request that reads two ways (1) |
 | the plan path in the fixer delegation | the request, and the specification path if any, with a hand-back reason added to the contract: a contradiction with the specification (3) |
 | the fixer contract's "the plan's commands in order, unedited" | check commands come from the project's instructions, then the ecosystem's standard tool |
 | "run more" re-entering at step 1 when steps remain | always the diff loop |
@@ -89,13 +90,12 @@ read before the first review); "cycle" there means this run. Only these substitu
 The **implementer** is cycle's fixer contract pasted in full, the request replacing the visible
 findings; the implement skill is not used. It returns commits, evidence per completion kind,
 out-of-request changes with reasons — or a hand-back and why. The enumeration goes along as reading
-material, marked as not an order — handing it as steps is a counter-example — yet the cap on files:
-one outside it (edit, create, delete, rename; tests included) means the impact was not readable:
-hand back; never touch it or report it as out-of-request. Inside a listed file, changes the request
-did not name (import tidying, tests following) go on as out-of-request; an entry whose change came
-out different is review's to catch. The cap binds only the implementer; the fixer follows findings
-into any file, reporting those outside as out-of-request. With no specification, reviewers match
-the request — two, quality and conformance, so someone checks it was met.
+material, marked as not an order — handing it as steps is a counter-example — yet the cap on files
+(4): one outside it — hand back; never touch it or report it as out-of-request. In a listed file,
+changes the request did not name (import tidying, tests following) go on as out-of-request; an entry
+whose change came out different is review's to catch. The cap binds only the implementer; the fixer
+follows findings into any file, reporting those outside as out-of-request. With no specification,
+reviewers match the request — two, quality and conformance, so someone checks it was met.
 
 Same branch right after a cycle or a run of this skill: reuse it, never re-cut; findings JSON still
 there is cycle's resume — keep the findings (deleting or ignoring the file is a counter-example) and
