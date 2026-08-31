@@ -29,7 +29,9 @@ prompt: |
   このセッションでは人（私）は答えられないので、人に聞くことがあれば報告に書いて止まって。
 expected_output: |
   判定役が呼び出し元（tokenize、with_prefix、longest、cli の別名 canonical、__init__ の再公開、テスト）を列挙し、
-  with_prefix と longest では None の扱いを選ばないと直せないので影響が読めない（条件 4）と判定する。
+  with_prefix と、normalize("...") が "" を返すと主張するテストでは None の扱いを選ばないと直せないので
+  影響が読めない（条件 4）と判定する。longest のキーは tokenize が空の語を落とした後の物なので None は届かず、
+  変更は要らない。
   iterate は実装を始めず、commit を作らず、外れた条件と根拠、行き先（brainstorm）、そのまま使える呼び出しの
   3 つからなる案内を出して止まる。
 expectations:
