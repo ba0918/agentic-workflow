@@ -1,0 +1,146 @@
+name: Release
+
+# A push to main is the one trigger. The human decision is the release commit —
+# which version, and when — and everything after it is this workflow's: the
+# tag and the GitHub release. Narrowing the decision to one point is what keeps
+# a half-finished release (a tag with no release, or the reverse) from being
+# something a person has to remember to avoid.
+on:
+  push:
+    branches: [main]
+
+# One release at a time, and never cancelled. Two pushes landing close together
+# would otherwise both read the same version before either had tagged it, and
+# the later run would tag from its own commit — so the tag would not name the
+# tree the release commit named. Cancelling instead of queueing would trade
+# that for a run stopped mid-release.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# Read by default. The one job that writes says so itself, and it holds no
+# long-lived secret: the tag and the release are created with the run's own
+# token.
+permissions:
+  contents: read
+
+jobs:
+  # Most pushes to main are not releases. This job answers "is this one?" and
+  # every other job hangs off its answer, so the question is asked once and in
+  # one place.
+  decide:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.state.outputs.version }}
+      release: ${{ steps.state.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decide whether this push releases a new version
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # plugin.json is the canonical version; CI checks that the other
+          # manifests follow it.
+          version="$(jq -r .version .claude-plugin/plugin.json)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          # The tag is read from the remote rather than from a local clone, so
+          # the answer does not depend on what this checkout happened to fetch.
+          tagged=no
+          if [ -n "$(git ls-remote --tags origin "refs/tags/v$version")" ]; then
+            tagged=yes
+          fi
+          released=no
+          if gh release view "v$version" --json tagName >/dev/null 2>&1; then
+            released=yes
+          fi
+          echo "version $version — tagged: $tagged, released: $released"
+
+          if [ "$tagged" = yes ] && [ "$released" = yes ]; then
+            echo "Already released; this push carries no version change."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # The release step below creates the tag and the release in one call,
+          # so this state only arises from someone doing one of them by hand. A
+          # published tag is never moved or reused, which makes the way out a
+          # person's decision rather than a re-run.
+          if [ "$tagged" != "$released" ]; then
+            echo "::error::v$version is half released (tagged: $tagged, released: $released). Resolve it by hand, or release a new version."
+            exit 1
+          fi
+
+          # The release commit promotes the Unreleased section to a heading that
+          # matches the version. Until that commit lands, a push carrying the
+          # manifests' version without its heading is an ordinary push — the
+          # manifests name the next version before its notes are written — and
+          # is not a release. The heading is the part a machine can check, and
+          # checking it here is what keeps the notes from being written after
+          # the fact.
+          if ! grep -qF "## [$version]" CHANGELOG.md; then
+            echo "No '## [$version]' heading in CHANGELOG.md; this push is not a release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
+  # The same checks every push and pull request runs, called rather than
+  # restated. A tag is only ever created after this has passed.
+  checks:
+    needs: decide
+    if: needs.decide.outputs.release == 'true'
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: [decide, checks]
+    if: needs.decide.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    # The one job in this repository that writes to it: one tag and one
+    # release.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # The release notes are the changelog section for this version, taken
+      # verbatim: the heading line is dropped, and the section ends at the next
+      # version heading or the link definitions at the bottom. The section was
+      # written by a person under the release discipline, so nothing here
+      # generates prose.
+      - name: Take the release notes from the changelog
+        env:
+          VERSION: ${{ needs.decide.outputs.version }}
+        run: |
+          set -euo pipefail
+          awk -v heading="## [$VERSION]" '
+            index($0, heading) == 1 { inside = 1; next }
+            inside && (/^## / || /^\[/) { exit }
+            inside { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
+            echo "::error::The '## [$VERSION]' section of CHANGELOG.md is empty."
+            exit 1
+          fi
+          echo "== release notes for v$VERSION"
+          cat "$RUNNER_TEMP/notes.md"
+
+      # The commit the checks ran against, named explicitly: the tag and the
+      # checks have to be the same tree, and a tag on anything else would name
+      # a version nobody verified. Creating the tag and the release in one call
+      # is what leaves no release standing with one and not the other; decide
+      # has already established that the tag does not exist, which matters
+      # because --target is ignored for a tag that does.
+      - name: Tag the commit the checks passed on and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.decide.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "v$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "v$VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md"

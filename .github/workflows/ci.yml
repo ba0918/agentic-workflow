@@ -1,0 +1,69 @@
+name: CI
+
+# push is limited to main so a branch with an open PR runs once (via
+# pull_request), not twice.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Called by the release workflow, so a release runs exactly the checks every
+  # push and pull request runs. Called rather than restated there: two copies of
+  # the check list could drift, and the release would then tag a tree the other
+  # copy would have failed.
+  workflow_call:
+
+# Nothing in this workflow writes to the repository, so the token is held to
+# read access instead of the repository default.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Minor-series pin, the same shape the sister repositories use, so a
+          # runtime major update cannot change CI behavior on its own.
+          bun-version: "1.3.x"
+
+      # --frozen-lockfile refuses to rewrite the lockfile, so the textlint
+      # versions checked here are the recorded ones rather than whatever a
+      # fresh resolution would produce.
+      - name: Install the pinned toolchain
+        run: bun install --frozen-lockfile
+
+      # The same command PROJECT.md documents for local runs, so CI and the
+      # documentation cannot drift apart.
+      - name: Lint the approved documents
+        run: bun run lint:docs
+
+      # The reference validator checks the published Agent Skills
+      # specification. The version is pinned so a release of the validator
+      # cannot change what a green build means; bump the pin deliberately.
+      - name: Validate the skills against the Agent Skills reference validator
+        run: |
+          set -euo pipefail
+          for skill in skills/*/; do
+            echo "== $skill"
+            bunx skills-ref@0.1.5 validate "$skill"
+          done
+
+      # plugin.json declares the version; marketplace.json and package.json
+      # repeat it for the routes that read them, so both can only ever follow.
+      # A disagreement is otherwise invisible until a consumer installs by
+      # whichever route holds the stale copy.
+      - name: Check the plugin version declarations agree
+        run: |
+          set -euo pipefail
+          canonical=$(jq -r .version .claude-plugin/plugin.json)
+          for follower in \
+            "marketplace.json:$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)" \
+            "package.json:$(jq -r .version package.json)"; do
+            test "$canonical" = "${follower#*:}" || {
+              echo "plugin.json declares $canonical, ${follower%%:*} declares ${follower#*:}"
+              exit 1
+            }
+          done
