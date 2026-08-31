@@ -96,38 +96,37 @@
     },
     "ba0918-investigate": {
       "file_sha256": {
-        "skills/ba0918-investigate/SKILL.md": "6c04d34fc5fec22a984d06dae04c86d27e2e1f5fdefea8f19dd512a89ceb0677"
+        "skills/ba0918-investigate/SKILL.md": "ba456e37998e56e4db209e4231d9c9472b43acb023bc55ee9dc373fd9116f63a"
       },
-      "note": "opencode-economy（deepseek-v4-flash、process 経路、並列 1）で 2 本とも pass。iv-001 307 秒: 直接の原因と根本の原因を分け、案 3 つを実行せず、推奨は brainstorm の呼び出し。iv-002 128 秒: no fix needed で 5 節を始め、6 節は no further action needed だけ。どちらも executor は node --test を read-only の検証に使い、work tree は baseline のまま",
-      "result": "pass",
+      "note": "spec残件の改訂+敵対レビュー反映: 推奨表の brainstorm 行の係りを正本に揃え、修正案は問題ごと（5 節も問題ごとに分ける）、委譲の写しにテストの条件。iv scenario の期待と両立する追記のみで再実走なし",
+      "result": "accepted-without-run",
       "scenarios": {
         "iv-001": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "2906517385ecf77dbd445744a08bb0ba180003100ab4599e2d9702c13f980a6c",
           "verified": "2026-08-31"
         },
         "iv-002": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "1bc2a525b18d394e63f7f93b0fa961160df4a760b31482f743e0868012e645d8",
           "verified": "2026-08-31"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-investigate/SKILL.md": "8fa0679159a9e3752cc9dddcd7bbd691cf0ade9cb9687a5566f4a93c151b750b"
+        "skills/ba0918-investigate/SKILL.md": "c1d8096e2970a0278d460812d277937c224ffd451dae6141f18088d7ba584128"
       },
       "surface": [
         "skills/ba0918-investigate/SKILL.md"
       ],
-      "surface_sha256": "b3ec06289469620051dc0f5a5ccbf2900c59c6e6ce0c864472eaab3bf2d3029a",
-      "verified": "2026-08-31"
+      "surface_sha256": "3c7d892b93652d66be8ddf7a9ab2f4e3698ae7f5f8ce5ce7a877da9b11445cf4",
+      "verified": "2026-09-01"
     },
     "ba0918-iterate": {
-      "carried_note": "ending 3 streak no longer counts consecutive full reviews, mirroring cycle; resume rules are cycle's own. it-001/it-002 do not reach ending 3; accepted without rerun",
       "file_sha256": {
         "skills/ba0918-cycle/SKILL.md": "1c7a47632684ea94708f9830886abf431725cb22dd5acb050822f321350939e0",
-        "skills/ba0918-iterate/SKILL.md": "59cc631513a867f588885c5d18fa077e57bf164cae74fca589eaecaf2c1e2afa"
+        "skills/ba0918-iterate/SKILL.md": "25728f8207ecb0f9786e775362a2b631eda3db52a58e44573091dac60d423020"
       },
-      "note": "cycle を名前で読む依存を evals/dependencies.yml に宣言し、scenario の exercises に cycle の本文を足した。skill 本文は変えていないので実走なし",
+      "note": "spec残件の改訂+敵対レビュー反映: 条件4にテストの句を正本へ、欠けは確定で埋める優先を明記、判定役の許す操作にテストの条件、上限は指定後の review を数える。実走 it-001 で確認済みの動きの明文化なので再実走なし",
       "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
@@ -143,14 +142,14 @@
       },
       "structural_sha256": {
         "skills/ba0918-cycle/SKILL.md": "46fbbb2b30dc2a589ce6ccb7ffa0e4fe22cf8ee0815d15b1ff6a056ab8e6acf0",
-        "skills/ba0918-iterate/SKILL.md": "d608b85eab29916d0cffdef7667304ede17099ee961eaf4b60689cf1c45677bd"
+        "skills/ba0918-iterate/SKILL.md": "42fc37b1ed366bcbe62adae3044f715acab0b72deb55a68f59ae3f6f2afc9cf0"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "7ddea5ef12c273b39c39646709a8f99000734010906832a84a1bf64de28947a0",
-      "verified": "2026-08-31"
+      "surface_sha256": "843ac0ed3ccf37cfe80432d849d956416cef3d34aacbadcb9868ef56c7b3aef6",
+      "verified": "2026-09-01"
     },
     "ba0918-plan": {
       "file_sha256": {

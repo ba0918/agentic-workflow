@@ -71,18 +71,18 @@ the line.
 
 ### Delegate exploration
 
-Delegate to separate-context subagents when any of these holds: the investigation spans three
-or more directories; three or more angles should be explored in parallel; one angle needs a
-cross-cutting search over five or more files. When none holds, read yourself. Even when one
-holds, you may read yourself if the target is tightly bounded: a document investigation where
-one search expression enumerates the core files, or a target within ten known paths. Put into every
-subagent prompt, verbatim, the five parts of "Read-only guarantee" that bind the subagent: the ban on
-editing, creating, overwriting, deleting, moving, and renaming; the allowed operations minus
-"delegating to subagents" (a subagent never delegates further); running only commands known to be
-read-only; the forbidden operations, and that they are examples; and the secrets rule. The report-file
-exception and the `git status` comparison are the caller's: leave them out and state instead that the
-subagent writes no file at all. Launch several subagents at once. A failed subagent is not retried;
-read that part yourself. A subagent that changes state breaks your guarantee.
+Delegate to separate-context subagents when any of these holds: the investigation spans three or more
+directories; three or more angles should be explored in parallel; one angle needs a cross-cutting search
+over five or more files. When none holds, read yourself. Even when one holds, you may read yourself if
+the target is tightly bounded: a document investigation where one search expression enumerates the core
+files, or a target within ten known paths. Put into every subagent prompt, verbatim, the five parts of
+"Read-only guarantee" that bind the subagent: the ban on editing, creating, overwriting, deleting,
+moving, and renaming; the allowed operations minus "delegating to subagents" (a subagent never delegates
+further); running only commands known to be read-only (a test only when known to update nothing, in the
+repository or outside); the forbidden operations, and that they are examples; and the secrets rule. The
+report-file exception and the `git status` comparison are the caller's: leave them out and state that
+the subagent writes no file at all. Launch several subagents at once; a failed one is not retried — read
+that part yourself. A subagent that changes state breaks your guarantee.
 
 ## Report
 
@@ -118,13 +118,13 @@ State uncertainty honestly; `high` on the strength of a file you did not read is
 
 ### Fix options
 
-Sort each defect by whether it causes the stated symptom or the breakage the question points at.
-One that does is a problem: give one to three options, each with where to change (file and place), a
-summary, and pros and cons; another occurrence of the same pattern is a problem when it breaks the
-same way; `keep as-is` is one option when leaving a problem alone is defensible. One that does not is
-a future improvement. With no problem, begin section 5 with `no fix needed`. Whether or not options
-exist, one or two future improvements may close section 5, outside the option format and never in
-section 6. Only propose, never start a fix: "I fixed it" in section 5 is outside this responsibility.
+Sort each defect by whether it causes the stated symptom or the breakage the question points at. One that
+does is a problem: give one to three options per problem (several problems split section 5), each with
+where to change (file and place), a summary, and pros and cons; another occurrence of the pattern is a
+problem when it breaks the same way; `keep as-is` is one option when leaving it alone is defensible. One
+that does not is a future improvement. With no problem, begin section 5 with `no fix needed`. Options or
+none, one or two future improvements may close section 5 — outside the option format, never in section 6.
+Only propose, never start a fix — "I fixed it" here is outside this responsibility.
 
 ### Recommended action
 
@@ -134,19 +134,19 @@ Show invocations in a form that can be used as is.
 | Situation | Recommendation | Ready-to-use form |
 |---|---|---|
 | Small task | iterate | `/ba0918-iterate <request>`; the request names the place and the change |
-| No specification, no basis for a decision, or two readings | brainstorm | `/ba0918-brainstorm <topic>` |
+| No specification and medium or larger, no basis for a decision, or two readings | brainstorm | `/ba0918-brainstorm <topic>` |
 | Specification exists, medium or larger change | plan, then cycle | `/ba0918-plan <specification path>` |
 | Deferred | the person notes it down | one line to note |
 | No fix needed | say so | `no further action needed` |
 | Not enough evidence | keep investigating | the scope to investigate next |
 
 A small task is one the ba0918-iterate skill accepts: the request has one reading, needs no
-specification decision, contradicts no existing specification, and its impact is readable (every
-file to change, files to be created included, can be enumerated in a closed list — no "there may be
-others" — and what changes in each can be said without judgment); file count does not matter. A
-change whose impact cannot be read, or which needs a specification decision, is medium or larger,
-and sending it to iterate as "small" is a counter-example. There is no issue management here, so
-"deferred" is the person's own note.
+specification decision, contradicts no existing specification, and its impact is readable (every file to
+change, files to be created included, can be enumerated in a closed list — no "there may be others" —
+and what changes in each can be said without judgment); file count does not matter. A change whose
+impact cannot be read, or which needs a specification decision, is medium or larger, and sending it to
+iterate as "small" is a counter-example. There is no issue management here, so "deferred" is the
+person's own note.
 
 ## When something goes wrong
 

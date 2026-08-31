@@ -5,21 +5,20 @@ description: "Entry point beside the ba0918 workflow for a task too small to nee
 
 # Iterate
 
-Run cycle's loop on a **request** instead of a plan, once a read-only judgment says the task is
-small. Delegate everything: never implement, review, fix, or judge here. A person starts this
-skill from the conversation; cycle never calls it and hands nothing over — what the main session
-learned there goes into the request; a findings file on the branch is inherited state (see the
-loop). Required inputs: the request, and the branch with its worktree path; missing either, stop:
-the main session prepares them beforehand — never create a branch or a worktree here. The branch
-name is a short name for the request (no fixed prefix). Optional: cycle's four optional inputs plus
-the specification path to match against; defaults are cycle's. A **request** is the person's words
-completed by what the main session knows — named files, settled direction, a preceding run's
-terminal report — into a self-contained text an implementer with no context can build from. "Fix
-that thing from before" arrives expanded into the file and the change; if one or two exchanges
-cannot expand it, this skill does not run. Out: commits on the branch and a terminal report.
-Stopped at the judgment: no commit, guidance only. Stopped by a hand-back during implementation:
-the commits so far stay (never deleted or rewound), and the terminal report carries artifacts,
-commits, and diff view plus the guidance.
+Run cycle's loop on a **request** instead of a plan, once a read-only judgment says the task is small.
+Delegate everything: never implement, review, fix, or judge here. A person starts this skill from the
+conversation; cycle never calls it and hands nothing over — what the main session learned there goes
+into the request; a findings file on the branch is inherited state (see the loop). Required inputs: the
+request, and the branch with its worktree path; missing either, stop: the main session prepares them
+beforehand — never create a branch or a worktree here. The branch name is a short name for the request
+(no fixed prefix). Optional: cycle's four optional inputs plus the specification path to match against;
+defaults are cycle's. A **request** is the person's words completed by what the main session knows —
+named files, settled direction, a preceding run's terminal report — into a self-contained text an
+implementer with no context can build from. "Fix that thing from before" arrives expanded into the file
+and the change; if one or two exchanges cannot expand it, this skill does not run. Out: commits on the
+branch and a terminal report. Stopped at the judgment: no commit, guidance only. Stopped by a hand-back
+during implementation: the commits so far stay (never deleted or rewound), and the terminal report
+carries artifacts, commits, and diff view plus the guidance.
 
 ## Small task and its judgment
 
@@ -43,18 +42,19 @@ the wording given.
 Before implementation, delegate a read-only judgment to a separate-context **judge** (not an
 investigation, which starts from a symptom) with a self-contained prompt: the request; the worktree
 path; the specification path if given, else the duty to search the specification home the project's
-instructions name and report one covering the files to change; the four conditions verbatim; the
-return shape (the files and their changes, plus a verdict with grounds per condition); and, in full,
-these restrictions: no editing, creating, overwriting, deleting, moving, or renaming any file,
-notebooks included; allowed — and the only commands run — are reading files, listing paths,
-searching, read-only commands, and following references; forbidden, as examples (refuse anything
-else that changes state the same way): `rm` `rmdir` `mv` `cp` `chmod` `chown` `touch` `mkdir` `tee`,
-output redirection, in-place rewriting, state-changing git; secrets reported as existing, never by
-value; the judge writes no file and never delegates further. Take `git status` yourself before and
-after the judgment; a difference is a spreading accident: stop, show it to the person, and ask;
-never revert it. A found specification counts as given — for condition 3, review, and the guidance
-table's "if a specification exists"; none found, go on without; passing condition 3 unsearched is a
-counter-example. The verdict is a proposal; the decision is here, as with reviewers in cycle. No
+instructions name and report one covering the files to change; the four conditions verbatim; the return
+shape (the files and their changes, plus a verdict with grounds per condition); and, in full, these
+restrictions: no editing, creating, overwriting, deleting, moving, or renaming any file, notebooks
+included; allowed — the only commands run — are reading files, listing paths, searching, read-only
+commands (a test only when known to update nothing, in the repo or outside), and following references;
+forbidden, as examples (refuse anything else that changes state): `rm` `rmdir` `mv` `cp` `chmod` `chown`
+`touch` `mkdir` `tee`, output redirection, in-place rewriting, state-changing git; secrets reported as
+existing, never by value; the judge writes no file and never delegates further. Take `git status`
+yourself before and after; a difference is a spreading accident: stop, show the person, ask; never
+revert it. A found specification counts as given — for condition 3, review, and the guidance table's "if
+a specification exists"; none found, go on without; passing condition 3 unsearched is a counter-example.
+The verdict is a proposal; the decision is here, as with reviewers in cycle; a test file the implementer
+needs test-first but the enumeration lacks is added here — that gap alone does not fail condition 4. No
 verdict: re-delegate once, then report none was possible and stop.
 
 Not small: stop with guidance (the failed condition with grounds, the destination, a ready-to-use
@@ -79,8 +79,8 @@ read before the first review); "cycle" there means this run. Only these substitu
 | the branch name contains the plan name | a short name for the request |
 | the specification path read from the plan | the given path, or the specification the judge found |
 | inferring done steps from the plan and `git log`, then delegating the rest to implement | no inference: the request goes to the implementer in one delegation, after the judgment |
-| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judge's enumeration, the specification path if any, branch, worktree path), with hand-back reasons added to the contract: a file outside the enumeration — the cap on files to touch (edit, create, delete, rename; tests included) (4); a contradiction with the specification (3); or a request that reads two ways (1) |
-| the plan path in the fixer delegation | the request, and the specification path if any, with a hand-back reason added to the contract: a contradiction with the specification (3) |
+| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judge's enumeration, the specification path if any, branch, worktree path), with hand-back reasons added to the contract: a file outside the enumeration; a contradiction with the specification; or a request that reads two ways |
+| the plan path in the fixer delegation | the request, and the specification path if any, with a hand-back reason added to the contract: a contradiction with the specification |
 | the fixer contract's "the plan's commands in order, unedited" | check commands come from the project's instructions, then the ecosystem's standard tool |
 | "run more" re-entering at step 1 when steps remain | always the diff loop |
 | the specification path in review delegations | the specification path and the request, both |
@@ -90,21 +90,22 @@ read before the first review); "cycle" there means this run. Only these substitu
 The **implementer** is cycle's fixer contract pasted in full, the request replacing the visible
 findings; the implement skill is not used. It returns commits, evidence per completion kind,
 out-of-request changes with reasons — or a hand-back and why. The enumeration goes along as reading
-material, marked as not an order — handing it as steps is a counter-example — yet the cap on files
-(4): one outside it — hand back; never touch it or report it as out-of-request. In a listed file,
-changes the request did not name (import tidying, tests following) go on as out-of-request; an entry
-whose change came out different is review's to catch. The cap binds only the implementer; the fixer
-follows findings into any file, reporting those outside as out-of-request. With no specification,
-reviewers match the request — two, quality and conformance, so someone checks it was met.
+material, marked as not an order — handing it as steps is a counter-example — yet it caps the files to
+touch (edit, create, delete, rename; tests included): one outside it — hand back, never touch or report
+it. In a listed file, changes the request did not name (import tidying, tests following) go on as
+out-of-request; an entry whose change differs is review's to catch. The cap binds only the implementer;
+the fixer follows findings into any file, reporting those outside as out-of-request. With no
+specification, reviewers match the request — two, quality and conformance, so someone checks it was met.
 
 Same branch right after a cycle or a run of this skill: reuse it, never re-cut; findings JSON still
 there is cycle's resume — keep the findings (deleting or ignoring the file is a counter-example) and
-continue rounds from the inherited max (the first review is max+1). Unless the person gave a
-comparison base, it is the branch tip at start (that diff was already checked); inherited open
-findings are evaluated in the diff review even outside the base. Ending 3's streak (`still_present`
-two rounds running) resets at a start of this skill (inherited evaluations uncounted), not at "run
-more" after ending 2 or 3, as in cycle; a closed cause returning counts across the boundary. No default round-trip limit; one the person set counts this run's
-reviews, not the round numbers, and cycle's ending 2 applies. No counter of consecutive runs.
+continue rounds from the inherited max (the first review is max+1). Unless the person gave a comparison
+base, it is the branch tip at start (that diff was already checked); inherited open findings are
+evaluated in the diff review even outside the base. Ending 3's streak (`still_present` two rounds
+running) resets at a start of this skill (inherited evaluations uncounted), not at "run more" after
+ending 2 or 3, as in cycle; a closed cause returning counts across the boundary. No default round-trip
+limit; one the person set counts this run's reviews from when it was set, not the round numbers, and
+cycle's ending 2 applies. No counter of consecutive runs.
 
 Cycle's terminal report and "never" list apply, verification results from the implementer's evidence,
 plus the guidance when not small or handed back. "Look into this" belongs to the investigate skill,

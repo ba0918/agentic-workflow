@@ -23,7 +23,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   a finding, not even `info`; `info` is reserved for changes that alter how the text is read. Full
   reviews receive the known findings.
 - **BREAKING** `ba0918-iterate` — ending 3's streak no longer counts consecutive full reviews,
-  following cycle; its resume rules are now cycle's own rather than an exception.
+  following cycle; its resume rules are now cycle's own rather than an exception. At the decision
+  on the judge's verdict, a test file the implementer needs test-first but the enumeration lacks
+  is added to the enumeration, and the person-set round-trip limit counts this run's reviews from
+  when it was set — both now stated in the specification.
+- **BREAKING** `ba0918-investigate` — the brainstorm row of the recommendation table now applies
+  to medium-or-larger changes with no specification, so a small task without one goes to iterate;
+  fix options are counted per problem, not per report; and the read-only guarantee copied into
+  subagent prompts carries the conditions for running tests.
 
 ### Fixed
 
