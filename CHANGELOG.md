@@ -10,6 +10,21 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `ba0918-cycle` — the loop ends after the second full review: its visible findings
+  go through one more diff loop and the cycle converges. There is no third full review, and ending 3
+  no longer counts consecutive full reviews. The full review now receives the findings that will not
+  be fixed (open `record_only` / `human_judgment`, closed `accepted`) as known and does not raise
+  them again. Resume rules are stated: round numbers continue from the inherited maximum, ending 3's
+  streak resets at a new start and continues through "run more", and "run more" re-enters at
+  implement when untraced plan steps remain.
+- **BREAKING** `ba0918-review` — a rewording that leaves the reader's meaning unchanged is no longer
+  a finding, not even `info`; `info` is reserved for changes that alter how the text is read. Full
+  reviews receive the known findings.
+- **BREAKING** `ba0918-iterate` — ending 3's streak no longer counts consecutive full reviews,
+  following cycle; its resume rules are now cycle's own rather than an exception.
+
 ## [0.1.0] - 2026-08-31
 
 ### Added

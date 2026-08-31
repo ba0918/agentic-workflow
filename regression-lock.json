@@ -33,11 +33,11 @@
       "verified": "2026-08-30"
     },
     "ba0918-cycle": {
-      "carried_note": "opencode economy route; cy-001 pass on artifacts (no commit, finding 1 open, question relayed); delegation path not measurable here",
+      "carried_note": "wording only: clarified after the first regression run without changing any parsed token; scenarios unaffected",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "3a62774e9d9dafc8ae759ccbff6107099642242eda3c493e757c639529ee61e0"
+        "skills/ba0918-cycle/SKILL.md": "1c7a47632684ea94708f9830886abf431725cb22dd5acb050822f321350939e0"
       },
-      "note": "wording only: clarified after the first regression run without changing any parsed token; scenarios unaffected",
+      "note": "loop ends after the second full review (one more diff loop, no third full review); full review receives known findings; resume rules stated. cy-001 exercises the security pause, not the loop tail; accepted without rerun",
       "result": "accepted-without-run",
       "scenarios": {
         "cy-001": {
@@ -47,13 +47,13 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "8607bde795f7679b6779da33c901d6c8057c7201d0dabc861dec8a8f184b5ce7"
+        "skills/ba0918-cycle/SKILL.md": "46fbbb2b30dc2a589ce6ccb7ffa0e4fe22cf8ee0815d15b1ff6a056ab8e6acf0"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md"
       ],
-      "surface_sha256": "7c607ca7be94d2be67e06c9e399e4ee79271b6a0c7ffdbe896a064ccebbc653d",
-      "verified": "2026-08-30"
+      "surface_sha256": "afc78b13a513f116200a18b16744f9135b5813fa16642ac65873d7fbb0b5a35f",
+      "verified": "2026-08-31"
     },
     "ba0918-implement": {
       "file_sha256": {
@@ -86,30 +86,31 @@
       "verified": "2026-08-30"
     },
     "ba0918-iterate": {
+      "carried_note": "opencode-economy（deepseek-v4-flash、process 経路、並列 1）で 2 本とも pass。it-001 594 秒: 判定役がテストを列挙に入れず、iterate が決定権で tests/test_cli.py を足して完走。it-002: 判定役は条件 1・2 を挙げ、iterate が 2・4 に確定して brainstorm を案内",
       "file_sha256": {
-        "skills/ba0918-iterate/SKILL.md": "f45405824de2ec64cef6624500a14e80a41f9948eb1d4511afeff145298e835a"
+        "skills/ba0918-iterate/SKILL.md": "59cc631513a867f588885c5d18fa077e57bf164cae74fca589eaecaf2c1e2afa"
       },
-      "note": "opencode-economy（deepseek-v4-flash、process 経路、並列 1）で 2 本とも pass。it-001 594 秒: 判定役がテストを列挙に入れず、iterate が決定権で tests/test_cli.py を足して完走。it-002: 判定役は条件 1・2 を挙げ、iterate が 2・4 に確定して brainstorm を案内",
-      "result": "pass",
+      "note": "ending 3 streak no longer counts consecutive full reviews, mirroring cycle; resume rules are cycle's own. it-001/it-002 do not reach ending 3; accepted without rerun",
+      "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "3dbdd453531a1153ab89fb1a3f1f273f4dc0c699656ca20928714d31ef77414f",
           "verified": "2026-08-31"
         },
         "it-002": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "045f7bff86c9c97507ca5f793f0d141c65c70e4450abf39f1c603ef822eb19d8",
           "verified": "2026-08-31"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-iterate/SKILL.md": "53412619f8a9ea1b0277dee5d2dcf2572b0cd3d523db8a4432567aa4f425cc7e"
+        "skills/ba0918-iterate/SKILL.md": "d608b85eab29916d0cffdef7667304ede17099ee961eaf4b60689cf1c45677bd"
       },
       "surface": [
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "e59f206b0732689c4fc63729574450db092e0a8b08c372b842a1f2ca001630b7",
+      "surface_sha256": "e5ddbc1d85408fc4e0af446f751a8c7904c71222637fcb8593c0737ff343db7a",
       "verified": "2026-08-31"
     },
     "ba0918-plan": {
@@ -143,13 +144,13 @@
       "verified": "2026-08-30"
     },
     "ba0918-review": {
-      "carried_note": "wording only: clarified after the first regression run without changing any parsed token; scenarios unaffected",
+      "carried_note": "description only: trigger words added for diagnosis; scenarios call the skill explicitly, so results are unaffected",
       "file_sha256": {
-        "skills/ba0918-review/SKILL.md": "52b2b8fb1e329c21dcb19864e3eff5f65353a23660b7b167a4dfe0631a785142",
+        "skills/ba0918-review/SKILL.md": "4c65c7a2eca0b9fa2878380624c71127df3c18b301e32613cc72b8afb20e3469",
         "skills/ba0918-review/references/finding-schema.md": "d930cdc0902e30468888c677b0367f87fc656ecbba2ae4ffe161f871f6d41721",
-        "skills/ba0918-review/references/profiles.md": "eb912e0916e9515d08bb3b19792e541074ebb5b0cb45371dbfe97dc6ea7fe39d"
+        "skills/ba0918-review/references/profiles.md": "5f0e396775292e9019c2ebf04c45b954b31b67764264131ca2f48c6ff5d14aeb"
       },
-      "note": "description only: trigger words added for diagnosis; scenarios call the skill explicitly, so results are unaffected",
+      "note": "meaning-preserving rewording is not a finding (info narrowed); full review receives known findings. rv scenarios call the skill on a fixed target and do not exercise the info boundary; accepted without rerun",
       "result": "accepted-without-run",
       "scenarios": {
         "rv-001": {
@@ -164,17 +165,17 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-review/SKILL.md": "42b67f5eb35726cac4a43e67228e3a73f16f93994270ae67cbbac9c1e217282c",
+        "skills/ba0918-review/SKILL.md": "0fe0d3f775f57210b05a0b7ea8b0d5c87c182c2b987f94a4cc2ea1bc85ad585c",
         "skills/ba0918-review/references/finding-schema.md": "42f1f2a1d12b47e0cd008101806e1f23fd4616da973ab9500e483165a2c94daf",
-        "skills/ba0918-review/references/profiles.md": "e65e83693b7e09cd7f99e66a66562183a7bbdd709eec143ec73529706bb9df5a"
+        "skills/ba0918-review/references/profiles.md": "cc4173f12e25d3815bc1a72d2a722684cb7c4bfadf6a877f3e045378a9771143"
       },
       "surface": [
         "skills/ba0918-review/SKILL.md",
         "skills/ba0918-review/references/finding-schema.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "a0fe78a70aaaab23d5ff25c08acf780bd4cbca77a21d36fdecd01818978756f4",
-      "verified": "2026-08-30"
+      "surface_sha256": "6edcc81de89262c612c2666e4e8f3bcebab2be56ee4a0a6acfbc3dca71b4892d",
+      "verified": "2026-08-31"
     }
   },
   "version": 1

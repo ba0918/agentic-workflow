@@ -101,10 +101,9 @@ Same branch right after a cycle or a run of this skill: reuse it, never re-cut; 
 there is cycle's resume — keep the findings (deleting or ignoring the file is a counter-example) and
 continue rounds from the inherited max (the first review is max+1). Unless the person gave a
 comparison base, it is the branch tip at start (that diff was already checked); inherited open
-findings are evaluated in the diff review even outside the base. Ending 3's streaks (`still_present`
-two rounds running; three full reviews each with new findings) reset at a start of this skill
-(inherited evaluations uncounted), not at "run more" after ending 2 or 3; a closed cause returning
-counts across the boundary. No default round-trip limit; one the person set counts this run's
+findings are evaluated in the diff review even outside the base. Ending 3's streak (`still_present`
+two rounds running) resets at a start of this skill (inherited evaluations uncounted), not at "run
+more" after ending 2 or 3, as in cycle; a closed cause returning counts across the boundary. No default round-trip limit; one the person set counts this run's
 reviews, not the round numbers, and cycle's ending 2 applies. No counter of consecutive runs.
 
 Cycle's terminal report and "never" list apply, verification results from the implementer's evidence,
