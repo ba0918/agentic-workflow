@@ -11,7 +11,8 @@
 
 ## 次
 
-1. iterate skill（2 本目の題材）。仕様書 `docs/spec/iterate.md` は承認済み。plan → cycle で作る。cycle を起動するときに往復の上限の数を決める
+1. iterate 仕様書の改訂（brainstorm）。cycle の受け入れ試験で出た 4 つの決めごとを潰す。差し戻し時の「さらに回す」の扱い、再開規則の拡張と往復番号、実装役への受け渡しの境界、scenario の期待と lock の依存の扱い
+2. 改訂後、`feat/iterate` に残る軽い指摘 5 件を直して取り込む。指摘は worktree の `.agents/artifacts/reviews/feat/iterate.json`
 
 ## 検討中
 
