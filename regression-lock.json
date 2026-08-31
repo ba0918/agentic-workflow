@@ -85,6 +85,33 @@
       "surface_sha256": "aeb86b723133dcc1e1dac1a8238e9a90696f176b726dba6b339be761ad9f2d2f",
       "verified": "2026-08-30"
     },
+    "ba0918-investigate": {
+      "file_sha256": {
+        "skills/ba0918-investigate/SKILL.md": "6c04d34fc5fec22a984d06dae04c86d27e2e1f5fdefea8f19dd512a89ceb0677"
+      },
+      "note": "opencode-economy（deepseek-v4-flash、process 経路、並列 1）で 2 本とも pass。iv-001 307 秒: 直接の原因と根本の原因を分け、案 3 つを実行せず、推奨は brainstorm の呼び出し。iv-002 128 秒: no fix needed で 5 節を始め、6 節は no further action needed だけ。どちらも executor は node --test を read-only の検証に使い、work tree は baseline のまま",
+      "result": "pass",
+      "scenarios": {
+        "iv-001": {
+          "result": "pass",
+          "scenario_sha256": "2906517385ecf77dbd445744a08bb0ba180003100ab4599e2d9702c13f980a6c",
+          "verified": "2026-08-31"
+        },
+        "iv-002": {
+          "result": "pass",
+          "scenario_sha256": "1bc2a525b18d394e63f7f93b0fa961160df4a760b31482f743e0868012e645d8",
+          "verified": "2026-08-31"
+        }
+      },
+      "structural_sha256": {
+        "skills/ba0918-investigate/SKILL.md": "8fa0679159a9e3752cc9dddcd7bbd691cf0ade9cb9687a5566f4a93c151b750b"
+      },
+      "surface": [
+        "skills/ba0918-investigate/SKILL.md"
+      ],
+      "surface_sha256": "b3ec06289469620051dc0f5a5ccbf2900c59c6e6ce0c864472eaab3bf2d3029a",
+      "verified": "2026-08-31"
+    },
     "ba0918-iterate": {
       "carried_note": "opencode-economy（deepseek-v4-flash、process 経路、並列 1）で 2 本とも pass。it-001 594 秒: 判定役がテストを列挙に入れず、iterate が決定権で tests/test_cli.py を足して完走。it-002: 判定役は条件 1・2 を挙げ、iterate が 2・4 に確定して brainstorm を案内",
       "file_sha256": {
