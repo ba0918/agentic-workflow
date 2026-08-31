@@ -78,7 +78,7 @@ read before the first review); "cycle" there means this run. Only these substitu
 | the branch name contains the plan name | a short name for the request |
 | the specification path read from the plan | the given path, or the specification the judge found |
 | inferring done steps from the plan and `git log`, then delegating the rest to implement | no inference: the request goes to the implementer in one delegation, after the judgment |
-| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judge's enumeration, the specification path if any, branch, worktree path), with a hand-back reason added to the contract: a contradiction with the specification (3) |
+| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judge's enumeration, the specification path if any, branch, worktree path), with hand-back reasons added to the contract: a contradiction with the specification (3), or a request that reads two ways (1) |
 | the plan path in the fixer delegation | the request, and the specification path if any, with a hand-back reason added to the contract: a contradiction with the specification (3) |
 | the fixer contract's "the plan's commands in order, unedited" | check commands come from the project's instructions, then the ecosystem's standard tool |
 | "run more" re-entering at step 1 when steps remain | always the diff loop |
