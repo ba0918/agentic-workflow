@@ -58,10 +58,9 @@ spreading accident: stop, show it to the person, and ask; never revert it yourse
 A found specification counts as a given one — condition 3, the review counterpart, and "a
 specification exists" in the guidance table; none found, go on without; passing condition 3
 unsearched is a counter-example. The verdict is a proposal; the decision is here, as with reviewers
-in cycle. No verdict: re-delegate once, then report none was possible and stop. A place outside the
-enumeration met during implementation means the impact was not readable: the implementer hands back
-(its prompt says so) and this ends with the condition 4 guidance; a hand-back for a missing design
-decision ends with the condition 2 guidance.
+in cycle. No verdict: re-delegate once, then report none was possible and stop. A hand-back for a
+place outside the enumeration (the impact was not readable) ends with the condition 4 guidance; one
+for a missing design decision ends with the condition 2 guidance.
 
 Not small: stop with guidance (the failed condition with grounds, the destination, a ready-to-use
 invocation); never start brainstorm or plan yourself. Several failed: list all, destination from
@@ -91,13 +90,13 @@ endings as written, with only these substitutions:
 | "run more" re-entering at step 1 when steps remain | always the diff loop; ending 4 (a hand-back) offers no "run more" — it ends with the guidance alone |
 | the specification path in review delegations | the specification path and the request, both |
 
-The **implementer** is cycle's fixer contract, pasted in full, given the request in place of the
-visible findings; the implement skill is not used. It returns commits, evidence per completion
-kind (test, check, artifact, external), and out-of-request changes with reasons — or a hand-back
-with its reason. The enumeration goes along as reading material, marked as not an order; handing
-it over as steps is a counter-example. Review receives the specification path if any and the
-request; with none, the request is what reviewers match against, and there are two reviewers,
-quality and conformance, so that someone checks the request was met.
+The **implementer** is cycle's fixer contract pasted in full, the request replacing the visible
+findings; the implement skill is not used. It returns commits, evidence per completion kind (test,
+check, artifact, external), out-of-request changes with reasons — or a hand-back and why. The
+enumeration goes along as reading material, marked as not an order — handing it as steps is a
+counter-example — and its prompt says a place met outside the enumeration means the impact was not
+readable: hand back, do not edit it. Review gets the specification path if any and the request; with
+none, reviewers match the request — two, quality and conformance, so someone checks it was met.
 
 Same branch right after a cycle, findings JSON still there: cycle's resume. Keep the findings;
 visible ones are fixed by the loop; `human_judgment` and `record_only` stay open into the
