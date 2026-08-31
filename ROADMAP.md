@@ -12,10 +12,11 @@
 - 配布の配線を足した。plugin manifest、OpenCode plugin、`README.md` の入れ方（APM とコピー経路も）、`CHANGELOG.md`、CI である。公開は `/release` で行う。`main` への push を受けた release workflow が tag と GitHub release を作る
 - v0.1.0 を公開した（2026-08-31）。7 つの skill を初めて配布した版で、`/release` → CI → tag → GitHub release の流れを実機で 1 周した。CI の bun を lock を書いた 1.4 系に揃える直しが 1 回入った
 - 開発中の skill の読ませ方を、`~/.claude/skills/` の symlink からリポジトリ内 `.claude/skills/` の symlink に替えた（2026-08-31）。他のプロジェクトは APM で配布版を入れる。`~/.claude/skills/` に同名があると個人スコープが勝つので、そちらは外す
+- cycle と review の収束規則を改めた（2026-08-31）。フルレビューに既知の指摘だけを見せる、意味が変わらない言い換えは指摘にしない、フルレビューは 2 回目で最後、再開の規則（往復番号、連続のリセット、「さらに回す」の再入口）。iterate の cycle 待ちの未決定も閉じた。skill 本文は実走なしで lock を取り直したので、次に cycle を回したとき収束の変化を見る
 
 ## 次
 
-1. cycle と review の仕様改訂（brainstorm）。iterate の受け入れ試験で、文章を対象にしたフルレビューが収束しなかった（2 回とも新規を返し、大半は受け入れ済みの再発見と圧縮で生まれた文言差）。題材は 4 つ。受け入れ済みの指摘を reviewer に渡す。意味が変わらない表現差を指摘にしない。フルレビューは差分ループの後 1 回で打ち切る。再開規則の空白（往復番号の続け方、「さらに回す」の後の連続、再入口が仕様書と skill 本文で割れている件）を埋める
+- 無し。検討中から選ぶ
 
 ## 検討中
 
