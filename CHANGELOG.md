@@ -25,6 +25,11 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - **BREAKING** `ba0918-iterate` — ending 3's streak no longer counts consecutive full reviews,
   following cycle; its resume rules are now cycle's own rather than an exception.
 
+### Fixed
+
+- README — the `gh skill install` command now passes `--all`; without it the command prompts for
+  a skill selection and installs nothing when no terminal is attached.
+
 ## [0.1.0] - 2026-08-31
 
 ### Added

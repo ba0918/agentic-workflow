@@ -91,7 +91,7 @@ all of them. Because the five workflow skills call each other by name, install t
 together.
 
 ```
-gh skill install ba0918/agentic-workflow --agent claude-code
+gh skill install ba0918/agentic-workflow --agent claude-code --all
 npx skills add ba0918/agentic-workflow
 ```
 
