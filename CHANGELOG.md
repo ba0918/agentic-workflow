@@ -10,6 +10,15 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Added
+
+- `ba0918-using-workflow` — decides which skill a new request enters from: a small task goes
+  to iterate, a medium-or-larger change to brainstorm (or to plan then cycle when a
+  specification exists), and an unexplained defect or a question needing file reading to
+  investigate. Questions answerable in conversation and chat are answered directly instead of
+  being routed. Written to stay resident and be read every turn; how to keep it resident is in
+  the README.
+
 ## [0.2.0] - 2026-09-01
 
 ### Changed
