@@ -33,11 +33,14 @@
       "verified": "2026-08-30"
     },
     "ba0918-cycle": {
-      "carried_note": "wording only: clarified after the first regression run without changing any parsed token; scenarios unaffected",
+      "carried_note": "loop ends after the second full review (one more diff loop, no third full review); full review receives known findings; resume rules stated. cy-001 exercises the security pause, not the loop tail; accepted without rerun",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "1c7a47632684ea94708f9830886abf431725cb22dd5acb050822f321350939e0"
+        "skills/ba0918-cycle/SKILL.md": "1c7a47632684ea94708f9830886abf431725cb22dd5acb050822f321350939e0",
+        "skills/ba0918-review/SKILL.md": "4c65c7a2eca0b9fa2878380624c71127df3c18b301e32613cc72b8afb20e3469",
+        "skills/ba0918-review/references/finding-schema.md": "d930cdc0902e30468888c677b0367f87fc656ecbba2ae4ffe161f871f6d41721",
+        "skills/ba0918-review/references/profiles.md": "5f0e396775292e9019c2ebf04c45b954b31b67764264131ca2f48c6ff5d14aeb"
       },
-      "note": "loop ends after the second full review (one more diff loop, no third full review); full review receives known findings; resume rules stated. cy-001 exercises the security pause, not the loop tail; accepted without rerun",
+      "note": "review を名前で読む依存を evals/dependencies.yml に宣言し、cy-001 の exercises に review の本文と参照資料を足した。skill 本文は変えていないので実走なし",
       "result": "accepted-without-run",
       "scenarios": {
         "cy-001": {
@@ -47,12 +50,18 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "46fbbb2b30dc2a589ce6ccb7ffa0e4fe22cf8ee0815d15b1ff6a056ab8e6acf0"
+        "skills/ba0918-cycle/SKILL.md": "46fbbb2b30dc2a589ce6ccb7ffa0e4fe22cf8ee0815d15b1ff6a056ab8e6acf0",
+        "skills/ba0918-review/SKILL.md": "0fe0d3f775f57210b05a0b7ea8b0d5c87c182c2b987f94a4cc2ea1bc85ad585c",
+        "skills/ba0918-review/references/finding-schema.md": "42f1f2a1d12b47e0cd008101806e1f23fd4616da973ab9500e483165a2c94daf",
+        "skills/ba0918-review/references/profiles.md": "cc4173f12e25d3815bc1a72d2a722684cb7c4bfadf6a877f3e045378a9771143"
       },
       "surface": [
-        "skills/ba0918-cycle/SKILL.md"
+        "skills/ba0918-cycle/SKILL.md",
+        "skills/ba0918-review/SKILL.md",
+        "skills/ba0918-review/references/finding-schema.md",
+        "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "afc78b13a513f116200a18b16744f9135b5813fa16642ac65873d7fbb0b5a35f",
+      "surface_sha256": "e1e5f1ebfe48f3885b24735fe63bd9594942beb5728876bb51fa13e2a818e35d",
       "verified": "2026-08-31"
     },
     "ba0918-implement": {
@@ -113,11 +122,12 @@
       "verified": "2026-08-31"
     },
     "ba0918-iterate": {
-      "carried_note": "opencode-economy（deepseek-v4-flash、process 経路、並列 1）で 2 本とも pass。it-001 594 秒: 判定役がテストを列挙に入れず、iterate が決定権で tests/test_cli.py を足して完走。it-002: 判定役は条件 1・2 を挙げ、iterate が 2・4 に確定して brainstorm を案内",
+      "carried_note": "ending 3 streak no longer counts consecutive full reviews, mirroring cycle; resume rules are cycle's own. it-001/it-002 do not reach ending 3; accepted without rerun",
       "file_sha256": {
+        "skills/ba0918-cycle/SKILL.md": "1c7a47632684ea94708f9830886abf431725cb22dd5acb050822f321350939e0",
         "skills/ba0918-iterate/SKILL.md": "59cc631513a867f588885c5d18fa077e57bf164cae74fca589eaecaf2c1e2afa"
       },
-      "note": "ending 3 streak no longer counts consecutive full reviews, mirroring cycle; resume rules are cycle's own. it-001/it-002 do not reach ending 3; accepted without rerun",
+      "note": "cycle を名前で読む依存を evals/dependencies.yml に宣言し、scenario の exercises に cycle の本文を足した。skill 本文は変えていないので実走なし",
       "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
@@ -132,12 +142,14 @@
         }
       },
       "structural_sha256": {
+        "skills/ba0918-cycle/SKILL.md": "46fbbb2b30dc2a589ce6ccb7ffa0e4fe22cf8ee0815d15b1ff6a056ab8e6acf0",
         "skills/ba0918-iterate/SKILL.md": "d608b85eab29916d0cffdef7667304ede17099ee961eaf4b60689cf1c45677bd"
       },
       "surface": [
+        "skills/ba0918-cycle/SKILL.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "e5ddbc1d85408fc4e0af446f751a8c7904c71222637fcb8593c0737ff343db7a",
+      "surface_sha256": "7ddea5ef12c273b39c39646709a8f99000734010906832a84a1bf64de28947a0",
       "verified": "2026-08-31"
     },
     "ba0918-plan": {

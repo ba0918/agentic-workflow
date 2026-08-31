@@ -20,6 +20,7 @@ git:
 
 exercises:
   - skills/ba0918-iterate/SKILL.md
+  - skills/ba0918-cycle/SKILL.md
 
 prompt: |
   iterate で回して。ブランチは feat/normalize-none（現在のブランチ）、worktree はこのディレクトリ。

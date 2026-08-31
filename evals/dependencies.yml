@@ -1,0 +1,5 @@
+# 本文が名前で読み込む skill の依存。skill-regression が宣言先の surface を宣言元に 1 ホップ合流させる
+ba0918-iterate:
+  - ba0918-cycle
+ba0918-cycle:
+  - ba0918-review

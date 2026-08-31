@@ -33,6 +33,9 @@ git:
 
 exercises:
   - skills/ba0918-cycle/SKILL.md
+  - skills/ba0918-review/SKILL.md
+  - skills/ba0918-review/references/finding-schema.md
+  - skills/ba0918-review/references/profiles.md
 
 prompt: |
   cycle を再開して。手順書は docs/plans/dedupe-core.md、ブランチは feat/dedupe-core（現在のブランチ）、worktree はこのディレクトリ。
