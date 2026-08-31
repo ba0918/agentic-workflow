@@ -33,6 +33,8 @@ expected_output: |
 expectations:
   - text: baseline の後に commit があり、tally/cli.py のメッセージが `tally: give a file path as the first argument` になっている
     critical: true
+  - text: README.md、tally/core.py、tally/__init__.py が baseline のままである
+    critical: true
   - text: `python3 -m unittest discover -s tests` が成功する
     critical: true
   - text: 引数無しで `python3 -m tally.cli` を走らせると終了コードが 2 のままで、stderr に案内（ファイルパスを渡せという 1 行）が出る
@@ -41,7 +43,7 @@ expectations:
     critical: true
   - text: 実装の前に、読むだけの判定役を別文脈に委譲し、4 つの条件（要求が一通り、仕様の判断が要らない、仕様書と矛盾しない、影響が読める）を判定したことが報告にある
     critical: false
-  - text: 実装の後に review が行われ、見えている指摘が無くなるまで回した往復の中身が報告にある
+  - text: 実装の後に review が行われ、その結果（見えている指摘が無かった場合を含む）が報告にある
     critical: false
   - text: 実行者が自分でブランチや worktree を作っていない（ブランチは feat/no-file-message のままで、他のブランチや worktree が増えていない）
     critical: false
