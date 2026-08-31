@@ -26,8 +26,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           # Minor-series pin, the same shape the sister repositories use, so a
-          # runtime major update cannot change CI behavior on its own.
-          bun-version: "1.3.x"
+          # runtime major update cannot change CI behavior on its own. The
+          # series has to be the one that wrote bun.lock: its lockfile format
+          # (lockfileVersion 2) is unknown to the 1.3 series, which then
+          # refuses the frozen install.
+          bun-version: "1.4.x"
 
       # --frozen-lockfile refuses to rewrite the lockfile, so the textlint
       # versions checked here are the recorded ones rather than whatever a
