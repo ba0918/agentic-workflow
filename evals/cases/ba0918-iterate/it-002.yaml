@@ -1,0 +1,53 @@
+skill: ba0918-iterate
+id: it-002
+title: 影響が読めない要求は commit を作らずに止まり、仕様書が無いので brainstorm を案内する
+source: acceptance:20260831
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - tally/__init__.py
+  - tally/core.py
+  - tally/cli.py
+  - tests/__init__.py
+  - tests/test_core.py
+git:
+  init: true
+  branch: feat/normalize-none
+  commit: true
+  message: baseline
+
+exercises:
+  - skills/ba0918-iterate/SKILL.md
+
+prompt: |
+  iterate で回して。ブランチは feat/normalize-none（現在のブランチ）、worktree はこのディレクトリ。
+  要求: tally/core.py の normalize が、記号だけの語で空文字 "" を返す代わりに None を返すようにして、
+  normalize の呼び出し元もそれに合わせて直す。
+  突き合わせる仕様書は無い。
+  このセッションでは人（私）は答えられないので、人に聞くことがあれば報告に書いて止まって。
+expected_output: |
+  判定役が呼び出し元（tokenize、with_prefix、longest、cli の別名 canonical、__init__ の再公開、テスト）を列挙し、
+  with_prefix と、normalize("...") が "" を返すと主張するテストでは None の扱いを選ばないと直せないので
+  影響が読めない（条件 4）と判定する。longest のキーは tokenize が空の語を落とした後の物なので None は届かず、
+  変更は要らない。
+  iterate は実装を始めず、commit を作らず、外れた条件と根拠、行き先（brainstorm）、そのまま使える呼び出しの
+  3 つからなる案内を出して止まる。
+expectations:
+  - text: baseline の後に commit が無く、tally/ と tests/ の内容が baseline のままである
+    critical: true
+  - text: 応答が、外れた条件に 4（影響が読めない）を含め、その根拠（一部の呼び出し元（with_prefix と、normalize が "" を返すと主張するテスト）で None の扱いを選ぶ必要があること）を述べている
+    critical: true
+  - text: 応答が行き先として brainstorm を示し、`/ba0918-brainstorm` で始まるそのまま使える呼び出しを載せている
+    critical: true
+  - text: 応答が行き先として `/ba0918-plan` を案内していない（仕様書が無いので plan は動けない。案内の表の説明としての言及は数えない）
+    critical: true
+  - text: 応答に「それでも iterate で続ける」に当たる選択肢が無い
+    critical: true
+  - text: 実装の前に、読むだけの判定役を別文脈に委譲して 4 つの条件を判定したことが報告にある
+    critical: false
+  - text: 実行者が自分でブランチや worktree を作っていない（ブランチは feat/normalize-none のままで、他のブランチや worktree が増えていない）
+    critical: false
+  - text: 指摘 JSON を作った場合は、worktree 直下の .agents/artifacts/reviews/ の下にある
+    critical: false

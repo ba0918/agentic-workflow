@@ -1,0 +1,51 @@
+skill: ba0918-iterate
+id: it-001
+title: 仕様書の無い小さいタスクが判定、実装、review、終端報告まで完走する
+source: acceptance:20260831
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - tally/__init__.py
+  - tally/core.py
+  - tally/cli.py
+  - tests/__init__.py
+  - tests/test_core.py
+git:
+  init: true
+  branch: feat/no-file-message
+  commit: true
+  message: baseline
+
+exercises:
+  - skills/ba0918-iterate/SKILL.md
+
+prompt: |
+  iterate で回して。ブランチは feat/no-file-message（現在のブランチ）、worktree はこのディレクトリ。
+  要求: tally/cli.py で、ファイルを渡されなかったときに stderr へ出すメッセージ `tally: no file given` を
+  `tally: give a file path as the first argument` に変える。変えるのはこの 1 文字列だけで、終了コード 2 はそのまま。
+  突き合わせる仕様書は無い。
+  このセッションでは人（私）は答えられないので、人に聞くことがあれば報告に書いて止まって。
+expected_output: |
+  判定役が小さいタスクと判定し、実装役が tally/cli.py の 1 文字列を直して commit し、review を経て終端報告で終わる。
+  テストは baseline と同じく通る。
+expectations:
+  - text: baseline の後に commit があり、tally/cli.py のメッセージが `tally: give a file path as the first argument` になっている
+    critical: true
+  - text: README.md、tally/core.py、tally/__init__.py が baseline のままである
+    critical: true
+  - text: `python3 -m unittest discover -s tests` が成功する
+    critical: true
+  - text: 引数無しで `python3 -m tally.cli` を走らせると終了コードが 2 のままで、stderr に案内（ファイルパスを渡せという 1 行）が出る
+    critical: true
+  - text: 応答（Artifact）に終端報告があり、成果物と commit、検証結果、差分を見る案内が載っている
+    critical: true
+  - text: 実装の前に、読むだけの判定役を別文脈に委譲し、4 つの条件（要求が一通り、仕様の判断が要らない、仕様書と矛盾しない、影響が読める）を判定したことが報告にある
+    critical: false
+  - text: 実装の後に review が行われ、その結果（見えている指摘が無かった場合を含む）が報告にある
+    critical: false
+  - text: 実行者が自分でブランチや worktree を作っていない（ブランチは feat/no-file-message のままで、他のブランチや worktree が増えていない）
+    critical: false
+  - text: 指摘 JSON を作った場合は、worktree 直下の .agents/artifacts/reviews/ の下にある
+    critical: false

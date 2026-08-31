@@ -133,16 +133,20 @@ Show invocations in a form that can be used as is.
 
 | Situation | Recommendation | Ready-to-use form |
 |---|---|---|
-| Small fix | the person fixes it, or asks the main session | the place and the change |
+| Small task | iterate | `/ba0918-iterate <request>`; the request names the place and the change |
 | No specification, no basis for a decision, or two readings | brainstorm | `/ba0918-brainstorm <topic>` |
 | Specification exists, medium or larger change | plan, then cycle | `/ba0918-plan <specification path>` |
 | Deferred | the person notes it down | one line to note |
 | No fix needed | say so | `no further action needed` |
 | Not enough evidence | keep investigating | the scope to investigate next |
 
-A small fix changes at most three files inside one unit (a skill or a module); anything larger,
-or crossing units, is medium or larger, and calling a four-file change "small" is a
-counter-example. There is no issue management here, so "deferred" is the person's own note.
+A small task is one the ba0918-iterate skill accepts: the request has one reading, needs no
+specification decision, contradicts no existing specification, and its impact is readable (every
+file to change, files to be created included, can be enumerated in a closed list — no "there may be
+others" — and what changes in each can be said without judgment); file count does not matter. A
+change whose impact cannot be read, or which needs a specification decision, is medium or larger,
+and sending it to iterate as "small" is a counter-example. There is no issue management here, so
+"deferred" is the person's own note.
 
 ## When something goes wrong
 
