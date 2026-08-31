@@ -10,6 +10,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-31
+
 ### Added
 
 - `ba0918-brainstorm` — interviews the person in numbered question rounds, each question
@@ -37,4 +39,5 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - Install routes for Claude Code and Codex CLI (plugin marketplace), OpenCode (plugin), APM
   (package manager), and `gh skill` / `npx skills` (copy).
 
-[Unreleased]: https://github.com/ba0918/agentic-workflow/commits/main
+[Unreleased]: https://github.com/ba0918/agentic-workflow/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/ba0918/agentic-workflow/releases/tag/v0.1.0
