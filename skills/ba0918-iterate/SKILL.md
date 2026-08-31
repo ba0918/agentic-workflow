@@ -10,15 +10,15 @@ small. Delegate everything: never implement, review, fix, or judge here. A perso
 skill from the conversation; cycle never calls it and hands nothing over — what the main session
 learned there goes into the request; a findings file on the branch is inherited state (see the loop).
 
-Required inputs: the request, and the branch with its worktree path, created by the main session
-beforehand; missing either, stop: the main session must prepare them first — never create a branch
-or a worktree here. The branch name is a short name for the request (no fixed prefix); right after a
-cycle on the same branch, it is reused, not re-cut. Optional: cycle's four (round-trip limit, review
-strength, comparison base, profiles) plus the specification path to match against; defaults are
-cycle's. A **request** is the person's words completed by what the main session knows — named files,
-settled direction, a preceding cycle's terminal report — into a self-contained text an implementer
-with no context can build from. "Fix that thing from before" arrives expanded into the file and the
-change; if one or two exchanges cannot expand it, this skill does not run.
+Required inputs: the request, and the branch with its worktree path; missing either, stop: the main
+session prepares them beforehand — never create a branch or a worktree here. The branch name is a
+short name for the request (no fixed prefix); right after a cycle or a run of this skill on the same
+branch, it is reused, not re-cut. Optional: cycle's four (round-trip limit, review strength,
+comparison base, profiles) plus the specification path to match against; defaults are cycle's. A
+**request** is the person's words completed by what the main session knows — named files, settled
+direction, a preceding run's terminal report — into a self-contained text an implementer with no
+context can build from. "Fix that thing from before" arrives expanded into the file and the change;
+if one or two exchanges cannot expand it, this skill does not run.
 
 Out: commits on the branch and a terminal report. Stopped at the judgment: no commit, guidance
 only. Stopped by a hand-back during implementation: the commits so far stay (never deleted or
@@ -98,12 +98,13 @@ counter-example — and its prompt says a place met outside the enumeration mean
 readable: hand back, do not edit it. Review gets the specification path if any and the request; with
 none, reviewers match the request — two, quality and conformance, so someone checks it was met.
 
-Same branch right after a cycle, findings JSON still there: cycle's resume. Keep the findings;
-visible ones are fixed by the loop; `human_judgment` and `record_only` stay open into the
-terminal report; deleting or ignoring the file is a counter-example. Unless the person gave a
-comparison base, it becomes the branch tip at start (the person already checked cycle's diff);
-inherited open findings are still evaluated in the diff review, even outside the base. No default
-round-trip limit; on one the person set, cycle's ending 2 applies. No counter of consecutive runs.
+Same branch right after a cycle or a run of this skill, findings JSON still there: cycle's resume.
+Keep the findings; visible ones are fixed by the loop; `human_judgment` and `record_only` stay open
+into the terminal report; deleting or ignoring the file is a counter-example; rounds continue from
+the highest inherited round (the first review here is max+1). Unless the person gave a comparison
+base, it becomes the branch tip at start (the person already checked that run's diff); inherited
+open findings are still evaluated in the diff review, even outside the base. No default round-trip
+limit; on one the person set, cycle's ending 2 applies. No counter of consecutive runs.
 
 Cycle's terminal report and "never" list apply, "two plans at once" read as "two requests at
 once", verification results taken from the implementer's evidence, plus, here only, the guidance
