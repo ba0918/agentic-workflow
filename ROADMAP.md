@@ -15,6 +15,7 @@
 - cycle と review の収束規則を改めた（2026-08-31）。フルレビューに既知の指摘だけを見せる、意味が変わらない言い換えは指摘にしない、フルレビューは 2 回目で最後、再開の規則（往復番号、連続のリセット、「さらに回す」の再入口）。iterate の cycle 待ちの未決定も閉じた。skill 本文は実走なしで lock を取り直したので、次に cycle を回したとき収束の変化を見る
 - investigate の scenario 2 本（iv-001、iv-002）を opencode で実走して lock に登録した（2026-08-31）。両方 pass。これで scenario を持つ 7 skill 全部に検証の記録がある
 - 配布経路の実地確認を済ませた（2026-08-31）。Claude Code plugin（`ba0918-workflow:` 付きで 7 本）、Codex CLI plugin（同じ）、OpenCode plugin（git から取って `skills/` を読む）、APM、コピー（`gh skill` / `npx skills`）のどれも、v0.1.0 の 7 skill が置かれ、セッションで名前が列挙されるか本文が読めるところまで確かめた。1 回の手動確認で足りると判断し、自動化はしない。`gh skill install` は `--all` が無いと端末無しでは何も入れないので README を直した
+- 名前で呼ぶ skill 同士の依存（iterate → cycle → review）を skill-regression が辿れるようにした（2026-08-31）。agentic-meta 側が `evals/dependencies.yml` の宣言を surface に 1 ホップ合流させる形で対応し、こちらは宣言を置き、scenario の `exercises` に依存先の本文を足し、lock を取り直した。cycle の本文を変えると iterate の scenario が影響ありに挙がる
 
 ## 次
 
@@ -25,6 +26,5 @@
 - ドメインモデルの抽出（用語の定義と境界のシナリオ）を brainstorm から別 skill に切り出す。まずは brainstorm 組み込みで運用し、実利用で分けたくなったら分ける
 - `CONTEXT.md` をドメインモデルごとに分割する。用語が増えて 1 ファイルで読みにくくなったら
 - iterate 仕様書の残件。往復の上限が今回の実行の review の回数を数える約束は skill 本文にだけある。判定役がテストを列挙に入れないとき、iterate が決定権で補う動き（実走で 1 回起きた）を明示するかどうか。実装役の委譲行の裸の条件番号。次に仕様書を触るときに拾う。指摘の記録は `.agents/artifacts/reviews/feat/iterate.json`
-- skill-regression の lock が名前で呼ぶ skill 同士の依存（iterate → cycle → review）を辿れない件は、agentic-meta の PR #1（`evals/dependencies.yml` で宣言し、宣言先の surface を 1 ホップ合流）で対応中。リリースされたらこちらで `evals/dependencies.yml`（iterate → cycle、cycle → review）を置き、iterate と cycle の scenario の `exercises` に依存先の本文を足して lock を取り直す。iterate 仕様書の未決定と、`exercises` 宣言を却下した行の理由も直す。PR の枝で試した結果は期待どおり（cycle の本文の変更で iterate が影響ありに挙がる）
 - investigate 仕様書の残件。scenario を応答テキストで判定する点。委譲先へ写す 5 つがテストの条件を含むかどうか。「1〜3 案」の単位（問題ごとか、5 節全体か）。推奨表の「小さいタスク → iterate」と「仕様書が無い → brainstorm」が同じ状況（仕様書の無い小さいタスク）で重なる件。次に仕様書を触るときに拾う
 - GitHub の tag 保護（Settings > Rules の ruleset）。「公開した tag は動かさない」を GitHub 側でも縛るなら
