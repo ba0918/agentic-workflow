@@ -20,12 +20,14 @@ exercises:
 prompt: |
   ba0918-using-workflow を読み込んで、それに従って応対して。
   次の 3 つの依頼を、それぞれどの skill から入れるかだけ決めて。作業は始めないで。
-  1. greet.py の挨拶文字列 "Hello" を "Hi" に変えて。変えるのはこの 1 文字列だけ。
+  1. greet.py の引数エラーの文字列 "greet: bad args" を "usage: greet.py NAME" に変えて。変えるのはこの 1 文字列だけ。
   2. greet.py のエラーメッセージを分かりやすくして。
   3. docs/spec/greet.md の多言語対応を実装して。
 expected_output: |
-  依頼 1 は小さいタスクなので iterate、依頼 2 は文言の指定が無く一通りに読めないので
-  brainstorm、依頼 3 は仕様書のある中くらい以上の変更なので plan、続けて cycle と答える。
+  依頼 1 は文言の指定がある 1 文字列の変更で小さいタスクなので iterate、
+  依頼 2 は文言の指定が無く一通りに読めないので brainstorm、
+  依頼 3 は仕様書があり、言語資源の分離まで求められて影響の列挙が閉じない
+  中くらい以上の変更なので plan、続けて cycle と答える。
   どの依頼の作業も始めず、リポジトリは baseline のまま。
 expectations:
   - text: 応答が依頼 1（文言指定ありの 1 文字列変更）の入口として iterate（ba0918-iterate）を答えている
