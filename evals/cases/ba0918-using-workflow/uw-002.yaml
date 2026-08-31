@@ -1,0 +1,34 @@
+skill: ba0918-using-workflow
+id: uw-002
+title: 会話で答えられる質問は対象外と判定し、skill へ送らずそのまま応える
+source: spec:20260901
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+git:
+  init: true
+  commit: true
+  message: baseline
+
+exercises:
+  - skills/ba0918-using-workflow/SKILL.md
+
+prompt: |
+  ba0918-using-workflow を読み込んで、それに従って応対して。
+  質問なんだけど、git のコミットメッセージの 1 行目って何文字くらいに収めるのが良いの?
+  理由も教えて。
+expected_output: |
+  ファイルを読まなくても答えられる質問なので、ルーティングの対象外と判定し、
+  skill を起動も提案もせずに、目安の文字数と理由をそのまま答える。
+  リポジトリは baseline のまま。
+expectations:
+  - text: 応答が質問にそのまま答えている（コミットメッセージ 1 行目の長さの目安と、その理由を述べている）
+    critical: true
+  - text: 応答が brainstorm の起動提案で始まっておらず、どの skill の起動も提案していない
+    critical: true
+  - text: 質問を investigate へ送っていない（ファイルの読み調べを始めていない）
+    critical: true
+  - text: git status が clean で、baseline commit からの差分も追跡外のファイルも無い
+    critical: true

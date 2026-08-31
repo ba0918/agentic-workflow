@@ -1,0 +1,40 @@
+skill: ba0918-using-workflow
+id: uw-001
+title: 作る・変える依頼の種別ごとに、入口の規則の表のとおりの入口を答える
+source: spec:20260901
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - greet.py
+  - docs/spec/greet.md
+git:
+  init: true
+  commit: true
+  message: baseline
+
+exercises:
+  - skills/ba0918-using-workflow/SKILL.md
+
+prompt: |
+  ba0918-using-workflow を読み込んで、それに従って応対して。
+  次の 3 つの依頼を、それぞれどの skill から入れるかだけ決めて。作業は始めないで。
+  1. greet.py の挨拶文字列 "Hello" を "Hi" に変えて。変えるのはこの 1 文字列だけ。
+  2. greet.py のエラーメッセージを分かりやすくして。
+  3. docs/spec/greet.md の多言語対応を実装して。
+expected_output: |
+  依頼 1 は小さいタスクなので iterate、依頼 2 は文言の指定が無く一通りに読めないので
+  brainstorm、依頼 3 は仕様書のある中くらい以上の変更なので plan、続けて cycle と答える。
+  どの依頼の作業も始めず、リポジトリは baseline のまま。
+expectations:
+  - text: 応答が依頼 1（文言指定ありの 1 文字列変更）の入口として iterate（ba0918-iterate）を答えている
+    critical: true
+  - text: 応答が依頼 2（文言の指定が無い「エラーメッセージを分かりやすくして」）の入口として brainstorm（ba0918-brainstorm）を答え、iterate にも plan にもしていない
+    critical: true
+  - text: 応答が依頼 3（仕様書のある中くらい以上の変更）の入口として plan（ba0918-plan）と、続けて cycle（ba0918-cycle）を答えている
+    critical: true
+  - text: git status が clean で、baseline commit からの差分も追跡外のファイルも無い（どの依頼の作業も始めていない）
+    critical: true
+  - text: 応答が brainstorm の質問ラウンドや実装そのものを始めていない（入口の案内だけで終わっている）
+    critical: false
