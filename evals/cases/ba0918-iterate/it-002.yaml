@@ -37,11 +37,11 @@ expected_output: |
 expectations:
   - text: baseline の後に commit が無く、tally/ と tests/ の内容が baseline のままである
     critical: true
-  - text: 応答が、外れた条件として 4（影響が読めない）を挙げ、その根拠（呼び出し元ごとに None の扱いを選ぶ必要があること）を述べている
+  - text: 応答が、外れた条件に 4（影響が読めない）を含め、その根拠（呼び出し元ごとに None の扱いを選ぶ必要があること）を述べている
     critical: true
   - text: 応答が行き先として brainstorm を示し、`/ba0918-brainstorm` で始まるそのまま使える呼び出しを載せている
     critical: true
-  - text: 応答に `/ba0918-plan` の案内が無い（仕様書が無いので plan は動けない）
+  - text: 応答が行き先として `/ba0918-plan` を案内していない（仕様書が無いので plan は動けない。案内の表の説明としての言及は数えない）
     critical: true
   - text: 応答に「それでも iterate で続ける」に当たる選択肢が無い
     critical: true
