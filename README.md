@@ -6,8 +6,9 @@ Development workflow skills for AI coding agents, packaged as
 Five skills form one workflow: interview the person until the specification is agreed,
 turn it into a plan an implementer with no prior context can execute, then loop
 implementation, adversarial review and fixing until the findings converge, handing the
-result to the person once. Two more stand beside it: one for a task too small to need a
-specification or a plan, and one for a read-only investigation. Each skill hands the next
+result to the person once. Three more stand beside it, for eight in all: one for a task
+too small to need a specification or a plan, one for a read-only investigation, and one
+that decides which of the others a new request enters from. Each skill hands the next
 one the path of what it produced, and nothing else ties them together — there is no
 runtime, no state store and no script. This is a collection of skills, not a framework.
 
@@ -22,6 +23,7 @@ runtime, no state store and no script. This is a collection of skills, not a fra
 | `ba0918-review` | Adversarial review of a diff or a document set by separate-context reviewers that return findings and never edit; also callable on its own for a diagnosis |
 | `ba0918-iterate` | Entry point for a small task: a separate-context judge proposes whether the request is small, then cycle's loop runs on the request instead of a plan |
 | `ba0918-investigate` | Read-only investigation from a symptom or a question to the direct cause, the root cause, the impact and the fix options, without changing a file |
+| `ba0918-using-workflow` | Decides which skill a new request enters from — small task, medium-or-larger change with or without a specification, unexplained defect or question needing file reading — and answers questions and chat directly instead of routing them |
 
 The skill bodies are in English, written for the agent. The specifications they were
 written from, the principles above them and the glossary are in Japanese, under `docs/`
@@ -97,6 +99,21 @@ npx skills add ba0918/agentic-workflow
 
 What a copy route installs is the contents of `skills/` and nothing else — the
 specifications and the regression scenarios live outside that directory.
+
+## Keeping the entry skill resident
+
+`ba0918-using-workflow` routes each new request, so it must be read every turn, not only
+when its description fires. Add a pointer line to the project's agent instructions
+(`AGENTS.md` or the equivalent your agent reads):
+
+```markdown
+## Important
+
+- Always read `ba0918-using-workflow` first, before acting on a request
+```
+
+Where a pointer line turns out not to be followed, inlining the skill body itself into
+those instructions is the reliable fallback, at the cost of updating it by hand.
 
 ## Verification
 

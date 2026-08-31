@@ -10,7 +10,7 @@
     {
       "name": "ba0918-workflow",
       "version": "0.2.0",
-      "description": "Development workflow skills for AI coding agents: brainstorm a specification with the person, plan it, run an implement-review cycle until findings converge, iterate on a small task without a plan, and investigate a symptom read-only",
+      "description": "Development workflow skills for AI coding agents: brainstorm a specification with the person, plan it, run an implement-review cycle until findings converge, iterate on a small task without a plan, investigate a symptom read-only, and decide with using-workflow which skill a new request enters from",
       "source": "./"
     }
   ]
