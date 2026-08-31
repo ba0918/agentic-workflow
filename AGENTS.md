@@ -1,5 +1,9 @@
 # Agent Instructions
 
+## 重要
+
+- 最初に `ba0918-using-workflow` を必ず読み込むこと
+
 ## Core
 
 - 述べられた目的に仕える。依頼された範囲を広げない

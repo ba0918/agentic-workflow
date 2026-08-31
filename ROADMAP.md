@@ -16,11 +16,12 @@
 - investigate の scenario 2 本（iv-001、iv-002）を opencode で実走して lock に登録した（2026-08-31）。両方 pass。これで scenario を持つ 7 skill 全部に検証の記録がある
 - 配布経路の実地確認を済ませた（2026-08-31）。Claude Code plugin（`ba0918-workflow:` 付きで 7 本）、Codex CLI plugin（同じ）、OpenCode plugin（git から取って `skills/` を読む）、APM、コピー（`gh skill` / `npx skills`）のどれも、v0.1.0 の 7 skill が置かれ、セッションで名前が列挙されるか本文が読めるところまで確かめた。1 回の手動確認で足りると判断し、自動化はしない。`gh skill install` は `--all` が無いと端末無しでは何も入れないので README を直した
 - 名前で呼ぶ skill 同士の依存（iterate → cycle → review）を skill-regression が辿れるようにした（2026-08-31）。agentic-meta 側が `evals/dependencies.yml` の宣言を surface に 1 ホップ合流させる形で対応し、こちらは宣言を置き、scenario の `exercises` に依存先の本文を足し、lock を取り直した。cycle の本文を変えると iterate の scenario が影響ありに挙がる
+- using-workflow skill を brainstorm → plan → cycle で 1 周して取り込んだ（2026-09-01）。新しい依頼の入口を決める常駐ルールで、往復 3 回、指摘 4 件のうち修正 1 件・記録 3 件。dogfood として `AGENTS.md` の冒頭にポインタ行を設置した。読み込み率を測るかはそのとき決める（基準値: 「Always」行 4 skill の読み込みが 31 本中 0〜9 本、2026-09-01）
 - iterate と investigate の仕様書の残件 7 件を壁打ちで決めて改訂した（2026-09-01）。上限の数え方を仕様書へ、判定役の列挙にテストが無いときの iterate の補完を明文化、実装役への差し戻し文から裸の条件番号を除去、推奨表の brainstorm 行を中くらい以上に限定して iterate と排他に、修正案は問題ごとに 1〜3 案、委譲先へ写す読むだけの保証にテストの条件を含め、scenario の応答テキスト判定は実測で問題無しとして受け入れ
 
 ## 次
 
-- using-workflow の dogfood。main 取り込み後に、このリポジトリの `AGENTS.md` へポインタ行（`## 重要` の下に「最初に `ba0918-using-workflow` を必ず読み込むこと」）を足す。その後の session 群で skill の読み込み率を測るかは、そのとき決める。測るなら、設置後の session ログのうち ba0918-using-workflow の本文を読み込んだ session の割合を数え、設置前の実測（AGENTS.md の「Always」行に挙がる 4 skill の読み込みが 31 本中 0〜9 本、2026-09-01）と比べる
+- 無し。検討中から選ぶ
 
 ## 検討中
 
