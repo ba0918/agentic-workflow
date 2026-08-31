@@ -101,10 +101,10 @@ none, reviewers match the request — two, quality and conformance, so someone c
 Same branch right after a cycle or a run of this skill, findings JSON still there: cycle's resume.
 Keep the findings; visible ones are fixed by the loop; `human_judgment` and `record_only` stay open
 into the terminal report; deleting or ignoring the file is a counter-example; rounds continue from
-the highest inherited round (the first review here is max+1). Unless the person gave a comparison
-base, it becomes the branch tip at start (the person already checked that run's diff); inherited
-open findings are still evaluated in the diff review, even outside the base. No default round-trip
-limit; on one the person set, cycle's ending 2 applies. No counter of consecutive runs.
+the inherited max (the first review is max+1). Unless the person gave a comparison base, it is the
+branch tip at start (that run's diff was already checked); inherited open findings are evaluated in
+the diff review even outside the base. No default round-trip limit; one the person set counts this
+run's reviews, not the round numbers, and cycle's ending 2 applies. No counter of consecutive runs.
 
 Cycle's terminal report and "never" list apply, "two plans at once" read as "two requests at
 once", verification results taken from the implementer's evidence, plus, here only, the guidance
