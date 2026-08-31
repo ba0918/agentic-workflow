@@ -45,3 +45,9 @@
 
 人が承認した文書は `docs/`、LLM が書いた記録は `.agents/`（git 管理外）。
 `docs/plans/` にある手順書が、進行中の作業を表す。
+
+## 開発中の skill の読ませ方
+
+このリポジトリで作業するときは、`.claude/skills/` にある symlink（`skills/ba0918-*` を向く）で開発中の skill を読む。
+同じ名前の skill を `~/.claude/skills/` に置かない。Claude Code は個人スコープをプロジェクトスコープより優先するので、置くと開発版が読まれなくなる。
+他のプロジェクトで使うときは、そのプロジェクトで `apm install ba0918/agentic-workflow` を打って配布版を入れる。
