@@ -122,17 +122,18 @@
       "verified": "2026-09-01"
     },
     "ba0918-iterate": {
+      "carried_note": "spec残件の改訂+敵対レビュー反映: 条件4にテストの句を正本へ、欠けは確定で埋める優先を明記、判定役の許す操作にテストの条件、上限は指定後の review を数える。実走 it-001 で確認済みの動きの明文化なので再実走なし",
       "file_sha256": {
         "skills/ba0918-cycle/SKILL.md": "1c7a47632684ea94708f9830886abf431725cb22dd5acb050822f321350939e0",
         "skills/ba0918-iterate/SKILL.md": "25728f8207ecb0f9786e775362a2b631eda3db52a58e44573091dac60d423020"
       },
-      "note": "spec残件の改訂+敵対レビュー反映: 条件4にテストの句を正本へ、欠けは確定で埋める優先を明記、判定役の許す操作にテストの条件、上限は指定後の review を数える。実走 it-001 で確認済みの動きの明文化なので再実走なし",
+      "note": "改訂後の再実走 pass（470 秒、opencode-economy）。判定役の列挙が閉じ、テスト補完が unclear に挙がらなくなった（改訂の狙いどおり）。実装は test-first の 2 commit。観察 1 件: 仕様書が無いのに reviewer を品質 1 体にした（本文の『quality and conformance の 2 体』に反する）が、scenario の期待の外",
       "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
-          "result": "accepted-without-run",
+          "result": "pass",
           "scenario_sha256": "3dbdd453531a1153ab89fb1a3f1f273f4dc0c699656ca20928714d31ef77414f",
-          "verified": "2026-08-31"
+          "verified": "2026-09-01"
         },
         "it-002": {
           "result": "accepted-without-run",
