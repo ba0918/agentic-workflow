@@ -1,6 +1,6 @@
 {
   "name": "agentic-workflow",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Workflow skills for AI coding agents, packaged as Agent Skills",
   "type": "module",
