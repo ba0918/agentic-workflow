@@ -2,12 +2,12 @@
   "coverage_exempt": {},
   "skills": {
     "ba0918-brainstorm": {
-      "carried_note": "wording only: clarified after the first regression run without changing any parsed token; scenarios unaffected",
+      "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
       "file_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "11a61bf4fcc57fda2ebb3fc1d920080f4449b122dc08698725d73ea4e46f9305",
+        "skills/ba0918-brainstorm/SKILL.md": "3b788b75fa56ff5c4055404d526c4476926f01ed938603e676c6c9bbacc6a801",
         "skills/ba0918-brainstorm/references/records.md": "40c4a564b3472492b95cf6304c931e5ee1443e5b5cf47ea3cbb4876431684964"
       },
-      "note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
+      "note": "実走なし。落ちていた限定語を戻しただけで、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "bs-001": {
@@ -29,7 +29,7 @@
         "skills/ba0918-brainstorm/SKILL.md",
         "skills/ba0918-brainstorm/references/records.md"
       ],
-      "surface_sha256": "7a66e3ce8aa0d404c6d0e2df4757899e2c8ae845aedd94f4daab8cecdd23158c",
+      "surface_sha256": "44644663a4e17f909533e7e18171b7d927ef8fc9e0d7ed5efb140b2a1f13e7fc",
       "verified": "2026-09-03"
     },
     "ba0918-cycle": {
