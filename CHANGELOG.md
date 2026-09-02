@@ -12,6 +12,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- **BREAKING** `ba0918-brainstorm` — asks where non-product requirements belong and rejects or
+  reclassifies requirements whose proposed verification does not qualify as evidence.
 - **BREAKING** `ba0918-plan` — names only tests that qualify as evidence, avoids tests for
   already-established conditions, and returns unverifiable requirements for specification work.
 - **BREAKING** `ba0918-implement` — no longer invents tests that validate verification, and
