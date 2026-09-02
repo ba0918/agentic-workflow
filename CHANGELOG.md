@@ -22,6 +22,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - **BREAKING** `ba0918-cycle` — mechanically finalizes reviewer proposals before fixes, stops
   when visible findings cease to shrink, and supplies reviewers and fixers with the complete
   rules and evidence needed for their delegated work.
+- **BREAKING** `ba0918-iterate` — follows cycle's expanded no-progress ending and its complete
+  reviewer and fixer delegation rules through the cycle skill it reads.
 - **BREAKING** `ba0918-review` — checks conformance in both directions, removes verification
   that does not qualify as evidence, carries the versioned evidence conditions, and requires
   every reviewer prompt to carry both-way conformance and the complete finding rules.
