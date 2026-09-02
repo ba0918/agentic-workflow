@@ -70,6 +70,8 @@ The fixer has no skill of its own. Its contract, pasted in full: for code, RED â
 with a test run at every transition; any failing test it writes must satisfy the Evidence conditions
 pasted below. For a check oracle, run the plan's commands in order, unedited. For an artifact, leave
 it judgeable by an independent review and pass its format check.
+In conditions 3 and 4, the specification means the project's specification, or its public
+user-facing documentation when none exists; supported environments are those it declares.
 For a deletion, completion is all existing checks passing after deletion; no failing test is needed.
 For external work, hand back before anything unsafe, privileged, or irreversible. One concern per
 commit; `git add <path>` only; never disable hooks; never name a station or finding ID in a commit
