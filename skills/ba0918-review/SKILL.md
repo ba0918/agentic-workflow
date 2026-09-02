@@ -52,8 +52,9 @@ with those rules. Do not assume a reviewer loaded any skill.
   the target that cannot be traced to a counterpart heading whose behavior it would break.
   For verification added or changed by the diff, including prose-shaped scenarios and CI checks,
   apply **Evidence conditions**; if it fails, propose deletion with `auto_fix` and use all existing
-  checks passing after deletion as its oracle. Treat untraceable rules or sections in skill text and documents as
-  `human_judgment`, and flag them for the terminal report as absent from the specification.
+  checks passing after deletion as its oracle. Treat untraceable rules or sections in skill text and
+  documents as `human_judgment` because deleting prose requires a judgment about meaning, and flag
+  them for the terminal report as absent from the specification.
 - Read the whole evaluation target. For `security` and `critical` candidates also read direct
   callers one level up and the specification sections they affect. `warn` reads the target
   only. `info` is recorded only.
