@@ -1,6 +1,11 @@
 ---
 name: ba0918-cycle
-description: "Workflow station of the ba0918 workflow: a small orchestrator that takes an approved plan and a branch, delegates implementation, review, and fixing to separate-context agents, and loops full review → diff loop → full review until findings converge, then hands the result to the person once. Use when asked to run a ba0918 cycle on a plan, or to resume one. 日本語キーワード: サイクル 実装ループ 改善ループ オーケストレータ 手順書を回す"
+description: >-
+  Workflow station of the ba0918 workflow: a small orchestrator that takes an approved plan and a
+  branch, delegates implementation, review, and fixing to separate-context agents, and loops full
+  review → diff loop → full review until findings converge, then hands the result to the person
+  once. Use when asked to run a ba0918 cycle on a plan, or to resume one. 日本語キーワード:
+  サイクル 実装ループ 改善ループ オーケストレータ 手順書を回す
 ---
 
 # Cycle
@@ -51,18 +56,25 @@ limit, when the person set one, counts round trips.
 
 ## Delegations
 
-| To | Prompt carries | Comes back |
-|---|---|---|
-| implement | plan path, branch, worktree path | commits, per-step verification evidence, out-of-plan changes; or a hand-back with its reason |
-| review (full) | base and head, worktree path, known findings; the review items and Evidence conditions named above | findings JSON |
-| review (diff) | diff since last review, worktree path, open findings with IDs; the same review items and Evidence conditions | per-finding `still_present` / `no_longer_visible`, new findings |
-| fixer | visible findings, plan path, branch, worktree path, the fixer contract below | commits and which finding each addresses; or a hand-back |
+- **implement:** carry the plan path, branch, and worktree path. It returns commits, per-step
+  verification evidence, and out-of-plan changes, or a hand-back with its reason.
+- **review (full):** carry the base and head, worktree path, known findings, and the review items
+  and Evidence conditions named above. It returns findings JSON.
+- **review (diff):** carry the diff since the last review, worktree path, open findings with IDs,
+  and the same review items and Evidence conditions. It returns per-finding `still_present` or
+  `no_longer_visible` and new findings.
+- **fixer:** carry visible findings, plan path, branch, worktree path, and the contract below. It
+  returns commits and which finding each addresses, or a hand-back.
 
 The fixer has no skill of its own. Its contract, pasted in full: for code, RED → GREEN → REFACTOR
 with a test run at every transition; any failing test it writes must satisfy the Evidence conditions
 pasted below. For a check oracle, run the plan's commands in order, unedited. For an artifact, leave
 it judgeable by an independent review and pass its format check.
-For a deletion, completion is all existing checks passing after deletion; no failing test is needed. For external work, hand back before anything unsafe, privileged, or irreversible. One concern per commit; `git add <path>` only; never disable hooks; never name a station or finding ID in a commit message. Missing design decisions are handed back, not guessed. Stop and ask before an irreversible or privileged operation, a dangerous target, or a spreading accident.
+For a deletion, completion is all existing checks passing after deletion; no failing test is needed.
+For external work, hand back before anything unsafe, privileged, or irreversible. One concern per
+commit; `git add <path>` only; never disable hooks; never name a station or finding ID in a commit
+message. Missing design decisions are handed back, not guessed. Stop and ask before an irreversible
+or privileged operation, a dangerous target, or a spreading accident.
 
 Immediately below that contract, paste the first paragraph from the ba0918-review skill's
 `references/oracle-evidence.md`; do not keep a copy in this skill.
@@ -114,5 +126,5 @@ step 1 if untraced plan steps remain, else at step 3; a new limit, if any, is th
 Always: artifacts and commits, verification results from the implement report, how to view
 the diff. When present: fixed findings, forwarded observations, reasoned out-of-plan changes, open
 findings needing the person, and rules or sections identified as absent from the specification.
-This is the person's one check; merging is theirs. Cycle never merges, publishes, deletes branches or worktrees, edits the
-specification, manages issues, or runs two plans at once.
+This is the person's one check; merging is theirs. Cycle never merges, publishes, deletes branches
+or worktrees, edits the specification, manages issues, or runs two plans at once.
