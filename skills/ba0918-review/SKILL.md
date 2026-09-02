@@ -42,7 +42,7 @@ Launch at least two reviewers as long as a counterpart exists: one with the
 perspective (the target against the counterpart). With no counterpart, one quality reviewer.
 Each reviewer prompt is self-contained: target, the text of every applicable profile, strength,
 counterpart path, the output shape below, the read restrictions, and all rules under **Writing a
-finding**. Do not assume a reviewer loaded any skill.
+finding**, plus the both-way conformance rule below. Do not assume a reviewer loaded any skill.
 
 ## How a reviewer works
 

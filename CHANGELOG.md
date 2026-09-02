@@ -24,7 +24,7 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   rules and evidence needed for their delegated work.
 - **BREAKING** `ba0918-review` — checks conformance in both directions, removes verification
   that does not qualify as evidence, carries the versioned evidence conditions, and requires
-  every reviewer prompt to carry the complete finding rules.
+  every reviewer prompt to carry both-way conformance and the complete finding rules.
 
 ## [0.3.0] - 2026-09-01
 
