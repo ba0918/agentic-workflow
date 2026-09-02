@@ -33,10 +33,9 @@
       "verified": "2026-09-03"
     },
     "ba0918-cycle": {
-      "carried_note": "review を名前で読む依存を evals/dependencies.yml に宣言し、cy-001 の exercises に review の本文と参照資料を足した。skill 本文は変えていないので実走なし",
       "file_sha256": {
         "skills/ba0918-cycle/SKILL.md": "5ac7ce75d3f43f8b2526b5b65528c0df05db085a541f657caf7def6a18992dd0",
-        "skills/ba0918-review/SKILL.md": "639bb3eff16e5107d1646d36c6a04bc7a0c9fc95dadb1714fd9c566e7cc12ddc",
+        "skills/ba0918-review/SKILL.md": "f28f2d2edbcc565028ead91e853f8383160a193f508651618ed13e1811fa8f3a",
         "skills/ba0918-review/references/finding-schema.md": "93044d2569ceb1eaef175ecf5554afb5250a3f10c2f53d79d8a57d7a9aaa8870",
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "5f0e396775292e9019c2ebf04c45b954b31b67764264131ca2f48c6ff5d14aeb"
@@ -52,7 +51,7 @@
       },
       "structural_sha256": {
         "skills/ba0918-cycle/SKILL.md": "7039e630347c881f70f5429dd9d540c3e390af64384453b271553a8a67ca04cc",
-        "skills/ba0918-review/SKILL.md": "86b04f4a35d9d80b74e181a46b957f584250829f9c3053f551153c9aea198cc5",
+        "skills/ba0918-review/SKILL.md": "59aff24a4da0db1e9c5615ccdcbfdd42b40feb3d77f590796fa21a6428a4ba7d",
         "skills/ba0918-review/references/finding-schema.md": "299b560007a18d18382acafb3768bcea4ff2804f9b087c2c6c8e7cabdaf01ffc",
         "skills/ba0918-review/references/oracle-evidence.md": "bee01b1b9f70426b62e10f42ce74cdc5b9db202564a87ce3cf95f4f4347b7b29",
         "skills/ba0918-review/references/profiles.md": "cc4173f12e25d3815bc1a72d2a722684cb7c4bfadf6a877f3e045378a9771143"
@@ -64,7 +63,7 @@
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "6f71779693322fe6aef5b094174f67136d1743c8798caa0323d5b1eb84596dd6",
+      "surface_sha256": "ce01295375e4ca496743463fa2ff3f7e697017104b2d786262b76ca4c4df4494",
       "verified": "2026-09-03"
     },
     "ba0918-implement": {
@@ -191,9 +190,8 @@
       "verified": "2026-09-03"
     },
     "ba0918-review": {
-      "carried_note": "meaning-preserving rewording is not a finding (info narrowed); full review receives known findings. rv scenarios call the skill on a fixed target and do not exercise the info boundary; accepted without rerun",
       "file_sha256": {
-        "skills/ba0918-review/SKILL.md": "639bb3eff16e5107d1646d36c6a04bc7a0c9fc95dadb1714fd9c566e7cc12ddc",
+        "skills/ba0918-review/SKILL.md": "f28f2d2edbcc565028ead91e853f8383160a193f508651618ed13e1811fa8f3a",
         "skills/ba0918-review/references/finding-schema.md": "93044d2569ceb1eaef175ecf5554afb5250a3f10c2f53d79d8a57d7a9aaa8870",
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "5f0e396775292e9019c2ebf04c45b954b31b67764264131ca2f48c6ff5d14aeb"
@@ -213,7 +211,7 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-review/SKILL.md": "86b04f4a35d9d80b74e181a46b957f584250829f9c3053f551153c9aea198cc5",
+        "skills/ba0918-review/SKILL.md": "59aff24a4da0db1e9c5615ccdcbfdd42b40feb3d77f590796fa21a6428a4ba7d",
         "skills/ba0918-review/references/finding-schema.md": "299b560007a18d18382acafb3768bcea4ff2804f9b087c2c6c8e7cabdaf01ffc",
         "skills/ba0918-review/references/oracle-evidence.md": "bee01b1b9f70426b62e10f42ce74cdc5b9db202564a87ce3cf95f4f4347b7b29",
         "skills/ba0918-review/references/profiles.md": "cc4173f12e25d3815bc1a72d2a722684cb7c4bfadf6a877f3e045378a9771143"
@@ -224,7 +222,7 @@
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "282a3ecc3220cb9da696a6a4082c084d22ce64a2f3c3b6def683e0dae4f702f4",
+      "surface_sha256": "e84cea38ed3482d16c15d66f6327ce6b4da935b1cc77413281623109498553d1",
       "verified": "2026-09-03"
     }
   },
