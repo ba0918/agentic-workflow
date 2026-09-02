@@ -33,15 +33,15 @@
       "verified": "2026-09-03"
     },
     "ba0918-cycle": {
-      "carried_note": "実走なし。reviewer への貼り付け範囲の 1 語の直しで、既存 scenario が確かめる規則に触れない。",
+      "carried_note": "実走なし。文言の補いで、既存 scenario が確かめる規則に触れない。",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "1503f2db333b61dfc98218a85845e9a7010d895b471d43b292168012b9282d4d",
+        "skills/ba0918-cycle/SKILL.md": "a89ab0f9964e49ce7031947af3a3fa71be25fbb4d0cc669a58d659f852719322",
         "skills/ba0918-review/SKILL.md": "09a3fcf71366776681c5e6c73c441289cfd6a55d3dc387d7a3630861f48bdb5d",
         "skills/ba0918-review/references/finding-schema.md": "93044d2569ceb1eaef175ecf5554afb5250a3f10c2f53d79d8a57d7a9aaa8870",
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "5f0e396775292e9019c2ebf04c45b954b31b67764264131ca2f48c6ff5d14aeb"
       },
-      "note": "実走なし。文言の補いで、既存 scenario が確かめる規則に触れない。",
+      "note": "実走なし。再開の連続を 2 種類と明記した 1 語の直しで、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "cy-001": {
@@ -64,7 +64,7 @@
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "2e1f2cd9e934d5d3a053cb5c912bd6154ebb17d46b13426308577c7b3c2470ca",
+      "surface_sha256": "f4c2bb8e0c5acff8b904d7b94073e0187115e7c28fb4b4610f239e5f32bca01d",
       "verified": "2026-09-03"
     },
     "ba0918-implement": {
@@ -126,12 +126,12 @@
       "verified": "2026-09-01"
     },
     "ba0918-iterate": {
-      "carried_note": "実走なし。reviewer への貼り付け範囲の 1 語の直しで、既存 scenario が確かめる規則に触れない。",
+      "carried_note": "実走なし。文言の補いで、既存 scenario が確かめる規則に触れない。",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "1503f2db333b61dfc98218a85845e9a7010d895b471d43b292168012b9282d4d",
-        "skills/ba0918-iterate/SKILL.md": "25728f8207ecb0f9786e775362a2b631eda3db52a58e44573091dac60d423020"
+        "skills/ba0918-cycle/SKILL.md": "a89ab0f9964e49ce7031947af3a3fa71be25fbb4d0cc669a58d659f852719322",
+        "skills/ba0918-iterate/SKILL.md": "b18352d564f9171530fec7c03aead2d7f4ae73f4d6168fc3456f521364a82101"
       },
-      "note": "実走なし。文言の補いで、既存 scenario が確かめる規則に触れない。",
+      "note": "実走なし。再開の連続を 2 種類と明記した文言の直しで、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
@@ -147,13 +147,13 @@
       },
       "structural_sha256": {
         "skills/ba0918-cycle/SKILL.md": "ef96a85b42e8c98ca0c674a7a6603d15897133462c4aba85b804e5d3382ac97b",
-        "skills/ba0918-iterate/SKILL.md": "42fc37b1ed366bcbe62adae3044f715acab0b72deb55a68f59ae3f6f2afc9cf0"
+        "skills/ba0918-iterate/SKILL.md": "cb1f8c57ef0a7a767f0a4fd8caeb97d8c442add6d26e6e15e1051233feef0c3d"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "ee91879ffd9d1031cecf5f4d6e826feb77ba2bd511e6c99f4f978ae86510dd39",
+      "surface_sha256": "d1d7ca201976b3c3c7bc343d1af32b4cb5c5f569669244a642a641379bd25b1c",
       "verified": "2026-09-03"
     },
     "ba0918-plan": {
