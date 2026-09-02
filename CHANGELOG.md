@@ -12,6 +12,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- **BREAKING** `ba0918-implement` — no longer invents tests that validate verification, and
+  proves deletion findings by running the existing checks after removal.
 - **BREAKING** `ba0918-cycle` — mechanically finalizes reviewer proposals before fixes, stops
   when visible findings cease to shrink, and supplies reviewers and fixers with the complete
   rules and evidence needed for their delegated work.
