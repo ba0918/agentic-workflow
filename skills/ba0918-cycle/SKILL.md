@@ -66,10 +66,10 @@ Every prompt is self-contained; never assume a delegate loaded a skill or read t
 Cycle alone writes the findings file (shape: the review skill's `finding-schema.md`, plus `base` and
 `last_reviewed_head`). After every review it overwrites the file: sets `last_reviewed_head`, assigns
 IDs to new findings, merges reviewers and groups same-cause findings, finalizes each proposed action
-before classifying visible findings. In order: force `info` to `record_only`; force a claim stating
-no defect to `warn` and `record_only`; for a defect demanding a new test or fixture without showing
-it qualifies, keep the action but use all existing checks passing (`warn` is replaced even when it
-qualifies); leave `security` untouched and pause. Never move `human_judgment` without asking the
+before classifying visible findings. In order: force `info` to `record_only`; except for `security`,
+force a claim stating no defect to `warn` and `record_only`; for a defect demanding a new test or
+fixture without showing it qualifies, keep its action but replace its oracle with all existing checks
+passing; replace a `warn` oracle even when it qualifies. Leave `security` untouched and pause. Never move `human_judgment` without asking the
 person. Append numbered verdicts and update state; after every fix record its reported commits.
 `no_longer_visible` → closed (`fixed`); accepted by the person at the end → closed (`accepted`). If
 reviewers disagree, one `still_present` means still present. A full review returns no IDs: match by
