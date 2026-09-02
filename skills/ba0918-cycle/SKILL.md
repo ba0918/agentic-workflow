@@ -25,8 +25,8 @@ counts across starts). Either way, infer from the plan and `git log` which steps
 step 1 only when every step left a git trace. Otherwise delegate step 1: implement resumes by
 inference and redoes untraced steps.
 
-Before the first review, read the ba0918-review skill (`SKILL.md`, `references/profiles.md`,
-`references/finding-schema.md`, `references/oracle-evidence.md`) and paste all its reviewer rules.
+Before the first review, read the ba0918-review skill (`SKILL.md`, `references/profiles.md`, `references/finding-schema.md`, `references/oracle-evidence.md`). Every review prompt carries the target,
+the text of every applicable profile, strength, counterpart, the reviewer rules (**How a reviewer works** and **Writing a finding**, including the both-way conformance rule), read restrictions, and output shape.
 
 ## Loop
 
@@ -50,16 +50,15 @@ limit, when the person set one, counts round trips.
 | To | Prompt carries | Comes back |
 |---|---|---|
 | implement | plan path, branch, worktree path | commits, per-step verification evidence, out-of-plan changes; or a hand-back with its reason |
-| review (full) | base and head, worktree path, profiles, strength, spec path, known findings, all reviewer rules | findings JSON |
-| review (diff) | diff since last review, worktree path, open findings with IDs, profiles, strength, spec path, all reviewer rules | per-finding `still_present` / `no_longer_visible`, new findings |
+| review (full) | base and head, worktree path, known findings; target, the text of every applicable profile, strength, counterpart, the reviewer rules (**How a reviewer works** and **Writing a finding**, including the both-way conformance rule), read restrictions, and output shape | findings JSON |
+| review (diff) | diff since last review, worktree path, open findings with IDs; the same seven review items named above | per-finding `still_present` / `no_longer_visible`, new findings |
 | fixer | visible findings, plan path, branch, worktree path, the fixer contract below | commits and which finding each addresses; or a hand-back |
 
-The fixer has no skill of its own. Paste the implement contract and the first paragraph of
-`skills/ba0918-review/references/oracle-evidence.md`. It includes RED → GREEN → REFACTOR for
-code; plan checks unedited; judgeable artifacts; hand-back before unsafe, privileged, irreversible,
-or dangerous work; one concern per commit; individual staging; hooks kept; no station or finding ID
-in messages; and no guessed design. Only qualifying tests may be written to fail. For a deletion,
-require the removed paths and symbols, their absence in the scoped diff, and existing checks passing.
+The fixer has no skill of its own. Its contract, pasted in full: for code, RED → GREEN → REFACTOR with a test run at every transition; any failing test it writes must satisfy the Evidence conditions below. For a check oracle, run the plan's commands in order, unedited. For an artifact, leave it judgeable by an independent review and pass its format check.
+For a deletion, completion is all existing checks passing after deletion; no failing test is needed. For external work, hand back before anything unsafe, privileged, or irreversible. One concern per commit; `git add <path>` only; never disable hooks; never name a station or finding ID in a commit message. Missing design decisions are handed back, not guessed. Stop and ask before an irreversible or privileged operation, a dangerous target, or a spreading accident.
+
+Paste immediately below it the first paragraph of the ba0918-review skill (`references/oracle-evidence.md`): an oracle counts as evidence only when its condition has a named operational producer in a supported environment; its subject is the product or a check, not the oracle itself; the specification states the rule it enforces; and the specification declares every wording, file layout, or internal name it pins as a contract.
+An oracle that fails any condition is a cost: do not add it, keep it in the change under review, or demand it.
 Every prompt is self-contained; never assume a delegate loaded a skill or read the conversation.
 
 ## Judgment stays here
