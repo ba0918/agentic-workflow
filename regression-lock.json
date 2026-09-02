@@ -33,15 +33,15 @@
       "verified": "2026-09-03"
     },
     "ba0918-cycle": {
-      "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
+      "carried_note": "実走なし。修正は文言の整理で、既存 scenario が確かめる規則に触れない。",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "58b539d95da2994214d235cc30005d3d315fe5d3a92000446a391bbc134b088e",
+        "skills/ba0918-cycle/SKILL.md": "42b3216d27525fe7318160e54ec7b3378bb721e2d39d9ffb317a50f516489be2",
         "skills/ba0918-review/SKILL.md": "03a568d26d188c979896499d4487e637ecd58a2b2f5bea8689a1f67834c2cd55",
         "skills/ba0918-review/references/finding-schema.md": "93044d2569ceb1eaef175ecf5554afb5250a3f10c2f53d79d8a57d7a9aaa8870",
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "5f0e396775292e9019c2ebf04c45b954b31b67764264131ca2f48c6ff5d14aeb"
       },
-      "note": "実走なし。修正は文言の整理で、既存 scenario が確かめる規則に触れない。",
+      "note": "実走なし。reviewer への貼り付け範囲の 1 語の直しで、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "cy-001": {
@@ -51,7 +51,7 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "27279c2288ed121b0cb6a71823f731452eee67cf6312b8c3c3b72b17daada54e",
+        "skills/ba0918-cycle/SKILL.md": "5f188c50aeb895e5e042c6ad79e25a21bb79f8fed1986de32a23cb9492f09943",
         "skills/ba0918-review/SKILL.md": "d719fbdb0a8f0c6cbba2c3a150f0100a0523c961a268e08a828732a81c690a2b",
         "skills/ba0918-review/references/finding-schema.md": "299b560007a18d18382acafb3768bcea4ff2804f9b087c2c6c8e7cabdaf01ffc",
         "skills/ba0918-review/references/oracle-evidence.md": "bee01b1b9f70426b62e10f42ce74cdc5b9db202564a87ce3cf95f4f4347b7b29",
@@ -64,7 +64,7 @@
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "3d25389483bc2ac8ef53caec04d369f5d9d007261bdb1ec8451ea493a0d180da",
+      "surface_sha256": "210c79855039a1b4480df0862df485051a982fc07cc1769f04ee91fc76a50841",
       "verified": "2026-09-03"
     },
     "ba0918-implement": {
@@ -126,12 +126,12 @@
       "verified": "2026-09-01"
     },
     "ba0918-iterate": {
-      "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
+      "carried_note": "実走なし。修正は文言の整理で、既存 scenario が確かめる規則に触れない。",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "58b539d95da2994214d235cc30005d3d315fe5d3a92000446a391bbc134b088e",
+        "skills/ba0918-cycle/SKILL.md": "42b3216d27525fe7318160e54ec7b3378bb721e2d39d9ffb317a50f516489be2",
         "skills/ba0918-iterate/SKILL.md": "25728f8207ecb0f9786e775362a2b631eda3db52a58e44573091dac60d423020"
       },
-      "note": "実走なし。修正は文言の整理で、既存 scenario が確かめる規則に触れない。",
+      "note": "実走なし。reviewer への貼り付け範囲の 1 語の直しで、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
@@ -146,14 +146,14 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "27279c2288ed121b0cb6a71823f731452eee67cf6312b8c3c3b72b17daada54e",
+        "skills/ba0918-cycle/SKILL.md": "5f188c50aeb895e5e042c6ad79e25a21bb79f8fed1986de32a23cb9492f09943",
         "skills/ba0918-iterate/SKILL.md": "42fc37b1ed366bcbe62adae3044f715acab0b72deb55a68f59ae3f6f2afc9cf0"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "0937a774143d7adfb365d2d49be93dd8c28eeaf55fe899d5494933f381d957ae",
+      "surface_sha256": "6378efa0903824365c5eacb3063b969fc6407dca8a123f71e98ea2f4148c61fc",
       "verified": "2026-09-03"
     },
     "ba0918-plan": {
