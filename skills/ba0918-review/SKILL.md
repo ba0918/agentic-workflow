@@ -41,10 +41,17 @@ Launch at least two reviewers as long as a counterpart exists: one with the
 **quality** perspective (the target on its own terms) and one with the **conformance**
 perspective (the target against the counterpart). With no counterpart, one quality reviewer.
 Each reviewer prompt is self-contained: target, the text of every applicable profile, strength,
-counterpart path, the output shape below, and the read restrictions. Do not assume a reviewer loaded any skill.
+counterpart path, the output shape below, the read restrictions, and all rules under **Writing a
+finding**. Do not assume a reviewer loaded any skill.
 
 ## How a reviewer works
 
+- Conformance runs both ways: report required behavior missing from the target and anything in
+  the target that cannot be traced to a counterpart heading whose behavior it would break.
+  For verification added or changed by the diff, apply **Evidence conditions**; if it fails,
+  propose deletion with `auto_fix` and use all existing checks passing after deletion as its
+  oracle. Treat untraceable rules or sections in skill text and documents as
+  `human_judgment`, and flag them for the terminal report as absent from the specification.
 - Read the whole evaluation target. For `security` and `critical` candidates also read direct
   callers one level up and the specification sections they affect. `warn` reads the target
   only. `info` is recorded only.
@@ -72,6 +79,12 @@ cannot run it safely, record why and mark it `not_run`.
   finalizes, and are never derived from severity (`security` / `critical` / `warn` / `info`).
   `info` is the one exception: action `record_only`, no oracle required.
 - `warn` oracles may be an existing test re-run or a static check; do not demand new tests.
+- A finding that demands new verification must show that it meets **Evidence conditions**.
+  Otherwise its verification demand is only a recorded proposal, not part of the fix. When it
+  describes a defect, the caller separates that demand from the defect; without a defect the
+  caller sends it to the terminal report. Conditions 3 and 4 read the project's specification
+  as the governing document; when none exists, use public user-facing documentation. The
+  declared operating environments are those named by that governing document.
 - `human_judgment` only with a written reason why no mechanical oracle can decide it. "Too
   much work to write" is not a reason.
 - Evidence names the observed file, line range, and a summary of any output (several allowed).

@@ -10,6 +10,12 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `ba0918-review` — checks conformance in both directions, removes verification
+  that does not qualify as evidence, and requires every reviewer prompt to carry the complete
+  finding rules.
+
 ## [0.3.0] - 2026-09-01
 
 ### Added
