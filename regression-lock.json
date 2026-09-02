@@ -33,14 +33,15 @@
       "verified": "2026-09-03"
     },
     "ba0918-cycle": {
+      "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "5ac7ce75d3f43f8b2526b5b65528c0df05db085a541f657caf7def6a18992dd0",
-        "skills/ba0918-review/SKILL.md": "f28f2d2edbcc565028ead91e853f8383160a193f508651618ed13e1811fa8f3a",
+        "skills/ba0918-cycle/SKILL.md": "58b539d95da2994214d235cc30005d3d315fe5d3a92000446a391bbc134b088e",
+        "skills/ba0918-review/SKILL.md": "03a568d26d188c979896499d4487e637ecd58a2b2f5bea8689a1f67834c2cd55",
         "skills/ba0918-review/references/finding-schema.md": "93044d2569ceb1eaef175ecf5554afb5250a3f10c2f53d79d8a57d7a9aaa8870",
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "5f0e396775292e9019c2ebf04c45b954b31b67764264131ca2f48c6ff5d14aeb"
       },
-      "note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
+      "note": "実走なし。修正は文言の整理で、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "cy-001": {
@@ -50,8 +51,8 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "7039e630347c881f70f5429dd9d540c3e390af64384453b271553a8a67ca04cc",
-        "skills/ba0918-review/SKILL.md": "59aff24a4da0db1e9c5615ccdcbfdd42b40feb3d77f590796fa21a6428a4ba7d",
+        "skills/ba0918-cycle/SKILL.md": "27279c2288ed121b0cb6a71823f731452eee67cf6312b8c3c3b72b17daada54e",
+        "skills/ba0918-review/SKILL.md": "d719fbdb0a8f0c6cbba2c3a150f0100a0523c961a268e08a828732a81c690a2b",
         "skills/ba0918-review/references/finding-schema.md": "299b560007a18d18382acafb3768bcea4ff2804f9b087c2c6c8e7cabdaf01ffc",
         "skills/ba0918-review/references/oracle-evidence.md": "bee01b1b9f70426b62e10f42ce74cdc5b9db202564a87ce3cf95f4f4347b7b29",
         "skills/ba0918-review/references/profiles.md": "cc4173f12e25d3815bc1a72d2a722684cb7c4bfadf6a877f3e045378a9771143"
@@ -63,16 +64,16 @@
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "ce01295375e4ca496743463fa2ff3f7e697017104b2d786262b76ca4c4df4494",
+      "surface_sha256": "3d25389483bc2ac8ef53caec04d369f5d9d007261bdb1ec8451ea493a0d180da",
       "verified": "2026-09-03"
     },
     "ba0918-implement": {
-      "carried_note": "opencode economy route; im-001 pass (unittest OK, CLI OK, 2 one-concern commits), im-002 pass (step 2 handed back, no guess); first im-002 attempt died on opencode 'database is locked' under parallel 2, rerun alone",
+      "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
       "file_sha256": {
-        "skills/ba0918-implement/SKILL.md": "3922f2446c747fc2c8bcb1b88083917adb03736bd73725d8f559c87361b37789",
+        "skills/ba0918-implement/SKILL.md": "ff0b9398113c721a966b8b4e82c007e2f77c59f1c524e54e4c770e4f84b4fde5",
         "skills/ba0918-implement/references/completion.md": "6499e7d056405b4ae1fcde3fb1d70167bed8adb6ebe73a03fcf69164b2d99cbf"
       },
-      "note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
+      "note": "実走なし。修正は文言の整理で、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "im-001": {
@@ -87,14 +88,14 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-implement/SKILL.md": "e4cf10d5b5866320dbd4d402a9a0b073f07e593313603d791620af4927e4ac8b",
+        "skills/ba0918-implement/SKILL.md": "299bea19e0ced9a5cc1ee65d7ae32dded4e30ccfedb57b6cbc690aeb7533d1cc",
         "skills/ba0918-implement/references/completion.md": "b7982f8e2e47b1ad06b41461640935e73a541a9e8b6697a4e6daf151e63ddf5e"
       },
       "surface": [
         "skills/ba0918-implement/SKILL.md",
         "skills/ba0918-implement/references/completion.md"
       ],
-      "surface_sha256": "4d2c21d3de92ffcc4a3c11e42df6daca4f138e7e48f01bc91cefa17558bfcf64",
+      "surface_sha256": "49a55ed527f76377a9352aabd21531ef045b7bc8ee3639153aaf57fc7098e59b",
       "verified": "2026-09-03"
     },
     "ba0918-investigate": {
@@ -125,13 +126,12 @@
       "verified": "2026-09-01"
     },
     "ba0918-iterate": {
-      "carried_note": "改訂後の再実走 pass（470 秒、opencode-economy）。判定役の列挙が閉じ、テスト補完が unclear に挙がらなくなった（改訂の狙いどおり）。実装は test-first の 2 commit。観察 1 件: 仕様書が無いのに reviewer を品質 1 体にした（本文の『quality and conformance の 2 体』に反する）が、scenario の期待の外",
+      "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "5ac7ce75d3f43f8b2526b5b65528c0df05db085a541f657caf7def6a18992dd0",
-        "skills/ba0918-iterate/SKILL.md": "25728f8207ecb0f9786e775362a2b631eda3db52a58e44573091dac60d423020",
-        "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8"
+        "skills/ba0918-cycle/SKILL.md": "58b539d95da2994214d235cc30005d3d315fe5d3a92000446a391bbc134b088e",
+        "skills/ba0918-iterate/SKILL.md": "25728f8207ecb0f9786e775362a2b631eda3db52a58e44573091dac60d423020"
       },
-      "note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
+      "note": "実走なし。修正は文言の整理で、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
@@ -146,16 +146,14 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "7039e630347c881f70f5429dd9d540c3e390af64384453b271553a8a67ca04cc",
-        "skills/ba0918-iterate/SKILL.md": "42fc37b1ed366bcbe62adae3044f715acab0b72deb55a68f59ae3f6f2afc9cf0",
-        "skills/ba0918-review/references/oracle-evidence.md": "bee01b1b9f70426b62e10f42ce74cdc5b9db202564a87ce3cf95f4f4347b7b29"
+        "skills/ba0918-cycle/SKILL.md": "27279c2288ed121b0cb6a71823f731452eee67cf6312b8c3c3b72b17daada54e",
+        "skills/ba0918-iterate/SKILL.md": "42fc37b1ed366bcbe62adae3044f715acab0b72deb55a68f59ae3f6f2afc9cf0"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md",
-        "skills/ba0918-iterate/SKILL.md",
-        "skills/ba0918-review/references/oracle-evidence.md"
+        "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "058db99549c837864a1bcd2455d7072cafc03ccc8a57bcbe18c8364fbccca89d",
+      "surface_sha256": "0937a774143d7adfb365d2d49be93dd8c28eeaf55fe899d5494933f381d957ae",
       "verified": "2026-09-03"
     },
     "ba0918-plan": {
@@ -190,13 +188,14 @@
       "verified": "2026-09-03"
     },
     "ba0918-review": {
+      "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
       "file_sha256": {
-        "skills/ba0918-review/SKILL.md": "f28f2d2edbcc565028ead91e853f8383160a193f508651618ed13e1811fa8f3a",
+        "skills/ba0918-review/SKILL.md": "03a568d26d188c979896499d4487e637ecd58a2b2f5bea8689a1f67834c2cd55",
         "skills/ba0918-review/references/finding-schema.md": "93044d2569ceb1eaef175ecf5554afb5250a3f10c2f53d79d8a57d7a9aaa8870",
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "5f0e396775292e9019c2ebf04c45b954b31b67764264131ca2f48c6ff5d14aeb"
       },
-      "note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
+      "note": "実走なし。修正は文言の整理で、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "rv-001": {
@@ -211,7 +210,7 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-review/SKILL.md": "59aff24a4da0db1e9c5615ccdcbfdd42b40feb3d77f590796fa21a6428a4ba7d",
+        "skills/ba0918-review/SKILL.md": "d719fbdb0a8f0c6cbba2c3a150f0100a0523c961a268e08a828732a81c690a2b",
         "skills/ba0918-review/references/finding-schema.md": "299b560007a18d18382acafb3768bcea4ff2804f9b087c2c6c8e7cabdaf01ffc",
         "skills/ba0918-review/references/oracle-evidence.md": "bee01b1b9f70426b62e10f42ce74cdc5b9db202564a87ce3cf95f4f4347b7b29",
         "skills/ba0918-review/references/profiles.md": "cc4173f12e25d3815bc1a72d2a722684cb7c4bfadf6a877f3e045378a9771143"
@@ -222,7 +221,7 @@
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "e84cea38ed3482d16c15d66f6327ce6b4da935b1cc77413281623109498553d1",
+      "surface_sha256": "fd8e7e4a1973557f5d6369ae7d3e7182952aedfa0308cc9d3455c326d0b2711a",
       "verified": "2026-09-03"
     }
   },
