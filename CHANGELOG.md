@@ -10,6 +10,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-03
+
 ### Changed
 
 - **BREAKING** `ba0918-brainstorm` — asks where non-product requirements belong, rejects or
@@ -97,7 +99,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - Install routes for Claude Code and Codex CLI (plugin marketplace), OpenCode (plugin), APM
   (package manager), and `gh skill` / `npx skills` (copy).
 
-[Unreleased]: https://github.com/ba0918/agentic-workflow/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/ba0918/agentic-workflow/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ba0918/agentic-workflow/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/ba0918/agentic-workflow/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/ba0918/agentic-workflow/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ba0918/agentic-workflow/releases/tag/v0.1.0
