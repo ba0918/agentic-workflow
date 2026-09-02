@@ -12,6 +12,9 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- **BREAKING** `ba0918-cycle` — mechanically finalizes reviewer proposals before fixes, stops
+  when visible findings cease to shrink, and supplies reviewers and fixers with the complete
+  rules and evidence needed for their delegated work.
 - **BREAKING** `ba0918-review` — checks conformance in both directions, removes verification
   that does not qualify as evidence, and requires every reviewer prompt to carry the complete
   finding rules.

@@ -25,9 +25,8 @@ counts across starts). Either way, infer from the plan and `git log` which steps
 step 1 only when every step left a git trace. Otherwise delegate step 1: implement resumes by
 inference and redoes untraced steps.
 
-Before the first review, read the ba0918-review skill (its `SKILL.md`, `references/profiles.md`,
-`references/finding-schema.md`) and paste the reviewer setup, the profile text, the read
-restrictions, and the output shape into every reviewer prompt.
+Before the first review, read the ba0918-review skill (`SKILL.md`, `references/profiles.md`,
+`references/finding-schema.md`, `references/oracle-evidence.md`) and paste all its reviewer rules.
 
 ## Loop
 
@@ -51,17 +50,16 @@ limit, when the person set one, counts round trips.
 | To | Prompt carries | Comes back |
 |---|---|---|
 | implement | plan path, branch, worktree path | commits, per-step verification evidence, out-of-plan changes; or a hand-back with its reason |
-| review (full) | base and head, worktree path, profiles, strength, spec path, known findings, reviewer setup | findings JSON |
-| review (diff) | diff since last review, worktree path, open findings with IDs, profiles, strength, spec path, reviewer setup | per-finding `still_present` / `no_longer_visible`, new findings |
+| review (full) | base and head, worktree path, profiles, strength, spec path, known findings, all reviewer rules | findings JSON |
+| review (diff) | diff since last review, worktree path, open findings with IDs, profiles, strength, spec path, all reviewer rules | per-finding `still_present` / `no_longer_visible`, new findings |
 | fixer | visible findings, plan path, branch, worktree path, the fixer contract below | commits and which finding each addresses; or a hand-back |
 
-The fixer has no skill of its own. Its contract, pasted in full: for code, RED → GREEN →
-REFACTOR with a test run at every transition; for a check oracle, the plan's commands in order,
-unedited; for an artifact, left judgeable by an independent review; for external work, hand
-back before anything unsafe, privileged, or irreversible. One concern per commit,
-`git add <path>` only, hooks never disabled, no station name or finding ID in a commit message,
-missing design decisions handed back, not guessed; stop and ask before an irreversible or
-privileged operation, a dangerous target, or a spreading accident.
+The fixer has no skill of its own. Paste the implement contract and the first paragraph of
+`skills/ba0918-review/references/oracle-evidence.md`. It includes RED → GREEN → REFACTOR for
+code; plan checks unedited; judgeable artifacts; hand-back before unsafe, privileged, irreversible,
+or dangerous work; one concern per commit; individual staging; hooks kept; no station or finding ID
+in messages; and no guessed design. Only qualifying tests may be written to fail. For a deletion,
+require the removed paths and symbols, their absence in the scoped diff, and existing checks passing.
 Every prompt is self-contained; never assume a delegate loaded a skill or read the conversation.
 
 ## Judgment stays here
@@ -69,10 +67,11 @@ Every prompt is self-contained; never assume a delegate loaded a skill or read t
 Cycle alone writes the findings file (shape: the review skill's `finding-schema.md`, plus `base` and
 `last_reviewed_head`). After every review it overwrites the file: sets `last_reviewed_head`, assigns
 IDs to new findings, merges reviewers and groups same-cause findings, finalizes each proposed action
-before classifying visible findings (keep the reviewer's proposal unless its stated reason is
-contradicted by the evidence; never move a finding out of `human_judgment` without first putting its
-question to the person), appends every verdict to `evaluations` with its round-trip number, and
-updates state. After every fix it records the reported commits under their findings.
+before classifying visible findings. In order: force `info` to `record_only`; force a claim stating
+no defect to `warn` and `record_only`; for a defect demanding a new test or fixture without showing
+it qualifies, keep the action but use all existing checks passing (`warn` is replaced even when it
+qualifies); leave `security` untouched and pause. Never move `human_judgment` without asking the
+person. Append numbered verdicts and update state; after every fix record its reported commits.
 `no_longer_visible` → closed (`fixed`); accepted by the person at the end → closed (`accepted`). If
 reviewers disagree, one `still_present` means still present. A full review returns no IDs: match by
 evidence location and oracle — a match with an open finding reuses its ID and appends
@@ -94,17 +93,21 @@ it was closed `accepted`. Reviewers only evaluate; the fixer only reports commit
 2. The person's round-trip limit was reached.
 3. No progress: a finding is `still_present` in two consecutive rounds that evaluated it (the
    second after a changed approach); a closed finding's cause returns; or a review still cannot
-   succeed after one re-delegation.
+   succeed after one re-delegation; or two consecutive post-fix diff reviews have at least as many
+   finalized new visible findings as visible findings marked `no_longer_visible`.
 4. A delegate handed back to brainstorm or plan.
 
 Endings 2–4 add to the terminal report the choice "run more or accept the rest and finish" and
 any hand-back reason. "Run more" continues the same run (streaks kept), findings still open, at
 step 1 if untraced plan steps remain, else at step 3; a new limit, if any, is the person's to set.
+That comparison excludes full reviews. A new invocation resets all streaks and ignores inherited
+evaluations; "run more" keeps them.
 
 ## Terminal report
 
 Always: artifacts and commits, verification results from the implement report, how to view
-the diff. When present: fixed findings and forwarded observations, out-of-plan changes
-with reasons, open findings and why they need the person. This is the person's one check;
+the diff. When present: fixed findings, forwarded observations, reasoned out-of-plan changes, open
+findings needing the person, and rules or sections identified as absent from the specification.
+This is the person's one check;
 merging is theirs. Cycle never merges, publishes, deletes branches or worktrees, edits the
 specification, manages issues, or runs two plans at once.
