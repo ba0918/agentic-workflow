@@ -61,7 +61,8 @@ When a requirement does not change observable product behavior (release automati
 CI), ask whether it belongs here, in a separate specification, or is not built. Never add it silently.
 
 Whoever notices an ambiguous term or a boundary that disagrees with the code asks it there, records
-what becomes clear, and hands it back here. Change the glossary and specification after the decision.
+what becomes clear, and hands it back here. Change the glossary and specification after the person
+decides.
 
 ## Records
 
@@ -104,7 +105,9 @@ Source: `ba0918-verification`, agentic-rules v0.8.0.
    and conformance to the brainstorm record plus the repository's principles document when it
    keeps one (`docs/principles.md` by convention). New findings become branches; keep asking.
 2. Check the conditions for handing to plan: one deliverable (one branch); result in one sentence;
-   built and unbuilt scope; state and lifetime decided or absent; dependencies decided; human decision points and what they see; headings to requirements.
+   built and unbuilt scope; stored state and its lifetime decided or confirmed absent; external
+   dependencies accepted or rejected; human decision points and what they see; headings to
+   requirements.
 3. Stage the specification and the glossary change, give the path, the diff command, and the
    judgment points — never the full text, and never a summary as the thing approved. The person
    commits or says to. Then delete the progress file.
