@@ -12,6 +12,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- **BREAKING** `ba0918-plan` — names only tests that qualify as evidence, avoids tests for
+  already-established conditions, and returns unverifiable requirements for specification work.
 - **BREAKING** `ba0918-implement` — no longer invents tests that validate verification, and
   proves deletion findings by running the existing checks after removal.
 - **BREAKING** `ba0918-cycle` — mechanically finalizes reviewer proposals before fixes, stops

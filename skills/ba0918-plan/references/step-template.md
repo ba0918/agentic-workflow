@@ -24,7 +24,10 @@ Guidance per field:
 - **Shown by** picks exactly one kind. *Test* means RED → GREEN → REFACTOR with named tests.
   *Check* lists commands in order. *Artifact* names the file and any format check. *External*
   says what to observe, on what, and what counts as pass; if it is unsafe, privileged, or
-  irreversible, say that a human runs or confirms it.
+  irreversible, say that a human runs or confirms it. Name only tests that meet **Evidence
+  conditions**. Do not add tests for conditions already true or match their count to the
+  number of Done conditions; use one test per behavior being implemented. If no test qualifies
+  and the specification does not require human or platform inspection, hand back to brainstorm.
 - **Left to the implementer** holds choices delegated for this step; plan-wide ones go in the
   plan-level section. Naming, internal
   structure, and helper extraction usually qualify; input formats, limits, error behavior, and
