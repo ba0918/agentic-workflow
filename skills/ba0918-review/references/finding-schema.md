@@ -35,7 +35,7 @@ fills those.
 
 | Key | Values |
 |---|---|
-| `severity` | `security` / `critical` / `warn` / `info` |
+| `severity` | `security` / `critical` / `warn` / `info`; the caller changes a finding that states no defect to `warn` |
 | `action` | `auto_fix` / `fix_and_verify` / `human_judgment` / `record_only` (reviewer proposal; caller decides) |
 | `profile` | `Code` / `Document` / `Skill` |
 | `perspective` | `quality` / `conformance` |

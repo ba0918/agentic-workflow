@@ -18,6 +18,7 @@
 - 名前で呼ぶ skill 同士の依存（iterate → cycle → review）を skill-regression が辿れるようにした（2026-08-31）。agentic-meta 側が `evals/dependencies.yml` の宣言を surface に 1 ホップ合流させる形で対応し、こちらは宣言を置き、scenario の `exercises` に依存先の本文を足し、lock を取り直した。cycle の本文を変えると iterate の scenario が影響ありに挙がる
 - using-workflow skill を brainstorm → plan → cycle で 1 周して取り込んだ（2026-09-01）。新しい依頼の入口を決める常駐ルールで、往復 3 回、指摘 4 件のうち修正 1 件・記録 3 件。dogfood として `AGENTS.md` の冒頭にポインタ行を設置した。読み込み率を測るかはそのとき決める（基準値: 「Always」行 4 skill の読み込みが 31 本中 0〜9 本、2026-09-01）
 - iterate と investigate の仕様書の残件 7 件を壁打ちで決めて改訂した（2026-09-01）。上限の数え方を仕様書へ、判定役の列挙にテストが無いときの iterate の補完を明文化、実装役への差し戻し文から裸の条件番号を除去、推奨表の brainstorm 行を中くらい以上に限定して iterate と排他に、修正案は問題ごとに 1〜3 案、委譲先へ写す読むだけの保証にテストの条件を含め、scenario の応答テキスト判定は実測で問題無しとして受け入れ
+- 確かめ方が証拠になる条件を 5 つの skill に反映した（2026-09-03）。review は仕様との両方向の突き合わせ、cycle は対応の機械的な検査と指摘が減らない終わり方を持つ。正本の写しは agentic-rules v0.8.0 から review・plan・brainstorm に置いた
 
 ## 次
 

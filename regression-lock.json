@@ -2,12 +2,12 @@
   "coverage_exempt": {},
   "skills": {
     "ba0918-brainstorm": {
-      "carried_note": "opencode economy route; bs-001/bs-002 pass on artifacts (progress file, no spec); executor pre-filled Delegated before the person answered (observation)",
+      "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
       "file_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "b9ab40df4ef2390008262953a8749b215c3044e1872c868f6688dacaeb8ed628",
+        "skills/ba0918-brainstorm/SKILL.md": "3b788b75fa56ff5c4055404d526c4476926f01ed938603e676c6c9bbacc6a801",
         "skills/ba0918-brainstorm/references/records.md": "40c4a564b3472492b95cf6304c931e5ee1443e5b5cf47ea3cbb4876431684964"
       },
-      "note": "wording only: clarified after the first regression run without changing any parsed token; scenarios unaffected",
+      "note": "実走なし。落ちていた限定語を戻しただけで、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "bs-001": {
@@ -22,25 +22,26 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "db2616038839319502d6d6d8192f3acce5d4b06f729274ffbfcb067849662b43",
+        "skills/ba0918-brainstorm/SKILL.md": "a6af12879288c388da642ec7469ea2c6d182c6fccf1315baa62267fb180b21d8",
         "skills/ba0918-brainstorm/references/records.md": "b909bfb73ed9dfd19832ba1047a7c66ac2f6038e7265f92e5e565802b042032f"
       },
       "surface": [
         "skills/ba0918-brainstorm/SKILL.md",
         "skills/ba0918-brainstorm/references/records.md"
       ],
-      "surface_sha256": "f954cd74cc5fc19dd61483be78ecbcbe38a056ea799f5e277837b66a59818262",
-      "verified": "2026-08-30"
+      "surface_sha256": "44644663a4e17f909533e7e18171b7d927ef8fc9e0d7ed5efb140b2a1f13e7fc",
+      "verified": "2026-09-03"
     },
     "ba0918-cycle": {
-      "carried_note": "loop ends after the second full review (one more diff loop, no third full review); full review receives known findings; resume rules stated. cy-001 exercises the security pause, not the loop tail; accepted without rerun",
+      "carried_note": "実走なし。文言の補いで、既存 scenario が確かめる規則に触れない。",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "1c7a47632684ea94708f9830886abf431725cb22dd5acb050822f321350939e0",
-        "skills/ba0918-review/SKILL.md": "4c65c7a2eca0b9fa2878380624c71127df3c18b301e32613cc72b8afb20e3469",
-        "skills/ba0918-review/references/finding-schema.md": "d930cdc0902e30468888c677b0367f87fc656ecbba2ae4ffe161f871f6d41721",
+        "skills/ba0918-cycle/SKILL.md": "a89ab0f9964e49ce7031947af3a3fa71be25fbb4d0cc669a58d659f852719322",
+        "skills/ba0918-review/SKILL.md": "09a3fcf71366776681c5e6c73c441289cfd6a55d3dc387d7a3630861f48bdb5d",
+        "skills/ba0918-review/references/finding-schema.md": "93044d2569ceb1eaef175ecf5554afb5250a3f10c2f53d79d8a57d7a9aaa8870",
+        "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "5f0e396775292e9019c2ebf04c45b954b31b67764264131ca2f48c6ff5d14aeb"
       },
-      "note": "review を名前で読む依存を evals/dependencies.yml に宣言し、cy-001 の exercises に review の本文と参照資料を足した。skill 本文は変えていないので実走なし",
+      "note": "実走なし。再開の連続を 2 種類と明記した 1 語の直しで、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "cy-001": {
@@ -50,49 +51,52 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "46fbbb2b30dc2a589ce6ccb7ffa0e4fe22cf8ee0815d15b1ff6a056ab8e6acf0",
-        "skills/ba0918-review/SKILL.md": "0fe0d3f775f57210b05a0b7ea8b0d5c87c182c2b987f94a4cc2ea1bc85ad585c",
-        "skills/ba0918-review/references/finding-schema.md": "42f1f2a1d12b47e0cd008101806e1f23fd4616da973ab9500e483165a2c94daf",
+        "skills/ba0918-cycle/SKILL.md": "ef96a85b42e8c98ca0c674a7a6603d15897133462c4aba85b804e5d3382ac97b",
+        "skills/ba0918-review/SKILL.md": "7650d586cf769a06c8b0d09424a3f32c7cbda96c7e34263cfb894983c6264559",
+        "skills/ba0918-review/references/finding-schema.md": "299b560007a18d18382acafb3768bcea4ff2804f9b087c2c6c8e7cabdaf01ffc",
+        "skills/ba0918-review/references/oracle-evidence.md": "bee01b1b9f70426b62e10f42ce74cdc5b9db202564a87ce3cf95f4f4347b7b29",
         "skills/ba0918-review/references/profiles.md": "cc4173f12e25d3815bc1a72d2a722684cb7c4bfadf6a877f3e045378a9771143"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md",
         "skills/ba0918-review/SKILL.md",
         "skills/ba0918-review/references/finding-schema.md",
+        "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "e1e5f1ebfe48f3885b24735fe63bd9594942beb5728876bb51fa13e2a818e35d",
-      "verified": "2026-08-31"
+      "surface_sha256": "f4c2bb8e0c5acff8b904d7b94073e0187115e7c28fb4b4610f239e5f32bca01d",
+      "verified": "2026-09-03"
     },
     "ba0918-implement": {
+      "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
       "file_sha256": {
-        "skills/ba0918-implement/SKILL.md": "2cb4a334b4020ae48d1b6436b6faaead1d944361a34915ee95318850bdca66e5",
+        "skills/ba0918-implement/SKILL.md": "ff0b9398113c721a966b8b4e82c007e2f77c59f1c524e54e4c770e4f84b4fde5",
         "skills/ba0918-implement/references/completion.md": "6499e7d056405b4ae1fcde3fb1d70167bed8adb6ebe73a03fcf69164b2d99cbf"
       },
-      "note": "opencode economy route; im-001 pass (unittest OK, CLI OK, 2 one-concern commits), im-002 pass (step 2 handed back, no guess); first im-002 attempt died on opencode 'database is locked' under parallel 2, rerun alone",
-      "result": "pass",
+      "note": "実走なし。修正は文言の整理で、既存 scenario が確かめる規則に触れない。",
+      "result": "accepted-without-run",
       "scenarios": {
         "im-001": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "e7d822279e1bba976c61bd56b4e1aba988c51eed6e2df19a330bdc39be0e9f17",
           "verified": "2026-08-30"
         },
         "im-002": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "17b814fa13023906843721eb72841ae3a1520c0d83dcce49f3292d318ef896c0",
           "verified": "2026-08-30"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-implement/SKILL.md": "c2c42972c114d48b4499d08838a1a3a80ef88e8d87ad47959534071504341833",
+        "skills/ba0918-implement/SKILL.md": "299bea19e0ced9a5cc1ee65d7ae32dded4e30ccfedb57b6cbc690aeb7533d1cc",
         "skills/ba0918-implement/references/completion.md": "b7982f8e2e47b1ad06b41461640935e73a541a9e8b6697a4e6daf151e63ddf5e"
       },
       "surface": [
         "skills/ba0918-implement/SKILL.md",
         "skills/ba0918-implement/references/completion.md"
       ],
-      "surface_sha256": "aeb86b723133dcc1e1dac1a8238e9a90696f176b726dba6b339be761ad9f2d2f",
-      "verified": "2026-08-30"
+      "surface_sha256": "49a55ed527f76377a9352aabd21531ef045b7bc8ee3639153aaf57fc7098e59b",
+      "verified": "2026-09-03"
     },
     "ba0918-investigate": {
       "file_sha256": {
@@ -122,16 +126,16 @@
       "verified": "2026-09-01"
     },
     "ba0918-iterate": {
-      "carried_note": "spec残件の改訂+敵対レビュー反映: 条件4にテストの句を正本へ、欠けは確定で埋める優先を明記、判定役の許す操作にテストの条件、上限は指定後の review を数える。実走 it-001 で確認済みの動きの明文化なので再実走なし",
+      "carried_note": "実走なし。文言の補いで、既存 scenario が確かめる規則に触れない。",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "1c7a47632684ea94708f9830886abf431725cb22dd5acb050822f321350939e0",
-        "skills/ba0918-iterate/SKILL.md": "25728f8207ecb0f9786e775362a2b631eda3db52a58e44573091dac60d423020"
+        "skills/ba0918-cycle/SKILL.md": "a89ab0f9964e49ce7031947af3a3fa71be25fbb4d0cc669a58d659f852719322",
+        "skills/ba0918-iterate/SKILL.md": "b18352d564f9171530fec7c03aead2d7f4ae73f4d6168fc3456f521364a82101"
       },
-      "note": "改訂後の再実走 pass（470 秒、opencode-economy）。判定役の列挙が閉じ、テスト補完が unclear に挙がらなくなった（改訂の狙いどおり）。実装は test-first の 2 commit。観察 1 件: 仕様書が無いのに reviewer を品質 1 体にした（本文の『quality and conformance の 2 体』に反する）が、scenario の期待の外",
+      "note": "実走なし。再開の連続を 2 種類と明記した文言の直しで、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "3dbdd453531a1153ab89fb1a3f1f273f4dc0c699656ca20928714d31ef77414f",
           "verified": "2026-09-01"
         },
@@ -142,54 +146,56 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "46fbbb2b30dc2a589ce6ccb7ffa0e4fe22cf8ee0815d15b1ff6a056ab8e6acf0",
-        "skills/ba0918-iterate/SKILL.md": "42fc37b1ed366bcbe62adae3044f715acab0b72deb55a68f59ae3f6f2afc9cf0"
+        "skills/ba0918-cycle/SKILL.md": "ef96a85b42e8c98ca0c674a7a6603d15897133462c4aba85b804e5d3382ac97b",
+        "skills/ba0918-iterate/SKILL.md": "cb1f8c57ef0a7a767f0a4fd8caeb97d8c442add6d26e6e15e1051233feef0c3d"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "843ac0ed3ccf37cfe80432d849d956416cef3d34aacbadcb9868ef56c7b3aef6",
-      "verified": "2026-09-01"
+      "surface_sha256": "d1d7ca201976b3c3c7bc343d1af32b4cb5c5f569669244a642a641379bd25b1c",
+      "verified": "2026-09-03"
     },
     "ba0918-plan": {
+      "carried_note": "opencode economy route; pl-001/pl-002 pass on artifacts (plan uncommitted, spec headings real, unapproved spec refused)",
       "file_sha256": {
         "skills/ba0918-plan/SKILL.md": "0797c9f2869fa648cf03192d373a7c3257d79d4cc4b52fe917cac5ee2aae71e7",
-        "skills/ba0918-plan/references/step-template.md": "659a256cdf0cc708e1d03b7e19ef0a2abcba1387b14c7d9c8e44f010438c7b6d"
+        "skills/ba0918-plan/references/step-template.md": "785fd372b3f16823d0fca6a2c123fe064f29c06113f4bb0cbcaecfd74ba7eae0"
       },
-      "note": "opencode economy route; pl-001/pl-002 pass on artifacts (plan uncommitted, spec headings real, unapproved spec refused)",
-      "result": "pass",
+      "note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
+      "result": "accepted-without-run",
       "scenarios": {
         "pl-001": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "ef7b923c404a57adf85c22197d028445ed4d19b3d60c98799a36581f243f4fd8",
           "verified": "2026-08-30"
         },
         "pl-002": {
-          "result": "pass",
+          "result": "accepted-without-run",
           "scenario_sha256": "48b841cbb4aaa33105e03025be85199c6eaea3b6d9b843c5389f5b2266c2dacf",
           "verified": "2026-08-30"
         }
       },
       "structural_sha256": {
         "skills/ba0918-plan/SKILL.md": "2c7941b80a3f19dcc231817fad22e06dea73f25a7a7bac6c2de468c3c04b711f",
-        "skills/ba0918-plan/references/step-template.md": "7177de42e1af7ae3a0543dc0a125052a881e9249a6e06002caadee3e27ccd902"
+        "skills/ba0918-plan/references/step-template.md": "fd09bdcfb0eee94bc559ecbbf5748fbcbab99280b5dceb2a5b23020e6877dade"
       },
       "surface": [
         "skills/ba0918-plan/SKILL.md",
         "skills/ba0918-plan/references/step-template.md"
       ],
-      "surface_sha256": "f258381413273a3c284aa682c87c9798afd768271fa584cab9a9b712a4e7f2cd",
-      "verified": "2026-08-30"
+      "surface_sha256": "ccc3f866230a750db6b532fe46d2a7101f3eaaa3133f9843a4024d17593ab85a",
+      "verified": "2026-09-03"
     },
     "ba0918-review": {
-      "carried_note": "description only: trigger words added for diagnosis; scenarios call the skill explicitly, so results are unaffected",
+      "carried_note": "実走なし。修正は文言の整理で、既存 scenario が確かめる規則に触れない。",
       "file_sha256": {
-        "skills/ba0918-review/SKILL.md": "4c65c7a2eca0b9fa2878380624c71127df3c18b301e32613cc72b8afb20e3469",
-        "skills/ba0918-review/references/finding-schema.md": "d930cdc0902e30468888c677b0367f87fc656ecbba2ae4ffe161f871f6d41721",
+        "skills/ba0918-review/SKILL.md": "09a3fcf71366776681c5e6c73c441289cfd6a55d3dc387d7a3630861f48bdb5d",
+        "skills/ba0918-review/references/finding-schema.md": "93044d2569ceb1eaef175ecf5554afb5250a3f10c2f53d79d8a57d7a9aaa8870",
+        "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "5f0e396775292e9019c2ebf04c45b954b31b67764264131ca2f48c6ff5d14aeb"
       },
-      "note": "meaning-preserving rewording is not a finding (info narrowed); full review receives known findings. rv scenarios call the skill on a fixed target and do not exercise the info boundary; accepted without rerun",
+      "note": "実走なし。文言の補いで、既存 scenario が確かめる規則に触れない。",
       "result": "accepted-without-run",
       "scenarios": {
         "rv-001": {
@@ -204,17 +210,19 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-review/SKILL.md": "0fe0d3f775f57210b05a0b7ea8b0d5c87c182c2b987f94a4cc2ea1bc85ad585c",
-        "skills/ba0918-review/references/finding-schema.md": "42f1f2a1d12b47e0cd008101806e1f23fd4616da973ab9500e483165a2c94daf",
+        "skills/ba0918-review/SKILL.md": "7650d586cf769a06c8b0d09424a3f32c7cbda96c7e34263cfb894983c6264559",
+        "skills/ba0918-review/references/finding-schema.md": "299b560007a18d18382acafb3768bcea4ff2804f9b087c2c6c8e7cabdaf01ffc",
+        "skills/ba0918-review/references/oracle-evidence.md": "bee01b1b9f70426b62e10f42ce74cdc5b9db202564a87ce3cf95f4f4347b7b29",
         "skills/ba0918-review/references/profiles.md": "cc4173f12e25d3815bc1a72d2a722684cb7c4bfadf6a877f3e045378a9771143"
       },
       "surface": [
         "skills/ba0918-review/SKILL.md",
         "skills/ba0918-review/references/finding-schema.md",
+        "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "6edcc81de89262c612c2666e4e8f3bcebab2be56ee4a0a6acfbc3dca71b4892d",
-      "verified": "2026-08-31"
+      "surface_sha256": "70525660c4998ceff21fda40f3c2ccf6ef9c89d1c94a2ceaf919a3f83f4729f3",
+      "verified": "2026-09-03"
     }
   },
   "version": 1

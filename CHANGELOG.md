@@ -10,6 +10,24 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `ba0918-brainstorm` — asks where non-product requirements belong, rejects or
+  reclassifies unverifiable requirements, and carries the versioned evidence conditions.
+- **BREAKING** `ba0918-plan` — names only tests that qualify as evidence, avoids tests for
+  already-established conditions, returns unverifiable requirements, and carries the versioned
+  evidence conditions.
+- **BREAKING** `ba0918-implement` — no longer invents tests that validate verification, and
+  proves deletion findings by running the existing checks after removal.
+- **BREAKING** `ba0918-cycle` — mechanically finalizes reviewer proposals before fixes, stops
+  when visible findings cease to shrink, and supplies reviewers and fixers with the complete
+  rules and evidence needed for their delegated work.
+- **BREAKING** `ba0918-iterate` — follows cycle's expanded no-progress ending and its complete
+  reviewer and fixer delegation rules through the cycle skill it reads.
+- **BREAKING** `ba0918-review` — checks conformance in both directions, proposes deleting
+  verification that does not qualify as evidence, carries the versioned evidence conditions, and
+  requires every reviewer prompt to carry both-way conformance and the complete finding rules.
+
 ## [0.3.0] - 2026-09-01
 
 ### Added
