@@ -25,7 +25,7 @@ parent), profiles (default: chosen from changed paths by the review skill's path
 Read the plan only to find the specification path it names; do not interpret its steps.
 The findings file is `.agents/artifacts/reviews/<branch>.json` (a `/` in the branch name is a
 directory). If it already exists this is a resume: keep its findings, continue round numbers from
-the inherited maximum, and count ending 3's streak from this start only (a returning closed cause
+the inherited maximum, and count both of ending 3's streaks from this start only (a returning closed cause
 counts across starts). Either way, infer from the plan and `git log` which steps are done; skip
 step 1 only when every step left a git trace. Otherwise delegate step 1: implement resumes by
 inference and redoes untraced steps.
