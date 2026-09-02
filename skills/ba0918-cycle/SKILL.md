@@ -91,8 +91,9 @@ before classifying visible findings. For each non-`security` finding, in order: 
 `record_only`; force a claim stating no defect to `warn` and `record_only`; for a defect demanding a
 new test or fixture without showing it qualifies, keep its action but replace its oracle with all
 existing checks passing; replace a `warn` oracle even when it qualifies. Leave `security` untouched
-and pause. Never move `human_judgment` without asking the person. Append numbered verdicts and update
-state; after every fix record its reported commits.
+and pause. Adopt any proposal that matched none of these checks unchanged. Never move a finding out
+of `human_judgment` without asking the person. Append numbered verdicts and update state; after every
+fix record its reported commits.
 `no_longer_visible` → closed (`fixed`); accepted by the person at the end → closed (`accepted`). If
 reviewers disagree, one `still_present` means still present. A full review returns no IDs: match by
 evidence location and oracle — a match with an open finding reuses its ID and appends
