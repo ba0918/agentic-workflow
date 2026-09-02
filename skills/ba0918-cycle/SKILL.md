@@ -93,20 +93,18 @@ it was closed `accepted`. Reviewers only evaluate; the fixer only reports commit
 3. No progress: a finding is `still_present` in two consecutive rounds that evaluated it (the
    second after a changed approach); a closed finding's cause returns; or a review still cannot
    succeed after one re-delegation; or two consecutive post-fix diff reviews have at least as many
-   finalized new visible findings as visible findings marked `no_longer_visible`.
+   finalized new visible findings as visible findings marked `no_longer_visible`; full reviews
+   are excluded from this comparison.
 4. A delegate handed back to brainstorm or plan.
 
 Endings 2–4 add to the terminal report the choice "run more or accept the rest and finish" and
 any hand-back reason. "Run more" continues the same run (streaks kept), findings still open, at
 step 1 if untraced plan steps remain, else at step 3; a new limit, if any, is the person's to set.
-That comparison excludes full reviews. A new invocation resets all streaks and ignores inherited
-evaluations; "run more" keeps them.
 
 ## Terminal report
 
 Always: artifacts and commits, verification results from the implement report, how to view
 the diff. When present: fixed findings, forwarded observations, reasoned out-of-plan changes, open
 findings needing the person, and rules or sections identified as absent from the specification.
-This is the person's one check;
-merging is theirs. Cycle never merges, publishes, deletes branches or worktrees, edits the
+This is the person's one check; merging is theirs. Cycle never merges, publishes, deletes branches or worktrees, edits the
 specification, manages issues, or runs two plans at once.
