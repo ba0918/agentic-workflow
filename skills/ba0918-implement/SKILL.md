@@ -58,8 +58,9 @@ tool for the ecosystem. If none decides it, hand back to plan.
   or session chronology.
 - Fixes outside the plan that do not change its thrust: commit them with the reason recorded,
   and list them in the final report. Anything that changes the thrust is a hand-back.
-- Do not invent verification of verification: tests of checks or helpers, or tests pinning
-  workflow prose, are created only when the plan, finding, or specification requires them.
+- Do not invent verification of verification: tests whose subject is a check or test helper itself,
+  and tests pinning workflow prose, are created only when the plan, finding, or specification
+  requires them. This does not bar unit tests of product helpers for behavior they support.
 - For a deletion finding, no failing test is needed. Completion evidence is all existing checks
   passing after deletion.
 - Keeping secrets out of commits is your responsibility; nothing scans for you.
