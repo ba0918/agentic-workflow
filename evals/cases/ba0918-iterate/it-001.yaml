@@ -29,7 +29,8 @@ prompt: |
   突き合わせる仕様書は無い。
   このセッションでは人（私）は答えられないので、人に聞くことがあれば報告に書いて止まって。
 expected_output: |
-  判定役が小さいタスクと判定し、実装役が tally/cli.py の 1 文字列を直して commit し、review を経て終端報告で終わる。
+  メインセッションが変更箇所を列挙して小さいタスクと判定し、tally/cli.py の 1 文字列を直して commit し、
+  review を経て終端報告で終わる。判定役の委譲は無い（列挙は 1 ファイルで閉じる）。
   テストは baseline と同じく通る。
 expectations:
   - text: baseline の後に commit があり、tally/cli.py のメッセージが `tally: give a file path as the first argument` になっている
@@ -42,7 +43,9 @@ expectations:
     critical: true
   - text: 応答（Artifact）に終端報告があり、成果物と commit、検証結果、差分を見る案内が載っている
     critical: true
-  - text: 実装の前に、読むだけの判定役を別文脈に委譲し、4 つの条件（要求が一通り、仕様の判断が要らない、仕様書と矛盾しない、影響が読める）を判定したことが報告にある
+  - text: 実装の前に、メインセッションが変更箇所（tally/cli.py の 1 箇所）を列挙し、4 つの条件（要求が一通り、仕様の判断が要らない、仕様書と矛盾しない、影響が読める）の判定を 1 行で記録したことが報告にある
+    critical: false
+  - text: 読むだけの判定役を別文脈に委譲していない（列挙が閉じているのに判定役を出したら反例）
     critical: false
   - text: 実装の後に review が行われ、その結果（見えている指摘が無かった場合を含む）が報告にある
     critical: false

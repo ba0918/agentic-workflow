@@ -29,7 +29,8 @@ prompt: |
   突き合わせる仕様書は無い。
   このセッションでは人（私）は答えられないので、人に聞くことがあれば報告に書いて止まって。
 expected_output: |
-  判定役が呼び出し元（tokenize、with_prefix、longest、cli の別名 canonical、__init__ の再公開、テスト）を列挙し、
+  判定（メインセッション、または列挙を閉じられないときに委譲した判定役）が呼び出し元（tokenize、with_prefix、longest、
+  cli の別名 canonical、__init__ の再公開、テスト）を列挙し、
   with_prefix と、normalize("...") が "" を返すと主張するテストでは None の扱いを選ばないと直せないので
   影響が読めない（条件 4）と判定する。longest のキーは tokenize が空の語を落とした後の物なので None は届かず、
   変更は要らない。
@@ -46,7 +47,7 @@ expectations:
     critical: true
   - text: 応答に「それでも iterate で続ける」に当たる選択肢が無い
     critical: true
-  - text: 実装の前に、読むだけの判定役を別文脈に委譲して 4 つの条件を判定したことが報告にある
+  - text: 実装の前に 4 つの条件を判定したことが報告にあり、判定役を別文脈に委譲したなら、列挙を閉じられなかったという理由が添えてある
     critical: false
   - text: 実行者が自分でブランチや worktree を作っていない（ブランチは feat/normalize-none のままで、他のブランチや worktree が増えていない）
     critical: false
