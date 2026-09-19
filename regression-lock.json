@@ -129,7 +129,7 @@
       "carried_note": "実走なし。再開の連続を 2 種類と明記した文言の直しで、既存 scenario が確かめる規則に触れない。",
       "file_sha256": {
         "skills/ba0918-cycle/SKILL.md": "7dfd883b11b05e49cf5f459f0b156c6f3371a0ff0db73011aa59d21efdb988b8",
-        "skills/ba0918-iterate/SKILL.md": "bbbc518590a558a88c0d4cb8650787b9e096e5af0ca7e6c5b044dec7d76d70aa"
+        "skills/ba0918-iterate/SKILL.md": "0e620b526e87fd411e0499e930f5ceea786c6b7d95aa299b405695669c92f78b"
       },
       "note": "実走なし。工程を既定で足さない改訂（判定と実装はメインセッション、工程は宣言が挙げた物だけ）に合わせて it-001 / it-002 の期待を書き換えた。実走は ROADMAP の次の効果測定と同時に取る",
       "result": "accepted-without-run",
