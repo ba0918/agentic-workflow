@@ -10,6 +10,25 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `ba0918-using-workflow` — decides how much of the workflow runs as well as where
+  it starts. No station is added by default; adding one needs a one-line reason stated before
+  acting, and the entry table gains a first row for editing directly. Carries the reasons for
+  each station, the three things never traded away, and the four signs of outside reach.
+- **BREAKING** `ba0918-review` — launches one reviewer by default, adding a conformance reviewer
+  only when a counterpart exists and no machine check sees the match. Two reviewers are no longer
+  the default, and a review only runs when interdependent change sites let the implementation
+  contradict itself.
+- **BREAKING** `ba0918-cycle` — runs a second full review only when a fix could spread beyond
+  where it was made, and delegates nothing the caller's reason did not name.
+- **BREAKING** `ba0918-iterate` — judges the four small-task conditions in the main session,
+  delegating a judge only when the impact enumeration cannot be closed, and implements in the
+  main session when delegated implementation was not named.
+- **BREAKING** `ba0918-plan` — reviews the plan only when its steps can contradict each other.
+- **BREAKING** `ba0918-brainstorm` — reviews the specification only when its requirements can
+  contradict each other.
+
 ## [0.4.0] - 2026-09-03
 
 ### Changed

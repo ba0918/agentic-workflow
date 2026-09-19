@@ -101,9 +101,13 @@ Source: `ba0918-verification`, agentic-rules v0.8.0.
 
 ## Finishing
 
-1. Adversarial review by separate-context agents, at least two: the specification's own quality,
-   and conformance to the brainstorm record plus the repository's principles document when it
-   keeps one (`docs/principles.md` by convention). New findings become branches; keep asking.
+1. Adversarial review, only when the specification's own requirements can contradict each other —
+   several interdependent requirements, or one the record and the principles could pull apart.
+   Say that reason, then launch one separate-context agent on the specification's own quality,
+   and a second on conformance to the brainstorm record plus the repository's principles document
+   when it keeps one (`docs/principles.md` by convention) — that second one only when the record
+   is long enough that reading it back here would not catch the drift. A specification of a few
+   standalone requirements gets none. New findings become branches; keep asking.
 2. Check the conditions for handing to plan: one deliverable (one branch); result in one sentence;
    built and unbuilt scope; stored state and its lifetime decided or confirmed absent; external
    dependencies accepted or rejected; human decision points and what they see; headings to

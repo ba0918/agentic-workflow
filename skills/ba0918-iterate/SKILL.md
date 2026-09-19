@@ -1,12 +1,12 @@
 ---
 name: ba0918-iterate
-description: "Entry point beside the ba0918 workflow for a task too small to need a specification or a plan: a separate-context judge reads the repository and proposes a verdict on whether the request is a small task, this skill decides, then the cycle loop runs implementation, review, and fixing on it; anything bigger is turned away with the next skill to call. Use when asked to iterate, for one more fix, to fix this bit, to add this too, or to polish it a little more. 日本語キーワード: iterate ちょっと直して これも足して もう少し磨いて 小さいタスク"
+description: "Entry point beside the ba0918 workflow for a task too small to need a specification or a plan: this session judges whether the request is a small task, delegating a read-only judge only when it cannot close the impact enumeration, then the cycle loop runs implementation, review, and fixing on it, adding only the stations the caller's one-line reason named; anything bigger is turned away with the next skill to call. Use when asked to iterate, for one more fix, to fix this bit, to add this too, or to polish it a little more. 日本語キーワード: iterate ちょっと直して これも足して もう少し磨いて 小さいタスク"
 ---
 
 # Iterate
 
-Run cycle's loop on a **request** instead of a plan, once a read-only judgment says the task is small.
-Delegate everything: never implement, review, fix, or judge here. A person starts this skill from the
+Run cycle's loop on a **request** instead of a plan, once judged small. Delegate only what the
+caller's reason named: review always in separate contexts, judgment and implementation only when named. A person starts this skill from the
 conversation; cycle never calls it and hands nothing over — what the main session learned there goes
 into the request; a findings file on the branch is inherited state (see the loop). Required inputs: the
 request, and the branch with its worktree path; missing either, stop: the main session prepares them
@@ -39,8 +39,11 @@ whose callers all enumerate and change mechanically: small; four callers enumera
 a choice on its return value: not readable. "Make the error message clearer": one reading only with
 the wording given.
 
-Before implementation, delegate a read-only judgment to a separate-context **judge** (not an
-investigation, which starts from a symptom) with a self-contained prompt: the request; the worktree
+The four conditions are judged here by default: this session already holds the context a judge
+would re-read, so it enumerates the impact itself and records the verdict in one line. Delegate a
+read-only **judge** (not an investigation, which starts from a symptom) only when the enumeration
+cannot be closed — condition 4 in doubt — and say so; a judge over a closed enumeration is a
+counter-example. When delegated, the prompt is self-contained: the request; the worktree
 path; the specification path if given, else the duty to search the specification home the project's
 instructions name and report one covering the files to change; the four conditions verbatim; the return
 shape (the files and their changes, plus a verdict with grounds per condition); and, in full, these
@@ -88,7 +91,8 @@ read before the first review); "cycle" there means this run. Only these substitu
 | any other plan word meaning the plan (one plan at once, out-of-plan changes) | the request (out-of-request changes); plan as a skill name, a destination, stays; sentences about plan steps (do not interpret its steps, if steps remain) do not apply — there is no plan |
 
 The **implementer** is cycle's fixer contract pasted in full, the request replacing the visible
-findings; the implement skill is not used. It returns commits, evidence per completion kind,
+findings; the implement skill is not used. Where the reason did not name delegated
+implementation, this session implements under that same contract, the rest of the loop unchanged. It returns commits, evidence per completion kind,
 out-of-request changes with reasons — or a hand-back and why. The enumeration goes along as reading
 material, marked as not an order — handing it as steps is a counter-example — yet it caps the files to
 touch (edit, create, delete, rename; tests included): one outside it — hand back, never touch or report
