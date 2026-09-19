@@ -65,7 +65,10 @@ cannot be enumerated. A fifth needs a real incident behind it.
 
 Rows below the first fire only for what the line named. A small task is ba0918-iterate's own
 definition; an unreadable impact or a specification decision makes a change medium or larger. A
-request to change a specification goes to ba0918-brainstorm with its path, not the plan row.
+request to change a specification goes to ba0918-brainstorm with its path, not the plan row. A bare
+"fix it" leaves the person the path of this session fixing it directly. "Make the error message
+clearer" with no wording given reads two ways: ba0918-brainstorm, not a small task. A defect sent to
+ba0918-investigate continues from its report's recommended next action, which names the next entry.
 
 ## Exceptions
 
