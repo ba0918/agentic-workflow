@@ -18,8 +18,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   each station, the three things never traded away, and the four signs of outside reach.
 - **BREAKING** `ba0918-review` — launches one reviewer by default, adding a conformance reviewer
   only when a counterpart exists and no machine check sees the match. Two reviewers are no longer
-  the default, and a review only runs when interdependent change sites let the implementation
-  contradict itself.
+  the default, and whether a review runs at all is the caller's gate — interdependent change sites
+  that let the implementation contradict itself — which cycle's first full review has already passed.
 - **BREAKING** `ba0918-cycle` — runs a second full review only when a fix could spread beyond
   where it was made, and delegates nothing the caller's reason did not name.
 - **BREAKING** `ba0918-iterate` — judges the four small-task conditions in the main session,
