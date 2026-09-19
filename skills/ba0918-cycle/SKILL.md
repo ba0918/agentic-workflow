@@ -3,8 +3,9 @@ name: ba0918-cycle
 description: >-
   Workflow station of the ba0918 workflow: a small orchestrator that takes an approved plan and a
   branch, delegates implementation, review, and fixing to separate-context agents, and loops full
-  review → diff loop → full review until findings converge, then hands the result to the person
-  once. Use when asked to run a ba0918 cycle on a plan, or to resume one. 日本語キーワード:
+  review → diff loop until findings converge, adding a second full review only when a fix could
+  spread, then hands the result to the person once. Use when asked to run a ba0918 cycle on a
+  plan, or to resume one. 日本語キーワード:
   サイクル 実装ループ 改善ループ オーケストレータ 手順書を回す
 ---
 
@@ -21,6 +22,11 @@ before cycle starts; the branch name contains the plan name.
 Optional: round-trip limit (default none: loop until convergence), review strength (the
 person's choice, default `standard`), comparison base (default: merge-base with the branch's
 parent), profiles (default: chosen from changed paths by the review skill's path mapping).
+
+Cycle runs only what the caller's one-line reason named. Nothing here is assumed: how many
+reviewer perspectives a review launches is the review skill's gate, and a second full review
+happens only under step 4's condition. Delegating more than the reason asked for is a
+counter-example.
 
 Read the plan only to find the specification path it names; do not interpret its steps.
 The findings file is `.agents/artifacts/reviews/<branch>.json` (a `/` in the branch name is a
@@ -47,13 +53,15 @@ rules, paste the Evidence conditions from
 3. Diff loop: delegate the **visible findings** to a fixer; then diff review (changes since the
    last review, the open findings with IDs, profiles, strength, specification path). Repeat until
    no visible finding remains.
-4. Last full review. Visible findings → one more diff loop until none remain; then converged.
+4. A second full review only when a fix could spread beyond where it was made; name that reason
+   before running it. Its visible findings → one more diff loop until none remain; then converged.
+   With no such reason, the diff loop clearing every visible finding is convergence.
 
 Visible findings = open findings whose final action is `auto_fix` or `fix_and_verify`. Findings with
-`human_judgment` or `record_only` are never delegated; they stay open for the terminal report. The
-second full review cancels the taint a diff review carries from seeing prior findings. A **round
-trip** is one review invocation (any number of reviewers, full or diff, the first one included). The
-limit, when the person set one, counts round trips.
+`human_judgment` or `record_only` are never delegated; they stay open for the terminal report. When
+it runs, the second full review cancels the taint a diff review carries from seeing prior findings.
+A **round trip** is one review invocation (any number of reviewers, full or diff, the first one
+included). The limit, when the person set one, counts round trips.
 
 ## Delegations
 
@@ -112,7 +120,7 @@ it was closed `accepted`. Reviewers only evaluate; the fixer only reports commit
 
 ## Endings
 
-1. Converged: the last full review returned no visible finding, or the diff loop after it cleared them.
+1. Converged: the last review returned no visible finding, or the diff loop after it cleared them.
 2. The person's round-trip limit was reached.
 3. No progress: a finding is `still_present` in two consecutive rounds that evaluated it (the
    second after a changed approach); a closed finding's cause returns; or a review still cannot

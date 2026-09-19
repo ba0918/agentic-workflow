@@ -46,8 +46,11 @@ check / artifact / external); choices left open; when to stop and hand back.
 
 1. Self-check against `references/step-template.md`: every step has all fields; every referenced
    heading exists in the specification; no step decides a specification question.
-2. Adversarial review by separate-context agents, at least two: one on the plan's own quality,
-   one checking it against the specification. Findings that need no decision are fixed
+2. Adversarial review, only when the plan's own decisions can contradict each other — steps that
+   depend on one another, or one specification heading driving several steps. Say that reason,
+   then launch one separate-context agent on the plan's own quality, and a second against the
+   specification only when the match is one no check can make. A plan whose steps stand alone
+   gets none. Findings that need no decision are fixed
    directly. Findings that need a decision: under the four stop conditions (missing meaning or
    departure from approved content; irreversible, privileged, or dangerous operation; spreading
    accident; no progress after a changed approach) stop and ask the person now; otherwise decide
