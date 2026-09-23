@@ -5,6 +5,7 @@ skill は `skills/ba0918-investigate/` に置き、本文と参照資料は LLM 
 両者の意味が食い違ったときは、この文書を正とする。
 この文書の上位に理念（`docs/principles.md`）があり、食い違ったときは理念に従う。
 用語集はリポジトリ直下の `CONTEXT.md` にある。
+仕様書の粒度と分け方は[仕様書の分け方 仕様](spec-documents.md)にある。
 
 investigate は、開発ワークフロー仕様（`docs/spec/workflow.md`）が定める 5 つの skill の流れの外にある独立した skill である。
 5 つの流れには加わらず、その仕様書も変えない。
