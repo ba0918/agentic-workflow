@@ -23,6 +23,9 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   every one its steps rest on, and references them by Markdown link and heading.
 - **BREAKING** `ba0918-cycle` — reads the specification paths the plan lists, one or more, and
   hands only those to review as the counterpart, never an index or an unrelated specification.
+- **BREAKING** `ba0918-iterate` — takes several specification paths to match against, never an
+  index. When none is given, whoever judges finds every specification covering the files to
+  change, indexes not counted.
 
 ## [0.5.0] - 2026-09-20
 
