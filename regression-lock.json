@@ -2,12 +2,13 @@
   "coverage_exempt": {},
   "skills": {
     "ba0918-brainstorm": {
-      "carried_note": "実走なし。落ちていた限定語を戻しただけで、既存 scenario が確かめる規則に触れない。",
+      "carried_note": "実走なし。工程を既定で足さない改訂。既存 scenario の期待は reviewer の体数と 2 回目のフルレビューに触れない（rg で確認）。実走は ROADMAP の次の効果測定と同時に取る",
       "file_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "67d1d0afee399a582a57eef2e006f5c2f68327289fc290c2e33c3373d0cdc35a",
-        "skills/ba0918-brainstorm/references/records.md": "40c4a564b3472492b95cf6304c931e5ee1443e5b5cf47ea3cbb4876431684964"
+        "skills/ba0918-brainstorm/SKILL.md": "e1d39ed239569cda32fadbf6aa553371339f5d5ce6c5ea4686c761d63b064af8",
+        "skills/ba0918-brainstorm/references/records.md": "5ab127a12f409cb2298319e012448bc4e23508ef3871b08c9cc3f8e1471d5313",
+        "skills/ba0918-brainstorm/references/spec-documents.md": "a877d9d09839d92641a68c937e823149b24acc1ea7b6178bb1273bc58e8e0743"
       },
-      "note": "実走なし。工程を既定で足さない改訂。既存 scenario の期待は reviewer の体数と 2 回目のフルレビューに触れない（rg で確認）。実走は ROADMAP の次の効果測定と同時に取る",
+      "note": "実走なし（人が頼んでいない）。仕様書を責務で分けリンクで参照する約束と、途中経過のファイル名を題材の名前にする改訂。bs-001 と bs-002 の期待（途中経過のファイルと記録の見出し、docs/spec/ に書かないこと）は 1 本の仕様書と題材名が仕様書名と同じ場合も変わらず満たせるので触れない",
       "result": "accepted-without-run",
       "scenarios": {
         "bs-001": {
@@ -22,26 +23,28 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "ce83a796529ca8cf203fe2702e22d96437a7e3338b0a7f20fcd7aaa3ce89b92a",
-        "skills/ba0918-brainstorm/references/records.md": "b909bfb73ed9dfd19832ba1047a7c66ac2f6038e7265f92e5e565802b042032f"
+        "skills/ba0918-brainstorm/SKILL.md": "ab3ab94a145359ff352f563aed37f1a7f0cafea348f23e6a28b204607a9752bb",
+        "skills/ba0918-brainstorm/references/records.md": "b4e4f4a4b0a2cb31d71dd890dceaf066e10a1f65a71581d17ace3caf1f09298a",
+        "skills/ba0918-brainstorm/references/spec-documents.md": "e69c8780a7c715837f91862726e7dd9dc84490a70cbfb624ec263dc5cd7094bf"
       },
       "surface": [
         "skills/ba0918-brainstorm/SKILL.md",
-        "skills/ba0918-brainstorm/references/records.md"
+        "skills/ba0918-brainstorm/references/records.md",
+        "skills/ba0918-brainstorm/references/spec-documents.md"
       ],
-      "surface_sha256": "5e5e8d94d97d121c35a69e5dbbf5facdbb9b4c88db109cc8789fadc182fe81a3",
-      "verified": "2026-09-20"
+      "surface_sha256": "466869a0d8f5484495be577398ea2735830e16eba3b19c9aa99bff9b55e72100",
+      "verified": "2026-09-24"
     },
     "ba0918-cycle": {
-      "carried_note": "実走なし。再開の連続を 2 種類と明記した 1 語の直しで、既存 scenario が確かめる規則に触れない。",
+      "carried_note": "実走なし。工程を既定で足さない改訂。既存 scenario の期待は reviewer の体数と 2 回目のフルレビューに触れない（rg で確認）。実走は ROADMAP の次の効果測定と同時に取る",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "7dfd883b11b05e49cf5f459f0b156c6f3371a0ff0db73011aa59d21efdb988b8",
+        "skills/ba0918-cycle/SKILL.md": "bf4b58cac6d21be3c04600aaba7604fe1260c918f2c00f52c089a07bd41141c3",
         "skills/ba0918-review/SKILL.md": "4041c20f449dda079a61094700e28a1b03ffc223bc7dde34caaf03f650f53ae5",
         "skills/ba0918-review/references/finding-schema.md": "93044d2569ceb1eaef175ecf5554afb5250a3f10c2f53d79d8a57d7a9aaa8870",
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "5f0e396775292e9019c2ebf04c45b954b31b67764264131ca2f48c6ff5d14aeb"
       },
-      "note": "実走なし。工程を既定で足さない改訂。既存 scenario の期待は reviewer の体数と 2 回目のフルレビューに触れない（rg で確認）。実走は ROADMAP の次の効果測定と同時に取る",
+      "note": "実走なし（人が頼んでいない）。手順書が挙げた仕様書のパスを複数読み、それだけを review の突き合わせ相手に渡す改訂。cy-001 の手順書は仕様書を 1 本挙げるだけなので、この変更に触れない",
       "result": "accepted-without-run",
       "scenarios": {
         "cy-001": {
@@ -51,7 +54,7 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "711a1fd9c7a6cb0a804dff9aa0d03f3dfc41b10622c8ee2020ebda5716a9171a",
+        "skills/ba0918-cycle/SKILL.md": "93d4473936ecf6779dc69a5c4b5d0468220e8ced2839bf4f72b20e597dc34141",
         "skills/ba0918-review/SKILL.md": "df1908ef6aa2368e256920e476a16a944b1b62497d523add1cb40f055b3f6813",
         "skills/ba0918-review/references/finding-schema.md": "299b560007a18d18382acafb3768bcea4ff2804f9b087c2c6c8e7cabdaf01ffc",
         "skills/ba0918-review/references/oracle-evidence.md": "bee01b1b9f70426b62e10f42ce74cdc5b9db202564a87ce3cf95f4f4347b7b29",
@@ -64,8 +67,8 @@
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "1256fd2b410a81cf9b4cdd2703a7d9554da33bba2340fb57755f9146417a1b83",
-      "verified": "2026-09-20"
+      "surface_sha256": "91261ec199f2b824708dc7b26a107b9577aad8ff37778b45e9fd3483898a1f3c",
+      "verified": "2026-09-24"
     },
     "ba0918-implement": {
       "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
@@ -126,12 +129,12 @@
       "verified": "2026-09-01"
     },
     "ba0918-iterate": {
-      "carried_note": "実走なし。再開の連続を 2 種類と明記した文言の直しで、既存 scenario が確かめる規則に触れない。",
+      "carried_note": "実走なし。工程を既定で足さない改訂（判定と実装はメインセッション、工程は宣言が挙げた物だけ）に合わせて it-001 / it-002 の期待を書き換えた。実走は ROADMAP の次の効果測定と同時に取る",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "7dfd883b11b05e49cf5f459f0b156c6f3371a0ff0db73011aa59d21efdb988b8",
-        "skills/ba0918-iterate/SKILL.md": "0e620b526e87fd411e0499e930f5ceea786c6b7d95aa299b405695669c92f78b"
+        "skills/ba0918-cycle/SKILL.md": "bf4b58cac6d21be3c04600aaba7604fe1260c918f2c00f52c089a07bd41141c3",
+        "skills/ba0918-iterate/SKILL.md": "233e191dbe55edf86af8d6283e5724e9fe3d9eddf57a303073e4903655dbb5a2"
       },
-      "note": "実走なし。工程を既定で足さない改訂（判定と実装はメインセッション、工程は宣言が挙げた物だけ）に合わせて it-001 / it-002 の期待を書き換えた。実走は ROADMAP の次の効果測定と同時に取る",
+      "note": "実走なし（人が頼んでいない）。突き合わせる仕様書のパスを複数にし、探すときは変更する場所を扱う物を全部見つけ索引を数えない改訂。it-001 と it-002 の期待は仕様書の本数に触れない",
       "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
@@ -146,23 +149,23 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "711a1fd9c7a6cb0a804dff9aa0d03f3dfc41b10622c8ee2020ebda5716a9171a",
-        "skills/ba0918-iterate/SKILL.md": "073924125f8bb17acf9ddc0f33df4ff450b085501a5058cc79f37845e60d7de5"
+        "skills/ba0918-cycle/SKILL.md": "93d4473936ecf6779dc69a5c4b5d0468220e8ced2839bf4f72b20e597dc34141",
+        "skills/ba0918-iterate/SKILL.md": "7432a44759b14c53339f1b691803bdbcd56ce707491d143b78680713489f34c4"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "ae05ef34af12f0fc1ea75d16cb7a634c9c38b9ccb36312aea1a56bef2d12525f",
-      "verified": "2026-09-20"
+      "surface_sha256": "093535b76553d6d2ad8294fa4ff73a9700613a051e4b9520c3457122194a76e7",
+      "verified": "2026-09-24"
     },
     "ba0918-plan": {
-      "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
+      "carried_note": "実走なし。工程を既定で足さない改訂。既存 scenario の期待は reviewer の体数と 2 回目のフルレビューに触れない（rg で確認）。実走は ROADMAP の次の効果測定と同時に取る",
       "file_sha256": {
-        "skills/ba0918-plan/SKILL.md": "817cd7161fc4e3344fae22319303511469cefd2c9dd3443fd86056b5ea7ae989",
-        "skills/ba0918-plan/references/step-template.md": "785fd372b3f16823d0fca6a2c123fe064f29c06113f4bb0cbcaecfd74ba7eae0"
+        "skills/ba0918-plan/SKILL.md": "34688b5c9a3e1e45c0d87eedd90976ec1e1ac805027442cad8b9292614655c39",
+        "skills/ba0918-plan/references/step-template.md": "b10e4153909e86033b7a76a243bb32b6912a997fa43c9d43f25a5ba353af6cb3"
       },
-      "note": "実走なし。工程を既定で足さない改訂。既存 scenario の期待は reviewer の体数と 2 回目のフルレビューに触れない（rg で確認）。実走は ROADMAP の次の効果測定と同時に取る",
+      "note": "実走なし（人が頼んでいない）。仕様書のパスを複数受け取り、リンクと見出しで参照する改訂。pl-001 と pl-002 は 1 本の仕様書から手順書を作り見出しの実在を見るだけなので、この変更に触れない",
       "result": "accepted-without-run",
       "scenarios": {
         "pl-001": {
@@ -177,15 +180,15 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-plan/SKILL.md": "aa3c80818bed3c48d27f9ddf93d2759eac6b5bf3d97bf54e04e47e225a05ac91",
-        "skills/ba0918-plan/references/step-template.md": "fd09bdcfb0eee94bc559ecbbf5748fbcbab99280b5dceb2a5b23020e6877dade"
+        "skills/ba0918-plan/SKILL.md": "8cf912eb9f9079fa2d3ff207084a5c8475b23b5a5c532490e459d343d23f81f0",
+        "skills/ba0918-plan/references/step-template.md": "0ce66c01e9759c139b1f70e2bb12e6d15e11518873e2dca0a48fb8e4bdc2db4b"
       },
       "surface": [
         "skills/ba0918-plan/SKILL.md",
         "skills/ba0918-plan/references/step-template.md"
       ],
-      "surface_sha256": "fe14d72cb7b713a5285a7a1849059e24444480f4035852b9ca544632a0950adf",
-      "verified": "2026-09-20"
+      "surface_sha256": "4ed9dbc2ee18bdce2abe5052a03f821cedacae51afb028fc5d8c5d58c6c2fdcc",
+      "verified": "2026-09-24"
     },
     "ba0918-review": {
       "carried_note": "実走なし。文言の補いで、既存 scenario が確かめる規則に触れない。",
