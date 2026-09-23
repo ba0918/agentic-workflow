@@ -15,9 +15,10 @@ In: what the person wants to talk about; when revising, the existing specificati
 index's path when that scope is split). Before the first round, list `.agents/tmp/brainstorm-*.md`
 and resume from a matching progress file; otherwise name it for the topic — a short name for what
 this session discusses, or the index's name when revising a split scope.
-Out: the specifications (`docs/spec/<name>.md`), approved and committed, plus glossary updates and
-the list of specification paths changed. One session may change several specifications. Progress
-lives in `.agents/tmp/brainstorm-<topic>.md` and is deleted after approval.
+Out: the specifications under the project's specification home (`docs/spec/` in the usual
+layout), approved and committed, plus glossary updates and the list of specification paths
+changed. One session may change several specifications. Progress lives in
+`.agents/tmp/brainstorm-<topic>.md` and is deleted after approval.
 
 ## The tree and its rounds
 
