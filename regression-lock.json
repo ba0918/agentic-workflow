@@ -2,13 +2,13 @@
   "coverage_exempt": {},
   "skills": {
     "ba0918-brainstorm": {
-      "carried_note": "実走なし。工程を既定で足さない改訂。既存 scenario の期待は reviewer の体数と 2 回目のフルレビューに触れない（rg で確認）。実走は ROADMAP の次の効果測定と同時に取る",
+      "carried_note": "実走なし（人が頼んでいない）。仕様書を責務で分けリンクで参照する約束と、途中経過のファイル名を題材の名前にする改訂。bs-001 と bs-002 の期待（途中経過のファイルと記録の見出し、docs/spec/ に書かないこと）は 1 本の仕様書と題材名が仕様書名と同じ場合も変わらず満たせるので触れない",
       "file_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "e1d39ed239569cda32fadbf6aa553371339f5d5ce6c5ea4686c761d63b064af8",
+        "skills/ba0918-brainstorm/SKILL.md": "340ba5a41222d7b1b1b89563c8bbf06d86b6da6acac24718cd18bf3dde2e69dc",
         "skills/ba0918-brainstorm/references/records.md": "5ab127a12f409cb2298319e012448bc4e23508ef3871b08c9cc3f8e1471d5313",
-        "skills/ba0918-brainstorm/references/spec-documents.md": "a877d9d09839d92641a68c937e823149b24acc1ea7b6178bb1273bc58e8e0743"
+        "skills/ba0918-brainstorm/references/spec-documents.md": "0122e3b9b6ed5f1f57077adebd9ef56b3c98d4a9c339b92237c14da7a40d4354"
       },
-      "note": "実走なし（人が頼んでいない）。仕様書を責務で分けリンクで参照する約束と、途中経過のファイル名を題材の名前にする改訂。bs-001 と bs-002 の期待（途中経過のファイルと記録の見出し、docs/spec/ に書かないこと）は 1 本の仕様書と題材名が仕様書名と同じ場合も変わらず満たせるので触れない",
+      "note": "not run; wording fix of the guide trigger and layout sentence; existing scenarios bs-001/bs-002 do not touch these rules",
       "result": "accepted-without-run",
       "scenarios": {
         "bs-001": {
@@ -23,7 +23,7 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "ab3ab94a145359ff352f563aed37f1a7f0cafea348f23e6a28b204607a9752bb",
+        "skills/ba0918-brainstorm/SKILL.md": "de289c6b6303bdb6280de0ca7e9503b71ee9945ed6a1b3f688b097945908cfc0",
         "skills/ba0918-brainstorm/references/records.md": "b4e4f4a4b0a2cb31d71dd890dceaf066e10a1f65a71581d17ace3caf1f09298a",
         "skills/ba0918-brainstorm/references/spec-documents.md": "e69c8780a7c715837f91862726e7dd9dc84490a70cbfb624ec263dc5cd7094bf"
       },
@@ -32,7 +32,7 @@
         "skills/ba0918-brainstorm/references/records.md",
         "skills/ba0918-brainstorm/references/spec-documents.md"
       ],
-      "surface_sha256": "466869a0d8f5484495be577398ea2735830e16eba3b19c9aa99bff9b55e72100",
+      "surface_sha256": "06f84064a2140e07fbf093562a8954c9645f303fcdec3df9311c76b971965495",
       "verified": "2026-09-24"
     },
     "ba0918-cycle": {
