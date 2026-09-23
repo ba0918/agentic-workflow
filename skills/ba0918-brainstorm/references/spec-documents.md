@@ -34,14 +34,15 @@ fix them in the same change; no tool checks links for you.
 ## When to split
 
 The guide for one specification is 300 lines, counted as the file's raw line count. The number
-has no grounds yet; it is a placeholder. When a revision would take a specification past it,
-check whether its responsibilities are mixed. If they are, carve out only the responsibility this
-revision touches into its own specification and leave the rest as it is; if not, leave it whole.
+has no grounds yet; it is a placeholder. When you revise a specification and it is over the
+guide after the revision, check whether its responsibilities are mixed. If they are, carve out
+only the responsibility this revision touches into its own specification and leave the rest as
+it is; if not, leave it whole.
 Show your conclusion and what you carved out as a judgment point when asking for approval.
 Cutting sentences to fit the number, or splitting where no responsibility boundary runs, is a
 counter-example: promises that depend on each other, once split apart, hide their
-contradictions. Never reorganize an already large specification wholesale; check it when a
-revision reaches the guide.
+contradictions. Never reorganize an already large specification wholesale; the check above
+reaches it the next time a revision touches it.
 
 ## After a split
 
