@@ -10,6 +10,15 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `ba0918-brainstorm` — splits specifications by responsibility and keeps each fact
+  in one place, referring to others by Markdown link. One session may change several
+  specifications and returns the list of paths it changed. Before writing it searches for the
+  same fact and rereads the specifications that link to any heading it changes; past a 300-line
+  guide it checks for mixed responsibilities. The finishing review sees only the changed
+  specifications and those one link away.
+
 ## [0.5.0] - 2026-09-20
 
 ### Changed
