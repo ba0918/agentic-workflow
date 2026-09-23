@@ -11,11 +11,14 @@ and the station never ends itself — it ends when the tree is exhausted and the
 
 ## Inputs and outputs
 
-In: what the person wants to talk about; when revising, the existing specification path.
-Before the first round, list `.agents/tmp/brainstorm-*.md` and resume from a matching progress
-file; otherwise name it for the specification you are heading toward, renaming when it settles.
-Out: `docs/spec/<name>.md`, approved and committed, plus glossary updates. Progress lives in
-`.agents/tmp/brainstorm-<name>.md` and is deleted after approval.
+In: what the person wants to talk about; when revising, the existing specification path (the
+index's path when that scope is split). Before the first round, list `.agents/tmp/brainstorm-*.md`
+and resume from a matching progress file; otherwise name it for the topic — a short name for what
+this session discusses, or the index's name when revising a split scope.
+Out: the specifications under the project's specification home (`docs/spec/` in the usual
+layout), approved and committed, plus glossary updates and the list of specification paths
+changed. One session may change several specifications. Progress lives in
+`.agents/tmp/brainstorm-<topic>.md` and is deleted after approval.
 
 ## The tree and its rounds
 
@@ -72,9 +75,13 @@ what). Never merge undecided with delegated. Overwrite only when meaning changes
 
 ## Writing the specification
 
-Before writing, check for drafts, contradictions, vague words, missing scope boundaries,
-related undecided items, and anything decided silently; any of these sends you back to the
-dialogue. Specification silence never means "implementer decides".
+Before writing, read `references/spec-documents.md`: whether to add to an existing specification
+or start a new one, where a fact already lives, links, and when to split. Check for drafts,
+contradictions, vague words, missing scope boundaries, related undecided items, and anything decided
+silently; any of these sends you back to the dialogue. Text-search the specifications for links to
+every heading you change and reread each one that links there for contradictions — every time,
+whether or not Finishing adds a review; left to a review, it goes unread when none is added.
+Specification silence never means "implementer decides".
 
 Each heading-addressable requirement has an observable success condition and a counter-example.
 Test its verification against **Evidence conditions**. On failure, express a non-code requirement
@@ -107,11 +114,13 @@ Source: `ba0918-verification`, agentic-rules v0.8.0.
    and a second on conformance to the brainstorm record plus the repository's principles document
    when it keeps one (`docs/principles.md` by convention) — that second one only when the record
    is long enough that reading it back here would not catch the drift. A specification of a few
-   standalone requirements gets none. New findings become branches; keep asking.
+   standalone requirements gets none. Give reviewers only the specifications changed and those
+   one link away, linking to them or linked from them — never the whole specification home: in a
+   large context, reviewers miss contradictions too. New findings become branches; keep asking.
 2. Check the conditions for handing to plan: one deliverable (one branch); result in one sentence;
    built and unbuilt scope; stored state and its lifetime decided or confirmed absent; external
    dependencies accepted or rejected; human decision points and what they see; headings to
    requirements.
-3. Stage the specification and the glossary change, give the path, the diff command, and the
+3. Stage the specifications and the glossary change, give the paths, the diff command, and the
    judgment points — never the full text, and never a summary as the thing approved. The person
    commits or says to. Then delete the progress file.

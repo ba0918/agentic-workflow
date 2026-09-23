@@ -12,7 +12,8 @@ named. A person starts this skill from the conversation; cycle never calls it an
 inherited state (see the loop). Required: the request, and the branch with its worktree path;
 missing either, stop: the main session prepares them beforehand — never create a branch or a
 worktree here. The branch name is short, for the request (no fixed prefix). Optional: cycle's four
-optional inputs plus the specification path to match against; defaults are cycle's. A **request** is
+optional inputs plus the specification paths to match against (several allowed, never an index);
+defaults are cycle's. A **request** is
 the person's words completed by what the main session knows — named files, settled direction, a
 preceding run's terminal report — into a self-contained text an implementer with no context can
 build from. "Fix that thing from before" arrives expanded into the file and the change; if one or
@@ -44,8 +45,9 @@ would re-read, so it enumerates the impact itself and records the verdict in one
 read-only **judge** (not an investigation, which starts from a symptom) only when the enumeration
 cannot be closed — condition 4 in doubt — and say so; a judge over a closed enumeration is a
 counter-example. When delegated, the prompt is self-contained: the request; the worktree
-path; the specification path if given, else the duty to search the specification home the project's
-instructions name and report one covering the files to change; the four conditions verbatim; the return
+path; the specification paths if given, else the duty to search the specification home the project's
+instructions name and report every specification covering the files to change, indexes not counted;
+the four conditions verbatim; the return
 shape (the files and their changes, plus a verdict with grounds per condition); and, in full, these
 restrictions: no editing, creating, overwriting, deleting, moving, or renaming any file, notebooks
 included; allowed — the only commands run — are reading files, listing paths, searching, read-only
@@ -54,8 +56,9 @@ forbidden, as examples (refuse anything else that changes state): `rm` `rmdir` `
 `touch` `mkdir` `tee`, output redirection, in-place rewriting, state-changing git; secrets reported as
 existing, never by value; the judge writes no file and never delegates further. Take `git status`
 yourself before and after; a difference is a spreading accident: stop, show the person, ask; never
-revert it. A found specification counts as given — for condition 3, review, and the guidance table's "if
-a specification exists"; none found, go on without; passing condition 3 unsearched is a counter-example.
+revert it. Judging here, search the same way. Found specifications count as given — for condition
+3, review, and the guidance table's "if a specification exists"; none found, go on without; passing
+condition 3 unsearched is a counter-example.
 The verdict is a proposal; the decision is here, as with reviewers in cycle; a test file the implementer
 needs test-first but the enumeration lacks is added here — that gap alone does not fail condition 4. No
 verdict: re-delegate once, then report none was possible and stop.
@@ -80,13 +83,13 @@ read before the first review); "cycle" there means this run. Only these substitu
 |---|---|
 | the required plan path | the request |
 | the branch name contains the plan name | a short name for the request |
-| the specification path read from the plan | the given path, or the specification the judgment found |
+| the specification paths the plan lists | the given paths, or the specifications the judgment found |
 | inferring done steps from the plan and `git log`, then delegating the rest to implement | no inference: the request goes to the implementer in one delegation, after the judgment |
-| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judgment's enumeration, the specification path if any, branch, worktree path), with hand-back reasons added to the contract: a file outside the enumeration; a contradiction with the specification; or a request that reads two ways |
-| the plan path in the fixer delegation | the request, and the specification path if any, with a hand-back reason added to the contract: a contradiction with the specification |
+| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judgment's enumeration, the specification paths if any, branch, worktree path), with hand-back reasons added to the contract: a file outside the enumeration; a contradiction with the specification; or a request that reads two ways |
+| the plan path in the fixer delegation | the request, and the specification paths if any, with a hand-back reason added to the contract: a contradiction with the specification |
 | the fixer contract's "the plan's commands in order, unedited" | check commands come from the project's instructions, then the ecosystem's standard tool |
 | "run more" re-entering at step 1 when steps remain | always the diff loop |
-| the specification path in review delegations | the specification path and the request, both |
+| the plan's specification paths in review delegations | the specification paths and the request, both |
 | ending 4 (a hand-back to brainstorm or plan) and its "run more or accept the rest" choice | the destination is one of the guidance table's three; the choice is not offered — the report (as in Out above) adds the hand-back reason and the guidance, and the person restarts with a new request holding their answer |
 | any other plan word meaning the plan (one plan at once, out-of-plan changes) | the request (out-of-request changes); plan as a skill name, a destination, stays; sentences about plan steps (do not interpret its steps, if steps remain) do not apply — there is no plan |
 

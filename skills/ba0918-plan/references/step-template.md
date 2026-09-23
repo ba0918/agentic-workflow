@@ -6,7 +6,7 @@ the order an implementer needs them.
 ```markdown
 ## Step N — <what this step produces>
 
-Purpose: <one sentence>. Specification: <path>#<heading>, <path>#<heading>.
+Purpose: <one sentence>. Specification: [<heading>](<path>#<anchor>), [<heading>](<path>#<anchor>).
 Prerequisites: <steps that must be complete; environment or data that must exist>.
 May change: <files or directories; nothing outside this scope>.
 Done when: <observable condition>.
@@ -18,8 +18,9 @@ Stop and hand back if: <conditions specific to this step, beyond the four genera
 
 Guidance per field:
 
-- **Specification** names headings, not paraphrases. If a heading you need does not exist, the
-  specification is missing something — hand back to brainstorm rather than inventing the content.
+- **Specification** links headings, not paraphrases, in any of the plan's specifications. If a
+  heading you need does not exist, the specification is missing something — hand back to
+  brainstorm rather than inventing the content.
 - **Done when** is a condition someone else can observe, not "the feature works".
 - **Shown by** picks exactly one kind. *Test* means RED → GREEN → REFACTOR with named tests.
   *Check* lists commands in order. *Artifact* names the file and any format check. *External*
@@ -37,10 +38,10 @@ Guidance per field:
   may already exist under another name.
 
 Plan-level sections that precede the steps: **Goal** (one sentence, the result the person
-gets), **Specification** (the one governing path), **Approach and why**, **Scope of change**,
-**Step order and prerequisites**, **Verification map** (which steps prove which specification
-sections), **Left to the implementer**, **Stop conditions**, **Test command** (only when the
-project does not fix one), **Out of scope**.
+gets), **Specification** (each specification the steps rest on, as a link), **Approach and
+why**, **Scope of change**, **Step order and prerequisites**, **Verification map** (which steps
+prove which specification sections), **Left to the implementer**, **Stop conditions**, **Test
+command** (only when the project does not fix one), **Out of scope**.
 
 ## Evidence conditions
 
