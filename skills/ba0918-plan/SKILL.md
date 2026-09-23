@@ -1,26 +1,28 @@
 ---
 name: ba0918-plan
-description: "Workflow station of the ba0918 workflow: turn an approved specification into one Markdown plan that an implementer with no prior context can execute, referencing specification sections instead of copying them, with per-step completion evidence and stop conditions. Use when asked to write or revise a ba0918 plan from a specification. 日本語キーワード: 実装計画 手順書 計画を立てる 仕様から計画"
+description: "Workflow station of the ba0918 workflow: turn approved specifications (one or several) into one Markdown plan that an implementer with no prior context can execute, referencing specification sections by link instead of copying them, with per-step completion evidence and stop conditions. Use when asked to write or revise a ba0918 plan from specifications. 日本語キーワード: 実装計画 手順書 計画を立てる 仕様から計画"
 ---
 
 # Plan
 
-Write the implementation plan for one approved specification. The reader is an LLM that knows
+Write the implementation plan for approved specifications. The reader is an LLM that knows
 nothing of this conversation; it gets the plan path, the repository, and nothing else. Anything
 the reader cannot recover from those must be in the plan.
 
 ## Inputs and outputs
 
-In: the path of a committed specification (uncommitted means unapproved — stop and say so).
+In: the paths of committed specifications, one or several (uncommitted means unapproved — stop
+and say so). Never traverse from an index. You may read the specifications they link to, one link
+deep; list every one a step rests on in the plan, linked ones included.
 Out: one Markdown file, `docs/plans/<name>.md`, approved by the person and committed. The
 implementation branch will carry `<name>`; choose a name that reads well in a branch.
 
 ## What a plan is
 
 Written in plain language, one file, no machine-oriented sections. It **references** the
-specification by path and section heading and never copies specification text: copies drift,
-and the implementer must read the sections anyway. What the plan adds is what only this plan
-knows — why this order, why these files, where to stop.
+specifications by Markdown link and section heading and never copies specification text: copies
+drift, and the implementer must read the sections anyway. What the plan adds is what only this
+plan knows — why this order, why these files, where to stop.
 
 Plan-level content: which specification sections each step verifies; approach and its
 rationale; the file scope that may change; step order and prerequisites; choices left to the
@@ -45,7 +47,7 @@ check / artifact / external); choices left open; when to stop and hand back.
 ## Finishing
 
 1. Self-check against `references/step-template.md`: every step has all fields; every referenced
-   heading exists in the specification; no step decides a specification question.
+   heading exists in its specification; no step decides a specification question.
 2. Adversarial review, only when the plan's own decisions can contradict each other — steps that
    depend on one another, or one specification heading driving several steps. Say that reason,
    then launch one separate-context agent on the plan's own quality, and a second against the

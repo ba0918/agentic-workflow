@@ -18,6 +18,9 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   same fact and rereads the specifications that link to any heading it changes; past a 300-line
   guide it checks for mixed responsibilities. The finishing review sees only the changed
   specifications and those one link away.
+- **BREAKING** `ba0918-plan` — takes the paths of several committed specifications, never
+  traversing from an index. It may read the specifications they link to, one link deep, lists
+  every one its steps rest on, and references them by Markdown link and heading.
 
 ## [0.5.0] - 2026-09-20
 
