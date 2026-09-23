@@ -21,6 +21,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - **BREAKING** `ba0918-plan` — takes the paths of several committed specifications, never
   traversing from an index. It may read the specifications they link to, one link deep, lists
   every one its steps rest on, and references them by Markdown link and heading.
+- **BREAKING** `ba0918-cycle` — reads the specification paths the plan lists, one or more, and
+  hands only those to review as the counterpart, never an index or an unrelated specification.
 
 ## [0.5.0] - 2026-09-20
 

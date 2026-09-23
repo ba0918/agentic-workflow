@@ -28,7 +28,9 @@ reviewer perspectives a review launches is the review skill's gate, and a second
 happens only under step 4's condition. Delegating more than the reason asked for is a
 counter-example.
 
-Read the plan only to find the specification path it names; do not interpret its steps.
+Read the plan only to find the specification paths it lists (one or more); do not interpret its
+steps. Those specifications, and only those, are review's counterpart — never an index or an
+unrelated specification.
 The findings file is `.agents/artifacts/reviews/<branch>.json` (a `/` in the branch name is a
 directory). If it already exists this is a resume: keep its findings, continue round numbers from
 the inherited maximum, and count both of ending 3's streaks from this start only (a returning closed cause
@@ -48,11 +50,11 @@ rules, paste the Evidence conditions from
 
 1. Delegate the plan path, branch, and worktree path to an implement agent, all remaining steps
    in one delegation.
-2. Full review: base..head, profiles, strength, specification path, plus the **known findings** (open
+2. Full review: base..head, profiles, strength, the plan's specification paths, plus the **known findings** (open
    `record_only` / `human_judgment`, closed `accepted`), never visible or fixed ones; a match is not raised again.
 3. Diff loop: delegate the **visible findings** to a fixer; then diff review (changes since the
-   last review, the open findings with IDs, profiles, strength, specification path). Repeat until
-   no visible finding remains.
+   last review, the open findings with IDs, profiles, strength, the plan's specification paths).
+   Repeat until no visible finding remains.
 4. A second full review only when a fix could spread beyond where it was made; name that reason
    before running it. Its visible findings → one more diff loop until none remain; then converged.
    With no such reason, the diff loop clearing every visible finding is convergence.
