@@ -75,7 +75,10 @@ included). The limit, when the person set one, counts round trips.
   and the same review items and Evidence conditions. It returns per-finding `still_present` or
   `no_longer_visible` and new findings.
 - **fixer:** carry visible findings, plan path, branch, worktree path, and the contract below. It
-  returns commits and which finding each addresses, or a hand-back.
+  returns commits and which finding each addresses, or a hand-back. For a finding `still_present`
+  after a fix, also carry that fix's commits; before changing code the fixer tests the premise that
+  fix assumed with a command, and its return adds the premise in one sentence with the command and
+  output. The next fix starts from that result; a broken premise is what a changed approach rests on.
 
 The fixer has no skill of its own. Its contract, pasted in full: for code, RED → GREEN → REFACTOR
 with a test run at every transition; any failing test it writes must satisfy the Evidence conditions
@@ -86,8 +89,11 @@ user-facing documentation when none exists; supported environments are those it 
 For a deletion, completion is all existing checks passing after deletion; no failing test is needed.
 For external work, hand back before anything unsafe, privileged, or irreversible. One concern per
 commit; `git add <path>` only; never disable hooks; never name a station or finding ID in a commit
-message. Missing design decisions are handed back, not guessed. Stop and ask before an irreversible
-or privileged operation, a dangerous target, or a spreading accident.
+message. Missing design decisions are handed back, not guessed; a question a throwaway run in the
+worktree can answer is a fact — run it, leave nothing of it in the worktree or the commits, report
+the command and a decision-relevant summary. Stop and ask before an irreversible or privileged
+operation, an unsafe, privileged, or irreversible probe (reaching the network, installing
+something), a dangerous target, or a spreading accident.
 
 Immediately below that contract, paste the first paragraph from the ba0918-review skill's
 `references/oracle-evidence.md`; do not keep a copy in this skill.
@@ -109,7 +115,7 @@ fix record its reported commits.
 reviewers disagree, one `still_present` means still present. A full review returns no IDs: match by
 evidence location and oracle — a match with an open finding reuses its ID and appends
 `still_present`; a match with a closed finding is "same cause returned" below and reopens it unless
-it was closed `accepted`. Reviewers only evaluate; the fixer only reports commits.
+it was closed `accepted`. Reviewers only evaluate; the fixer only reports.
 
 ## Stopping inside the loop
 

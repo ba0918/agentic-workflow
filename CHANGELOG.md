@@ -10,6 +10,16 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `ba0918-implement` — before handing back a design decision, checks whether a
+  throwaway run in the worktree would answer it; such a question is a fact, settled by the smallest
+  probe kept out of the commits, and only what the specification should mean is handed back.
+- **BREAKING** `ba0918-cycle` — the fixer contract carries the same probe rule, and so does
+  `ba0918-iterate`'s implementer, which uses that contract. When a finding is still present after
+  a fix, the fixer receives that fix's commits and, before changing code, tests the premise that
+  fix assumed; its return adds the premise with the command and output.
+
 ## [0.6.0] - 2026-09-24
 
 ### Changed

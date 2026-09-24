@@ -28,6 +28,13 @@ Hand back (stop, state the reason, do not guess) when:
 - after diagnosing and changing approach once there is still no progress → stop;
 - no test command can be determined (see below) → back to plan before writing product code.
 
+Before handing back a design decision, ask whether running something in the worktree would answer
+it (what a library returns, whether a check passes, how long a command takes). That is a fact, not
+a decision: run the smallest throwaway probe, leave nothing of it in the worktree or the commits,
+act on what it showed, and report the command with a decision-relevant summary. Hand back only what no run can settle —
+what the specification should mean. A probe that is unsafe, privileged, or irreversible (reaching
+the network, installing something) is asked about before it runs.
+
 Everything else you recover from yourself: an unplanned but safe file to add, a flaky helper
 tool, a hook failure, an ordinary command failure, a missing bit of record you can reconstruct.
 Never ask for acceptance of the result step by step; that happens once, at the end of the cycle.
@@ -74,4 +81,5 @@ external checks) and approved-but-unexecuted human decisions are redone or re-as
 ## Report at the end
 
 Commits made, verification evidence per step (test names run, check commands, artifact paths,
-external summaries), out-of-plan changes with reasons, anything handed back and why.
+external summaries), probes run (command and summary), out-of-plan changes with reasons, anything
+handed back and why.
