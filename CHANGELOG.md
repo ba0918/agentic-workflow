@@ -10,6 +10,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-24
+
 ### Changed
 
 - **BREAKING** `ba0918-implement` — before handing back a design decision, checks whether a
@@ -149,7 +151,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - Install routes for Claude Code and Codex CLI (plugin marketplace), OpenCode (plugin), APM
   (package manager), and `gh skill` / `npx skills` (copy).
 
-[Unreleased]: https://github.com/ba0918/agentic-workflow/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/ba0918/agentic-workflow/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/ba0918/agentic-workflow/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/ba0918/agentic-workflow/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/ba0918/agentic-workflow/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/ba0918/agentic-workflow/compare/v0.3.0...v0.4.0
