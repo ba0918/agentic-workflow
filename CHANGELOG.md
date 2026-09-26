@@ -10,6 +10,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-27
+
 ### Changed
 
 - **BREAKING** `ba0918-review` — a full review, or a direct call, adds optional seats: reviewers
@@ -163,7 +165,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - Install routes for Claude Code and Codex CLI (plugin marketplace), OpenCode (plugin), APM
   (package manager), and `gh skill` / `npx skills` (copy).
 
-[Unreleased]: https://github.com/ba0918/agentic-workflow/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/ba0918/agentic-workflow/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/ba0918/agentic-workflow/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/ba0918/agentic-workflow/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/ba0918/agentic-workflow/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/ba0918/agentic-workflow/compare/v0.4.0...v0.5.0
