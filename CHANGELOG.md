@@ -10,6 +10,18 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `ba0918-review` — a full review, or a direct call, adds optional seats: reviewers
+  on the quality perspective run by other models through launch means listed in the person's
+  user-scope instructions. With no list nothing changes. Each seat runs in a throwaway copy of
+  the worktree, is marked absent without retry when it fails, and its findings are merged like
+  any other reviewer's; the report says which seats attended.
+- **BREAKING** `ba0918-cycle` — takes the person's seat choice as an optional input and launches
+  the optional seats itself at each full review, never at a diff review; an absent seat is not a
+  failed review, and the terminal report lists attendance. `ba0918-iterate` inherits this as
+  cycle's fifth optional input.
+
 ## [0.7.0] - 2026-09-24
 
 ### Changed

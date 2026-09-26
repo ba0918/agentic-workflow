@@ -21,12 +21,15 @@ Required: the plan path and the branch with its worktree path. The main session 
 before cycle starts; the branch name contains the plan name.
 Optional: round-trip limit (default none: loop until convergence), review strength (the
 person's choice, default `standard`), comparison base (default: merge-base with the branch's
-parent), profiles (default: chosen from changed paths by the review skill's path mapping).
+parent), profiles (default: chosen from changed paths by the review skill's path mapping),
+optional seats (the person's word, such as "one seat this time"; default: the list in their
+user-scope instructions, as the review skill's **Optional seats** says).
 
 Cycle runs only what the caller's one-line reason named. Nothing here is assumed: how many
 reviewer perspectives a review launches is the review skill's gate, and a second full review
 happens only under step 4's condition. Delegating more than the reason asked for is a
-counter-example.
+counter-example. Optional seats are the person's own standing choice (their list, or their word
+for this run), so launching them is not delegating more than asked.
 
 Read the plan only to find the specification paths it lists (one or more); do not interpret its
 steps. Those specifications, and only those, are review's counterpart — never an index or an
@@ -52,11 +55,15 @@ rules, paste the Evidence conditions from
    in one delegation.
 2. Full review: base..head, profiles, strength, the plan's specification paths, plus the **known findings** (open
    `record_only` / `human_judgment`, closed `accepted`), never visible or fixed ones; a match is not raised again.
+   Cycle itself, as the caller, then launches the optional seats as the review skill's **Optional
+   seats** says, using the seat choice the person gave at the start of the run; no review
+   delegation carries the seat choice or that section.
 3. Diff loop: delegate the **visible findings** to a fixer; then diff review (changes since the
    last review, the open findings with IDs, profiles, strength, the plan's specification paths).
-   Repeat until no visible finding remains.
+   Repeat until no visible finding remains. A diff review gets no optional seat.
 4. A second full review only when a fix could spread beyond where it was made; name that reason
-   before running it. Its visible findings → one more diff loop until none remain; then converged.
+   before running it; it gets the optional seats as in step 2. Its visible findings → one more
+   diff loop until none remain; then converged.
    With no such reason, the diff loop clearing every visible finding is convergence.
 
 Visible findings = open findings whose final action is `auto_fix` or `fix_and_verify`. Findings with
@@ -74,6 +81,9 @@ included). The limit, when the person set one, counts round trips.
 - **review (diff):** carry the diff since the last review, worktree path, open findings with IDs,
   and the same review items and Evidence conditions. It returns per-finding `still_present` or
   `no_longer_visible` and new findings.
+- **optional seats (full reviews only):** not a delegation. Hand each seat's launch means the
+  quality reviewer's prompt rewritten for the seat's copy. It returns findings JSON, or the seat
+  is absent with its reason.
 - **fixer:** carry visible findings, plan path, branch, worktree path, and the contract below. It
   returns commits and which finding each addresses, or a hand-back. For a finding `still_present`
   after a fix, also carry that fix's commits; before changing code the fixer tests the premise that
@@ -132,7 +142,8 @@ it was closed `accepted`. Reviewers only evaluate; the fixer only reports.
 2. The person's round-trip limit was reached.
 3. No progress: a finding is `still_present` in two consecutive rounds that evaluated it (the
    second after a changed approach); a closed finding's cause returns; or a review still cannot
-   succeed after one re-delegation; or two consecutive post-fix diff reviews have at least as many
+   succeed after one re-delegation (an absent optional seat is not a failed review); or two
+   consecutive post-fix diff reviews have at least as many
    finalized new visible findings as visible findings marked `no_longer_visible`; full reviews
    are excluded from this comparison.
 4. A delegate handed back to brainstorm or plan.
@@ -146,5 +157,7 @@ step 1 if untraced plan steps remain, else at step 3; a new limit, if any, is th
 Always: artifacts and commits, verification results from the implement report, how to view
 the diff. When present: fixed findings, forwarded observations, reasoned out-of-plan changes, open
 findings needing the person, and rules or sections identified as absent from the specification.
+When a full review ran optional seats: which attended and which were absent, each absence with
+its reason.
 This is the person's one check; merging is theirs. Cycle never merges, publishes, deletes branches
 or worktrees, edits the specification, manages issues, or runs two plans at once.

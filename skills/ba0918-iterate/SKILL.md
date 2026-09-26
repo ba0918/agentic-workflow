@@ -11,7 +11,7 @@ named. A person starts this skill from the conversation; cycle never calls it an
 — what the main session learned there goes into the request; a findings file on the branch is
 inherited state (see the loop). Required: the request, and the branch with its worktree path;
 missing either, stop: the main session prepares them beforehand — never create a branch or a
-worktree here. The branch name is short, for the request (no fixed prefix). Optional: cycle's four
+worktree here. The branch name is short, for the request (no fixed prefix). Optional: cycle's five
 optional inputs plus the specification paths to match against (several allowed, never an index);
 defaults are cycle's. A **request** is
 the person's words completed by what the main session knows — named files, settled direction, a
