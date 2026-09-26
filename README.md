@@ -115,6 +115,39 @@ when its description fires. Add a pointer line to the project's agent instructio
 Where a pointer line turns out not to be followed, inlining the skill body itself into
 those instructions is the reliable fallback, at the cost of updating it by hand.
 
+## Optional review seats
+
+A full review by `ba0918-review` (inside `ba0918-cycle`, or called directly) can add
+reviewers run by other models — optional seats — alongside its quality reviewer, with the
+same prompt. Different models miss different things; each seat costs a full review's worth.
+The seats live in your user-scope instructions (for Claude Code, `~/.claude/CLAUDE.md`),
+because which models you can use depends on your own accounts, not on a repository. With no
+list there are no optional seats and reviews run as before.
+
+Each entry gives:
+
+- a name, used when the report says which seats attended
+- a launch means: a command to run or a skill to call, which takes the reviewer prompt and
+  returns the findings JSON
+- optionally, a time limit; without one the review waits for the launch means to finish
+
+```markdown
+## ba0918-review optional seats
+
+- gpt: command `<your-cli> run -` (prompt on standard input). Time limit 15 minutes
+```
+
+Each seat runs inside a throwaway copy of the worktree (HEAD plus uncommitted changes and
+untracked files, untracked symbolic links left out), deleted when the seat ends, so
+nothing a seat writes reaches your worktree. Wrapping the launch means in your own sandbox
+is still up to you.
+
+A seat that fails (quota exhausted, time limit, launch failure, unreadable output) is
+absent and never retried; the review goes on with the rest. Diff reviews get no optional
+seats. To use fewer seats for one run, say so when starting it — "one seat this time",
+"only gpt"; the count includes the quality reviewer, and a bare count takes seats in list
+order.
+
 ## Verification
 
 ```
