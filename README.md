@@ -1,44 +1,51 @@
 # agentic-workflow
 
+[日本語](README-ja.md)
+
 Development workflow skills for AI coding agents, packaged as
 [Agent Skills](https://agentskills.io).
 
-Five skills form one workflow: interview the person until the specification is agreed,
-turn it into a plan an implementer with no prior context can execute, then loop
-implementation, adversarial review and fixing until the findings converge, handing the
-result to the person once. Three more stand beside it, for eight in all: one for a task
-too small to need a specification or a plan, one for a read-only investigation, and one
-that decides which of the others a new request enters from. Each skill hands the next
-one the path of what it produced, and nothing else ties them together — there is no
-runtime, no state store and no script. This is a collection of skills, not a framework.
+Five skills form one workflow. The agent interviews the person until both agree on a
+specification, turns the specification into a plan that an implementer with no prior context
+can execute, and then repeats implementation, adversarial review and fixing until the
+findings converge. The person receives the result once, at the end.
+
+Three more skills sit beside the workflow:
+
+- one for a task too small to need a specification or a plan
+- one for a read-only investigation
+- one that decides which skill a new request starts from
+
+Each skill passes the next one the path of the file it wrote. Nothing else connects them.
+There is no runtime, no state store and no script.
 
 ## Skills
 
 | Skill | Role |
 |---|---|
-| `ba0918-brainstorm` | Interviews the person in numbered question rounds with recommended answers until shared understanding is complete, and writes the specification |
-| `ba0918-plan` | Turns an approved specification into one Markdown plan, referencing specification sections instead of copying them, with completion evidence and stop conditions per step |
-| `ba0918-cycle` | A small orchestrator: takes a plan and a branch, delegates implementation, review and fixing to separate-context agents, and loops until the findings converge |
-| `ba0918-implement` | Executes a plan step by step, test-first for code, one commit per concern; a judgment the plan leaves open is taken as a provisional answer and reported with what would overturn it |
-| `ba0918-review` | Adversarial review of a diff or a document set by separate-context reviewers that return findings and never edit; also callable on its own for a diagnosis |
-| `ba0918-iterate` | Entry point for a small task: judges whether the request is small, then runs cycle's loop on the request instead of a plan |
-| `ba0918-investigate` | Read-only investigation from a symptom or a question to the direct cause, the root cause, the impact and the fix options, without changing a file |
-| `ba0918-using-workflow` | Decides which skill a new request enters from — small task, medium-or-larger change with or without a specification, unexplained defect or question needing file reading — and answers questions and chat directly instead of routing them |
+| `ba0918-brainstorm` | Asks the person numbered rounds of questions, each with a recommended answer, until both sides understand the request the same way. Then writes the specification |
+| `ba0918-plan` | Turns an approved specification into one Markdown plan. The plan links to sections of the specification instead of copying them, and gives each step its completion evidence and stop conditions |
+| `ba0918-cycle` | A small orchestrator. Takes a plan and a branch, hands implementation, review and fixing to agents with separate contexts, and repeats until the findings converge |
+| `ba0918-implement` | Executes a plan step by step. Writes tests first for code and makes one commit per concern. When the plan leaves a decision open, it picks a provisional answer and reports what would overturn it |
+| `ba0918-review` | Reviews a diff or a set of documents adversarially. The reviewers run in separate contexts, return findings and never edit. A person can also call it directly to diagnose a codebase |
+| `ba0918-iterate` | Entry point for a small task. Checks that the request is small, then runs cycle's loop on the request without a plan |
+| `ba0918-investigate` | Investigates a symptom or a question without changing any file, and reports the direct cause, the root cause, the impact and the fix options |
+| `ba0918-using-workflow` | Decides which skill a new request starts from: a small task, a medium or larger change with or without a specification, an unexplained defect, or a question that needs reading files. Answers questions and chat directly instead of routing them |
 
-The skill bodies are in English, written for the agent. The specifications they were
-written from, the principles above them and the glossary are in Japanese, under `docs/`
-and `CONTEXT.md`; when they disagree, the principles win over the specifications, and the
-specifications over the skill bodies.
+The skill bodies are in English and written for the agent. The specifications behind them,
+the principles above the specifications and the glossary are in Japanese, in `docs/` and
+`CONTEXT.md`. When two of these disagree, the principles override the specifications, and
+the specifications override the skill bodies.
 
 ## Install
 
-Three kinds of route are supported — plugin, package manager and copy. They differ in how
-updates reach you, not in what you get.
+There are three kinds of route: a plugin, a package manager and a copy. Every route
+installs the same skills. The routes differ in how you receive updates.
 
 ### Claude Code (plugin marketplace)
 
-An installed copy follows the version declared in the marketplace entry, so an update
-reaches you when the version is bumped.
+An installed copy follows the version in the marketplace entry, so you get an update when
+that version goes up.
 
 ```
 /plugin marketplace add ba0918/agentic-workflow
@@ -47,8 +54,8 @@ reaches you when the version is bumped.
 
 ### Codex CLI (plugin marketplace)
 
-Codex reads the same marketplace entry, and the skills appear under the plugin name as
-`ba0918-workflow:ba0918-brainstorm` and so on.
+Codex reads the same marketplace entry. The skills appear under the plugin name, for
+example `ba0918-workflow:ba0918-brainstorm`.
 
 ```
 codex plugin marketplace add ba0918/agentic-workflow
@@ -57,8 +64,8 @@ codex plugin add ba0918-workflow@agentic-workflow
 
 ### OpenCode (plugin)
 
-Add the repository to `plugin` in `opencode.json` — the project's or the global
-`~/.config/opencode/opencode.json` — and restart OpenCode.
+Add the repository to `plugin` in `opencode.json`, either the project's file or the global
+`~/.config/opencode/opencode.json`. Then restart OpenCode.
 
 ```json
 {
@@ -68,43 +75,42 @@ Add the repository to `plugin` in `opencode.json` — the project's or the globa
 ```
 
 `.opencode/plugins/agentic-workflow.js` registers `skills/` as a skill path and does
-nothing else. This route reads `package.json`, which is here as a distribution manifest
-rather than a published package: `private: true` keeps it off the npm registry.
+nothing else. This route reads `package.json`, which describes the distribution and is not
+a published package. `private: true` keeps it off the npm registry.
 
 ### APM (package manager)
 
 [APM](https://github.com/microsoft/apm) manages skills for several agents from one
-manifest. Installing adds a dependency to `apm.yml`; `apm.lock.yaml` pins the resolved
-commit, and `apm update` moves it forward.
+manifest. `apm install` adds the dependency to `apm.yml`, `apm.lock.yaml` records the
+resolved commit, and `apm update` moves that commit forward.
 
 ```
 apm install ba0918/agentic-workflow --target claude
 apm install -g ba0918/agentic-workflow
 ```
 
-APM warns when a dependency is unpinned — pin a release tag
+APM warns about a dependency without a pin. Pin a release tag
 (`ba0918/agentic-workflow#v{version}`) or a commit SHA.
 
 ### Copy (`gh skill` / `npx skills`)
 
-Skills are copied into the project at install time, and updates are pulled by running the
-command again. Naming one skill installs that skill alone; naming the repository installs
-all of them. Because the five workflow skills call each other by name, install them
-together.
+These commands copy the skills into the project, and running them again pulls updates.
+Naming one skill installs only that skill, and naming the repository installs all of them.
+The five workflow skills call each other by name, so install them together.
 
 ```
 gh skill install ba0918/agentic-workflow --agent claude-code --all
 npx skills add ba0918/agentic-workflow
 ```
 
-What a copy route installs is the contents of `skills/` and nothing else — the
-specifications and the regression scenarios live outside that directory.
+A copy contains only the contents of `skills/`. The specifications and the regression
+scenarios stay in this repository.
 
 ## Keeping the entry skill resident
 
-`ba0918-using-workflow` routes each new request, so it must be read every turn, not only
-when its description fires. Add a pointer line to the project's agent instructions
-(`AGENTS.md` or the equivalent your agent reads):
+`ba0918-using-workflow` routes every new request, so the agent has to read it on every
+turn, not only when its description matches. Add a pointer line to the project's agent
+instructions (`AGENTS.md`, or the file your agent reads):
 
 ```markdown
 ## Important
@@ -112,24 +118,26 @@ when its description fires. Add a pointer line to the project's agent instructio
 - Always read `ba0918-using-workflow` first, before acting on a request
 ```
 
-Where a pointer line turns out not to be followed, inlining the skill body itself into
-those instructions is the reliable fallback, at the cost of updating it by hand.
+If the agent does not follow the pointer line, paste the skill body into those
+instructions instead. You then have to update the pasted copy by hand.
 
 ## Optional review seats
 
-A full review by `ba0918-review` (inside `ba0918-cycle`, or called directly) can add
-reviewers run by other models — optional seats — alongside its quality reviewer, with the
-same prompt. Different models miss different things; each seat costs a full review's worth.
-The seats live in your user-scope instructions (for Claude Code, `~/.claude/CLAUDE.md`),
-because which models you can use depends on your own accounts, not on a repository. With no
-list there are no optional seats and reviews run as before.
+A full review by `ba0918-review`, inside `ba0918-cycle` or called directly, can add
+reviewers that run on other models. These optional seats get the same prompt as the
+quality reviewer. Another model can catch findings the first one misses, and each seat
+costs as much as one full review.
+
+You list the seats in your user-scope instructions (for Claude Code, `~/.claude/CLAUDE.md`).
+They live there because the models you can use depend on your own accounts, not on a
+repository. Without a list, a review has no optional seats and runs as before.
 
 Each entry gives:
 
-- a name, used when the report says which seats attended
-- a launch means: a command to run or a skill to call, which takes the reviewer prompt and
-  returns the findings JSON
-- optionally, a time limit; without one the review waits for the launch means to finish
+- a name, which the report uses to say which seats took part
+- a launch command or a skill to call. It takes the reviewer prompt and returns the
+  findings as JSON
+- an optional time limit. Without one, the review waits until the seat finishes
 
 ```markdown
 ## ba0918-review optional seats
@@ -137,18 +145,22 @@ Each entry gives:
 - gpt: command `<your-cli> run -` (prompt on standard input). Time limit 15 minutes
 ```
 
-Each seat runs inside a throwaway copy of the worktree (HEAD plus uncommitted changes and
-untracked files, untracked symbolic links left out), deleted when the seat ends, so
-nothing a seat writes reaches your worktree. Wrapping the launch means in your own sandbox
-is still up to you.
+Each seat runs in a throwaway copy of the worktree, and the copy is deleted when the seat
+ends. The copy holds HEAD, uncommitted changes and untracked files, without untracked
+symbolic links. Nothing a seat writes reaches your worktree. Running the seat's command
+inside your own sandbox is still your job.
 
-A seat that fails (quota exhausted, time limit, launch failure, unreadable output) is
-absent and never retried; the review goes on with the rest. Diff reviews get no optional
-seats. To use fewer seats for one run, say so when starting it — "one seat this time",
-"only gpt"; the count includes the quality reviewer, and a bare count takes seats in list
-order.
+When a seat fails (quota exhausted, time limit, launch failure or unreadable output), the
+review drops it without retrying and continues with the remaining reviewers. Diff reviews
+use no optional seats.
 
-## Verification
+To use fewer seats for one run, say so when you start it, for example "one seat this time"
+or "only gpt". The count includes the quality reviewer, and a bare count takes seats from
+the top of the list.
+
+## Development
+
+### Checks
 
 ```
 bun install
@@ -156,17 +168,17 @@ bun run lint:docs                                  # textlint over docs/
 bunx skills-ref validate skills/<name>             # the Agent Skills specification
 ```
 
-CI runs the same checks on every push and pull request, and additionally checks that
-`.claude-plugin/marketplace.json` and `package.json` declare the version
-`.claude-plugin/plugin.json` declares.
+CI runs the same checks on every push and pull request. It also checks that
+`.claude-plugin/marketplace.json` and `package.json` declare the same version as
+`.claude-plugin/plugin.json`.
 
-## Releases
+### Releases
 
-The version is declared once, in `.claude-plugin/plugin.json`. A release is one commit
-on `main` that promotes the `Unreleased` section of [CHANGELOG.md](CHANGELOG.md) to a
-version heading matching it; the release workflow then runs the checks, tags that commit
-and publishes a GitHub release whose notes are that section. Changes that alter what a
-skill instructs are recorded there as breaking.
+`.claude-plugin/plugin.json` holds the version. A release is one commit on `main` that
+renames the `Unreleased` section of [CHANGELOG.md](CHANGELOG.md) to a heading with that
+version. The release workflow then runs the checks, tags the commit and publishes a GitHub
+release with that section as its notes. CHANGELOG.md marks a change to what a skill
+instructs as breaking.
 
 ## License
 
