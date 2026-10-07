@@ -1,7 +1,6 @@
 # Record kinds
 
-The progress file `.agents/tmp/brainstorm-<topic>.md` — named for the topic, or for the index when
-revising a split scope — holds the current state only: the position in the tree, the next round,
+The progress file `.agents/tmp/brainstorm-<topic>.md` holds the current state only: the position in the tree, the next round,
 and the items below. Overwrite it when meaning changes; do not append a log.
 
 | Kind | Holds | Goes to |

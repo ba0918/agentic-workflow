@@ -1,6 +1,6 @@
 ---
 name: ba0918-investigate
-description: "Read-only investigation, called by a person and outside the ba0918 workflow stations: start from a symptom or a question, trace the direct and root cause, the impact, and whether tests cover it, then report fix options without changing a file. Use when asked to investigate something, to find why something happens, to look for a root cause, or to see the impact scope of a change. Not for checking a finished change — that is review's diagnosis. 日本語キーワード: 調べて 原因を調査して なぜ〜が起きる 影響範囲を見たい"
+description: "Read-only investigation a person calls outside the ba0918 workflow stations, from a symptom or a question to a report of causes, impact, and fix options. Use when asked to investigate something, to find why something happens, to look for a root cause, or to see the impact scope of a change. Not for checking a finished change — that is review's diagnosis. 日本語キーワード: 調べて 原因を調査して なぜ〜が起きる 影響範囲を見たい"
 ---
 
 # Investigate
@@ -140,12 +140,10 @@ Show invocations in a form that can be used as is.
 | No fix needed | say so | `no further action needed` |
 | Not enough evidence | keep investigating | the scope to investigate next |
 
-A small task is one the ba0918-iterate skill accepts: the request has one reading, needs no
-specification decision, contradicts no existing specification, and its impact is readable (every file to
-change, files to be created included, can be enumerated in a closed list — no "there may be others" —
-and what changes in each can be said without judgment); file count does not matter. A change whose
-impact cannot be read, or which needs a specification decision, is medium or larger, and sending it to
-iterate as "small" is a counter-example. There is no issue management here, so "deferred" is the
+A small task is one the four conditions in the ba0918-iterate skill's
+**Small task and its judgment** accept; file count does not matter. A change whose impact cannot be
+read, or which needs a specification decision, is medium or larger, and sending it to iterate as
+"small" is a counter-example. There is no issue management here, so "deferred" is the
 person's own note.
 
 ## When something goes wrong

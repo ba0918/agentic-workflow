@@ -19,16 +19,14 @@ and nothing that passed before fails now.
 behavior. Run the suite again. If there is nothing to tidy, record what you looked at and why
 no change was needed, then move on — do not rearrange structure just to have refactored.
 
-Red flags: production code edited before the test file; GREEN declared without a run; one test
-covering several behaviors; refactoring before the tests pass; a mock setup larger than the test
-logic; "tests later".
+A mock setup larger than the test logic is a red flag.
 
 ## Check
 
 Run each listed command in the order the plan gives. Completion is all of them succeeding in
 one pass. A failing command is fixed in the product, not by editing or replacing the command; a command
-that cannot succeed as written (a name that does not exist, a rejected flag) is a plan defect —
-hand back to plan.
+that cannot succeed as written (a name that does not exist, a rejected flag) contradicts the
+approved plan — hand back to plan.
 
 ## Artifact
 
@@ -39,6 +37,6 @@ independent review could judge its meaning — not when it looks finished to you
 ## External
 
 Real hardware, a live service, a measurement. Before running anything, decide whether it is
-safe, within your authority, and reversible; if any answer is no, hand back with the exact
-command you would run. Afterwards keep only: the command, the decision-relevant numbers or
+safe, within your authority, and reversible; if any answer is no, stop and ask the person,
+giving the exact command you would run. Afterwards keep only: the command, the decision-relevant numbers or
 lines, and the pass/fail judgment. Full output and logs are not kept.

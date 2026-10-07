@@ -10,6 +10,60 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
+- **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
+  stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
+  it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
+  a spreading accident, or an irreversible, privileged or dangerous probe, and hands back upstream
+  only on a contradiction with approved content or when no test command can be determined. When a
+  step makes no progress after one changed approach, it writes the assumptions its attempts shared,
+  swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
+  test tool that needs no install is used as a provisional answer. Its report returns its own
+  provisional answers and the plan's, each with its overturn condition and where the rule it added
+  lives, so cycle can pass them to every review.
+- **BREAKING** `ba0918-cycle` — the loop stops for the person only just before an irreversible,
+  privileged or dangerous operation, or on a spreading accident; a `security` finding is fixed in
+  the loop unless it states an exposed secret or its fix needs such an operation. Judgments nothing
+  approved settles are taken as provisional answers and reported with their overturn conditions;
+  fixers hand back only on a contradiction with approved content. Before ending on no progress,
+  cycle writes the assumptions the fixes shared, swaps the topmost once per run, and records the
+  attempt in the findings file. A new no-progress condition stops on new findings near a fix twice
+  in a row. Cycle takes optional review items and passes them, with the provisional answers so far,
+  to every full and diff review. The terminal report adds provisional answers, a proposal to add
+  to the specification for each rule absent from it and each rule a provisional answer added, and
+  each attempt's assumptions.
+- **BREAKING** `ba0918-iterate` — the implementer hands back only for a file outside the
+  enumeration or a contradiction with the specification, and the fixer only for the latter; a
+  request found to read two ways, or a missing design judgment, during implementation is taken as
+  a provisional answer and reported. A request that reads two ways at the judgment still stops at
+  condition 1. Iterate takes cycle's review items input, and since each start sets a new
+  comparison base, each start may try cycle's assumption check once.
+- **BREAKING** `ba0918-review` — the `human_judgment` action is gone; actions are `auto_fix`,
+  `fix_and_verify` and `record_only`. A finding whose fix needs a judgment about meaning carries a
+  provisional answer (the answer and the person's word that would overturn it) and is fixed in the
+  loop. A rule or section with no specification behind it is a deletion finding when the diff
+  added it silently, left alone when the caller lists it as a provisional answer, and `record_only`
+  when it predates the diff. Reviews take optional review items, and the Skill profile's
+  `critical` now reads as bypassing a case that stops the person or changing approved content.
+- The workflow skills are trimmed of redundant, duplicated and low-effect instructions; what they
+  instruct does not change. Descriptions say when to use each skill and leave how it works to the
+  body. The evidence conditions live only in `ba0918-review`'s `references/oracle-evidence.md`;
+  `ba0918-brainstorm` and `ba0918-plan` read them there by name. `ba0918-using-workflow` and the
+  README's skill list use the new wording for the cases that stop the person and for implement.
+  `ba0918-review` moves the optional-seat procedure to `references/optional-seats.md`, read
+  only when the person lists seats; `ba0918-cycle` builds reviewer prompts by pointing at the
+  review skill's reviewer setup instead of restating it; `ba0918-iterate` leaves the resume rules
+  it shares with cycle to cycle's body.
+
 ## [0.8.0] - 2026-09-27
 
 ### Changed

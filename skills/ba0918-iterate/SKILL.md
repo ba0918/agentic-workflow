@@ -1,6 +1,6 @@
 ---
 name: ba0918-iterate
-description: "Entry point beside the ba0918 workflow for a task too small to need a specification or a plan: this session judges whether the request is a small task, delegating a read-only judge only when it cannot close the impact enumeration, then the cycle loop runs implementation, review, and fixing on it, adding only the stations the caller's one-line reason named; anything bigger is turned away with the next skill to call. Use when asked to iterate, for one more fix, to fix this bit, to add this too, or to polish it a little more. 日本語キーワード: iterate ちょっと直して これも足して もう少し磨いて 小さいタスク"
+description: "Entry point beside the ba0918 workflow for a task too small to need a specification or a plan: runs cycle's implementation, review, and fixing loop on a request judged small, and turns anything bigger away with the next skill to call. Use when asked to iterate, for one more fix, to fix this bit, to add this too, or to polish it a little more. 日本語キーワード: iterate ちょっと直して これも足して もう少し磨いて 小さいタスク"
 ---
 
 # Iterate
@@ -11,9 +11,9 @@ named. A person starts this skill from the conversation; cycle never calls it an
 — what the main session learned there goes into the request; a findings file on the branch is
 inherited state (see the loop). Required: the request, and the branch with its worktree path;
 missing either, stop: the main session prepares them beforehand — never create a branch or a
-worktree here. The branch name is short, for the request (no fixed prefix). Optional: cycle's five
-optional inputs plus the specification paths to match against (several allowed, never an index);
-defaults are cycle's. A **request** is
+worktree here. The branch name is short, for the request (no fixed prefix). Optional: cycle's optional
+inputs (review items among them) plus the specification paths to match against (several allowed,
+never an index); defaults are cycle's. A **request** is
 the person's words completed by what the main session knows — named files, settled direction, a
 preceding run's terminal report — into a self-contained text an implementer with no context can
 build from. "Fix that thing from before" arrives expanded into the file and the change; if one or
@@ -70,8 +70,8 @@ specification (it cannot run without one) or offering "continue here anyway" is 
 
 | Failed | Also handed back for | Destination | Ready-to-use form |
 |---|---|---|---|
-| 1 (ambiguous) | the request read two ways (implementer) | the person, via the main session | where the readings diverge, and the question to ask |
-| 2 (specification decision), 3 (contradiction) | a missing design decision (2), a contradiction with the specification (3) — implementer or fixer | brainstorm | `/ba0918-brainstorm <topic>`, with the existing specification path if any |
+| 1 (ambiguous) | — | the person, via the main session | where the readings diverge, and the question to ask |
+| 2 (specification decision), 3 (contradiction) | a contradiction with the specification (3) — implementer or fixer | brainstorm | `/ba0918-brainstorm <topic>`, with the existing specification path if any |
 | 4 (impact unreadable) | a file outside the enumeration (implementer only) | plan if a specification exists, else brainstorm | `/ba0918-plan <specification path>` or `/ba0918-brainstorm <topic>` |
 
 ## The loop
@@ -85,18 +85,24 @@ read before the first review); "cycle" there means this run. Only these substitu
 | the branch name contains the plan name | a short name for the request |
 | the specification paths the plan lists | the given paths, or the specifications the judgment found |
 | inferring done steps from the plan and `git log`, then delegating the rest to implement | no inference: the request goes to the implementer in one delegation, after the judgment |
-| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judgment's enumeration, the specification paths if any, branch, worktree path), with hand-back reasons added to the contract: a file outside the enumeration; a contradiction with the specification; or a request that reads two ways |
-| the plan path in the fixer delegation | the request, and the specification paths if any, with a hand-back reason added to the contract: a contradiction with the specification |
+| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judgment's enumeration, the specification paths if any, branch, worktree path), with the contract's hand-back reasons read as: a file outside the enumeration; a contradiction with the specification |
+| the plan path in the fixer delegation | the request, and the specification paths if any; the contract's hand-back reason reads as a contradiction with the specification |
 | the fixer contract's "the plan's commands in order, unedited" | check commands come from the project's instructions, then the ecosystem's standard tool |
 | "run more" re-entering at step 1 when steps remain | always the diff loop |
 | the plan's specification paths in review delegations | the specification paths and the request, both |
-| ending 4 (a hand-back to brainstorm or plan) and its "run more or accept the rest" choice | the destination is one of the guidance table's three; the choice is not offered — the report (as in Out above) adds the hand-back reason and the guidance, and the person restarts with a new request holding their answer |
+| ending 4 (a hand-back to brainstorm or plan, or the assumption check ending on a contradiction) and its "run more or accept the rest" choice | the destination is one of the guidance table's three; the choice is not offered — the report (as in Out above) adds the hand-back reason and the guidance, and the person restarts with a new request holding their answer |
 | any other plan word meaning the plan (one plan at once, out-of-plan changes) | the request (out-of-request changes); plan as a skill name, a destination, stays; sentences about plan steps (do not interpret its steps, if steps remain) do not apply — there is no plan |
 
 The **implementer** is cycle's fixer contract pasted in full, the request replacing the visible
 findings; the implement skill is not used. Where the reason did not name delegated implementation,
 this session implements under that same contract, the rest of the loop unchanged. It returns
-commits, evidence per completion kind, out-of-request changes with reasons — or a hand-back and why.
+commits, evidence per completion kind, out-of-request changes with reasons, provisional answers with
+their overturn conditions — or a hand-back and why. A request that turns out to read two ways, or a
+design judgment found missing, during implementation is not handed back: the implementer takes a
+provisional answer and the terminal report carries it — the product's direction was taken from the
+person before the loop, and a request reading two ways at the judgment already stopped at condition
+1. A file outside the enumeration is no judgment but a sign the task outgrew small, so it is never a
+provisional answer.
 The enumeration goes along as reading material, marked as not an order — handing it as steps is a
 counter-example — yet it caps the files to touch (edit, create, delete, rename; tests included): one
 outside it — hand back, never touch or report it. In a listed file, changes the request did not name
@@ -106,14 +112,12 @@ outside as out-of-request. With no specification the request is the counterpart;
 adds the conformance reviewer, never a default.
 
 Same branch right after a cycle or a run of this skill: reuse it, never re-cut; findings JSON still
-there is cycle's resume — keep the findings (deleting or ignoring it is a counter-example) and
-continue rounds from the inherited max (the first review is max+1). Unless the person gave a
+there is cycle's resume, a start of this skill being cycle's "start" — deleting or ignoring it is a
+counter-example, and the first review is the inherited max + 1. Unless the person gave a
 comparison base, it is the branch tip at start (already checked); inherited open findings are
-evaluated in the diff review even outside it. Both of ending 3's streaks (`still_present` two rounds
-running; new visible findings not shrinking) reset at a start of this skill (inherited evaluations
-uncounted), not at "run more" after ending 2 or 3, as in cycle; a closed cause returning counts
-across it. No default round-trip limit; one the person set counts this run's reviews from when set,
-not the round numbers, and cycle's ending 2 applies. No consecutive-run counter.
+evaluated in the diff review even outside it. No default round-trip limit; one the person set
+counts this run's reviews from when set, not the round numbers, and cycle's ending 2 applies. No
+consecutive-run counter.
 
 Cycle's terminal report and "never" list apply, verification results from the implementer's evidence,
 plus the guidance when not small or handed back. "Look into this" belongs to the investigate skill,
