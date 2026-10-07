@@ -1,6 +1,6 @@
 ---
 name: ba0918-implement
-description: "Workflow station of the ba0918 workflow: execute an approved plan step by step, test-first for code, committing one concern at a time, and hand back instead of guessing when a design decision is missing. Invoked by ba0918-cycle with a plan path, a branch, and a worktree path. Use when cycle delegates implementation of a ba0918 plan. 日本語キーワード: 実装 手順書を実行 TDD 実装計画"
+description: "Workflow station of the ba0918 workflow that carries out the steps of an approved plan on a branch, invoked by ba0918-cycle with a plan path, a branch, and a worktree path. Use when cycle delegates implementation of a ba0918 plan. 日本語キーワード: 実装 手順書を実行 TDD 実装計画"
 ---
 
 # Implement
@@ -12,9 +12,9 @@ not per step.
 ## Inputs and outputs
 
 In: the worktree path, the plan path, and the branch; work only inside that worktree. Out:
-commits on that branch. A plan step names the
-specification sections it rests on; read those sections and whatever else in the repository the
-step needs. Nothing else is handed to you — the repository is the context.
+commits on that branch. A plan step names the specification sections it rests on; read those
+sections and whatever else in the repository the step needs. Nothing else is handed to you — the
+repository is the context.
 
 ## Stop only for these
 

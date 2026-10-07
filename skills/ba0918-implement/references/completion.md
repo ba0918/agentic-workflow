@@ -19,9 +19,7 @@ and nothing that passed before fails now.
 behavior. Run the suite again. If there is nothing to tidy, record what you looked at and why
 no change was needed, then move on — do not rearrange structure just to have refactored.
 
-Red flags: production code edited before the test file; GREEN declared without a run; one test
-covering several behaviors; refactoring before the tests pass; a mock setup larger than the test
-logic; "tests later".
+A mock setup larger than the test logic is a red flag.
 
 ## Check
 
