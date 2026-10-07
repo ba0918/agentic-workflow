@@ -24,12 +24,10 @@ base means this run already tried: end with ending 3 without trying again.
    carries the stack, the change proposed for the specification or plan, and guidance to call
    brainstorm or plan. Cycle edits neither.
 
-**One try per run.** A run is one plan's cycle, resume and "run more" included, or one start of
-iterate. After the try, reset ending 3's streaks: counted on, the condition would hold again right
-after the next review. When a condition holds again after the try, end with ending 3 without
-trying; swapping again only moves the whack-a-mole to the assumption layer. Whether the run tried
-is decided by the attempts record and its base alone. Iterate resets the base at each start, so a
-new start may try again.
+**One try per run**; swapping again would only move the whack-a-mole to the assumption layer. A
+run is one plan's cycle, resume and "run more" included, or one start of iterate; iterate resets
+the base at each start, so a new start may try again. After the try, reset ending 3's streaks:
+counted on, the condition would hold again right after the next review.
 
 Counter-examples: deleting the record to try again; ending with ending 3 without this check when a
 condition held; trying twice in one run; changing the approach from the last finding alone, with no
