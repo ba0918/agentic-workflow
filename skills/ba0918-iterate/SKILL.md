@@ -13,7 +13,7 @@ inherited state (see the loop). Required: the request, and the branch with its w
 missing either, stop: the main session prepares them beforehand — never create a branch or a
 worktree here. The branch name is short, for the request (no fixed prefix). Optional: cycle's optional
 inputs (review items among them) plus the specification paths to match against (several allowed,
-never an index); defaults are cycle's, so no review items are added unless given. A **request** is
+never an index); defaults are cycle's. A **request** is
 the person's words completed by what the main session knows — named files, settled direction, a
 preceding run's terminal report — into a self-contained text an implementer with no context can
 build from. "Fix that thing from before" arrives expanded into the file and the change; if one or
@@ -115,8 +115,7 @@ Same branch right after a cycle or a run of this skill: reuse it, never re-cut; 
 there is cycle's resume, a start of this skill being cycle's "start" — deleting or ignoring it is a
 counter-example, and the first review is the inherited max + 1. Unless the person gave a
 comparison base, it is the branch tip at start (already checked); inherited open findings are
-evaluated in the diff review even outside it. Since each start sets a new base, no attempt in the
-findings file carries it, and the run may try cycle's assumption check once again. No default round-trip limit; one the person set
+evaluated in the diff review even outside it. No default round-trip limit; one the person set
 counts this run's reviews from when set, not the round numbers, and cycle's ending 2 applies. No
 consecutive-run counter.
 

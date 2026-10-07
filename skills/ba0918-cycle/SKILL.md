@@ -108,9 +108,8 @@ it judgeable by an independent review and pass its format check.
 In conditions 3 and 4, the specification means the project's specification, or its public
 user-facing documentation when none exists; supported environments are those it declares.
 For a deletion, completion is all existing checks passing after deletion; no failing test is needed.
-For external work, stop and ask before anything unsafe, privileged, or irreversible. One concern per
-commit; `git add <path>` only; never disable hooks; never name a station or finding ID in a commit
-message. Fix a finding that carries a provisional answer by that answer. When the fix needs a
+One concern per commit; `git add <path>` only; never disable hooks; never name a station or finding
+ID in a commit message. Fix a finding that carries a provisional answer by that answer. When the fix needs a
 product, design, persistence, or technology judgment nothing approved settles, take the answer with
 the strongest grounds, go on, and report it with its overturn condition (what the person would say
 to overturn it). Hand back only when the fix would contradict the approved specification or plan.

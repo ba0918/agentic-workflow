@@ -129,7 +129,7 @@ Reviewers return only the JSON in `references/finding-schema.md`. The caller ass
 diff review keeps the IDs it was given), merges reviewers, dedupes, and is the one who writes
 the snapshot shape (`id`, `status`, `commits`, `evaluations`) — a direct call included.
 
-When a person calls review directly, they may also give review items. The main session transcribes the merged JSON into a
+When a person calls review directly, the main session transcribes the merged JSON into a
 Markdown report under `.agents/tmp/`, verifies each finding itself, and marks it `confirmed`,
 `unmeasured`, or `refuted` before handing it over. Inside cycle nobody transcribes:
 the JSON is read by cycle, the fixer, and the next reviewer only.
