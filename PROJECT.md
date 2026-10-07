@@ -30,7 +30,7 @@
 ## 検査
 
 - `bun install` のあと `bun run lint:docs`（`docs/` の Markdown に textlint）。pre-commit（lefthook）と Claude Code の Stop hook からも同じ物を呼ぶ
-- `bunx skills-ref@0.1.5 validate skills/ba0918-<name>` で skill の形式を検査する
+- `bunx skills-ref validate skills/ba0918-<name>` で skill の形式を検査する。検査器の版は `package.json` と `bun.lock` で固定している
 - CI（`.github/workflows/ci.yml`）は push と pull request のたびに同じ検査を走らせ、加えて版の宣言 3 つの一致を検査する
 - `.textlintrc.json` の `preferInBody` は「である」。`CONTEXT.md` は定義行に句点を付けない形式なので `.textlintignore` で外している
 

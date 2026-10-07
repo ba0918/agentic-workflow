@@ -153,7 +153,7 @@ order.
 ```
 bun install
 bun run lint:docs                                  # textlint over docs/
-bunx skills-ref@0.1.5 validate skills/<name>       # the Agent Skills specification
+bunx skills-ref validate skills/<name>             # the Agent Skills specification
 ```
 
 CI runs the same checks on every push and pull request, and additionally checks that

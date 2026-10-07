@@ -28,6 +28,7 @@
   "devDependencies": {
     "@textlint-ja/textlint-rule-preset-ai-writing": "1.7.0",
     "lefthook": "2.1.10",
+    "skills-ref": "0.1.5",
     "textlint": "15.8.0",
     "textlint-rule-preset-ja-technical-writing": "12.0.2"
   }
