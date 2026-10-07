@@ -27,7 +27,9 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   only on a contradiction with approved content or when no test command can be determined. When a
   step makes no progress after one changed approach, it writes the assumptions its attempts shared,
   swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
-  test tool that needs no install is used as a provisional answer.
+  test tool that needs no install is used as a provisional answer. Its report returns its own
+  provisional answers and the plan's, each with its overturn condition and where the rule it added
+  lives, so cycle can pass them to every review.
 - **BREAKING** `ba0918-cycle` — the loop stops for the person only just before an irreversible,
   privileged or dangerous operation, or on a spreading accident; a `security` finding is fixed in
   the loop unless it states an exposed secret or its fix needs such an operation. Judgments nothing
@@ -36,8 +38,9 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   cycle writes the assumptions the fixes shared, swaps the topmost once per run, and records the
   attempt in the findings file. A new no-progress condition stops on new findings near a fix twice
   in a row. Cycle takes optional review items and passes them, with the provisional answers so far,
-  to every full and diff review. The terminal report adds provisional answers, rules absent from
-  the specification with proposals, and each attempt's assumptions.
+  to every full and diff review. The terminal report adds provisional answers, a proposal to add
+  to the specification for each rule absent from it and each rule a provisional answer added, and
+  each attempt's assumptions.
 - **BREAKING** `ba0918-iterate` — the implementer hands back only for a file outside the
   enumeration or a contradiction with the specification, and the fixer only for the latter; a
   request found to read two ways, or a missing design judgment, during implementation is taken as
@@ -55,7 +58,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   instruct does not change. Descriptions say when to use each skill and leave how it works to the
   body. The evidence conditions live only in `ba0918-review`'s `references/oracle-evidence.md`;
   `ba0918-brainstorm` and `ba0918-plan` read them there by name. `ba0918-using-workflow` and the
-  README's skill list use the new wording for the cases that stop the person and for implement. `ba0918-review` moves the optional-seat procedure to `references/optional-seats.md`, read
+  README's skill list use the new wording for the cases that stop the person and for implement.
+  `ba0918-review` moves the optional-seat procedure to `references/optional-seats.md`, read
   only when the person lists seats; `ba0918-cycle` builds reviewer prompts by pointing at the
   review skill's reviewer setup instead of restating it; `ba0918-iterate` leaves the resume rules
   it shares with cycle to cycle's body.
