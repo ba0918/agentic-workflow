@@ -1,6 +1,6 @@
 ---
 name: ba0918-plan
-description: "Workflow station of the ba0918 workflow: turn approved specifications (one or several) into one Markdown plan that an implementer with no prior context can execute, referencing specification sections by link instead of copying them, with per-step completion evidence and stop conditions. Use when asked to write or revise a ba0918 plan from specifications. 日本語キーワード: 実装計画 手順書 計画を立てる 仕様から計画"
+description: "Workflow station of the ba0918 workflow that turns approved specifications (one or several) into one Markdown plan an implementer with no prior context can execute. Use when asked to write or revise a ba0918 plan from specifications. 日本語キーワード: 実装計画 手順書 計画を立てる 仕様から計画"
 ---
 
 # Plan
@@ -24,13 +24,8 @@ specifications by Markdown link and section heading and never copies specificati
 drift, and the implementer must read the sections anyway. What the plan adds is what only this
 plan knows — why this order, why these files, where to stop.
 
-Plan-level content: which specification sections each step verifies; approach and its
-rationale; the file scope that may change; step order and prerequisites; choices left to the
-implementer; stop conditions.
-
-Per-step content (see `references/step-template.md`): purpose and the specification sections it
-rests on; prerequisites; the files it may change; what "done" means and how it is shown (test /
-check / artifact / external); choices left open; when to stop and hand back.
+The plan-level sections and the fields every step carries are in `references/step-template.md`;
+read it before writing.
 
 ## Boundaries
 
