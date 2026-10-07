@@ -64,59 +64,11 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
-- **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
-  stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
-  it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
-  a spreading accident, or an irreversible, privileged or dangerous probe, and hands back upstream
-  only on a contradiction with approved content or when no test command can be determined. When a
-  step makes no progress after one changed approach, it writes the assumptions its attempts shared,
-  swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
-  test tool that needs no install is used as a provisional answer.
-- **BREAKING** `ba0918-cycle` — the loop stops for the person only just before an irreversible,
-  privileged or dangerous operation, or on a spreading accident; a `security` finding is fixed in
-  the loop unless it states an exposed secret or its fix needs such an operation. Judgments nothing
-  approved settles are taken as provisional answers and reported with their overturn conditions;
-  fixers hand back only on a contradiction with approved content. Before ending on no progress,
-  cycle writes the assumptions the fixes shared, swaps the topmost once per run, and records the
-  attempt in the findings file. A new no-progress condition stops on new findings near a fix twice
-  in a row. Cycle takes optional review items and passes them, with the provisional answers so far,
-  to every full and diff review. The terminal report adds provisional answers, rules absent from
-  the specification with proposals, and each attempt's assumptions.
-- **BREAKING** `ba0918-iterate` — the implementer hands back only for a file outside the
-  enumeration or a contradiction with the specification, and the fixer only for the latter; a
-  request found to read two ways, or a missing design judgment, during implementation is taken as
-  a provisional answer and reported. A request that reads two ways at the judgment still stops at
-  condition 1. Iterate takes cycle's review items input, and since each start sets a new
-  comparison base, each start may try cycle's assumption check once.
 - **BREAKING** `ba0918-review` — a full review, or a direct call, adds optional seats: reviewers
   on the quality perspective run by other models through launch means listed in the person's
   user-scope instructions. With no list nothing changes. Each seat runs in a throwaway copy of
   the worktree, is marked absent without retry when it fails, and its findings are merged like
   any other reviewer's; the report says which seats attended.
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
-- **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
-  stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
-  it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
-  a spreading accident, or an irreversible, privileged or dangerous probe, and hands back upstream
-  only on a contradiction with approved content or when no test command can be determined. When a
-  step makes no progress after one changed approach, it writes the assumptions its attempts shared,
-  swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
-  test tool that needs no install is used as a provisional answer.
 - **BREAKING** `ba0918-cycle` — takes the person's seat choice as an optional input and launches
   the optional seats itself at each full review, never at a diff review; an absent seat is not a
   failed review, and the terminal report lists attendance. `ba0918-iterate` inherits this as
@@ -126,33 +78,9 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — before handing back a design decision, checks whether a
   throwaway run in the worktree would answer it; such a question is a fact, settled by the smallest
   probe kept out of the commits, and only what the specification should mean is handed back.
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
-- **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
-  stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
-  it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
-  a spreading accident, or an irreversible, privileged or dangerous probe, and hands back upstream
-  only on a contradiction with approved content or when no test command can be determined. When a
-  step makes no progress after one changed approach, it writes the assumptions its attempts shared,
-  swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
-  test tool that needs no install is used as a provisional answer.
 - **BREAKING** `ba0918-cycle` — the fixer contract carries the same probe rule, and so does
   `ba0918-iterate`'s implementer, which uses that contract. When a finding is still present after
   a fix, the fixer receives that fix's commits and, before changing code, tests the premise that
@@ -171,22 +99,6 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - **BREAKING** `ba0918-plan` — takes the paths of several committed specifications, never
   traversing from an index. It may read the specifications they link to, one link deep, lists
   every one its steps rest on, and references them by Markdown link and heading.
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
-- **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
-  stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
-  it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
-  a spreading accident, or an irreversible, privileged or dangerous probe, and hands back upstream
-  only on a contradiction with approved content or when no test command can be determined. When a
-  step makes no progress after one changed approach, it writes the assumptions its attempts shared,
-  swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
-  test tool that needs no install is used as a provisional answer.
 - **BREAKING** `ba0918-cycle` — reads the specification paths the plan lists, one or more, and
   hands only those to review as the counterpart, never an index or an unrelated specification.
 - **BREAKING** `ba0918-iterate` — takes several specification paths to match against, never an
@@ -201,58 +113,10 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   it starts. No station is added by default; adding one needs a one-line reason stated before
   acting, and the entry table gains a first row for editing directly. Carries the reasons for
   each station, the three things never traded away, and the four signs of outside reach.
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
-- **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
-  stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
-  it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
-  a spreading accident, or an irreversible, privileged or dangerous probe, and hands back upstream
-  only on a contradiction with approved content or when no test command can be determined. When a
-  step makes no progress after one changed approach, it writes the assumptions its attempts shared,
-  swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
-  test tool that needs no install is used as a provisional answer.
-- **BREAKING** `ba0918-cycle` — the loop stops for the person only just before an irreversible,
-  privileged or dangerous operation, or on a spreading accident; a `security` finding is fixed in
-  the loop unless it states an exposed secret or its fix needs such an operation. Judgments nothing
-  approved settles are taken as provisional answers and reported with their overturn conditions;
-  fixers hand back only on a contradiction with approved content. Before ending on no progress,
-  cycle writes the assumptions the fixes shared, swaps the topmost once per run, and records the
-  attempt in the findings file. A new no-progress condition stops on new findings near a fix twice
-  in a row. Cycle takes optional review items and passes them, with the provisional answers so far,
-  to every full and diff review. The terminal report adds provisional answers, rules absent from
-  the specification with proposals, and each attempt's assumptions.
-- **BREAKING** `ba0918-iterate` — the implementer hands back only for a file outside the
-  enumeration or a contradiction with the specification, and the fixer only for the latter; a
-  request found to read two ways, or a missing design judgment, during implementation is taken as
-  a provisional answer and reported. A request that reads two ways at the judgment still stops at
-  condition 1. Iterate takes cycle's review items input, and since each start sets a new
-  comparison base, each start may try cycle's assumption check once.
 - **BREAKING** `ba0918-review` — launches one reviewer by default, adding a conformance reviewer
   only when a counterpart exists and no machine check sees the match. Two reviewers are no longer
   the default, and whether a review runs at all is the caller's gate — interdependent change sites
   that let the implementation contradict itself — which cycle's first full review has already passed.
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
-- **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
-  stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
-  it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
-  a spreading accident, or an irreversible, privileged or dangerous probe, and hands back upstream
-  only on a contradiction with approved content or when no test command can be determined. When a
-  step makes no progress after one changed approach, it writes the assumptions its attempts shared,
-  swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
-  test tool that needs no install is used as a provisional answer.
 - **BREAKING** `ba0918-cycle` — runs a second full review only when a fix could spread beyond
   where it was made, and delegates nothing the caller's reason did not name.
 - **BREAKING** `ba0918-iterate` — judges the four small-task conditions in the main session,
@@ -271,69 +135,13 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - **BREAKING** `ba0918-plan` — names only tests that qualify as evidence, avoids tests for
   already-established conditions, returns unverifiable requirements, and carries the versioned
   evidence conditions.
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — no longer invents tests that validate verification, and
   proves deletion findings by running the existing checks after removal.
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
-- **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
-  stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
-  it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
-  a spreading accident, or an irreversible, privileged or dangerous probe, and hands back upstream
-  only on a contradiction with approved content or when no test command can be determined. When a
-  step makes no progress after one changed approach, it writes the assumptions its attempts shared,
-  swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
-  test tool that needs no install is used as a provisional answer.
 - **BREAKING** `ba0918-cycle` — mechanically finalizes reviewer proposals before fixes, stops
   when visible findings cease to shrink, and supplies reviewers and fixers with the complete
   rules and evidence needed for their delegated work.
 - **BREAKING** `ba0918-iterate` — follows cycle's expanded no-progress ending and its complete
   reviewer and fixer delegation rules through the cycle skill it reads.
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
-- **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
-  stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
-  it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
-  a spreading accident, or an irreversible, privileged or dangerous probe, and hands back upstream
-  only on a contradiction with approved content or when no test command can be determined. When a
-  step makes no progress after one changed approach, it writes the assumptions its attempts shared,
-  swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
-  test tool that needs no install is used as a provisional answer.
-- **BREAKING** `ba0918-cycle` — the loop stops for the person only just before an irreversible,
-  privileged or dangerous operation, or on a spreading accident; a `security` finding is fixed in
-  the loop unless it states an exposed secret or its fix needs such an operation. Judgments nothing
-  approved settles are taken as provisional answers and reported with their overturn conditions;
-  fixers hand back only on a contradiction with approved content. Before ending on no progress,
-  cycle writes the assumptions the fixes shared, swaps the topmost once per run, and records the
-  attempt in the findings file. A new no-progress condition stops on new findings near a fix twice
-  in a row. Cycle takes optional review items and passes them, with the provisional answers so far,
-  to every full and diff review. The terminal report adds provisional answers, rules absent from
-  the specification with proposals, and each attempt's assumptions.
-- **BREAKING** `ba0918-iterate` — the implementer hands back only for a file outside the
-  enumeration or a contradiction with the specification, and the fixer only for the latter; a
-  request found to read two ways, or a missing design judgment, during implementation is taken as
-  a provisional answer and reported. A request that reads two ways at the judgment still stops at
-  condition 1. Iterate takes cycle's review items input, and since each start sets a new
-  comparison base, each start may try cycle's assumption check once.
 - **BREAKING** `ba0918-review` — checks conformance in both directions, proposes deleting
   verification that does not qualify as evidence, carries the versioned evidence conditions, and
   requires every reviewer prompt to carry both-way conformance and the complete finding rules.
@@ -353,22 +161,6 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
-- **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
-  stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
-  it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
-  a spreading accident, or an irreversible, privileged or dangerous probe, and hands back upstream
-  only on a contradiction with approved content or when no test command can be determined. When a
-  step makes no progress after one changed approach, it writes the assumptions its attempts shared,
-  swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
-  test tool that needs no install is used as a provisional answer.
 - **BREAKING** `ba0918-cycle` — the loop ends after the second full review: its visible findings
   go through one more diff loop and the cycle converges. There is no third full review, and ending 3
   no longer counts consecutive full reviews. The full review now receives the findings that will not
@@ -376,38 +168,6 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   them again. Resume rules are stated: round numbers continue from the inherited maximum, ending 3's
   streak resets at a new start and continues through "run more", and "run more" re-enters at
   implement when untraced plan steps remain.
-- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
-  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
-  with its overturn condition among the approval's judgment points, instead of going back to
-  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
-  would contradict the approved specification goes back. A requirement with no qualifying test and
-  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
-  that specification silence is its own rule for writing, and that a term drift found after
-  approval goes to the next brainstorm.
-- **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
-  stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
-  it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
-  a spreading accident, or an irreversible, privileged or dangerous probe, and hands back upstream
-  only on a contradiction with approved content or when no test command can be determined. When a
-  step makes no progress after one changed approach, it writes the assumptions its attempts shared,
-  swaps the topmost once, and hands back with them only if that fails too. An ecosystem's standard
-  test tool that needs no install is used as a provisional answer.
-- **BREAKING** `ba0918-cycle` — the loop stops for the person only just before an irreversible,
-  privileged or dangerous operation, or on a spreading accident; a `security` finding is fixed in
-  the loop unless it states an exposed secret or its fix needs such an operation. Judgments nothing
-  approved settles are taken as provisional answers and reported with their overturn conditions;
-  fixers hand back only on a contradiction with approved content. Before ending on no progress,
-  cycle writes the assumptions the fixes shared, swaps the topmost once per run, and records the
-  attempt in the findings file. A new no-progress condition stops on new findings near a fix twice
-  in a row. Cycle takes optional review items and passes them, with the provisional answers so far,
-  to every full and diff review. The terminal report adds provisional answers, rules absent from
-  the specification with proposals, and each attempt's assumptions.
-- **BREAKING** `ba0918-iterate` — the implementer hands back only for a file outside the
-  enumeration or a contradiction with the specification, and the fixer only for the latter; a
-  request found to read two ways, or a missing design judgment, during implementation is taken as
-  a provisional answer and reported. A request that reads two ways at the judgment still stops at
-  condition 1. Iterate takes cycle's review items input, and since each start sets a new
-  comparison base, each start may try cycle's assumption check once.
 - **BREAKING** `ba0918-review` — a rewording that leaves the reader's meaning unchanged is no longer
   a finding, not even `info`; `info` is reserved for changes that alter how the text is read. Full
   reviews receive the known findings.
