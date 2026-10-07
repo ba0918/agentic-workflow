@@ -39,9 +39,9 @@ Reviewers are one per perspective: one, or two when a specification must be matc
 machine check sees that match. A single site, independent changes, and mistakes a machine check
 catches all take zero.
 
-Three things are never traded away, and machine checks or the existing stop rules carry all
-three, so none adds a station: secrets and credentials, and publishing, distribution or version,
-go through the project's checks; irreversible, privileged and dangerous targets stop and ask.
+Three things are never traded away, and machine checks or the cases that stop the person carry
+all three, so none adds a station: secrets and credentials, and publishing, distribution or
+version, go through the project's checks; irreversible, privileged and dangerous targets are one such case.
 Review itself is never mandatory. With no machine check, add one when that costs less than the
 change; otherwise write "nothing would notice" in the line and go on — reviewers never
 substitute for a missing check.

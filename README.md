@@ -19,7 +19,7 @@ runtime, no state store and no script. This is a collection of skills, not a fra
 | `ba0918-brainstorm` | Interviews the person in numbered question rounds with recommended answers until shared understanding is complete, and writes the specification |
 | `ba0918-plan` | Turns an approved specification into one Markdown plan, referencing specification sections instead of copying them, with completion evidence and stop conditions per step |
 | `ba0918-cycle` | A small orchestrator: takes a plan and a branch, delegates implementation, review and fixing to separate-context agents, and loops until the findings converge |
-| `ba0918-implement` | Executes a plan step by step, test-first for code, one commit per concern, and hands back instead of guessing when a design decision is missing |
+| `ba0918-implement` | Executes a plan step by step, test-first for code, one commit per concern; a judgment the plan leaves open is taken as a provisional answer and reported with what would overturn it |
 | `ba0918-review` | Adversarial review of a diff or a document set by separate-context reviewers that return findings and never edit; also callable on its own for a diagnosis |
 | `ba0918-iterate` | Entry point for a small task: judges whether the request is small, then runs cycle's loop on the request instead of a plan |
 | `ba0918-investigate` | Read-only investigation from a symptom or a question to the direct cause, the root cause, the impact and the fix options, without changing a file |

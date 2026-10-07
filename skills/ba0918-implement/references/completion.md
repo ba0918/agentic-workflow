@@ -37,6 +37,6 @@ independent review could judge its meaning — not when it looks finished to you
 ## External
 
 Real hardware, a live service, a measurement. Before running anything, decide whether it is
-safe, within your authority, and reversible; if any answer is no, hand back with the exact
-command you would run. Afterwards keep only: the command, the decision-relevant numbers or
+safe, within your authority, and reversible; if any answer is no, stop and ask the person,
+giving the exact command you would run. Afterwards keep only: the command, the decision-relevant numbers or
 lines, and the pass/fail judgment. Full output and logs are not kept.

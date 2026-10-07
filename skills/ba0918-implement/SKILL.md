@@ -65,8 +65,8 @@ Each plan step says how its completion is shown. Four kinds; details in
   substitute a different command on the spot.
 - **Artifact**: a document such as a README or skill text; pass any format check that exists and
   leave it in a state an independent review can judge.
-- **External**: real devices or measurements; hand back before running anything unsafe,
-  privileged, or irreversible. Keep the command and a decision-relevant summary, not full logs.
+- **External**: real devices or measurements; stop and ask the person before running anything
+  unsafe, privileged, or irreversible. Keep the command and a decision-relevant summary, not full logs.
 
 The test command comes from, in order: the plan, the project's own instructions, the ecosystem's
 standard tool when it runs without installing anything — a provisional answer, reported with the
