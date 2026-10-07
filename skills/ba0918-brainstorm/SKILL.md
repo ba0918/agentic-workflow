@@ -1,6 +1,6 @@
 ---
 name: ba0918-brainstorm
-description: "Workflow station of the ba0918 workflow: interview the person until shared understanding is complete and write the specification — decisions as a tree, questions in numbered rounds with recommended answers, term definitions and boundary scenarios on the spot, six kinds of record, adversarial review, then staged approval. Use when asked to brainstorm, define requirements, extract a specification, or resolve an ambiguity in one. 日本語キーワード: 壁打ち 要件定義 仕様抽出 ブレインストーム 質問ラウンド ドメインモデリング"
+description: "Workflow station of the ba0918 workflow that interviews the person until shared understanding is complete and writes the specification. Use when asked to brainstorm, define requirements, extract a specification, or resolve an ambiguity in one. 日本語キーワード: 壁打ち 要件定義 仕様抽出 ブレインストーム 質問ラウンド ドメインモデリング"
 ---
 
 # Brainstorm
@@ -69,9 +69,9 @@ decides.
 
 ## Records
 
-Six kinds, kept in the progress file and defined in `references/records.md`: agreement, prohibition,
-undecided (with who decides), delegated (with reason), rejected (with reason), revision (what replaced
-what). Never merge undecided with delegated. Overwrite only when meaning changes; resume from it.
+Six kinds, kept in the progress file: agreement, prohibition, undecided (with who decides),
+delegated (with reason), rejected (with reason), revision (what replaced what). Read
+`references/records.md` for what each holds and the file's layout before writing the file.
 
 ## Writing the specification
 
@@ -84,27 +84,12 @@ whether or not Finishing adds a review; left to a review, it goes unread when no
 Specification silence never means "implementer decides".
 
 Each heading-addressable requirement has an observable success condition and a counter-example.
-Test its verification against **Evidence conditions**. On failure, express a non-code requirement
-as human or platform inspection; drop a code behavior into an already reachable generic error path,
-recording it as rejected with its missing conditions. Put agreements in the body, prohibitions in
+Test its verification against the Evidence conditions in the ba0918-review skill's
+`references/oracle-evidence.md`. On failure, express a non-code requirement as human or platform
+inspection; drop a code behavior into an already reachable generic error path, recording it as
+rejected with its missing conditions. Put agreements in the body, prohibitions in
 what is not built, and rejected / undecided / delegated items in their own sections. Require
 expensive model-running verification only when the person asks.
-
-### Evidence conditions
-
-An oracle — a test, a check, or a fixture — counts as evidence only when the condition it
-produces has a named operational producer in a supported environment (untrusted input arriving
-at a boundary is one), its subject is the product or a check rather than the oracle itself, the
-rule it enforces is stated by the specification, and every wording, file layout, or internal
-name it pins is declared there as a contract. An oracle that fails any of these is a cost: do
-not add it, keep it in a change under review, or demand it.
-
-A requirement whose only oracle would fail these conditions is not mechanically verifiable:
-when it is not code, verify it by a human-run check or by the platform's own checker; when it
-is code, drop the requirement and let the failure join a generic error path a reachable
-failure already proves — never resolve it by having the implementer build the fixture.
-
-Source: `ba0918-verification`, agentic-rules v0.8.0.
 
 ## Finishing
 
