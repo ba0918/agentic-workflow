@@ -73,15 +73,15 @@ Visible findings = open findings whose final action is `auto_fix` or `fix_and_ve
 full review cancels the taint a diff review carries from seeing prior findings.
 A **round trip** is one review invocation (any number of reviewers, full or diff, the first one
 included). The limit, when the person set one, counts round trips.
-**Provisional answers received so far** are those implement and fixers reported and those on
-findings, each with its overturn condition and where the rule it added lives; review needs them to
-tell a reported rule from one the diff added silently.
+**Provisional answers received so far** are those implement (its own and the plan's) and fixers
+reported and those on findings, each with its overturn condition and where the rule it added lives;
+review needs them to tell a reported rule from one the diff added silently.
 
 ## Delegations
 
 - **implement:** carry the plan path, branch, and worktree path. It returns commits, per-step
-  verification evidence, out-of-plan changes, and provisional answers with their overturn
-  conditions; or a hand-back with its reason; or, when swapping its own assumption did not help,
+  verification evidence, out-of-plan changes, and provisional answers (its own and the plan's)
+  with their overturn conditions and where each added rule lives; or a hand-back with its reason; or, when swapping its own assumption did not help,
   its assumption stack.
 - **review (full):** carry the base and head, worktree path, known findings, and the prompt
   contents named above. It returns findings JSON.

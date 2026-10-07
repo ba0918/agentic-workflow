@@ -100,5 +100,6 @@ external checks) and approved-but-unexecuted human decisions are redone or re-as
 
 Commits made, verification evidence per step (test names run, check commands, artifact paths,
 external summaries), probes run (command and summary), out-of-plan changes with reasons,
-provisional answers with their overturn conditions, anything handed back and why — with the
-assumption stack when the swapped assumption did not help.
+provisional answers with their overturn conditions and where the rule each added lives — the
+plan's as well as your own — anything handed back and why — with the assumption stack when the
+swapped assumption did not help.
