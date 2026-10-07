@@ -197,8 +197,8 @@ step 1 if untraced plan steps remain, else at step 3; a new limit, if any, is th
 Always: artifacts and commits, verification results from the implement report, how to view
 the diff. When present: fixed findings, forwarded observations, reasoned out-of-plan changes, and
 open findings; the provisional answers implement, fixers, and findings chose, each with its
-overturn condition; rules or sections identified as absent from the specification, each with a
-proposal to add it there; for each assumption-check attempt, its stack, plus the proposed change to
+overturn condition; rules or sections identified as absent from the specification, and rules
+added by a provisional answer, each with a proposal to add it there; for each assumption-check attempt, its stack, plus the proposed change to
 the specification or plan when it ended on a contradiction. When a full review ran optional seats:
 which attended and which were absent, each absence with its reason.
 This is the person's one check; merging is theirs. To overturn a provisional answer, the person
