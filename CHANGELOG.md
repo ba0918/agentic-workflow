@@ -16,7 +16,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   instruct does not change. Descriptions say when to use each skill and leave how it works to the
   body. `ba0918-review` moves the optional-seat procedure to `references/optional-seats.md`, read
   only when the person lists seats; `ba0918-cycle` builds reviewer prompts by pointing at the
-  review skill's reviewer setup instead of restating it.
+  review skill's reviewer setup instead of restating it; `ba0918-iterate` leaves the resume rules
+  it shares with cycle to cycle's body.
 
 ## [0.8.0] - 2026-09-27
 

@@ -1,6 +1,6 @@
 ---
 name: ba0918-iterate
-description: "Entry point beside the ba0918 workflow for a task too small to need a specification or a plan: this session judges whether the request is a small task, delegating a read-only judge only when it cannot close the impact enumeration, then the cycle loop runs implementation, review, and fixing on it, adding only the stations the caller's one-line reason named; anything bigger is turned away with the next skill to call. Use when asked to iterate, for one more fix, to fix this bit, to add this too, or to polish it a little more. 日本語キーワード: iterate ちょっと直して これも足して もう少し磨いて 小さいタスク"
+description: "Entry point beside the ba0918 workflow for a task too small to need a specification or a plan: runs cycle's implementation, review, and fixing loop on a request judged small, and turns anything bigger away with the next skill to call. Use when asked to iterate, for one more fix, to fix this bit, to add this too, or to polish it a little more. 日本語キーワード: iterate ちょっと直して これも足して もう少し磨いて 小さいタスク"
 ---
 
 # Iterate
@@ -106,14 +106,12 @@ outside as out-of-request. With no specification the request is the counterpart;
 adds the conformance reviewer, never a default.
 
 Same branch right after a cycle or a run of this skill: reuse it, never re-cut; findings JSON still
-there is cycle's resume — keep the findings (deleting or ignoring it is a counter-example) and
-continue rounds from the inherited max (the first review is max+1). Unless the person gave a
+there is cycle's resume, a start of this skill being cycle's "start" — deleting or ignoring it is a
+counter-example, and the first review is the inherited max + 1. Unless the person gave a
 comparison base, it is the branch tip at start (already checked); inherited open findings are
-evaluated in the diff review even outside it. Both of ending 3's streaks (`still_present` two rounds
-running; new visible findings not shrinking) reset at a start of this skill (inherited evaluations
-uncounted), not at "run more" after ending 2 or 3, as in cycle; a closed cause returning counts
-across it. No default round-trip limit; one the person set counts this run's reviews from when set,
-not the round numbers, and cycle's ending 2 applies. No consecutive-run counter.
+evaluated in the diff review even outside it. No default round-trip limit; one the person set
+counts this run's reviews from when set, not the round numbers, and cycle's ending 2 applies. No
+consecutive-run counter.
 
 Cycle's terminal report and "never" list apply, verification results from the implementer's evidence,
 plus the guidance when not small or handed back. "Look into this" belongs to the investigate skill,

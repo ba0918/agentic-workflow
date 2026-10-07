@@ -21,7 +21,7 @@ runtime, no state store and no script. This is a collection of skills, not a fra
 | `ba0918-cycle` | A small orchestrator: takes a plan and a branch, delegates implementation, review and fixing to separate-context agents, and loops until the findings converge |
 | `ba0918-implement` | Executes a plan step by step, test-first for code, one commit per concern, and hands back instead of guessing when a design decision is missing |
 | `ba0918-review` | Adversarial review of a diff or a document set by separate-context reviewers that return findings and never edit; also callable on its own for a diagnosis |
-| `ba0918-iterate` | Entry point for a small task: a separate-context judge proposes whether the request is small, then cycle's loop runs on the request instead of a plan |
+| `ba0918-iterate` | Entry point for a small task: judges whether the request is small, then runs cycle's loop on the request instead of a plan |
 | `ba0918-investigate` | Read-only investigation from a symptom or a question to the direct cause, the root cause, the impact and the fix options, without changing a file |
 | `ba0918-using-workflow` | Decides which skill a new request enters from — small task, medium-or-larger change with or without a specification, unexplained defect or question needing file reading — and answers questions and chat directly instead of routing them |
 
