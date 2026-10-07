@@ -18,14 +18,23 @@
 | When | Read |
 |---|---|
 | Always | ba0918-design, ba0918-placement, ba0918-readability, ba0918-secrets |
+| ci | ba0918-ci |
 | commit | ba0918-commit |
 | delegate | ba0918-delegation |
 | design | ba0918-reuse |
+| diff-review | ba0918-diff-review |
+| document | ba0918-documents |
 | implement | ba0918-tdd |
 | release | ba0918-release |
 | review | ba0918-verification |
+| worktree | ba0918-worktree |
 
-各規則は skill 名で参照する。該当する規則は、その作業を始める前に全部読む。
+各規則は skill 名で参照する。
+該当する規則は、その作業を始める前に全部読む。
+一度読んだ規則は、その文脈が続くあいだ有効である。
+読み直すのは、文脈が圧縮・消去された後か、規則そのものが変わったときだけ。
+委譲された作業では、委譲プロンプトが取り込み済みと明示した規則はそのプロンプトから有効なので読み直さない。
+それ以外の規則は、この表に従って通常どおり読む。
 
 ## Project Context
 
