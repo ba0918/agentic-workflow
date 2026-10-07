@@ -24,17 +24,28 @@ concurrency:
 permissions:
   contents: read
 
+# bash runs with -eo pipefail; the implicit default shell omits pipefail.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # Most pushes to main are not releases. This job answers "is this one?" and
   # every other job hangs off its answer, so the question is asked once and in
   # one place.
   decide:
+    name: Decide whether this push is a release
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.state.outputs.version }}
       release: ${{ steps.state.outputs.release }}
     steps:
-      - uses: actions/checkout@v4
+      # The tag lookup below reads a public remote, which needs no credential.
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Decide whether this push releases a new version
         id: state
@@ -91,20 +102,28 @@ jobs:
   # The same checks every push and pull request runs, called rather than
   # restated. A tag is only ever created after this has passed.
   checks:
+    name: Run the CI checks
     needs: decide
     if: needs.decide.outputs.release == 'true'
     uses: ./.github/workflows/ci.yml
 
   release:
+    name: Tag and publish the release
     needs: [decide, checks]
     if: needs.decide.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # The one job in this repository that writes to it: one tag and one
     # release.
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      # gh creates the tag and the release through the API with GH_TOKEN; no
+      # git command here pushes, so the checkout keeps no credential.
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
 
       # The release notes are the changelog section for this version, taken
       # verbatim: the heading line is dropped, and the section ends at the next
