@@ -25,8 +25,8 @@ A mock setup larger than the test logic is a red flag.
 
 Run each listed command in the order the plan gives. Completion is all of them succeeding in
 one pass. A failing command is fixed in the product, not by editing or replacing the command; a command
-that cannot succeed as written (a name that does not exist, a rejected flag) is a plan defect —
-hand back to plan.
+that cannot succeed as written (a name that does not exist, a rejected flag) contradicts the
+approved plan — hand back to plan.
 
 ## Artifact
 
