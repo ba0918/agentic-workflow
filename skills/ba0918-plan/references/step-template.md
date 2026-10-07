@@ -36,12 +36,8 @@ Guidance per field:
   structure, and helper extraction usually qualify; input formats, limits, error behavior, and
   persistence never do.
 - **Stop and hand back if** names conditions the implementer could not infer. The general ones
-  need not be repeated: the implementer stops for the person only just before an irreversible,
-  privileged, or dangerous operation or on a spreading accident, takes judgments the plan does not
-  settle as provisional answers, and hands back upstream only for the reasons of the ba0918-cycle
-  skill's ending 4 (a contradiction with approved content; no test command). A step condition is
-  one of these made concrete — a dependency that may have to be installed, a measurement that may
-  contradict the specification.
+  (SKILL.md's Boundaries) need not be repeated; a step condition is one of them made concrete — a
+  dependency that may have to be installed, a measurement that may contradict the specification.
 
 Plan-level sections that precede the steps: **Goal** (one sentence, the result the person
 gets), **Specification** (each specification the steps rest on, as a link), **Approach and
