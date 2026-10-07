@@ -35,7 +35,7 @@ meaning-preserving rewording is not a finding.
 
 Allowed oracles: documented check commands, executable examples or tests, static link/interface
 checks, and traceable cross-reference checks against specifications, implementation, and produced
-artifacts. A human-judgment oracle only when meaning or readability cannot be decided
+artifacts. An oracle a person reads only when meaning or readability cannot be decided
 mechanically; record why.
 
 Light review still checks contradictions capable of producing the wrong system, safety
@@ -55,14 +55,15 @@ the same meaning.
 
 Severity: `security` permits credential exposure, authority escalation, unsafe external effects,
 or an equivalent exploitable trust-boundary failure. `critical` can select or build the wrong
-system, bypass a consequential human decision, make completion unverifiable, or break the
-workflow hand-off. `warn` materially weakens behavior but leaves the core workflow recoverable.
+system, bypass a case that stops the person (just before an irreversible, privileged, or
+dangerous operation; a spreading accident) or change approved content, make completion
+unverifiable, or break the workflow hand-off. `warn` materially weakens behavior but leaves the core workflow recoverable.
 `info` is a clarity or maintainability improvement with no current behavioral failure; a
 meaning-preserving rewording is not a finding.
 
 Allowed oracles: executable tests, static validation or lint commands, and traceable
-cross-reference checks between the skill contract and its produced/consumed artifacts. A
-human-judgment oracle only when no mechanical oracle can decide the behavior; record why.
+cross-reference checks between the skill contract and its produced/consumed artifacts. An oracle a
+person reads only when no mechanical oracle can decide the behavior; record why.
 
-Light review still checks unsafe side effects, role confusion, bypasses of consequential human
-decisions, and broken or meaning-changing workflow hand-offs.
+Light review still checks unsafe side effects, role confusion, bypasses of a case that stops the
+person, and broken or meaning-changing workflow hand-offs.

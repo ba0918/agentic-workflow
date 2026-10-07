@@ -14,6 +14,10 @@ fills those.
       "id": 7,
       "severity": "critical",
       "action": "fix_and_verify",
+      "provisional_answer": {
+        "answer": "the answer chosen, with the strongest grounds",
+        "overturned_if": "what the person would say to overturn it"
+      },
       "profile": "Code",
       "perspective": "quality",
       "claim": "one-sentence statement of the problem",
@@ -23,7 +27,7 @@ fills those.
       "oracle": {
         "proposal": "pytest tests/test_x.py::test_rejects_empty",
         "measured": "fails_now",
-        "note": "fails because the test does not exist yet; or why not run / why no mechanical oracle"
+        "note": "fails because the test does not exist yet; or why not run; or why no machine can check it and what a person reads to confirm"
       },
       "status": {"state": "open", "closed_reason": null},
       "commits": [],
@@ -36,10 +40,11 @@ fills those.
 | Key | Values |
 |---|---|
 | `severity` | `security` / `critical` / `warn` / `info`; the caller changes a finding that states no defect to `warn` |
-| `action` | `auto_fix` / `fix_and_verify` / `human_judgment` / `record_only` (reviewer proposal; caller decides) |
+| `action` | `auto_fix` / `fix_and_verify` / `record_only` (reviewer proposal; caller decides) |
+| `provisional_answer` | only on a finding whose fix needs a judgment about meaning; `answer` and `overturned_if` (reviewer proposal; caller decides). Omitted otherwise |
 | `profile` | `Code` / `Document` / `Skill` |
 | `perspective` | `quality` / `conformance` |
-| `oracle.measured` | `fails_now` / `not_run` (unsafe; reason in note) / `not_applicable` (info, human_judgment) |
+| `oracle.measured` | `fails_now` / `not_run` (unsafe; reason in note) / `not_applicable` (`info`, or no machine can check it; reason and the points a person reads in note) |
 | `status.state` | `open` / `closed`; `closed_reason` is `fixed` or `accepted` |
 | `commits` | commit hashes the fixer reported for this finding |
 | `evaluations` | one per review that evaluated this finding, with the round-trip number: `{"round": n, "verdict": "still_present" \| "no_longer_visible"}`; a full-review match appends `still_present` |

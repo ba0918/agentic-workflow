@@ -12,6 +12,13 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- **BREAKING** `ba0918-review` — the `human_judgment` action is gone; actions are `auto_fix`,
+  `fix_and_verify` and `record_only`. A finding whose fix needs a judgment about meaning carries a
+  provisional answer (the answer and the person's word that would overturn it) and is fixed in the
+  loop. A rule or section with no specification behind it is a deletion finding when the diff
+  added it silently, left alone when the caller lists it as a provisional answer, and `record_only`
+  when it predates the diff. Reviews take optional review items, and the Skill profile's
+  `critical` now reads as bypassing a case that stops the person or changing approved content.
 - The workflow skills are trimmed of redundant, duplicated and low-effect instructions; what they
   instruct does not change. Descriptions say when to use each skill and leave how it works to the
   body. The evidence conditions live only in `ba0918-review`'s `references/oracle-evidence.md`;
