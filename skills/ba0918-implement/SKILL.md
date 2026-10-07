@@ -43,12 +43,12 @@ only for what no run can settle — what the specification should mean, or a too
 choose. Settling a question a run could answer with a provisional answer is a counter-example.
 
 When a plan step still makes no progress after diagnosing and changing approach once, do not hand
-back yet. Write the assumptions your attempts shared as an assumption stack: one sentence per
-level, the most specific one (what the last attempt touched) at the bottom and what the others rest
-on above it, each marked as living in the implementation or in the plan or specification. Swap the
-top assumption and try once. If that still makes no progress, hand back with the stack; cycle ends
-on no progress. If working on the swapped assumption would contradict the approved specification
-or plan, do not try it: hand back upstream as above. This applies to implementing plan steps only.
+back yet. Write the assumptions your attempts shared as an assumption stack, in the form given by
+steps 1 and 2 of the ba0918-cycle skill's `references/assumption-check.md` (your last attempt in
+place of the last fix), swap the top assumption, and try once. If that still makes no progress,
+hand back with the stack; cycle ends on no progress. If working on the swapped assumption would
+contradict the approved specification or plan, do not try it: hand back upstream as above. This
+applies to implementing plan steps only.
 
 Everything else you recover from yourself: an unplanned but safe file to add, a flaky helper
 tool, a hook failure, an ordinary command failure, a missing bit of record you can reconstruct.
