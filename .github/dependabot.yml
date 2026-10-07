@@ -1,0 +1,12 @@
+# Keeps the commit-hash pins in .github/workflows/ current; each update arrives
+# as a pull request that moves the hash and its version comment together.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # A release is proposed only after it has been public for a week, so a
+    # compromised release has time to be noticed and pulled first.
+    cooldown:
+      default-days: 7

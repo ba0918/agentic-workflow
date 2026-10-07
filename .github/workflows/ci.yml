@@ -17,13 +17,37 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch or pull request supersedes the running check.
+# In a run called by the release workflow, github.workflow is the caller's
+# name ("Release"), so this group never equals the release's own "release"
+# group.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# bash runs with -eo pipefail; the implicit default shell omits pipefail.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   verify:
+    name: Verify documents, skills and version declarations
+    # The tracking label is acceptable: Bun and the validators are pinned here
+    # and in bun.lock, and the image's only tool used below is jq, for plain
+    # field reads.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      # Nothing in this job pushes, so the token is not left behind for the
+      # third-party code the later steps run.
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: oven-sh/setup-bun@v2
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2.2.0
         with:
           # Minor-series pin, the same shape the sister repositories use, so a
           # runtime major update cannot change CI behavior on its own. The
@@ -32,9 +56,10 @@ jobs:
           # refuses the frozen install.
           bun-version: "1.4.x"
 
-      # --frozen-lockfile refuses to rewrite the lockfile, so the textlint
-      # versions checked here are the recorded ones rather than whatever a
-      # fresh resolution would produce.
+      # --frozen-lockfile refuses to rewrite the lockfile, so the textlint and
+      # skills-ref versions checked here are the recorded ones, verified against
+      # the lockfile's integrity hashes, rather than whatever a fresh resolution
+      # would produce.
       - name: Install the pinned toolchain
         run: bun install --frozen-lockfile
 
@@ -44,14 +69,15 @@ jobs:
         run: bun run lint:docs
 
       # The reference validator checks the published Agent Skills
-      # specification. The version is pinned so a release of the validator
-      # cannot change what a green build means; bump the pin deliberately.
+      # specification. It is a dev dependency pinned in bun.lock, so a release
+      # of the validator cannot change what a green build means; bump it
+      # deliberately.
       - name: Validate the skills against the Agent Skills reference validator
         run: |
           set -euo pipefail
           for skill in skills/*/; do
             echo "== $skill"
-            bunx skills-ref@0.1.5 validate "$skill"
+            bunx skills-ref validate "$skill"
           done
 
       # plugin.json declares the version; marketplace.json and package.json
