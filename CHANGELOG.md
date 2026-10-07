@@ -12,6 +12,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
   stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
   it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
@@ -49,6 +57,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
   stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
   it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
@@ -72,6 +88,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   user-scope instructions. With no list nothing changes. Each seat runs in a throwaway copy of
   the worktree, is marked absent without retry when it fails, and its findings are merged like
   any other reviewer's; the report says which seats attended.
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
   stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
   it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
@@ -89,9 +113,25 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — before handing back a design decision, checks whether a
   throwaway run in the worktree would answer it; such a question is a fact, settled by the smallest
   probe kept out of the commits, and only what the specification should mean is handed back.
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
   stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
   it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
@@ -118,6 +158,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - **BREAKING** `ba0918-plan` — takes the paths of several committed specifications, never
   traversing from an index. It may read the specifications they link to, one link deep, lists
   every one its steps rest on, and references them by Markdown link and heading.
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
   stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
   it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
@@ -140,6 +188,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   it starts. No station is added by default; adding one needs a one-line reason stated before
   acting, and the entry table gains a first row for editing directly. Carries the reasons for
   each station, the three things never traded away, and the four signs of outside reach.
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
   stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
   it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
@@ -162,6 +218,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   only when a counterpart exists and no machine check sees the match. Two reviewers are no longer
   the default, and whether a review runs at all is the caller's gate — interdependent change sites
   that let the implementation contradict itself — which cycle's first full review has already passed.
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
   stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
   it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
@@ -188,8 +252,24 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - **BREAKING** `ba0918-plan` — names only tests that qualify as evidence, avoids tests for
   already-established conditions, returns unverifiable requirements, and carries the versioned
   evidence conditions.
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — no longer invents tests that validate verification, and
   proves deletion findings by running the existing checks after removal.
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
   stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
   it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
@@ -203,6 +283,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   rules and evidence needed for their delegated work.
 - **BREAKING** `ba0918-iterate` — follows cycle's expanded no-progress ending and its complete
   reviewer and fixer delegation rules through the cycle skill it reads.
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
   stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
   it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
@@ -240,6 +328,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
   stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
   it with its overturn condition. It stops for the person only on a confirmation the plan asks for,
@@ -255,6 +351,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   them again. Resume rules are stated: round numbers continue from the inherited maximum, ending 3's
   streak resets at a new start and continues through "run more", and "run more" re-enters at
   implement when untraced plan steps remain.
+- **BREAKING** `ba0918-plan` — a judgment the specification does not make (a new input kind, an
+  acceptance boundary, error handling) is written into the plan as a provisional answer and shown
+  with its overturn condition among the approval's judgment points, instead of going back to
+  brainstorm. Plan-review findings that need a decision are fixed the same way; only a fix that
+  would contradict the approved specification goes back. A requirement with no qualifying test and
+  no declared human or platform check still goes back to brainstorm. `ba0918-brainstorm` states
+  that specification silence is its own rule for writing, and that a term drift found after
+  approval goes to the next brainstorm.
 - **BREAKING** `ba0918-implement` — a judgment the plan and specification do not settle no longer
   stops the run: the implementer takes the answer with the strongest grounds, goes on, and reports
   it with its overturn condition. It stops for the person only on a confirmation the plan asks for,

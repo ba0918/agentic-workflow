@@ -13,32 +13,39 @@ Done when: <observable condition>.
 Shown by: test | check | artifact | external — <test names / commands / artifact path / what to
 observe and where>.
 Left to the implementer: <choices where every option keeps approved behavior> (or "none").
-Stop and hand back if: <conditions specific to this step, beyond the four general ones>.
+Stop and hand back if: <conditions specific to this step, beyond the general ones> (or "none").
 ```
 
 Guidance per field:
 
-- **Specification** links headings, not paraphrases, in any of the plan's specifications. If a
-  heading you need does not exist, the specification is missing something — hand back to
-  brainstorm rather than inventing the content.
+- **Specification** links headings, not paraphrases, in any of the plan's specifications. When the
+  step needs a judgment no heading makes, write it as a provisional answer in the plan (see
+  **Approach and why** below) and link the headings it rests on.
 - **Done when** is a condition someone else can observe, not "the feature works".
 - **Shown by** picks exactly one kind. *Test* means RED → GREEN → REFACTOR with named tests.
   *Check* lists commands in order. *Artifact* names the file and any format check. *External*
   says what to observe, on what, and what counts as pass; if it is unsafe, privileged, or
   irreversible, say that a human runs or confirms it. Name only tests that meet the Evidence
-  conditions in the ba0918-review skill's `references/oracle-evidence.md`. Do not add tests for conditions already true or match their count to the
-  number of Done conditions; use one test per behavior being implemented. If no test qualifies
-  and the specification does not require human or platform inspection, hand back to brainstorm.
+  conditions in the ba0918-review skill's `references/oracle-evidence.md`. Do not add tests for
+  conditions already true or match their count to the number of Done conditions; use one test per
+  behavior being implemented. If no test qualifies and the specification does not require human
+  or platform inspection, hand back to brainstorm — never a provisional answer: an oracle counts
+  only when the specification declares what it enforces, and a plan cannot declare that.
 - **Left to the implementer** holds choices delegated for this step; plan-wide ones go in the
   plan-level section. Naming, internal
   structure, and helper extraction usually qualify; input formats, limits, error behavior, and
   persistence never do.
-- **Stop and hand back if** names conditions the implementer could not infer: a dependency that
-  may be unavailable, a measurement that may disagree with the specification, an interface that
-  may already exist under another name.
+- **Stop and hand back if** names conditions the implementer could not infer. The general ones
+  need not be repeated: the implementer stops for the person only just before an irreversible,
+  privileged, or dangerous operation or on a spreading accident, takes judgments the plan does not
+  settle as provisional answers, and hands back upstream only for the reasons of the ba0918-cycle
+  skill's ending 4 (a contradiction with approved content; no test command). A step condition is
+  one of these made concrete — a dependency that may have to be installed, a measurement that may
+  contradict the specification.
 
 Plan-level sections that precede the steps: **Goal** (one sentence, the result the person
 gets), **Specification** (each specification the steps rest on, as a link), **Approach and
-why**, **Scope of change**, **Step order and prerequisites**, **Verification map** (which steps
+why** (including the provisional answers the plan chose where the specification is silent, each
+with its overturn condition), **Scope of change**, **Step order and prerequisites**, **Verification map** (which steps
 prove which specification sections), **Left to the implementer**, **Stop conditions**, **Test
 command** (only when the project does not fix one), **Out of scope**.

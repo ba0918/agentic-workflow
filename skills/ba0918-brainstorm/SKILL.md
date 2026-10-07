@@ -63,9 +63,10 @@ counter-examples attached to requirements.
 When a requirement does not change observable product behavior (release automation, licensing,
 CI), ask whether it belongs here, in a separate specification, or is not built. Never add it silently.
 
-Whoever notices an ambiguous term or a boundary that disagrees with the code asks it there, records
-what becomes clear, and hands it back here. Change the glossary and specification after the person
-decides.
+Before approval, whoever notices an ambiguous term or a boundary that disagrees with the code asks
+it there and records what becomes clear. A drift a station finds after approval is not asked
+there: that station goes on with a provisional answer and reports it, and fixing the glossary and
+specification goes to the next brainstorm. Only brainstorm changes them, after the person decides.
 
 ## Records
 
@@ -81,7 +82,9 @@ contradictions, vague words, missing scope boundaries, related undecided items, 
 silently; any of these sends you back to the dialogue. Text-search the specifications for links to
 every heading you change and reread each one that links there for contradictions — every time,
 whether or not Finishing adds a review; left to a review, it goes unread when none is added.
-Specification silence never means "implementer decides".
+Specification silence never means "implementer decides": write every silent point out before
+approval. A station after approval that meets a silent point takes a provisional answer, which is
+why one left here reaches the person only in a terminal report.
 
 Each heading-addressable requirement has an observable success condition and a counter-example.
 Test its verification against the Evidence conditions in the ba0918-review skill's

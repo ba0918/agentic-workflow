@@ -30,32 +30,37 @@ read it before writing.
 ## Boundaries
 
 - A choice may be left to the implementer only if every option leaves the approved behavior
-  unchanged. New input kinds, acceptance boundaries, and error handling are specification
-  decisions: if the specification is silent, do not decide here — hand back to brainstorm.
-  "The specification does not say" never means "the implementer decides".
+  unchanged. When a step needs a judgment the specification does not make — a new input kind, an
+  acceptance boundary, error handling — write the answer with the strongest grounds into the plan
+  as a provisional answer, and put it with its overturn condition (what the person would say to
+  overturn it) among step 3's judgment points: the person sees them at approval anyway, so do not
+  send them back to brainstorm and wait. Deciding one silently, off the judgment points, is a
+  counter-example.
 - A human check inside a step is written as an ordinary sentence in that step, and only for an
-  irreversible operation, a privileged operation, or a dangerous target. Meaning-changing
-  decisions go back to brainstorm; acceptance of the result belongs to the end of the cycle.
+  irreversible operation, a privileged operation, or a dangerous target. A judgment the plan does
+  not settle is the implementer's to take as a provisional answer; it hands back upstream only for
+  the reasons of the ba0918-cycle skill's ending 4. Acceptance of the result belongs to the end of
+  the cycle.
 - When neither the project's instructions nor the ecosystem's standard tool fixes a test
   command, decide it here — the implementer must not invent one.
 
 ## Finishing
 
 1. Self-check against `references/step-template.md`: every step has all fields; every referenced
-   heading exists in its specification; no step decides a specification question.
+   heading exists in its specification; every judgment the specification does not make is a
+   provisional answer listed among the judgment points.
 2. Adversarial review, only when the plan's own decisions can contradict each other — steps that
    depend on one another, or one specification heading driving several steps. Say that reason,
    then launch one separate-context agent on the plan's own quality, and a second against the
    specification only when the match is one no check can make. A plan whose steps stand alone
-   gets none. Findings that need no decision are fixed
-   directly. Findings that need a decision: under the four stop conditions (missing meaning or
-   departure from approved content; irreversible, privileged, or dangerous operation; spreading
-   accident; no progress after a changed approach) stop and ask the person now; otherwise decide
-   yourself and list the decision among step 3's judgment points.
+   gets none. Fix every finding, including those that need a decision; do not ask the person about
+   them. Put each decision taken, with its overturn condition, among step 3's judgment points. Only
+   a finding whose fix would contradict the approved specification is not fixed in the plan: hand
+   it back to brainstorm.
 3. Approval: stage only the plan, give the person the path, the command to view the diff, and
-   the points needing their judgment. Do not paste the plan, and never let a summary be what
-   they approve. The person commits, or tells you
-   to. A plan is approved only once committed.
+   the points needing their judgment, the provisional answers among them. Do not paste the plan,
+   and never let a summary be what they approve. The person commits, or tells you to. A plan is
+   approved only once committed.
 
 Finished plans are deleted by the main session after the person accepts the result and
 merges the branch; the plan stays readable in git history. Do not delete it yourself.
