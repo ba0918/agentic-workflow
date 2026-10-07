@@ -12,6 +12,16 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- **BREAKING** `ba0918-cycle` — the loop stops for the person only just before an irreversible,
+  privileged or dangerous operation, or on a spreading accident; a `security` finding is fixed in
+  the loop unless it states an exposed secret or its fix needs such an operation. Judgments nothing
+  approved settles are taken as provisional answers and reported with their overturn conditions;
+  fixers hand back only on a contradiction with approved content. Before ending on no progress,
+  cycle writes the assumptions the fixes shared, swaps the topmost once per run, and records the
+  attempt in the findings file. A new no-progress condition stops on new findings near a fix twice
+  in a row. Cycle takes optional review items and passes them, with the provisional answers so far,
+  to every full and diff review. The terminal report adds provisional answers, rules absent from
+  the specification with proposals, and each attempt's assumptions.
 - **BREAKING** `ba0918-review` — the `human_judgment` action is gone; actions are `auto_fix`,
   `fix_and_verify` and `record_only`. A finding whose fix needs a judgment about meaning carries a
   provisional answer (the answer and the person's word that would overturn it) and is fixed in the
@@ -31,6 +41,16 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- **BREAKING** `ba0918-cycle` — the loop stops for the person only just before an irreversible,
+  privileged or dangerous operation, or on a spreading accident; a `security` finding is fixed in
+  the loop unless it states an exposed secret or its fix needs such an operation. Judgments nothing
+  approved settles are taken as provisional answers and reported with their overturn conditions;
+  fixers hand back only on a contradiction with approved content. Before ending on no progress,
+  cycle writes the assumptions the fixes shared, swaps the topmost once per run, and records the
+  attempt in the findings file. A new no-progress condition stops on new findings near a fix twice
+  in a row. Cycle takes optional review items and passes them, with the provisional answers so far,
+  to every full and diff review. The terminal report adds provisional answers, rules absent from
+  the specification with proposals, and each attempt's assumptions.
 - **BREAKING** `ba0918-review` — a full review, or a direct call, adds optional seats: reviewers
   on the quality perspective run by other models through launch means listed in the person's
   user-scope instructions. With no list nothing changes. Each seat runs in a throwaway copy of
@@ -80,6 +100,16 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   it starts. No station is added by default; adding one needs a one-line reason stated before
   acting, and the entry table gains a first row for editing directly. Carries the reasons for
   each station, the three things never traded away, and the four signs of outside reach.
+- **BREAKING** `ba0918-cycle` — the loop stops for the person only just before an irreversible,
+  privileged or dangerous operation, or on a spreading accident; a `security` finding is fixed in
+  the loop unless it states an exposed secret or its fix needs such an operation. Judgments nothing
+  approved settles are taken as provisional answers and reported with their overturn conditions;
+  fixers hand back only on a contradiction with approved content. Before ending on no progress,
+  cycle writes the assumptions the fixes shared, swaps the topmost once per run, and records the
+  attempt in the findings file. A new no-progress condition stops on new findings near a fix twice
+  in a row. Cycle takes optional review items and passes them, with the provisional answers so far,
+  to every full and diff review. The terminal report adds provisional answers, rules absent from
+  the specification with proposals, and each attempt's assumptions.
 - **BREAKING** `ba0918-review` — launches one reviewer by default, adding a conformance reviewer
   only when a counterpart exists and no machine check sees the match. Two reviewers are no longer
   the default, and whether a review runs at all is the caller's gate — interdependent change sites
@@ -109,6 +139,16 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   rules and evidence needed for their delegated work.
 - **BREAKING** `ba0918-iterate` — follows cycle's expanded no-progress ending and its complete
   reviewer and fixer delegation rules through the cycle skill it reads.
+- **BREAKING** `ba0918-cycle` — the loop stops for the person only just before an irreversible,
+  privileged or dangerous operation, or on a spreading accident; a `security` finding is fixed in
+  the loop unless it states an exposed secret or its fix needs such an operation. Judgments nothing
+  approved settles are taken as provisional answers and reported with their overturn conditions;
+  fixers hand back only on a contradiction with approved content. Before ending on no progress,
+  cycle writes the assumptions the fixes shared, swaps the topmost once per run, and records the
+  attempt in the findings file. A new no-progress condition stops on new findings near a fix twice
+  in a row. Cycle takes optional review items and passes them, with the provisional answers so far,
+  to every full and diff review. The terminal report adds provisional answers, rules absent from
+  the specification with proposals, and each attempt's assumptions.
 - **BREAKING** `ba0918-review` — checks conformance in both directions, proposes deleting
   verification that does not qualify as evidence, carries the versioned evidence conditions, and
   requires every reviewer prompt to carry both-way conformance and the complete finding rules.
@@ -135,6 +175,16 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   them again. Resume rules are stated: round numbers continue from the inherited maximum, ending 3's
   streak resets at a new start and continues through "run more", and "run more" re-enters at
   implement when untraced plan steps remain.
+- **BREAKING** `ba0918-cycle` — the loop stops for the person only just before an irreversible,
+  privileged or dangerous operation, or on a spreading accident; a `security` finding is fixed in
+  the loop unless it states an exposed secret or its fix needs such an operation. Judgments nothing
+  approved settles are taken as provisional answers and reported with their overturn conditions;
+  fixers hand back only on a contradiction with approved content. Before ending on no progress,
+  cycle writes the assumptions the fixes shared, swaps the topmost once per run, and records the
+  attempt in the findings file. A new no-progress condition stops on new findings near a fix twice
+  in a row. Cycle takes optional review items and passes them, with the provisional answers so far,
+  to every full and diff review. The terminal report adds provisional answers, rules absent from
+  the specification with proposals, and each attempt's assumptions.
 - **BREAKING** `ba0918-review` — a rewording that leaves the reader's meaning unchanged is no longer
   a finding, not even `info`; `info` is reserved for changes that alter how the text is read. Full
   reviews receive the known findings.
