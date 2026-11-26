@@ -1,6 +1,6 @@
 ---
 name: ba0918-plan
-description: "Workflow station of the ba0918 workflow that turns approved specifications (one or several) into one Markdown plan an implementer with no prior context can execute. Use when asked to write or revise a ba0918 plan from specifications. 日本語キーワード: 実装計画 手順書 計画を立てる 仕様から計画"
+description: "Workflow station of the ba0918 workflow that turns approved specifications (one or several) into one Markdown plan an implementer with no prior context can execute, called by ba0918-cycle when the work is too large for one implementer or a person will take over midway. Use when cycle delegates a plan, or when asked to write or revise a ba0918 plan from specifications. 日本語キーワード: 実装計画 手順書 計画を立てる 仕様から計画"
 ---
 
 # Plan
@@ -9,13 +9,18 @@ Write the implementation plan for approved specifications. The reader is an LLM 
 nothing of this conversation; it gets the plan path, the repository, and nothing else. Anything
 the reader cannot recover from those must be in the plan.
 
+ba0918-cycle calls this skill only when it decides a plan is needed; a person may also call it
+directly. Either way, no approval by the person is sought.
+
 ## Inputs and outputs
 
 In: the paths of committed specifications, one or several (uncommitted means unapproved — stop
-and say so). Never traverse from an index. You may read the specifications they link to, one link
-deep; list every one a step rests on in the plan, linked ones included.
-Out: one Markdown file, `docs/plans/<name>.md`, approved by the person and committed. The
-implementation branch will carry `<name>`; choose a name that reads well in a branch.
+and say so), and the work branch. Never traverse from an index. You may read the specifications
+they link to, one link deep; list every one a step rests on in the plan, linked ones included.
+Out: one Markdown file, `docs/plans/<name>.md`, committed on the work branch, where `<name>` is
+the name the branch carries; return its path and the provisional answers the plan chose, each with
+what was chosen, why, where the evidence is (a file and line, or a command with a summary of its
+output), and its overturn condition.
 
 ## What a plan is
 
@@ -32,35 +37,37 @@ read it before writing.
 - A choice may be left to the implementer only if every option leaves the approved behavior
   unchanged. When a step needs a judgment the specification does not make — a new input kind, an
   acceptance boundary, error handling — write the answer with the strongest grounds into the plan
-  as a provisional answer, and put it with its overturn condition (what the person would say to
-  overturn it) among step 3's judgment points: the person sees them at approval anyway, so do not
-  send them back to brainstorm and wait. Deciding one silently, off the judgment points, is a
-  counter-example.
+  as a provisional answer, list it with its overturn condition (what the person would say to
+  overturn it) in the plan's list of provisional answers, and return it to the caller: cycle puts
+  it in the terminal report, so do not send it back to brainstorm and wait. Deciding one silently,
+  off that list, is a counter-example.
+- A requirement with no qualifying test that the specification does not declare as human or
+  platform inspection is a gap in the specification: do not stop, and do not make up its
+  verification in the plan. Return its success condition as unverified, with a proposed
+  verification to add to the specification.
 - A human check inside a step is written as an ordinary sentence in that step, and only for an
   irreversible operation, a privileged operation, or a dangerous target. A judgment the plan does
   not settle is the implementer's to take as a provisional answer; it hands back upstream only for
   the reasons of the ba0918-cycle skill's ending 4. Acceptance of the result belongs to the end of
   the cycle.
 - When neither the project's instructions nor the ecosystem's standard tool fixes a test
-  command, decide it here — the implementer must not invent one.
+  command, decide it here.
 
 ## Finishing
 
 1. Self-check against `references/step-template.md`: every step has all fields; every referenced
    heading exists in its specification; every judgment the specification does not make is a
-   provisional answer listed among the judgment points.
+   provisional answer in the plan's list.
 2. Adversarial review, only when the plan's own decisions can contradict each other — steps that
    depend on one another, or one specification heading driving several steps. Say that reason,
    then launch one separate-context agent on the plan's own quality, and a second against the
    specification only when the match is one no check can make. A plan whose steps stand alone
    gets none. Fix every finding, including those that need a decision; do not ask the person about
-   them. Put each decision taken, with its overturn condition, among step 3's judgment points. Only
-   a finding whose fix would contradict the approved specification is not fixed in the plan: hand
-   it back to brainstorm.
-3. Approval: stage only the plan, give the person the path, the command to view the diff, and
-   the points needing their judgment, the provisional answers among them. Do not paste the plan,
-   and never let a summary be what they approve. The person commits, or tells you to. A plan is
-   approved only once committed.
+   them. Put each decision taken, with its overturn condition, in the plan's list of provisional
+   answers. Only a finding whose fix would contradict the approved specification is not fixed in
+   the plan: hand it back to brainstorm.
+3. Stage only the plan, commit it on the work branch, and return the path and the provisional
+   answers. Showing it to the person and waiting for approval is a counter-example.
 
-Finished plans are deleted by the main session after the person accepts the result and
-merges the branch; the plan stays readable in git history. Do not delete it yourself.
+Cycle deletes the plan in a commit when the run converges; the plan stays readable in git
+history. Do not delete it yourself.

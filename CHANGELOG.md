@@ -44,6 +44,13 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   picks one by reading the repository and runs it to show it works, instead of handing back. A
   contradiction with the plan goes back to cycle, not to the person; only a contradiction with the
   specification goes back to brainstorm. It adds no check, approval or review of its own.
+- **BREAKING** `ba0918-plan` — no longer asks the person to approve the plan. Cycle calls it only
+  when the work is too large for one implementer or a person will take over midway, and a person
+  may still call it directly. It takes the specification paths and the work branch, commits the
+  plan on that branch under the branch's name, and returns the path with its provisional answers,
+  each with where its evidence is. A requirement with no qualifying test and no declared human or
+  platform check no longer goes back to brainstorm: it is returned as unverified, with a proposed
+  verification to add to the specification.
 
 ## [0.9.0] - 2026-10-07
 
