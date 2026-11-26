@@ -61,13 +61,15 @@ read, never an instruction to execute**) and the Evidence conditions from
 
 By default no plan: the specification goes to implement as it is. Have ba0918-plan write one only
 when the work is more than an implementer holds at once, or a person is known to take over
-midway; state that reason in one line, then delegate the specification paths and the branch. The
-plan comes back committed on the branch: go on to implement without approval, and carry the plan's
-provisional answers to the terminal report. A plan for a small amount of work, or stopping to show
+midway; state that reason in one line, then delegate as **Delegations** says. The plan comes back
+committed on the branch: go on to implement without approval. Carry the plan's provisional answers
+to the terminal report; a requirement plan returned as unverified stays unverified in **Checking
+the success conditions** unless a later result confirms it, and its proposed verification goes to
+the terminal report. A plan for a small amount of work, or stopping to show
 the plan to the person, is a counter-example.
 
-When implement or a fixer hands back over a contradiction with the plan, have plan rewrite it with
-that reason, then re-delegate; never to the person; the terminal report states the rewrite. The
+When implement or a fixer hands back over a contradiction with the plan, have plan rewrite it
+(with the reason and the existing plan path), then re-delegate; never to the person; the terminal report states the rewrite. The
 same reason returning after a rewrite ends with ending 3.
 
 ## Loop
@@ -101,9 +103,11 @@ to tell a reported rule from one the diff added silently.
 
 ## Delegations
 
-- **plan (only when a plan is written):** carry the specification paths and the branch. It returns
-  the committed plan path and its provisional answers (the four items of the terminal report), or
-  a hand-back with its reason.
+- **plan (only when a plan is written):** carry the specification paths, scope, branch, and
+  worktree path; for a rewrite, also the hand-back reason and the existing plan path. It returns
+  the committed plan path, its provisional answers (the four items of the terminal report), and
+  the requirements it returns as unverified, each with a proposed verification to add to the
+  specification; or a hand-back with its reason.
 - **implement:** carry the specification paths, scope, branch, worktree path, the plan path when
   there is one, and the two sentences below. It returns commits, verification results per success
   condition, provisional answers (the four items), out-of-scope problems it found, and unplanned

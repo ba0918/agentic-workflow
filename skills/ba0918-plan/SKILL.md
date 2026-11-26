@@ -15,12 +15,15 @@ directly. Either way, no approval by the person is sought.
 ## Inputs and outputs
 
 In: the paths of committed specifications, one or several (uncommitted means unapproved — stop
-and say so), and the work branch. Never traverse from an index. You may read the specifications
+and say so), the scope when given (plan only its requirements), the work branch, and its worktree
+path; for a rewrite, also the hand-back reason and the existing plan path, which is revised to
+answer that reason. Never traverse from an index. You may read the specifications
 they link to, one link deep; list every one a step rests on in the plan, linked ones included.
 Out: one Markdown file, `docs/plans/<name>.md`, committed on the work branch, where `<name>` is
-the name the branch carries; return its path and the provisional answers the plan chose, each with
+the name the branch carries; return its path, the provisional answers the plan chose, each with
 what was chosen, why, where the evidence is (a file and line, or a command with a summary of its
-output), and its overturn condition.
+output), and its overturn condition, and the requirements returned as unverified (see
+**Boundaries**), each with its proposed verification.
 
 ## What a plan is
 
@@ -47,8 +50,8 @@ read it before writing.
   verification to add to the specification.
 - A human check inside a step is written as an ordinary sentence in that step, and only for an
   irreversible operation, a privileged operation, or a dangerous target. A judgment the plan does
-  not settle is the implementer's to take as a provisional answer; it hands back upstream only for
-  the reasons of the ba0918-cycle skill's ending 4. Acceptance of the result belongs to the end of
+  not settle is the implementer's to take as a provisional answer; it hands back only for a
+  contradiction with the approved specification (to brainstorm) or with the plan (to cycle). Acceptance of the result belongs to the end of
   the cycle.
 - When neither the project's instructions nor the ecosystem's standard tool fixes a test
   command, decide it here.
@@ -66,8 +69,8 @@ read it before writing.
    them. Put each decision taken, with its overturn condition, in the plan's list of provisional
    answers. Only a finding whose fix would contradict the approved specification is not fixed in
    the plan: hand it back to brainstorm.
-3. Stage only the plan, commit it on the work branch, and return the path and the provisional
-   answers. Showing it to the person and waiting for approval is a counter-example.
+3. Stage only the plan, commit it on the work branch, and return the path, the provisional
+   answers, and the unverified requirements. Showing it to the person and waiting for approval is a counter-example.
 
 Cycle deletes the plan in a commit when the run converges; the plan stays readable in git
 history. Do not delete it yourself.
