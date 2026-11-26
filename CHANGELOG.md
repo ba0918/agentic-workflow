@@ -21,7 +21,9 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   outside, deletions whose users cannot be listed, CI workflow files, the project's instruction
   files, and the check scripts and hook configuration they name). The setting is read from the
   merge target's copy of the instructions, so a branch cannot grant itself the merge. Otherwise it
-  leaves the pull request. Cycle does not wait for the merge: when the checks are still running,
+  leaves the pull request — except that it neither pushes nor opens one when the run paused on an
+  exposed secret, the diff touches secrets, or the list carries a `security` item, unless the
+  project's instructions say to leave a pull request in those cases too. Cycle does not wait for the merge: when the checks are still running,
   the report says auto-merge is set and the merge waits on them. Saying "no merge this time" at the start turns it off for one run. The same
   setting applies to `ba0918-iterate`.
 

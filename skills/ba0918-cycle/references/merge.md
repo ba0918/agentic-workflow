@@ -22,6 +22,12 @@ When any is missing, leave the pull request and end with the terminal report, na
 conditions are missing. Merging with a condition missing, or leaving something off **look here
 first** so the merge can go ahead, is a counter-example.
 
+Neither push nor open a pull request, and end with the terminal report alone, when any of these
+holds: this run paused on an exposed secret; the diff touches credentials or secrets; **look here
+first** carries a `security` item. The report is the pull request's body, so it would publish the
+unfixed finding, and a push would publish a secret left in history. Only when the merge target's
+copy of the project's instructions says to leave a pull request in those cases too, leave one.
+
 ## Paths a person must see
 
 A change touching any of these is never merged, whatever else holds:
