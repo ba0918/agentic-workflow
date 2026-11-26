@@ -205,15 +205,20 @@ and a spreading accident (secret exposure, unintended publication, data loss).
      twice in a row across fixes;
    - a review still cannot succeed after one re-delegation (an absent optional seat is not a failed
      review);
-   - implement returns its assumption stack because swapping its own assumption did not help.
+   - implement returns its assumption stack because swapping its own assumption did not help;
+   - a delegate hands back for the same contradiction with the plan after the plan was rewritten
+     for it.
 
    The first four, decided by review results, go through the assumption check before ending: read
    `references/assumption-check.md` when one holds, and end here only when the check says so. A
-   failed review is a tool failure, not a wrong assumption, and implement has already tried once,
-   so those two end at once; the terminal report carries implement's stack.
+   failed review is a tool failure, not a wrong assumption; implement has already tried once; a
+   rewrite has already answered that reason — so the last three end at once; the terminal report
+   carries implement's stack.
 4. A delegate (implement, fixer, plan) handed back to brainstorm, or the assumption check ended on
-   a contradiction with the approved specification. A hand-back has only two valid reasons: a
-   contradiction with the approved specification; a file outside iterate's enumeration.
+   a contradiction with the approved specification. A hand-back to brainstorm has only two valid
+   reasons: a contradiction with the approved specification; a file outside iterate's enumeration.
+   A contradiction with the plan is a separate route: it goes back to cycle, which has the plan
+   rewritten and goes on.
 
 **Checking the success conditions.** They are the specification's own observable conditions, so
 they are the ending condition; never write one of your own. Confirm each from implement's and the
