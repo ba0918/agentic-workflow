@@ -41,5 +41,5 @@ expectations:
     critical: true
   - text: git status が clean で、baseline commit からの差分も追跡外のファイルも無い（ファイルの編集・作成・削除が一切無い）
     critical: true
-  - text: 6. Recommended action が主となる推奨を 1 つ、そのまま使える形（直す場所と内容、または /ba0918-brainstorm や /ba0918-plan の呼び出し）で示している
+  - text: 6. Recommended action が主となる推奨を 1 つ、そのまま使える形（直す場所と内容、または /ba0918-brainstorm や /ba0918-cycle の呼び出し）で示している
     critical: false
