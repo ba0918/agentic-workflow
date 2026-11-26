@@ -219,11 +219,12 @@ and a spreading accident (secret exposure, unintended publication, data loss).
 they are the ending condition; never write one of your own. Confirm each from implement's and the
 fixers' per-condition results and from the reviews — a condition no reviewer contradicts is
 confirmed by those results; add no agent to check. A checkable condition not met becomes a
-finding: give it an ID and send it to a fixer with the visible findings. A condition left with no
-means to check it (the specification names no verification for it) makes the end **unverified
-remaining**, a variant of ending 1: nothing is left to fix, so the plan is deleted as on
-convergence and no "run more" choice is offered; the report says which conditions and why, with a
-proposed verification to add to the specification. Reporting convergence once the visible findings
+finding: give it an ID and send it to a fixer with the visible findings. Any condition left
+unverified, whatever the reason, makes the end **unverified remaining** — one the specification
+names no verification for, or one implement returned unverified because its verification could
+not be run, for example. It is a variant of ending 1: nothing is left to fix, so the plan is
+deleted as on convergence and no "run more" choice is offered; the report says which conditions
+and why, with a proposed verification to add to the specification where it names none. Reporting convergence once the visible findings
 are gone without looking at the success conditions, or reading a condition loosely to clear it,
 is a counter-example.
 
