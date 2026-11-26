@@ -58,8 +58,8 @@ Editing a check to make it pass is a counter-example.
 
 Push the branch and open a pull request whose body is the terminal report, against the
 repository's default branch. When conditions 1, 2, and 4 hold, set it to be merged by the hosting
-service once its checks pass (auto-merge); with local checks only, run them first and then open
-it. The merge method is the repository's setting. Never merge locally into the target and push:
+service once its checks pass (auto-merge). With local checks only, run them first, then open the
+pull request and have the hosting service merge it. The merge method is the repository's setting. Never merge locally into the target and push:
 that bypasses branch protection and the hosting service's checks.
 
 Do not wait for the merge. If it is already confirmed once auto-merge is set, say so in the
