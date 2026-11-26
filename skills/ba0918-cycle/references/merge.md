@@ -62,8 +62,10 @@ service once its checks pass (auto-merge); with local checks only, run them firs
 it. The merge method is the repository's setting. Never merge locally into the target and push:
 that bypasses branch protection and the hosting service's checks.
 
-Once the merge is confirmed, say so in the terminal report and end. When the hosting service did
-not merge (a failed check, for example), write why. The worktree and the local branch stay; the
+Do not wait for the merge. If it is already confirmed once auto-merge is set, say so in the
+terminal report and end. If checks or a person's approval are still pending, write "auto-merge
+set; the merge waits on its checks" in the terminal report and end. When the hosting service
+refuses at once (a failed check, for example), write why. The worktree and the local branch stay; the
 main session cleans them up.
 
 ## Iterate
