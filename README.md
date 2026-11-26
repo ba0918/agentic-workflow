@@ -41,7 +41,7 @@ the specifications override the skill bodies.
 Merging stays with the person by default. To let `ba0918-cycle` and `ba0918-iterate` merge after
 they converge, write a sentence such as "cycle merges after converging" in the repository's agent
 instructions (`AGENTS.md` or `CLAUDE.md`). They then merge through a pull request only when its
-checks pass and nothing needs the person's eyes, and say "no merge this time" to skip one run.
+checks pass and nothing needs the person's eyes. Say "no merge this time" to skip one run.
 
 ## Install
 
