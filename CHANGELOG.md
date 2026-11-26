@@ -65,6 +65,12 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   asked, and so is anything in doubt. After approval the main session creates the branch and
   worktree and starts `ba0918-cycle` with the specification paths and the approval commit, unless
   the person said "specification only".
+- **BREAKING** `ba0918-review` — when a person calls review directly, the main session fixes the
+  confirmed `auto_fix` and `fix_and_verify` findings without asking, then hands over the report
+  with what it fixed and the checks it ran afterwards. It does not fix when the person said to
+  only look, when the target is not its own working branch, or when the target is the principles,
+  the glossary or a specification. Findings that are an exposed secret, or that need an
+  irreversible operation to fix, still go to the person unfixed.
 
 ## [0.9.0] - 2026-10-07
 
