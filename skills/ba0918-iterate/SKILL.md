@@ -57,7 +57,7 @@ forbidden, as examples (refuse anything else that changes state): `rm` `rmdir` `
 existing, never by value; the judge writes no file and never delegates further. Take `git status`
 yourself before and after; a difference is a spreading accident: stop, show the person, ask; never
 revert it. Judging here, search the same way. Found specifications count as given — for condition
-3, review, and the guidance table's "if a specification exists"; none found, go on without; passing
+3, review, and the guidance table's "with the existing specification path if any"; none found, go on without; passing
 condition 3 unsearched is a counter-example.
 The verdict is a proposal; the decision is here, as with reviewers in cycle; a test file the implementer
 needs test-first but the enumeration lacks is added here — that gap alone does not fail condition 4. No
