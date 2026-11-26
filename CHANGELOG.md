@@ -79,6 +79,10 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   preference or trade-offs that reading and trying cannot settle. It applies to work that goes
   through no skill too: obvious problems in the requested target and in what this session
   changed are fixed without asking, and problems found outside that are only reported.
+- **BREAKING** `ba0918-investigate` — the recommended next action sends a medium or larger change
+  to brainstorm, with the existing specification's path when there is one, and an approved
+  specification with requirements not yet implemented to `ba0918-cycle`. It no longer recommends
+  plan.
 
 ## [0.9.0] - 2026-10-07
 
