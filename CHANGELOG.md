@@ -10,6 +10,20 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `ba0918-cycle` — takes the approved specification paths and the approval commit
+  instead of a plan. The requirements under the headings that commit added or changed are the
+  scope, and their success conditions become part of convergence: a condition left with no way to
+  check it ends the run as "unverified remaining". Cycle has a plan written only when the work is
+  more than one implementer holds at once or a person will take over midway, goes on without
+  approval, has the plan rewritten when a delegate finds it contradicts the work, and deletes it
+  in a commit on convergence. Implement and fixers are told not to add checks, approvals or
+  reviews of their own, and only a contradiction with the specification (or a file outside
+  iterate's list) hands back to brainstorm. The terminal report gives each success condition's
+  state, gives every provisional answer with where its evidence is, and ends with a "look here
+  first" list.
+
 ## [0.9.0] - 2026-10-07
 
 ### Changed

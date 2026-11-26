@@ -17,15 +17,16 @@ base means this run already tried: end with ending 3 without trying again.
 2. **Swap the top assumption.** Of the assumptions the findings put in doubt, take the topmost.
    Write what replaces it and which findings point there.
 3. **Record the attempt** in `assumption_attempts` before delegating anything.
-4. **Send or end.** If fixing on the replacement contradicts neither the approved specification nor
-   the plan, give a fixer the visible findings, the stack, and the replacement, to fix from the new
+4. **Send or end.** If fixing on the replacement does not contradict the approved specification,
+   give a fixer the visible findings, the stack, and the replacement, to fix from the new
    assumption instead of patching the last finding; the loop continues from the diff review after
-   that fix. If it would contradict them, do not try: end with ending 4, and the terminal report
-   carries the stack, the change proposed for the specification or plan, and guidance to call
-   brainstorm or plan. Cycle edits neither.
+   that fix. When the replaced assumption lives in the plan, first have plan rewrite the plan. If
+   it would contradict the specification, do not try: end with ending 4, and the terminal report
+   carries the stack, the change proposed for the specification, and guidance to call brainstorm.
+   Cycle never edits the specification.
 
 **One try per run**; swapping again would only move the whack-a-mole to the assumption layer. A
-run is one plan's cycle, resume and "run more" included, or one start of iterate; iterate resets
+run is one branch's cycle, resume and "run more" included, or one start of iterate; iterate resets
 the base at each start, so a new start may try again. After the try, reset ending 3's streaks:
 counted on, the condition would hold again right after the next review.
 
