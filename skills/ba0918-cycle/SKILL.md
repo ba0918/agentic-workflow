@@ -19,7 +19,8 @@ except in the cases below.
 Required: the approved specification paths (one or more), the approval commit (or commits), and
 the branch with its worktree path. The main session creates the branch and worktree before cycle
 starts; the branch name contains the specification's name (the brainstorm topic's name when
-several changed).
+several changed). When no approval commit is given, the main session finds it in the `git log`
+of the specification paths and passes it; when it cannot, it stops and asks the person.
 Optional: round-trip limit (default none: loop until convergence), review strength (the
 person's choice, default `standard`), comparison base (default: merge-base with the branch's
 parent), profiles (default: chosen from changed paths by the review skill's path mapping),

@@ -135,7 +135,7 @@ Show invocations in a form that can be used as is.
 |---|---|---|
 | Small task | iterate | `/ba0918-iterate <request>`; the request names the place and the change |
 | Medium or larger, no basis for a decision, or two readings | brainstorm | `/ba0918-brainstorm <topic>`, with the existing specification path if any |
-| An approved specification has requirements not yet implemented | cycle | `/ba0918-cycle <specification path>` |
+| An approved specification has requirements not yet implemented | cycle | `/ba0918-cycle <specification path>`, with the approval commit |
 | Deferred | the person notes it down | one line to note |
 | No fix needed | say so | `no further action needed` |
 | Not enough evidence | keep investigating | the scope to investigate next |
