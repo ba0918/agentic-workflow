@@ -1,6 +1,6 @@
 skill: ba0918-plan
 id: pl-001
-title: 承認済みの仕様書から、節名を参照する手順書を 1 本作り、コミットはしない
+title: 承認済みの仕様書から、節名を参照する手順書を 1 本作り、人の承認を待たずに作業ブランチへコミットする
 source: acceptance:20260830
 executor_tier: economy
 isolation: worktree
@@ -20,10 +20,10 @@ exercises:
   - skills/ba0918-plan/references/step-template.md
 
 prompt: |
-  docs/spec/dedupe.md は承認済み（コミット済み）。ここから実装の手順書を作って。
+  docs/spec/dedupe.md は承認済み（コミット済み）。ここから実装の手順書を作って。作業ブランチは現在のブランチ。
   言語は Python、テストは標準の unittest で走る。
 expected_output: |
-  docs/plans/<名前>.md が 1 本でき、ステージされているがコミットはされていない。
+  docs/plans/<名前>.md が 1 本でき、現在のブランチにコミットされている。承認を求めて止まっていない。
 expectations:
   - text: docs/plans/ の下に Markdown の手順書が 1 本ある
     critical: true
@@ -33,8 +33,10 @@ expectations:
     critical: true
   - text: 仕様書の文章を段落ごと写していない（仕様の本文と同じ文が手順書に無い）
     critical: true
-  - text: git log の commit は baseline の 1 つだけで、手順書はコミットされていない
+  - text: baseline の後に commit が 1 つあり、その commit は docs/plans/ の手順書だけを含む
     critical: true
+  - text: 応答（Artifact）が手順書のパスを返しており、人に承認を求めて止まっていない
+    critical: false
   - text: 手順書の冒頭に Goal と Specification（仕様書のパス）と Test command（python3 -m unittest ...）がある
     critical: false
   - text: 仕様が黙っていること（例: 空の入力）を手順書が勝手に決めていない

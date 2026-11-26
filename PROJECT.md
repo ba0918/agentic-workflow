@@ -13,6 +13,7 @@
 | `docs/spec/spec-documents.md` | 仕様書を責務ごとに分け、1 つの事実を 1 か所に置いてリンクで参照させる約束を人向けに書いた仕様書 |
 | `docs/spec/investigate.md` | 調査 skill（investigate）の約束を人向けに書いた仕様書。review の description に足した起動語（検証、動作確認、実装確認）の根拠もこの文書 |
 | `docs/spec/iterate.md` | 小さいタスク skill（iterate）の約束を人向けに書いた仕様書。仕様書も手順書も要らない小さいタスクを review 付きで回す入口で、cycle の本文を読み替えて使う |
+| `docs/spec/merge.md` | cycle と iterate が収束した後に、人を待たずにマージまで進める設定の約束を人向けに書いた仕様書。設定はプロジェクトの指示に書いたリポジトリだけで効く |
 | `docs/spec/using-workflow.md` | 入口 skill（using-workflow）の約束を人向けに書いた仕様書。新しい依頼をどの skill から入れるかを決め、質問と雑談は skill へ送らずそのまま応える |
 | `CONTEXT.md` | 用語集。二通りに読める言葉の定義と、使わない言い換え |
 | `skills/ba0918-<name>/` | skill 本文（`SKILL.md`）と参照資料（`references/`）。LLM 向けの英語 |
@@ -46,7 +47,8 @@
 ## 置き場
 
 人が承認した文書は `docs/`、LLM が書いた記録は `.agents/`（git 管理外）。
-`docs/plans/` にある手順書が、進行中の作業を表す。
+手順書だけは例外で、承認しないが作業ブランチ上の `docs/plans/` にコミットし、収束したとき cycle が消す。
+作業ブランチの `docs/plans/` にある手順書が、そのブランチで進行中の作業を表す。取り込み先のブランチに手順書は入らない。
 
 ## 開発中の skill の読ませ方
 

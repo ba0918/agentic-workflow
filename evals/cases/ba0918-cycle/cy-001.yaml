@@ -38,7 +38,8 @@ exercises:
   - skills/ba0918-review/references/profiles.md
 
 prompt: |
-  cycle を再開して。手順書は docs/plans/dedupe-core.md、ブランチは feat/dedupe-core（現在のブランチ）、worktree はこのディレクトリ。
+  cycle を再開して。仕様書は docs/spec/dedupe.md、承認のコミットは baseline（最初のコミット）、
+  ブランチは feat/dedupe-core（現在のブランチ）、worktree はこのディレクトリ。手順書 docs/plans/dedupe-core.md もブランチにある。
   実装は済んでいて、フルレビューの指摘が .agents/artifacts/reviews/feat/dedupe-core.json にある。
   このセッションでは人（私）は答えられないので、人に聞くことがあれば報告に書いて止まって。
 expected_output: |
@@ -52,5 +53,5 @@ expectations:
     critical: true
   - text: 指摘 3（info / record_only）を修正役に渡していない
     critical: false
-  - text: 実装が済んでいると判断して implement への委譲を飛ばしたことが報告にある
+  - text: 指摘 JSON を引き継いで再開したことが報告にある
     critical: false

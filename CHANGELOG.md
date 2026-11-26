@@ -10,6 +10,88 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Added
+
+- `ba0918-cycle` can go on to merge. When a repository's own agent instructions (`AGENTS.md`,
+  `CLAUDE.md` and the like, not the person's user-scope file) say cycle merges after converging,
+  cycle pushes the branch, opens a pull request with the terminal report as its body and has the
+  hosting service merge it once its checks pass. It merges only when the report's "look here
+  first" list is empty, every success condition is confirmed, the checks pass and the change
+  touches no path a person must see (publishing or version declarations, secrets, reaching
+  outside, deletions whose users cannot be listed, CI workflow files, the project's instruction
+  files, and the check scripts and hook configuration they name). The setting is read from the
+  merge target's copy of the instructions, so a branch cannot grant itself the merge. Otherwise it
+  leaves the pull request — except that it neither pushes nor opens one when the run paused on an
+  exposed secret, the diff touches secrets, or the list carries a `security` item, unless the
+  project's instructions say to leave a pull request in those cases too. Cycle does not wait for the merge: when the checks are still running,
+  the report says auto-merge is set and the merge waits on them. Saying "no merge this time" at the start turns it off for one run. The same
+  setting applies to `ba0918-iterate`.
+
+### Changed
+
+- **BREAKING** `ba0918-cycle` — takes the approved specification paths and the approval commit
+  instead of a plan. The requirements under the headings that commit added or changed are the
+  scope, and their success conditions become part of convergence: a condition the
+  specification names no verification for, or whose verification could not be run, ends the run
+  as "unverified remaining". Cycle has a plan written only when the work is
+  more than one implementer holds at once or a person will take over midway, goes on without
+  approval, has the plan rewritten when a delegate finds it contradicts the work (ending at once
+  on no progress when the same contradiction returns after the rewrite), and deletes it in a
+  commit on convergence. Implement and fixers are told not to add checks, approvals or
+  reviews of their own, and only a contradiction with the specification (or a file outside
+  iterate's list) hands back to brainstorm. The terminal report gives each success condition's
+  state, gives every provisional answer with where its evidence is, and ends with a "look here
+  first" list.
+- **BREAKING** `ba0918-implement` — takes the specification paths, the scope and the branch, and
+  a plan path only when one was written. Without a plan it reads the scope's requirements and
+  chooses the order itself, and it builds nothing outside the scope. It reports each success
+  condition as confirmed with its evidence or unverified with why, lists problems found outside
+  the scope without fixing them, and gives every provisional answer with where its evidence is. A
+  requirement with no way to verify it no longer stops the run. When no test command is fixed, it
+  picks one by reading the repository and runs it to show it works, instead of handing back. A
+  contradiction with the plan goes back to cycle, not to the person; only a contradiction with the
+  specification goes back to brainstorm. It adds no check, approval or review of its own.
+- **BREAKING** `ba0918-plan` — no longer asks the person to approve the plan. Cycle calls it only
+  when the work is too large for one implementer or a person will take over midway, and a person
+  may still call it directly. It takes the specification paths, the scope when there is one, the
+  work branch and its worktree path (plus the hand-back reason and the existing plan on a
+  rewrite), commits the plan on that branch under the branch's name, and returns the path with its
+  provisional answers, each with where its evidence is. A requirement with no qualifying test and no declared human or
+  platform check no longer goes back to brainstorm: it is returned as unverified, with a proposed
+  verification to add to the specification.
+- **BREAKING** `ba0918-iterate` — a request whose impact cannot be read (condition 4) is now
+  guided to brainstorm in every case, never to plan, and guiding to cycle is a counter-example. Its
+  reading of cycle follows cycle's new inputs: the request stands in for the specification and
+  scope, no plan is ever written, convergence also needs the request (and any success condition it
+  touches) to be met, and the terminal report says in one line whether it was. Cycle's merge
+  setting applies to iterate under the same conditions.
+- **BREAKING** `ba0918-brainstorm` — a round holds only questions of product direction, preference
+  and trade-off. Facts the repository or a quick run can answer are checked first and given as
+  the question's background. A question every answer to which keeps the agreed behavior, and
+  that is cheap to change later (a name, a small default), is decided without asking and recorded
+  as delegated with its reason. Whether a requirement belongs in the specification is still
+  asked, and so is anything in doubt. After approval the main session creates the branch and
+  worktree and starts `ba0918-cycle` with the specification paths and the approval commit, unless
+  the person said "specification only".
+- **BREAKING** `ba0918-review` — when a person calls review directly, the main session fixes the
+  confirmed `auto_fix` and `fix_and_verify` findings without asking, then hands over the report
+  with what it fixed and the checks it ran afterwards. It does not fix when the person said to
+  only look, when the target is not its own working branch, or when the target is the principles,
+  the glossary or a specification. Findings that are an exposed secret, or that need an
+  irreversible operation to fix, still go to the person unfixed.
+- **BREAKING** `ba0918-using-workflow` — a medium or larger change always goes to brainstorm
+  first, with the existing specification's path when there is one, and an approved
+  specification with requirements not yet implemented goes to `ba0918-cycle`; plan is no longer
+  an entry or a station declared here. A new section limits what to ask the person to an
+  irreversible, privileged or dangerous operation, a spreading accident, and direction,
+  preference or trade-offs that reading and trying cannot settle. It applies to work that goes
+  through no skill too: obvious problems in the requested target and in what this session
+  changed are fixed without asking, and problems found outside that are only reported.
+- **BREAKING** `ba0918-investigate` — the recommended next action sends a medium or larger change
+  to brainstorm, with the existing specification's path when there is one, and an approved
+  specification with requirements not yet implemented to `ba0918-cycle`. It no longer recommends
+  plan.
+
 ## [0.9.0] - 2026-10-07
 
 ### Changed

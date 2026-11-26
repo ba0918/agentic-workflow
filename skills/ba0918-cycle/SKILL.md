@@ -1,22 +1,26 @@
 ---
 name: ba0918-cycle
 description: >-
-  Workflow station of the ba0918 workflow that runs an approved plan on a branch through
-  implementation, review, and fixing until the findings converge, then hands the result to the
-  person once. Use when asked to run a ba0918 cycle on a plan, or to resume one. 日本語キーワード:
-  サイクル 実装ループ 改善ループ オーケストレータ 手順書を回す
+  Workflow station of the ba0918 workflow that builds an approved specification on a branch
+  through implementation, review, and fixing until the findings converge, then hands the result
+  to the person once. Use when asked to run a ba0918 cycle on a specification, or to resume one.
+  日本語キーワード: サイクル 実装ループ 改善ループ オーケストレータ 仕様書を実装する 手順書を回す
 ---
 
 # Cycle
 
-Run implement → review → fix on one plan until the visible findings are gone. Delegate
-everything; cycle itself never implements, reviews, or fixes. The person sees only the terminal
-report; the loop does not stop for them except in the cases below.
+Run implement → review → fix on one specification change until the success conditions are
+confirmed and the visible findings are gone. Delegate everything; cycle itself never implements,
+reviews, or fixes. The person sees only the terminal report; the loop does not stop for them
+except in the cases below.
 
 ## Inputs
 
-Required: the plan path and the branch with its worktree path. The main session creates both
-before cycle starts; the branch name contains the plan name.
+Required: the approved specification paths (one or more), the approval commit (or commits), and
+the branch with its worktree path. The main session creates the branch and worktree before cycle
+starts; the branch name contains the specification's name (the brainstorm topic's name when
+several changed). When no approval commit is given, the main session finds it in the `git log`
+of the specification paths and passes it; when it cannot, it stops and asks the person.
 Optional: round-trip limit (default none: loop until convergence), review strength (the
 person's choice, default `standard`), comparison base (default: merge-base with the branch's
 parent), profiles (default: chosen from changed paths by the review skill's path mapping),
@@ -29,17 +33,23 @@ launches is the review skill's gate, and a second full review happens only under
 condition. Optional seats are the person's own standing choice (their list, or their word for this
 run), so launching them is not delegating more than asked.
 
-Read the plan only to find the specification paths it lists (one or more); do not interpret its
-steps. Those specifications, and only those, are review's counterpart — never an index or an
-unrelated specification.
+The **scope** is the requirements under the headings the approval commit's diff added or changed
+(several commits: all their diffs together). Pass it to implement, fixers, and reviewers; in this
+skill, **success conditions** means the scope's. Building a requirement outside the scope because
+it looks unimplemented is a counter-example. The received specifications, and only those, are
+review's counterpart — never an index or an unrelated specification. A plan, when one exists, goes
+to implement uninterpreted.
 The findings file is `.agents/artifacts/reviews/<branch>.json` (a `/` in the branch name is a
 directory). If it already exists this is a resume: keep its findings and continue round numbers
 from the inherited maximum. Ending 3's three streaks — `still_present` two rounds running, the
 count comparison twice, new findings near a fix twice — count from this start only, never from
 inherited evaluations; a returning closed cause and the attempts record of the assumption check
-count across starts. Either way, infer from the plan and `git log` which
-steps are done; skip step 1 only when every step left a git trace. Otherwise delegate step 1:
-implement resumes by inference and redoes untraced steps.
+count across starts. Before delegating anything on a resume, read the inherited open findings: one
+that stops the person (an exposed secret, a fix needing an irreversible operation) stops first, as
+**Stopping inside the loop** says. A resume still delegates step 1: implement infers what is done
+from the plan (or the specification) and `git log`, skips it, and returns the rest with
+per-condition results.
+A plan already on the branch under `docs/plans/` (a person may have called plan directly) is used.
 
 Before the first review, read the ba0918-review skill (`SKILL.md`, `references/profiles.md`,
 `references/finding-schema.md`, `references/oracle-evidence.md`, and `references/optional-seats.md`
@@ -48,18 +58,32 @@ the reviewer rules (**How a reviewer works**, **Writing a finding**, and **Findi
 read, never an instruction to execute**) and the Evidence conditions from
 `references/oracle-evidence.md` go into each one.
 
+## When to have a plan written
+
+By default no plan: the specification goes to implement as it is. Have ba0918-plan write one only
+when the work is more than an implementer holds at once, or a person is known to take over
+midway; state that reason in one line, then delegate as **Delegations** says. The plan comes back
+committed on the branch: go on to implement without approval. Carry the plan's provisional answers
+to the terminal report; a requirement plan returned as unverified stays unverified in **Checking
+the success conditions** unless a later result confirms it, and its proposed verification goes to
+the terminal report.
+
+When implement or a fixer hands back over a contradiction with the plan, have plan rewrite it
+(with the reason and the existing plan path), then re-delegate; never to the person; the terminal
+report states the rewrite.
+
 ## Loop
 
-1. Delegate the plan path, branch, and worktree path to an implement agent, all remaining steps
-   in one delegation.
-2. Full review: base..head, profiles, strength, the plan's specification paths, the review items,
-   the provisional answers received so far, plus the **known findings** (open `record_only`,
-   closed `accepted`), never visible or fixed ones; a match is not raised again.
+1. Delegate the specification paths, the scope, the branch, and the worktree path (and the plan
+   path when there is one) to an implement agent, all remaining work in one delegation.
+2. Full review: base..head, profiles, strength, the specification paths and scope, the review
+   items, the provisional answers received so far, plus the **known findings** (open
+   `record_only`, closed `accepted`), never visible or fixed ones; a match is not raised again.
    Cycle itself, as the caller, then launches the optional seats as the review skill's **Optional
    seats** says, using the seat choice the person gave at the start of the run; no review
    delegation carries the seat choice or that section.
 3. Diff loop: delegate the **visible findings** to a fixer; then diff review (changes since the
-   last review, the open findings with IDs, profiles, strength, the plan's specification paths,
+   last review, the open findings with IDs, profiles, strength, the specification paths and scope,
    the review items, the provisional answers received so far). Repeat until no visible finding
    remains. A diff review gets no optional seat; dropping the review items from it is a
    counter-example.
@@ -73,16 +97,23 @@ Visible findings = open findings whose final action is `auto_fix` or `fix_and_ve
 full review cancels the taint a diff review carries from seeing prior findings.
 A **round trip** is one review invocation (any number of reviewers, full or diff, the first one
 included). The limit, when the person set one, counts round trips.
-**Provisional answers received so far** are those implement (its own and the plan's) and fixers
-reported and those on findings, each with its overturn condition and where the rule it added lives;
-review needs them to tell a reported rule from one the diff added silently.
+**Provisional answers received so far** are those plan, implement, and fixers reported and those
+on findings, each with its overturn condition and where the rule it added lives; review needs them
+to tell a reported rule from one the diff added silently.
 
 ## Delegations
 
-- **implement:** carry the plan path, branch, and worktree path. It returns commits, per-step
-  verification evidence, out-of-plan changes, and provisional answers (its own and the plan's)
-  with their overturn conditions and where each added rule lives; or a hand-back with its reason; or, when swapping its own assumption did not help,
-  its assumption stack.
+- **plan (only when a plan is written):** carry the specification paths, scope, branch, and
+  worktree path; for a rewrite, also the existing plan path and its reason — the hand-back reason, or from the
+  assumption check the replaced assumption and its replacement. It returns
+  the committed plan path, its provisional answers (the four items of the terminal report), and
+  the requirements it returns as unverified, each with a proposed verification to add to the
+  specification; or a hand-back with its reason.
+- **implement:** carry the specification paths, scope, branch, worktree path, the plan path when
+  there is one, and the two sentences below. It returns commits, verification results per success
+  condition, provisional answers (the four items), out-of-scope problems it found, and unplanned
+  changes with reasons; or a hand-back with its reason; or, when swapping its own assumption did
+  not help, its assumption stack.
 - **review (full):** carry the base and head, worktree path, known findings, and the prompt
   contents named above. It returns findings JSON.
 - **review (diff):** carry the diff since the last review, worktree path, open findings with IDs,
@@ -91,28 +122,39 @@ review needs them to tell a reported rule from one the diff added silently.
 - **optional seats (full reviews only):** not a delegation. Hand each seat's launch means the
   quality reviewer's prompt rewritten for the seat's copy. It returns findings JSON, or the seat
   is absent with its reason.
-- **fixer:** carry visible findings with their provisional answers, plan path, branch, worktree
-  path, and the contract below; from the assumption check, also the stack and the replacement. It
-  returns commits and which finding each addresses, and provisional answers with their overturn
-  conditions, or a hand-back. For a finding `still_present` after a fix, also carry that fix's
-  commits; before changing code the fixer states in one sentence the assumption that fix rested
-  on, tests it with a command, and its return adds the assumption with the command and output.
-  The next fix starts from that result; a broken assumption is what a changed approach rests on.
-  This does not change how ending 3 counts two rounds. The fixer has no assumption check of its
-  own: the assumption check below covers fixes, so one run never tries twice.
+- **fixer:** carry visible findings with their provisional answers, specification paths and scope
+  (and the plan path when there is one), branch, worktree path, and the contract below; from the
+  assumption check, also the stack and the replacement. It returns commits and which finding each
+  addresses, the verification results of the success conditions those findings touch,
+  out-of-scope problems it found, and provisional answers (the four items), or a hand-back. For a finding
+  `still_present` after a fix, also carry that fix's commits; before changing code the fixer
+  states in one sentence the assumption that fix rested on, tests it with a command, and its
+  return adds the assumption with the command and output. The next fix starts from that result; a
+  broken assumption is what a changed approach rests on. This does not change how ending 3 counts
+  two rounds. The fixer has no assumption check of its own: the assumption check below covers
+  fixes, so one run never tries twice.
+
+The two sentences, in implement's and the fixer's prompts: "The criteria in this request are all
+there is; add no check, approval, or review of your own. Decide reversible choices without asking;
+report those that are judgments of meaning or design as provisional answers."
 
 The fixer has no skill of its own. Its contract, pasted in full: for code, RED → GREEN → REFACTOR
 with a test run at every transition; any failing test it writes must satisfy the Evidence conditions
-pasted below. For a check oracle, run the plan's commands in order, unedited. For an artifact, leave
-it judgeable by an independent review and pass its format check.
+pasted below. For a check oracle, run the check commands in order, unedited: those the plan or the
+project's instructions name, else the ecosystem's standard tool, else one chosen by reading the
+repository and run once to show it works (a provisional answer). For an artifact, leave it judgeable
+by an independent review and pass its format check.
 In conditions 3 and 4, the specification means the project's specification, or its public
 user-facing documentation when none exists; supported environments are those it declares.
 For a deletion, completion is all existing checks passing after deletion; no failing test is needed.
 One concern per commit; `git add <path>` only; never disable hooks; never name a station or finding
 ID in a commit message. Fix a finding that carries a provisional answer by that answer. When the fix needs a
 product, design, persistence, or technology judgment nothing approved settles, take the answer with
-the strongest grounds, go on, and report it with its overturn condition (what the person would say
-to overturn it). Hand back only when the fix would contradict the approved specification or plan.
+the strongest grounds, go on, and report it with why, where the evidence is, and its overturn
+condition (what the person would say to overturn it). A problem outside what you were asked to fix
+and what you changed is neither fixed nor asked about: report it. Hand back only when the fix
+would contradict the approved specification (to brainstorm) or the plan (to cycle, which has it
+rewritten).
 A question a throwaway run in the worktree can answer is a fact, not a judgment — run it, leave
 nothing of it in the worktree or the commits, report the command and a decision-relevant summary.
 Stop and ask before an irreversible or privileged operation, an unsafe, privileged, or irreversible
@@ -154,11 +196,12 @@ and a spreading accident (secret exposure, unintended publication, data loss).
   Every other `security` finding that is visible is fixed in the loop.
 - A delegate stops on either case: relay the question verbatim, then resume or re-delegate with
   the answer.
-- A delegate hands back to brainstorm or plan: ending 4.
+- A delegate hands back to brainstorm: ending 4.
 
 ## Endings
 
-1. Converged: the last review returned no visible finding, or the diff loop after it cleared them.
+1. Converged: every success condition is confirmed, and the last review returned no visible
+   finding, or the diff loop after it cleared them.
 2. The person's round-trip limit was reached.
 3. No progress, when any of these holds:
    - a visible finding is `still_present` in two consecutive rounds that evaluated it (the second
@@ -170,16 +213,31 @@ and a spreading accident (secret exposure, unintended publication, data loss).
      twice in a row across fixes;
    - a review still cannot succeed after one re-delegation (an absent optional seat is not a failed
      review);
-   - implement returns its assumption stack because swapping its own assumption did not help.
+   - implement returns its assumption stack because swapping its own assumption did not help;
+   - a delegate hands back for the same contradiction with the plan after the plan was rewritten
+     for it.
 
    The first four, decided by review results, go through the assumption check before ending: read
    `references/assumption-check.md` when one holds, and end here only when the check says so. A
-   failed review is a tool failure, not a wrong assumption, and implement has already tried once,
-   so those two end at once; the terminal report carries implement's stack.
-4. A delegate (implement, fixer) handed back to brainstorm or plan, or the assumption check ended
-   on a contradiction with approved content. A hand-back has only three valid reasons: a
-   contradiction with the approved specification or plan; no test command can be determined; a
-   file outside iterate's enumeration.
+   failed review is a tool failure, not a wrong assumption; implement has already tried once; a
+   rewrite has already answered that reason — so the last three end at once; the terminal report
+   carries implement's stack.
+4. A delegate (implement, fixer, plan) handed back to brainstorm, or the assumption check ended on
+   a contradiction with the approved specification. A hand-back to brainstorm has only two valid
+   reasons: a contradiction with the approved specification; a file outside iterate's enumeration.
+   A contradiction with the plan is a separate route: it goes back to cycle, which has the plan
+   rewritten and goes on.
+
+**Checking the success conditions.** They are the specification's own observable conditions, so
+they are the ending condition; never write one of your own. Confirm each from implement's and the
+fixers' per-condition results and from the reviews — a condition no reviewer contradicts is
+confirmed by those results; add no agent to check. A checkable condition not met becomes a
+finding: give it an ID and send it to a fixer with the visible findings. A condition left
+unverified because nothing can check it makes the end **unverified remaining**: one the
+specification names no verification for, or one whose verification could not be run. A condition
+that can be checked but was not goes to a fixer to get its result. It is a variant of ending 1; the report says which conditions and why,
+with a proposed verification to add to the specification where it names none. Reading a
+condition loosely to clear it is a counter-example.
 
 "Near where a fix went in" is cycle's judgment, not a computation: compare the new finding's
 evidence location (file and lines) with the evidence of the findings that fix addressed and with
@@ -187,20 +245,50 @@ the places its commits changed. The same file with overlapping lines is one exam
 visible findings count; a `record_only` finding near a fix does not. A chain seen only in full
 reviews that do not directly follow a fix does not count either.
 
+On ending 1 (unverified remaining included), when a plan was written, add a commit on the branch
+that deletes it, then write the terminal report: the merge target never gets the plan, and git
+history keeps it. Other endings keep it for the next run.
+
 Endings 2–4 add to the terminal report the choice "run more or accept the rest and finish" and
 any hand-back reason. "Run more" continues the same run (streaks kept), findings still open, at
-step 1 if untraced plan steps remain, else at step 3; a new limit, if any, is the person's to set.
+step 1 if requirements or plan steps remain unimplemented, else at step 3; a new limit, if any, is
+the person's to set. "Accept the rest" leaves deleting a remaining plan to the main session.
 
 ## Terminal report
 
-Always: artifacts and commits, verification results from the implement report, how to view
-the diff. When present: fixed findings, forwarded observations, reasoned out-of-plan changes, and
-open findings; the provisional answers implement, fixers, and findings chose, each with its
-overturn condition; rules or sections identified as absent from the specification, and rules
-added by a provisional answer, each with a proposal to add it there; for each assumption-check attempt, its stack, plus the proposed change to
-the specification or plan when it ended on a contradiction. When a full review ran optional seats:
-which attended and which were absent, each absence with its reason.
+Always: artifacts and commits; each success condition as confirmed (with where the evidence is)
+or unverified (with why); how to view the diff; and, last, **look here first**. When present:
+fixed findings, forwarded observations, reasoned unplanned changes, and open findings; the
+provisional answers plan, implement, fixers, and findings chose; rules or sections identified as
+absent from the specification, and rules added by a provisional answer, each with a proposal to
+add it there; why a plan was written, and that it was rewritten; for each assumption-check
+attempt, its stack, plus the proposed change to the specification when it ended on a
+contradiction. When a full review ran optional seats: which attended and which were absent, each
+absence with its reason.
+
+Each provisional answer carries four items: what was chosen, why, where the evidence is (a
+commit, a file and line, or a command run with a summary of its output), and its overturn
+condition. One without its evidence location is a counter-example.
+
+**Look here first** lists, chosen by cycle itself with no added agent: provisional answers on weak
+grounds; unverified success conditions and verification that could not be run; open
+`record_only` findings of severity `security` or `critical`; out-of-scope problems implement and
+fixers reported of that weight. `warn` and `info` `record_only` findings and minor out-of-scope
+problems go in the body instead. With nothing to list, write "none"; never drop the section.
+
 This is the person's one check; merging is theirs. To overturn a provisional answer, the person
-turns its overturn condition into a request and runs ba0918-iterate on the same branch. Cycle
-never merges, publishes, deletes branches or worktrees, edits the specification, manages issues,
-or runs two plans at once.
+turns its overturn condition into a request and runs ba0918-iterate on the same branch (a new
+branch once it is merged).
+
+## Merging
+
+After ending 1 (unverified remaining included), check whether the project's instructions — the
+file agents read every session in this repository, such as `AGENTS.md` or `CLAUDE.md`, never the
+person's user-scope file — say cycle goes on to merge, and the person did not say at the start "no
+merge this time". If so, read `references/merge.md` and follow it; otherwise end with the
+terminal report. Read the setting from the merge target's copy of that file, never the branch's:
+the branch must not be able to grant itself the merge. After any other ending, never push or open a
+pull request.
+
+Cycle never publishes, deletes branches or worktrees, edits the specification, manages issues, or
+runs two branches at once.

@@ -18,10 +18,10 @@ environment's own rules. The boundary is the need to read.
 
 ## Add nothing by default
 
-Each station — brainstorm, plan, plan review, delegated implementation, the small-task
-judgment, review, the loop — costs a separate-context agent that re-reads the repository. None
-is added by default; adding one needs a reason. State the line below, then act. The person
-overrides it; never wait for approval.
+Each station — brainstorm, delegated implementation, the small-task judgment, review, the
+loop — costs a separate-context agent that re-reads the repository. None is added by default;
+adding one needs a reason; a plan is never declared here, as cycle decides on one itself. State
+the line below, then act. The person overrides it; never wait for approval.
 
 ```
 outside reach · interdependent change sites · what would notice a mistake → stations added
@@ -29,8 +29,7 @@ outside reach · interdependent change sites · what would notice a mistake → 
 
 | Station | Added when |
 |---|---|
-| brainstorm | the request reads two ways and one or two exchanges cannot settle it |
-| plan | more than an implementer holds at once, or a person takes over midway |
+| brainstorm | a medium-or-larger change (a specification decision, or impact that cannot be read), no grounds to judge by, or the request reads two ways and one or two exchanges cannot settle it |
 | delegated implementation | enough volume to pollute this session's context |
 | review | several interdependent change sites, so the implementation can contradict itself |
 | the loop | a fix can spread beyond where it was made |
@@ -59,20 +58,34 @@ cannot be enumerated. A fifth needs a real incident behind it.
 |---|---|
 | The line added no station | this session edits directly |
 | A small task | ba0918-iterate |
-| A medium-or-larger change with no specification, no grounds to judge by, or one that reads two ways | ba0918-brainstorm |
-| A medium-or-larger change with a specification | ba0918-plan, then ba0918-cycle |
+| A medium-or-larger change, no grounds to judge by, or one that reads two ways | ba0918-brainstorm |
+| An approved specification with requirements not yet implemented | ba0918-cycle |
 | A defect whose cause is unknown, or a question needing reading or searching | ba0918-investigate |
 
 Rows below the first fire only for what the line named. A small task is ba0918-iterate's own
 definition; an unreadable impact or a specification decision makes a change medium or larger. A
-request to change a specification goes to ba0918-brainstorm with its path, not the plan row. A bare
-"fix it" leaves the person the path of this session fixing it directly. "Make the error message
-clearer" with no wording given reads two ways: ba0918-brainstorm, not a small task. A defect sent to
-ba0918-investigate continues from its report's recommended next action, which names the next entry.
+medium-or-larger change gets its specification written or revised first: cycle's scope is what the
+approval commit changed, so one that changes no specification never enters cycle. A request to
+change a specification goes to ba0918-brainstorm with its path. A bare "fix it" leaves the person
+the path of this session fixing it directly. "Make the error message clearer" with no wording
+given reads two ways: ba0918-brainstorm, not a small task. A defect sent to ba0918-investigate
+continues from its report's recommended next action, which names the next entry.
+
+## Go on without asking
+
+This holds for every request, including work that adds no station and this session's direct
+edits. Ask only just before an irreversible, privileged, or dangerous operation, on a spreading
+accident, or about direction, preference, or a trade-off that reading and trying cannot settle.
+Fix a problem whose fix is obvious without asking; read to learn a fact; try to learn what a run
+shows. Fix unasked only the requested target and what you changed this time. A problem outside
+that is neither fixed nor asked about: report it once, in the final report. Rewording a function,
+you find another function in the same file passing input straight into SQL: report it. The same
+problem in a function you added this time: fix it without asking.
 
 ## Exceptions
 
-Work with an approved plan or in-progress records is not rewound; it enters from where it left
-off, and its skill's resume rules own the records. "Implement it" with an approved plan is
-ba0918-cycle — implementing by hand there is a counter-example. A skill outside the table fires
-on its own description.
+An approved specification with requirements not yet implemented, or work with in-progress
+records, is not rewound; it enters from where it left off, and its skill's resume rules own the
+records. "Implement it" on a specification left at "specification only" is ba0918-cycle —
+implementing by hand there is a counter-example. A skill outside the table fires on its own
+description.

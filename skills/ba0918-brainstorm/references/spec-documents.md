@@ -11,7 +11,7 @@ A responsibility is what changes for the same reason — for a specification, a 
 requirements. Decide by it whether to add to an existing specification or start a new one: a
 requirement that would change for a different reason than those already there gets a new
 specification. One session may change several; together they are still one deliverable under
-the conditions for handing to plan. The workflow does not decide directory layout or file
+the conditions for handing to cycle. The workflow does not decide directory layout or file
 names; follow whatever layout the project uses. For example, a small project may keep its
 specifications flat under the specification home, and a large one may split them by domain.
 

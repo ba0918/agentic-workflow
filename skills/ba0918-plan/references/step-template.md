@@ -29,8 +29,9 @@ Guidance per field:
   conditions in the ba0918-review skill's `references/oracle-evidence.md`. Do not add tests for
   conditions already true or match their count to the number of Done conditions; use one test per
   behavior being implemented. If no test qualifies and the specification does not require human
-  or platform inspection, hand back to brainstorm — never a provisional answer: an oracle counts
-  only when the specification declares what it enforces, and a plan cannot declare that.
+  or platform inspection, mark the condition unverified and go on (SKILL.md's Boundaries) — never
+  a provisional answer or a made-up test: an oracle counts only when the specification declares
+  what it enforces, and a plan cannot declare that.
 - **Left to the implementer** holds choices delegated for this step; plan-wide ones go in the
   plan-level section. Naming, internal
   structure, and helper extraction usually qualify; input formats, limits, error behavior, and
@@ -41,7 +42,7 @@ Guidance per field:
 
 Plan-level sections that precede the steps: **Goal** (one sentence, the result the person
 gets), **Specification** (each specification the steps rest on, as a link), **Approach and
-why** (including the provisional answers the plan chose where the specification is silent, each
-with its overturn condition), **Scope of change**, **Step order and prerequisites**, **Verification map** (which steps
+why** (including the list of provisional answers the plan chose where the specification is
+silent, each with its overturn condition), **Scope of change**, **Step order and prerequisites**, **Verification map** (which steps
 prove which specification sections), **Left to the implementer**, **Stop conditions**, **Test
 command** (only when the project does not fix one), **Out of scope**.

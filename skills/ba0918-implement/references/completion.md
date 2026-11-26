@@ -23,10 +23,10 @@ A mock setup larger than the test logic is a red flag.
 
 ## Check
 
-Run each listed command in the order the plan gives. Completion is all of them succeeding in
-one pass. A failing command is fixed in the product, not by editing or replacing the command; a command
-that cannot succeed as written (a name that does not exist, a rejected flag) contradicts the
-approved plan — hand back to plan.
+Run each command in order (where it comes from: SKILL.md's command order). Completion is all of
+them succeeding in one pass. A failing command is fixed in the product, not by editing or replacing
+the command; a command the plan names that cannot succeed as written (a name that does not exist,
+a rejected flag) contradicts the plan — hand back to cycle.
 
 ## Artifact
 
