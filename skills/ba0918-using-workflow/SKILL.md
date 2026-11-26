@@ -29,7 +29,7 @@ outside reach · interdependent change sites · what would notice a mistake → 
 
 | Station | Added when |
 |---|---|
-| brainstorm | a medium-or-larger change (a specification decision, or impact that cannot be read), or the request reads two ways and one or two exchanges cannot settle it |
+| brainstorm | a medium-or-larger change (a specification decision, or impact that cannot be read), no grounds to judge by, or the request reads two ways and one or two exchanges cannot settle it |
 | delegated implementation | enough volume to pollute this session's context |
 | review | several interdependent change sites, so the implementation can contradict itself |
 | the loop | a fix can spread beyond where it was made |
