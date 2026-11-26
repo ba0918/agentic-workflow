@@ -139,14 +139,14 @@
       "verified": "2026-11-26"
     },
     "ba0918-iterate": {
-      "carried_note": "not run; substitution table follows cycle's specification inputs, condition 4 guides to brainstorm; it-001/it-002 critical expectations still hold",
+      "carried_note": "not run; it-002 reason text aligned with the guidance table and iterate implementer return items; it-001/it-002 expectations unchanged",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "50b941477607848cc3ae2f32eb53c139508fc1462a58ca48a9fcc5349e74548d",
+        "skills/ba0918-cycle/SKILL.md": "777d4ff9ec5429da27f4937e28ad35653e584c2a984c401f62a81b3f62ac2330",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
-        "skills/ba0918-cycle/references/merge.md": "00193a5c589116adc1b0047158e054294d5ccc97b0202a863053f7fcae0c6a90",
+        "skills/ba0918-cycle/references/merge.md": "464d80bf68240df606d1de57de1bf22d7d4664a5ce8a44427b0bd970099636cc",
         "skills/ba0918-iterate/SKILL.md": "5ee3871293d3638a66610bf3c4f220d64f0ea0966f9bc3d115040e09efd9ea36"
       },
-      "note": "not run; it-002 reason text aligned with the guidance table and iterate implementer return items; it-001/it-002 expectations unchanged",
+      "note": "not run; it-002 reason text aligned with the guidance table, iterate implementer return items, and cycle merge wording it reads; it-001/it-002 expectations unchanged",
       "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
@@ -161,7 +161,7 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "a0fdb922fc96a8c6f87170c7c92925ab02fcbf869f3f8138423af5c4bffb6c14",
+        "skills/ba0918-cycle/SKILL.md": "b080ec8b2954dc48bee87a93eaa60cebf67210c3836dd12de802db4bbb3e4b0d",
         "skills/ba0918-cycle/references/assumption-check.md": "cb3da45355074c2c3556039e9ce22c98b706f10d76033b5ff15cd046c131616f",
         "skills/ba0918-cycle/references/merge.md": "9e38f221086078183a5372dfa97fcef7fd5c656c4e7b985747d140524847a578",
         "skills/ba0918-iterate/SKILL.md": "312f7a4fc8010b27a984ca1ffa46a0e32d366352a5378739e6cd10d5b2713b9b"
@@ -172,8 +172,8 @@
         "skills/ba0918-cycle/references/merge.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "e6aef6eb6d00e8065edc7b1dc8acb3c09cc107f12c981a570b86eae513b42b42",
-      "verified": "2026-11-26"
+      "surface_sha256": "64d132d7d06f229252653f5e4a761a988ac2f3e4edf120a4e21aad8cf9bdcf86",
+      "verified": "2026-11-27"
     },
     "ba0918-plan": {
       "carried_note": "not run; plan is committed on the work branch without approval; pl-001 realigned from 'not committed' to 'committed alone on the branch', pl-002 unchanged",

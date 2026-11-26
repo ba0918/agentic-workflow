@@ -33,7 +33,7 @@ A change touching any of these is never merged, whatever else holds:
 - a deletion whose users cannot be enumerated;
 - a CI workflow file — rewriting the checks would void condition 3;
 - the project's instruction files (`AGENTS.md`, `CLAUDE.md` and the like) — they hold the merge
-  setting and name the checks;
+  setting and name the checks, so both are read from the merge target's copy, never the branch's;
 - the definitions of the checks the instructions name (check scripts, hook configuration) — for
   the same reason as a CI workflow file.
 
