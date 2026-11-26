@@ -43,7 +43,7 @@ expectations:
     critical: true
   - text: 応答が行き先として brainstorm を示し、`/ba0918-brainstorm` で始まるそのまま使える呼び出しを載せている
     critical: true
-  - text: 応答が行き先として `/ba0918-plan` を案内していない（仕様書が無いので plan は動けない。案内の表の説明としての言及は数えない）
+  - text: 応答が行き先として `/ba0918-plan` を案内していない（案内の表で、条件 4 の行き先は常に brainstorm である。案内の表の説明としての言及は数えない）
     critical: true
   - text: 応答に「それでも iterate で続ける」に当たる選択肢が無い
     critical: true
