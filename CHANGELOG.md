@@ -51,6 +51,12 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   each with where its evidence is. A requirement with no qualifying test and no declared human or
   platform check no longer goes back to brainstorm: it is returned as unverified, with a proposed
   verification to add to the specification.
+- **BREAKING** `ba0918-iterate` — a request whose impact cannot be read (condition 4) is now
+  guided to brainstorm in every case, never to plan, and guiding to cycle is a counter-example. Its
+  reading of cycle follows cycle's new inputs: the request stands in for the specification and
+  scope, no plan is ever written, convergence also needs the request (and any success condition it
+  touches) to be met, and the terminal report says in one line whether it was. Cycle's merge
+  setting applies to iterate under the same conditions.
 
 ## [0.9.0] - 2026-10-07
 

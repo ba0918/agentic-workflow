@@ -5,7 +5,7 @@ description: "Entry point beside the ba0918 workflow for a task too small to nee
 
 # Iterate
 
-Run cycle's loop on a **request** instead of a plan, once judged small. Delegate only what the
+Run cycle's loop on a **request** instead of a specification, once judged small. Delegate only what the
 caller's reason named: review always in separate contexts, judgment and implementation only when
 named. A person starts this skill from the conversation; cycle never calls it and hands nothing over
 — what the main session learned there goes into the request; a findings file on the branch is
@@ -64,15 +64,16 @@ needs test-first but the enumeration lacks is added here — that gap alone does
 verdict: re-delegate once, then report none was possible and stop.
 
 Not small: stop with guidance (the failed condition with grounds, the destination, a ready-to-use
-invocation); never start brainstorm or plan yourself. Several failed: list all, destination from
-the highest row, since a clarified request may change verdicts 2 to 4. Guiding to plan with no
-specification (it cannot run without one) or offering "continue here anyway" is a counter-example.
+invocation); never start brainstorm or cycle yourself. Several failed: list all, destination from
+the highest row, since a clarified request may change verdicts 2 to 4. Guiding to cycle (its scope
+is what an approval commit changed, so a request that changes no specification cannot enter it) or
+offering "continue here anyway" is a counter-example.
 
 | Failed | Also handed back for | Destination | Ready-to-use form |
 |---|---|---|---|
 | 1 (ambiguous) | — | the person, via the main session | where the readings diverge, and the question to ask |
 | 2 (specification decision), 3 (contradiction) | a contradiction with the specification (3) — implementer or fixer | brainstorm | `/ba0918-brainstorm <topic>`, with the existing specification path if any |
-| 4 (impact unreadable) | a file outside the enumeration (implementer only) | plan if a specification exists, else brainstorm | `/ba0918-plan <specification path>` or `/ba0918-brainstorm <topic>` |
+| 4 (impact unreadable) | a file outside the enumeration (implementer only) | brainstorm | `/ba0918-brainstorm <topic>`, with the existing specification path if any |
 
 ## The loop
 
@@ -81,20 +82,22 @@ read before the first review); "cycle" there means this run. Only these substitu
 
 | In cycle's body | Read here as |
 |---|---|
-| the required plan path | the request |
-| the branch name contains the plan name | a short name for the request |
-| the specification paths the plan lists | the given paths, or the specifications the judgment found |
-| inferring done steps from the plan and `git log`, then delegating the rest to implement | no inference: the request goes to the implementer in one delegation, after the judgment |
-| the implement delegation (plan path, branch, worktree path) | the implementer delegation (request, the judgment's enumeration, the specification paths if any, branch, worktree path), with the contract's hand-back reasons read as: a file outside the enumeration; a contradiction with the specification |
-| the plan path in the fixer delegation | the request, and the specification paths if any; the contract's hand-back reason reads as a contradiction with the specification |
-| the fixer contract's "the plan's commands in order, unedited" | check commands come from the project's instructions, then the ecosystem's standard tool |
-| "run more" re-entering at step 1 when steps remain | always the diff loop |
-| the plan's specification paths in review delegations | the specification paths and the request, both |
-| ending 4 (a hand-back to brainstorm or plan, or the assumption check ending on a contradiction) and its "run more or accept the rest" choice | the destination is one of the guidance table's three; the choice is not offered — the report (as in Out above) adds the hand-back reason and the guidance, and the person restarts with a new request holding their answer |
-| any other plan word meaning the plan (one plan at once, out-of-plan changes) | the request (out-of-request changes); plan as a skill name, a destination, stays; sentences about plan steps (do not interpret its steps, if steps remain) do not apply — there is no plan |
+| the required specification paths and approval commit, and the scope they set | the request; specification paths only when given |
+| the branch name contains the specification's name | a short name for the request |
+| the received specifications as review's counterpart | the given paths, or the specifications the judgment found |
+| when to have a plan written | never: work that large is not small and already stopped at the judgment |
+| inferring what is done from the plan or specification and `git log`, then delegating the rest to implement | no inference: the request goes to the implementer in one delegation, after the judgment |
+| the implement delegation (specification paths, scope, branch, worktree path) | the implementer delegation (request, the judgment's enumeration, the specification paths if any, branch, worktree path), with the contract's hand-back reasons read as: a file outside the enumeration; a contradiction with the specification |
+| the specification paths and scope in the fixer delegation | the request, and the specification paths if any; the contract's hand-back reason reads as a contradiction with the specification |
+| "every success condition is confirmed" in ending 1 | the request is met; with a specification, also the success conditions the request touches |
+| each success condition's state in the terminal report | one line on whether the request was met; with a specification, also the success conditions the request touches |
+| "run more" re-entering at step 1 when requirements or plan steps remain | always the diff loop |
+| the specification paths and scope in review delegations | the specification paths and the request, both |
+| ending 4 (a hand-back to brainstorm, or the assumption check ending on a contradiction) and its "run more or accept the rest" choice | the destination is the guidance table's; the choice is not offered — the report (as in Out above) adds the hand-back reason and the guidance, and the person restarts with a new request holding their answer |
+| any other word meaning the received specification or scope (building the scope, unplanned changes) | the request (out-of-request changes); sentences about the plan (do not interpret it, a contradiction with it, the commit deleting it) do not apply — there is no plan |
 
-The **implementer** is cycle's fixer contract pasted in full, the request replacing the visible
-findings; the implement skill is not used. Where the reason did not name delegated implementation,
+The **implementer** is cycle's fixer contract pasted in full with the two sentences, the request
+replacing the visible findings; the implement skill is not used. Where the reason did not name delegated implementation,
 this session implements under that same contract, the rest of the loop unchanged. It returns
 commits, evidence per completion kind, out-of-request changes with reasons, provisional answers with
 their overturn conditions — or a hand-back and why. A request that turns out to read two ways, or a
@@ -119,7 +122,8 @@ evaluated in the diff review even outside it. No default round-trip limit; one t
 counts this run's reviews from when set, not the round numbers, and cycle's ending 2 applies. No
 consecutive-run counter.
 
-Cycle's terminal report and "never" list apply, verification results from the implementer's evidence,
-plus the guidance when not small or handed back. "Look into this" belongs to the investigate skill,
+Cycle's terminal report, its merging (the setting works here under the same conditions), and its
+"never" list apply — two requests at once in place of two branches — verification results from
+the implementer's evidence, plus the guidance when not small or handed back. "Look into this" belongs to the investigate skill,
 "check that it works" and "verify this" to review's diagnosis; implementing from them is a boundary
 breach. "Fix it" or "add it" alone never starts this skill; ask for a reviewed loop.
