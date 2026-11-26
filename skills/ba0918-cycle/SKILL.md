@@ -266,5 +266,14 @@ This is the person's one check; merging is theirs. To overturn a provisional ans
 turns its overturn condition into a request and runs ba0918-iterate on the same branch (a new
 branch once it is merged).
 
-Cycle never merges, publishes, deletes branches or worktrees, edits the specification, manages
-issues, or runs two branches at once.
+## Merging
+
+After ending 1 (unverified remaining included), check whether the project's instructions — the
+file agents read every session in this repository, such as `AGENTS.md` or `CLAUDE.md`, never the
+person's user-scope file — say cycle goes on to merge, and the person did not say at the start "no
+merge this time". If so, read `references/merge.md` and follow it. Otherwise end with the terminal
+report; merging without that setting is a counter-example. After any other ending, never push or
+open a pull request.
+
+Cycle never publishes, deletes branches or worktrees, edits the specification, manages issues, or
+runs two branches at once.
