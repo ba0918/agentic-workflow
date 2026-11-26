@@ -46,8 +46,9 @@ count comparison twice, new findings near a fix twice — count from this start 
 inherited evaluations; a returning closed cause and the attempts record of the assumption check
 count across starts. Before delegating anything on a resume, read the inherited open findings: one
 that stops the person (an exposed secret, a fix needing an irreversible operation) stops first, as
-**Stopping inside the loop** says. A resume still delegates step 1: implement infers what is done from the plan
-(or the specification) and `git log`, skips it, and returns the rest with per-condition results.
+**Stopping inside the loop** says. A resume still delegates step 1: implement infers what is done
+from the plan (or the specification) and `git log`, skips it, and returns the rest with
+per-condition results.
 A plan already on the branch under `docs/plans/` (a person may have called plan directly) is used.
 
 Before the first review, read the ba0918-review skill (`SKILL.md`, `references/profiles.md`,
@@ -65,12 +66,11 @@ midway; state that reason in one line, then delegate as **Delegations** says. Th
 committed on the branch: go on to implement without approval. Carry the plan's provisional answers
 to the terminal report; a requirement plan returned as unverified stays unverified in **Checking
 the success conditions** unless a later result confirms it, and its proposed verification goes to
-the terminal report. A plan for a small amount of work, or stopping to show
-the plan to the person, is a counter-example.
+the terminal report.
 
 When implement or a fixer hands back over a contradiction with the plan, have plan rewrite it
-(with the reason and the existing plan path), then re-delegate; never to the person; the terminal report states the rewrite. The
-same reason returning after a rewrite ends with ending 3.
+(with the reason and the existing plan path), then re-delegate; never to the person; the terminal
+report states the rewrite.
 
 ## Loop
 
@@ -234,11 +234,9 @@ confirmed by those results; add no agent to check. A checkable condition not met
 finding: give it an ID and send it to a fixer with the visible findings. Any condition left
 unverified, whatever the reason, makes the end **unverified remaining** — one the specification
 names no verification for, or one implement returned unverified because its verification could
-not be run, for example. It is a variant of ending 1: nothing is left to fix, so the plan is
-deleted as on convergence and no "run more" choice is offered; the report says which conditions
-and why, with a proposed verification to add to the specification where it names none. Reporting convergence once the visible findings
-are gone without looking at the success conditions, or reading a condition loosely to clear it,
-is a counter-example.
+not be run, for example. It is a variant of ending 1; the report says which conditions and why,
+with a proposed verification to add to the specification where it names none. Reading a
+condition loosely to clear it is a counter-example.
 
 "Near where a fix went in" is cycle's judgment, not a computation: compare the new finding's
 evidence location (file and lines) with the evidence of the findings that fix addressed and with
@@ -287,9 +285,9 @@ After ending 1 (unverified remaining included), check whether the project's inst
 file agents read every session in this repository, such as `AGENTS.md` or `CLAUDE.md`, never the
 person's user-scope file — say cycle goes on to merge, and the person did not say at the start "no
 merge this time". Read the setting from the merge target's copy of that file, never the branch's:
-the branch must not be able to grant itself the merge. If so, read `references/merge.md` and follow it. Otherwise end with the terminal
-report; merging without that setting is a counter-example. After any other ending, never push or
-open a pull request.
+the branch must not be able to grant itself the merge. If so, read `references/merge.md` and
+follow it; otherwise end with the terminal report. After any other ending, never push or open a
+pull request.
 
 Cycle never publishes, deletes branches or worktrees, edits the specification, manages issues, or
 runs two branches at once.

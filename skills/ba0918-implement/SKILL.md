@@ -36,8 +36,7 @@ Hand back, ending this run, only in these two cases:
 
 - a change contradicting the approved specification is needed → back to brainstorm; approved
   content is the person's to change;
-- a change contradicting the plan is needed → back to cycle with the reason; cycle has the plan
-  rewritten, so this never reaches the person.
+- a change contradicting the plan is needed → back to cycle with the reason.
 
 A requirement with no means to verify it (the specification names none, and no qualifying test
 exists) is not a reason to stop: build it, and return its success condition as unverified.
@@ -58,7 +57,7 @@ steps 1 and 2 of the ba0918-cycle skill's `references/assumption-check.md` (your
 place of the last fix), swap the top assumption, and try once. If that still makes no progress,
 hand back with the stack; cycle ends on no progress. If working on the swapped assumption would
 contradict the approved specification, do not try it: hand back to brainstorm as above. This
-applies to implementing plan steps or specification requirements only, never to a fixer.
+applies to implementing plan steps or specification requirements only.
 
 Everything else you recover from yourself: an unplanned but safe file to add, a flaky helper
 tool, a hook failure, an ordinary command failure, a missing bit of record you can reconstruct.
@@ -81,8 +80,7 @@ Each requirement or step is shown complete in one of four kinds; details in
 Test and check commands come from, in order: the plan when there is one, the project's own
 instructions, the ecosystem's standard tool. If none settles it, choose one by reading the
 repository, run it to show it works, and report it as a provisional answer with its overturn
-condition; whether a command works is a fact a run settles, so never hand back for it. A standard
-tool that must be installed first is asked about before installing.
+condition. A standard tool that must be installed first is asked about before installing.
 
 ## Committing
 

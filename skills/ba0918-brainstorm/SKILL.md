@@ -124,5 +124,5 @@ expensive model-running verification only when the person asks.
 4. Unless the person said "specification only", the main session creates the implementation
    branch and its worktree (the branch named for the specification, or for the topic when several
    changed) and starts ba0918-cycle with the specification paths and the approval commit, without
-   waiting for "implement it"; stopping for a start instruction is a counter-example. With
+   waiting for "implement it". With
    "specification only", return the specification paths and end.

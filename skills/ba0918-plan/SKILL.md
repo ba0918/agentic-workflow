@@ -10,7 +10,7 @@ nothing of this conversation; it gets the plan path, the repository, and nothing
 the reader cannot recover from those must be in the plan.
 
 ba0918-cycle calls this skill only when it decides a plan is needed; a person may also call it
-directly. Either way, no approval by the person is sought.
+directly.
 
 ## Inputs and outputs
 

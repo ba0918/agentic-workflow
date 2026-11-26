@@ -1,9 +1,7 @@
 # Merging
 
-Read only when the project's instructions say cycle goes on to merge and the person did not say
-"no merge this time" for this run. The setting is the person asking for the merge in advance, so
-once every condition below holds, go on without asking; asking "shall I merge?" then is a
-counter-example.
+The setting is the person asking for the merge in advance, so once every condition below holds,
+go on without asking; asking "shall I merge?" then is a counter-example.
 
 ## The four conditions
 
@@ -21,9 +19,8 @@ the judgment. Condition 4 covers paths and what cycle reads in the diff; when in
 touched. Add no agent to judge any of them.
 
 When any is missing, leave the pull request and end with the terminal report, naming which
-conditions are missing. Unverified remaining misses condition 2, so it opens the pull request and
-stops there. Merging with a condition missing, or leaving something off **look here first** so the
-merge can go ahead, is a counter-example.
+conditions are missing. Merging with a condition missing, or leaving something off **look here
+first** so the merge can go ahead, is a counter-example.
 
 ## Paths a person must see
 
@@ -65,11 +62,9 @@ that bypasses branch protection and the hosting service's checks.
 Do not wait for the merge. If it is already confirmed once auto-merge is set, say so in the
 terminal report and end. If checks or a person's approval are still pending, write "auto-merge
 set; the merge waits on its checks" in the terminal report and end. When the hosting service
-refuses at once (a failed check, for example), write why. The worktree and the local branch stay; the
-main session cleans them up.
+refuses at once (a failed check, for example), write why. The worktree and the local branch
+stay; the main session cleans them up.
 
 ## Iterate
 
-The same setting and conditions apply to ba0918-iterate, with condition 2 read through its
-convergence reading. An iterate run that stopped at the judgment or ended on a hand-back never
-merges.
+For ba0918-iterate, condition 2 is read through its convergence reading.

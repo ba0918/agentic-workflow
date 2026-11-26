@@ -65,8 +65,7 @@ verdict: re-delegate once, then report none was possible and stop.
 
 Not small: stop with guidance (the failed condition with grounds, the destination, a ready-to-use
 invocation); never start brainstorm or cycle yourself. Several failed: list all, destination from
-the highest row, since a clarified request may change verdicts 2 to 4. Guiding to cycle (its scope
-is what an approval commit changed, so a request that changes no specification cannot enter it) or
+the highest row, since a clarified request may change verdicts 2 to 4. Guiding to cycle or
 offering "continue here anyway" is a counter-example.
 
 | Failed | Also handed back for | Destination | Ready-to-use form |
