@@ -57,6 +57,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   scope, no plan is ever written, convergence also needs the request (and any success condition it
   touches) to be met, and the terminal report says in one line whether it was. Cycle's merge
   setting applies to iterate under the same conditions.
+- **BREAKING** `ba0918-brainstorm` — a round holds only questions of product direction, preference
+  and trade-off. Facts the repository or a quick run can answer are checked first and given as
+  the question's background. A question every answer to which keeps the agreed behavior, and
+  that is cheap to change later (a name, a small default), is decided without asking and recorded
+  as delegated with its reason. Whether a requirement belongs in the specification is still
+  asked, and so is anything in doubt. After approval the main session creates the branch and
+  worktree and starts `ba0918-cycle` with the specification paths and the approval commit, unless
+  the person said "specification only".
 
 ## [0.9.0] - 2026-10-07
 

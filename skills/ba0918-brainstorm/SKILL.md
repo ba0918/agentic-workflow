@@ -38,6 +38,15 @@ A question left unanswered is not decided: its recommendation is **not** adopted
 implicit assumption, and it is asked again next round. Finish only when every branch is
 walked and no implicit assumption remains.
 
+A round holds only what reading and trying cannot settle: product direction, preference, and
+trade-offs. Check a fact that reading or running answers before the round, and put the result in
+the question's background; asking the person what the repository already says is a
+counter-example. A question whose every option keeps the agreed behavior and that is cheap to
+change later (a name, a small default) is decided without asking and recorded as delegated with
+its reason; the person overturns it from the record. Deciding a question that shapes behavior or
+design without asking is a counter-example, and so is deciding whether a requirement belongs in
+this specification (see Terms and scenarios). When in doubt, ask.
+
 ## Conduct
 
 - Never propose a whole design and ask for approval; never fire yes/no questions to
@@ -105,10 +114,15 @@ expensive model-running verification only when the person asks.
    standalone requirements gets none. Give reviewers only the specifications changed and those
    one link away, linking to them or linked from them — never the whole specification home: in a
    large context, reviewers miss contradictions too. New findings become branches; keep asking.
-2. Check the conditions for handing to plan: one deliverable (one branch); result in one sentence;
+2. Check the conditions for handing to cycle: one deliverable (one branch); result in one sentence;
    built and unbuilt scope; stored state and its lifetime decided or confirmed absent; external
    dependencies accepted or rejected; human decision points and what they see; headings to
    requirements.
 3. Stage the specifications and the glossary change, give the paths, the diff command, and the
    judgment points — never the full text, and never a summary as the thing approved. The person
    commits or says to. Then delete the progress file.
+4. Unless the person said "specification only", the main session creates the implementation
+   branch and its worktree (the branch named for the specification, or for the topic when several
+   changed) and starts ba0918-cycle with the specification paths and the approval commit, without
+   waiting for "implement it"; stopping for a start instruction is a counter-example. With
+   "specification only", return the specification paths and end.
