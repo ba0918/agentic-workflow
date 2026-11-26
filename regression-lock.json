@@ -139,13 +139,14 @@
       "verified": "2026-11-26"
     },
     "ba0918-iterate": {
+      "carried_note": "not run; substitution table follows cycle's specification inputs, condition 4 guides to brainstorm; it-001/it-002 critical expectations still hold",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "afc6dcae373ad1416741a670aafbfbc5f1739ba26b54b5411cc414d3dfdfde8b",
+        "skills/ba0918-cycle/SKILL.md": "50b941477607848cc3ae2f32eb53c139508fc1462a58ca48a9fcc5349e74548d",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
-        "skills/ba0918-cycle/references/merge.md": "c9ea38a7f1a83139c3096b008ea56a309e7386ed27834a8cc7e35e475626393f",
-        "skills/ba0918-iterate/SKILL.md": "f7854630442ea9ae3b0688e79339b09269ec858942ee870aa14d01db064c6b3b"
+        "skills/ba0918-cycle/references/merge.md": "00193a5c589116adc1b0047158e054294d5ccc97b0202a863053f7fcae0c6a90",
+        "skills/ba0918-iterate/SKILL.md": "5ee3871293d3638a66610bf3c4f220d64f0ea0966f9bc3d115040e09efd9ea36"
       },
-      "note": "not run; substitution table follows cycle's specification inputs, condition 4 guides to brainstorm; it-001/it-002 critical expectations still hold",
+      "note": "not run; it-002 reason text aligned with the guidance table and iterate implementer return items; it-001/it-002 expectations unchanged",
       "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
@@ -155,14 +156,14 @@
         },
         "it-002": {
           "result": "accepted-without-run",
-          "scenario_sha256": "28ad742464d9be4cb9cda1dbb2a6ffe6bd47908925944537ced929559b0254d8",
+          "scenario_sha256": "42ab67f98bdccc8d527d6e000d67a95bc1c0d7142669bd485692388d0f018c84",
           "verified": "2026-08-31"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "5455a89acba555bab9d5875afe01e5ab8cedd98b415ea972f1f46dba1da48d33",
+        "skills/ba0918-cycle/SKILL.md": "a0fdb922fc96a8c6f87170c7c92925ab02fcbf869f3f8138423af5c4bffb6c14",
         "skills/ba0918-cycle/references/assumption-check.md": "cb3da45355074c2c3556039e9ce22c98b706f10d76033b5ff15cd046c131616f",
-        "skills/ba0918-cycle/references/merge.md": "6b8cc9480c2721be58df38ddf8d36ef6a8503cb7c234a2138ab177cf9ec14bd5",
+        "skills/ba0918-cycle/references/merge.md": "9e38f221086078183a5372dfa97fcef7fd5c656c4e7b985747d140524847a578",
         "skills/ba0918-iterate/SKILL.md": "312f7a4fc8010b27a984ca1ffa46a0e32d366352a5378739e6cd10d5b2713b9b"
       },
       "surface": [
@@ -171,7 +172,7 @@
         "skills/ba0918-cycle/references/merge.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "00ed3967c28e18d67cefe9e97998c585836463ef98e256f8206cd0154dde2195",
+      "surface_sha256": "e6aef6eb6d00e8065edc7b1dc8acb3c09cc107f12c981a570b86eae513b42b42",
       "verified": "2026-11-26"
     },
     "ba0918-plan": {
