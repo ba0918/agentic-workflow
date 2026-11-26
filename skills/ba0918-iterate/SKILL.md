@@ -99,8 +99,10 @@ read before the first review); "cycle" there means this run. Only these substitu
 The **implementer** is cycle's fixer contract pasted in full with the two sentences, the request
 replacing the visible findings; the implement skill is not used. Where the reason did not name delegated implementation,
 this session implements under that same contract, the rest of the loop unchanged. It returns
-commits, evidence per completion kind, out-of-request changes with reasons, provisional answers with
-their overturn conditions — or a hand-back and why. A request that turns out to read two ways, or a
+commits; whether the request was met (with a specification, also the success conditions it
+touches), with evidence per completion kind; out-of-request changes with reasons; problems found
+outside the request; provisional answers with the four items (what was chosen, why, where the
+evidence is, its overturn condition) — or a hand-back and why. A request that turns out to read two ways, or a
 design judgment found missing, during implementation is not handed back: the implementer takes a
 provisional answer and the terminal report carries it — the product's direction was taken from the
 person before the loop, and a request reading two ways at the judgment already stopped at condition
