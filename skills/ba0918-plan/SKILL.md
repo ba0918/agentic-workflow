@@ -1,6 +1,6 @@
 ---
 name: ba0918-plan
-description: "Workflow station of the ba0918 workflow that turns approved specifications (one or several) into one Markdown plan an implementer with no prior context can execute, called by ba0918-cycle when the work is too large for one implementer or a person will take over midway. Use when cycle delegates a plan, or when asked to write or revise a ba0918 plan from specifications. 日本語キーワード: 実装計画 手順書 計画を立てる 仕様から計画"
+description: "Workflow station of the ba0918 workflow that turns approved specifications (one or several) into one Markdown plan an implementer with no prior context can execute, called by ba0918-cycle or directly by a person. Use when cycle delegates a plan, or when asked to write or revise a ba0918 plan from specifications. 日本語キーワード: 実装計画 手順書 計画を立てる 仕様から計画"
 ---
 
 # Plan
