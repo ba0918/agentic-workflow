@@ -36,9 +36,9 @@
       "verified": "2026-11-26"
     },
     "ba0918-cycle": {
-      "carried_note": "実走なし（人が頼んでいない）。手順書が挙げた仕様書のパスを複数読み、それだけを review の突き合わせ相手に渡す改訂。cy-001 の手順書は仕様書を 1 本挙げるだけなので、この変更に触れない",
+      "carried_note": "not run; input changed from plan to specification and approval commit, success conditions in convergence, look-here-first, merge setting; cy-001 prompt and one non-critical expectation realigned to the new inputs, its critical security-relay expectations unchanged",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "7800780d987a048ef686eaa0658fdce086527e0ed250dfd4c9f22a5034898e4b",
+        "skills/ba0918-cycle/SKILL.md": "afc6dcae373ad1416741a670aafbfbc5f1739ba26b54b5411cc414d3dfdfde8b",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
         "skills/ba0918-cycle/references/merge.md": "c9ea38a7f1a83139c3096b008ea56a309e7386ed27834a8cc7e35e475626393f",
         "skills/ba0918-review/SKILL.md": "3196c5461512c6cd802d9f1d99d6256a3102996f8a1d52663ce0618de1c3fc5b",
@@ -47,7 +47,7 @@
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "786f39496cd2d40499089e33386104aa4eba26c5f7c9f0fd9b3578406579b18b"
       },
-      "note": "not run; input changed from plan to specification and approval commit, success conditions in convergence, look-here-first, merge setting; cy-001 prompt and one non-critical expectation realigned to the new inputs, its critical security-relay expectations unchanged",
+      "note": "not run; input changed from plan to specification and approval commit, success conditions in convergence, look-here-first, merge setting, fixer returns out-of-scope problems; cy-001 prompt and one non-critical expectation realigned to the new inputs, its critical security-relay expectations unchanged",
       "result": "accepted-without-run",
       "scenarios": {
         "cy-001": {
@@ -76,7 +76,7 @@
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "50a69949238d8aab5239965f9a2243b3b9b83474fc3ff8a09becd0668b5a79dd",
+      "surface_sha256": "e4412478d2c5a10b3f662e5da8adac3960341fa3801b8a8894e2aa031a2306fc",
       "verified": "2026-11-26"
     },
     "ba0918-implement": {
@@ -139,12 +139,11 @@
       "verified": "2026-11-26"
     },
     "ba0918-iterate": {
-      "carried_note": "実走なし（人が頼んでいない）。突き合わせる仕様書のパスを複数にし、探すときは変更する場所を扱う物を全部見つけ索引を数えない改訂。it-001 と it-002 の期待は仕様書の本数に触れない",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "7800780d987a048ef686eaa0658fdce086527e0ed250dfd4c9f22a5034898e4b",
+        "skills/ba0918-cycle/SKILL.md": "afc6dcae373ad1416741a670aafbfbc5f1739ba26b54b5411cc414d3dfdfde8b",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
         "skills/ba0918-cycle/references/merge.md": "c9ea38a7f1a83139c3096b008ea56a309e7386ed27834a8cc7e35e475626393f",
-        "skills/ba0918-iterate/SKILL.md": "b692bc7780dc9fc57e721d3013a904fb783d5fe97fcdd4c77d74a37eb6693aa8"
+        "skills/ba0918-iterate/SKILL.md": "f7854630442ea9ae3b0688e79339b09269ec858942ee870aa14d01db064c6b3b"
       },
       "note": "not run; substitution table follows cycle's specification inputs, condition 4 guides to brainstorm; it-001/it-002 critical expectations still hold",
       "result": "accepted-without-run",
@@ -172,16 +171,16 @@
         "skills/ba0918-cycle/references/merge.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "f7a97e6e08c6212091953ca8e27df90d080b9b5d4b1b18754c697c4a37fd678e",
+      "surface_sha256": "00ed3967c28e18d67cefe9e97998c585836463ef98e256f8206cd0154dde2195",
       "verified": "2026-11-26"
     },
     "ba0918-plan": {
-      "carried_note": "実走なし（人が頼んでいない）。仕様書のパスを複数受け取り、リンクと見出しで参照する改訂。pl-001 と pl-002 は 1 本の仕様書から手順書を作り見出しの実在を見るだけなので、この変更に触れない",
+      "carried_note": "not run; plan is committed on the work branch without approval; pl-001 realigned from 'not committed' to 'committed alone on the branch', pl-002 unchanged",
       "file_sha256": {
-        "skills/ba0918-plan/SKILL.md": "2ce03e25845326f5d5131a4f27372091161f600f0d11d90c24eb55cca030871a",
+        "skills/ba0918-plan/SKILL.md": "b508266ca66152bf71500e89acd8878da3ba7f4f3f68935f33cdab90d5a9f229",
         "skills/ba0918-plan/references/step-template.md": "f495826be8b5ba8d93f192efd0fd890a1f8d003969e20eb6e8100844921777bd"
       },
-      "note": "not run; plan is committed on the work branch without approval; pl-001 realigned from 'not committed' to 'committed alone on the branch', pl-002 unchanged",
+      "note": "not run; plan is committed on the work branch without approval, description names its callers; pl-001 realigned from 'not committed' to 'committed alone on the branch', pl-002 unchanged",
       "result": "accepted-without-run",
       "scenarios": {
         "pl-001": {
@@ -196,14 +195,14 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-plan/SKILL.md": "7504f998d22f9b35e81309495fc29aa7a505466337f555c4a5b068ea903228eb",
+        "skills/ba0918-plan/SKILL.md": "eef7dac11079307b0ee6df60dc16c83ffc97bf6782b941d84d09096668aaedef",
         "skills/ba0918-plan/references/step-template.md": "fd1bcc35d18a76b5926f510be47b7d53ea40d225cc24afb217ed0d1a4aa3cdaf"
       },
       "surface": [
         "skills/ba0918-plan/SKILL.md",
         "skills/ba0918-plan/references/step-template.md"
       ],
-      "surface_sha256": "ced5cb1791d4b314d7c7758715909ad193f743adeaf0d0ac04c021fe6333c235",
+      "surface_sha256": "c956ee9784aa0f5699c15fff0ab7f94b1e29498766b4cfea233e72645c575c83",
       "verified": "2026-11-26"
     },
     "ba0918-review": {
