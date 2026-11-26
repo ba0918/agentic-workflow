@@ -35,6 +35,15 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   iterate's list) hands back to brainstorm. The terminal report gives each success condition's
   state, gives every provisional answer with where its evidence is, and ends with a "look here
   first" list.
+- **BREAKING** `ba0918-implement` — takes the specification paths, the scope and the branch, and
+  a plan path only when one was written. Without a plan it reads the scope's requirements and
+  chooses the order itself, and it builds nothing outside the scope. It reports each success
+  condition as confirmed with its evidence or unverified with why, lists problems found outside
+  the scope without fixing them, and gives every provisional answer with where its evidence is. A
+  requirement with no way to verify it no longer stops the run. When no test command is fixed, it
+  picks one by reading the repository and runs it to show it works, instead of handing back. A
+  contradiction with the plan goes back to cycle, not to the person; only a contradiction with the
+  specification goes back to brainstorm. It adds no check, approval or review of its own.
 
 ## [0.9.0] - 2026-10-07
 
