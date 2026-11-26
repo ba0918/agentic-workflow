@@ -16,8 +16,8 @@ directly.
 
 In: the paths of committed specifications, one or several (uncommitted means unapproved — stop
 and say so), the scope when given (plan only its requirements), the work branch, and its worktree
-path; for a rewrite, also the hand-back reason and the existing plan path, which is revised to
-answer that reason. Never traverse from an index. You may read the specifications
+path; for a rewrite, also the existing plan path and the reason given (a hand-back reason, or a
+replaced assumption with its replacement), and the plan is revised to answer it. Never traverse from an index. You may read the specifications
 they link to, one link deep; list every one a step rests on in the plan, linked ones included.
 Out: one Markdown file, `docs/plans/<name>.md`, committed on the work branch, where `<name>` is
 the name the branch carries; return its path, the provisional answers the plan chose, each with

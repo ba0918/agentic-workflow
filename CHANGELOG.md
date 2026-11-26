@@ -29,8 +29,9 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 - **BREAKING** `ba0918-cycle` — takes the approved specification paths and the approval commit
   instead of a plan. The requirements under the headings that commit added or changed are the
-  scope, and their success conditions become part of convergence: a condition left with no way to
-  check it ends the run as "unverified remaining". Cycle has a plan written only when the work is
+  scope, and their success conditions become part of convergence: a condition the
+  specification names no verification for, or whose verification could not be run, ends the run
+  as "unverified remaining". Cycle has a plan written only when the work is
   more than one implementer holds at once or a person will take over midway, goes on without
   approval, has the plan rewritten when a delegate finds it contradicts the work (ending at once
   on no progress when the same contradiction returns after the rewrite), and deletes it in a

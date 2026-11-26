@@ -104,7 +104,8 @@ to tell a reported rule from one the diff added silently.
 ## Delegations
 
 - **plan (only when a plan is written):** carry the specification paths, scope, branch, and
-  worktree path; for a rewrite, also the hand-back reason and the existing plan path. It returns
+  worktree path; for a rewrite, also the existing plan path and its reason — the hand-back reason, or from the
+  assumption check the replaced assumption and its replacement. It returns
   the committed plan path, its provisional answers (the four items of the terminal report), and
   the requirements it returns as unverified, each with a proposed verification to add to the
   specification; or a hand-back with its reason.
@@ -231,10 +232,10 @@ and a spreading accident (secret exposure, unintended publication, data loss).
 they are the ending condition; never write one of your own. Confirm each from implement's and the
 fixers' per-condition results and from the reviews — a condition no reviewer contradicts is
 confirmed by those results; add no agent to check. A checkable condition not met becomes a
-finding: give it an ID and send it to a fixer with the visible findings. Any condition left
-unverified, whatever the reason, makes the end **unverified remaining** — one the specification
-names no verification for, or one implement returned unverified because its verification could
-not be run, for example. It is a variant of ending 1; the report says which conditions and why,
+finding: give it an ID and send it to a fixer with the visible findings. A condition left
+unverified because nothing can check it makes the end **unverified remaining**: one the
+specification names no verification for, or one whose verification could not be run. A condition
+that can be checked but was not goes to a fixer to get its result. It is a variant of ending 1; the report says which conditions and why,
 with a proposed verification to add to the specification where it names none. Reading a
 condition loosely to clear it is a counter-example.
 
