@@ -71,6 +71,14 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   only look, when the target is not its own working branch, or when the target is the principles,
   the glossary or a specification. Findings that are an exposed secret, or that need an
   irreversible operation to fix, still go to the person unfixed.
+- **BREAKING** `ba0918-using-workflow` — a medium or larger change always goes to brainstorm
+  first, with the existing specification's path when there is one, and an approved
+  specification with requirements not yet implemented goes to `ba0918-cycle`; plan is no longer
+  an entry or a station declared here. A new section limits what to ask the person to an
+  irreversible, privileged or dangerous operation, a spreading accident, and direction,
+  preference or trade-offs that reading and trying cannot settle. It applies to work that goes
+  through no skill too: obvious problems in the requested target and in what this session
+  changed are fixed without asking, and problems found outside that are only reported.
 
 ## [0.9.0] - 2026-10-07
 
