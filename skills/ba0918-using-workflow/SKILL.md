@@ -20,8 +20,8 @@ environment's own rules. The boundary is the need to read.
 
 Each station — brainstorm, delegated implementation, the small-task judgment, review, the
 loop — costs a separate-context agent that re-reads the repository. None is added by default;
-adding one needs a reason; a plan is never declared here, as cycle decides on one itself. State the line below, then act. The person
-overrides it; never wait for approval.
+adding one needs a reason; a plan is never declared here, as cycle decides on one itself. State
+the line below, then act. The person overrides it; never wait for approval.
 
 ```
 outside reach · interdependent change sites · what would notice a mistake → stations added
