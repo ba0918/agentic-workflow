@@ -34,7 +34,11 @@ A change touching any of these is never merged, whatever else holds:
 - credentials or secrets;
 - reaching outside (network, external APIs, deploy, database migration);
 - a deletion whose users cannot be enumerated;
-- a CI workflow file — rewriting the checks would void condition 3.
+- a CI workflow file — rewriting the checks would void condition 3;
+- the project's instruction files (`AGENTS.md`, `CLAUDE.md` and the like) — they hold the merge
+  setting and name the checks;
+- the definitions of the checks the instructions name (check scripts, hook configuration) — for
+  the same reason as a CI workflow file.
 
 The project's instructions may add paths to this list, never remove any.
 
@@ -44,7 +48,8 @@ In this order:
 
 1. The hosting service's checks on the pull request (CI), when there are any: the service waits for
    them.
-2. Otherwise the checks the project's instructions name, run here before opening the pull request.
+2. Otherwise the checks the merge target's copy of the project's instructions names, run here
+   before opening the pull request.
 3. Neither: do not merge. A review never stands in for a missing check.
 
 Editing a check to make it pass is a counter-example.

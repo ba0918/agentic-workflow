@@ -18,8 +18,10 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   hosting service merge it once its checks pass. It merges only when the report's "look here
   first" list is empty, every success condition is confirmed, the checks pass and the change
   touches no path a person must see (publishing or version declarations, secrets, reaching
-  outside, deletions whose users cannot be listed, CI workflow files). Otherwise it leaves the
-  pull request. Saying "no merge this time" at the start turns it off for one run. The same
+  outside, deletions whose users cannot be listed, CI workflow files, the project's instruction
+  files, and the check scripts and hook configuration they name). The setting is read from the
+  merge target's copy of the instructions, so a branch cannot grant itself the merge. Otherwise it
+  leaves the pull request. Saying "no merge this time" at the start turns it off for one run. The same
   setting applies to `ba0918-iterate`.
 
 ### Changed

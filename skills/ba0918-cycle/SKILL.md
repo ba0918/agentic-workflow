@@ -273,7 +273,8 @@ branch once it is merged).
 After ending 1 (unverified remaining included), check whether the project's instructions — the
 file agents read every session in this repository, such as `AGENTS.md` or `CLAUDE.md`, never the
 person's user-scope file — say cycle goes on to merge, and the person did not say at the start "no
-merge this time". If so, read `references/merge.md` and follow it. Otherwise end with the terminal
+merge this time". Read the setting from the merge target's copy of that file, never the branch's:
+the branch must not be able to grant itself the merge. If so, read `references/merge.md` and follow it. Otherwise end with the terminal
 report; merging without that setting is a counter-example. After any other ending, never push or
 open a pull request.
 
