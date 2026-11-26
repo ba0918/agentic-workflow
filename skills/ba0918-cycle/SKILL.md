@@ -117,8 +117,8 @@ to tell a reported rule from one the diff added silently.
 - **fixer:** carry visible findings with their provisional answers, specification paths and scope
   (and the plan path when there is one), branch, worktree path, and the contract below; from the
   assumption check, also the stack and the replacement. It returns commits and which finding each
-  addresses, the verification results of the success conditions those findings touch, and
-  provisional answers with their overturn conditions, or a hand-back. For a finding
+  addresses, the verification results of the success conditions those findings touch,
+  out-of-scope problems it found, and provisional answers (the four items), or a hand-back. For a finding
   `still_present` after a fix, also carry that fix's commits; before changing code the fixer
   states in one sentence the assumption that fix rested on, tests it with a command, and its
   return adds the assumption with the command and output. The next fix starts from that result; a
@@ -142,9 +142,11 @@ For a deletion, completion is all existing checks passing after deletion; no fai
 One concern per commit; `git add <path>` only; never disable hooks; never name a station or finding
 ID in a commit message. Fix a finding that carries a provisional answer by that answer. When the fix needs a
 product, design, persistence, or technology judgment nothing approved settles, take the answer with
-the strongest grounds, go on, and report it with its overturn condition (what the person would say
-to overturn it). Hand back only when the fix would contradict the approved specification (to
-brainstorm) or the plan (to cycle, which has it rewritten).
+the strongest grounds, go on, and report it with why, where the evidence is, and its overturn
+condition (what the person would say to overturn it). A problem outside what you were asked to fix
+and what you changed is neither fixed nor asked about: report it. Hand back only when the fix
+would contradict the approved specification (to brainstorm) or the plan (to cycle, which has it
+rewritten).
 A question a throwaway run in the worktree can answer is a fact, not a judgment — run it, leave
 nothing of it in the worktree or the commits, report the command and a decision-relevant summary.
 Stop and ask before an irreversible or privileged operation, an unsafe, privileged, or irreversible
