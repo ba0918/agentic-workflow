@@ -43,7 +43,9 @@ directory). If it already exists this is a resume: keep its findings and continu
 from the inherited maximum. Ending 3's three streaks — `still_present` two rounds running, the
 count comparison twice, new findings near a fix twice — count from this start only, never from
 inherited evaluations; a returning closed cause and the attempts record of the assumption check
-count across starts. A resume still delegates step 1: implement infers what is done from the plan
+count across starts. Before delegating anything on a resume, read the inherited open findings: one
+that stops the person (an exposed secret, a fix needing an irreversible operation) stops first, as
+**Stopping inside the loop** says. A resume still delegates step 1: implement infers what is done from the plan
 (or the specification) and `git log`, skips it, and returns the rest with per-condition results.
 A plan already on the branch under `docs/plans/` (a person may have called plan directly) is used.
 
