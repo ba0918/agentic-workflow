@@ -2,13 +2,13 @@
   "coverage_exempt": {},
   "skills": {
     "ba0918-brainstorm": {
-      "carried_note": "not run; wording fix of the guide trigger and layout sentence; existing scenarios bs-001/bs-002 do not touch these rules",
+      "carried_note": "not run; rounds limited to direction/preference/trade-off questions, decided-without-asking recorded as delegated, cycle started after approval; bs-001/bs-002 expectations (numbered questions with recommendations, progress file, no re-asking) still hold",
       "file_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "00f83515d96642da3e2407add8cbc599a3bde8b6215f138489043aaf09c5b21e",
+        "skills/ba0918-brainstorm/SKILL.md": "8a50e5b3b52895ea985e7ed27846608c585745009ca3dbb863b1c7d5435c4f63",
         "skills/ba0918-brainstorm/references/records.md": "b07357a7a8bccc4a74bfb900a5ae5cf01c30e8e67e968d3d3b5ad818d5f472d8",
         "skills/ba0918-brainstorm/references/spec-documents.md": "884e8fda9229f19ee0db055987975a1bcff4440b689ea74d87b049cb24efcbb2"
       },
-      "note": "not run; rounds limited to direction/preference/trade-off questions, decided-without-asking recorded as delegated, cycle started after approval; bs-001/bs-002 expectations (numbered questions with recommendations, progress file, no re-asking) still hold",
+      "note": "not run; rounds limited to questions reading and trying cannot settle, goes on to cycle after approval; bs-001/bs-002 expectations do not touch either",
       "result": "accepted-without-run",
       "scenarios": {
         "bs-001": {
@@ -32,22 +32,23 @@
         "skills/ba0918-brainstorm/references/records.md",
         "skills/ba0918-brainstorm/references/spec-documents.md"
       ],
-      "surface_sha256": "a7a3306b8f48a7369a63731096a8ab94a900841a5c9343f4d375b17d265d5733",
-      "verified": "2026-11-26"
+      "surface_sha256": "c27f3c61e292824b83b73d9387d7a3b871acbe3b1680d3751609e3052ac200ed",
+      "verified": "2026-11-27"
     },
     "ba0918-cycle": {
-      "carried_note": "not run; input changed from plan to specification and approval commit, success conditions in convergence, look-here-first, merge setting; cy-001 prompt and one non-critical expectation realigned to the new inputs, its critical security-relay expectations unchanged",
+      "carried_note": "not run; input changed from plan to specification and approval commit, success conditions in convergence, look-here-first, merge setting, fixer returns out-of-scope problems; cy-001 prompt and one non-critical expectation realigned to the new inputs, its critical security-relay expectations unchanged",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "afc6dcae373ad1416741a670aafbfbc5f1739ba26b54b5411cc414d3dfdfde8b",
+        "skills/ba0918-cycle/SKILL.md": "d4d1dbe5bc0776ab172ea5bf6dfebdb840ab9ab668886ef454779fe8aa51f248",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
-        "skills/ba0918-cycle/references/merge.md": "c9ea38a7f1a83139c3096b008ea56a309e7386ed27834a8cc7e35e475626393f",
-        "skills/ba0918-review/SKILL.md": "3196c5461512c6cd802d9f1d99d6256a3102996f8a1d52663ce0618de1c3fc5b",
+        "skills/ba0918-cycle/references/merge.md": "9742a23e6b4f078fbd27a9906694422821e9563f1a7cfff27c65cbf1f70e38da",
+        "skills/ba0918-review/SKILL.md": "9ebe60da8d496202e029f70e9faa9466aabfb65d88e3d7d58e979a71cd7cd576",
+        "skills/ba0918-review/references/direct-call.md": "4633f60886c61084bd859795e9c81a8c7addee95a733c7256b346a8bc2db28e4",
         "skills/ba0918-review/references/finding-schema.md": "58a5e23dee44e408b7f1648962ee5a6f0abc99dd5392e481dca77caae7fd347e",
         "skills/ba0918-review/references/optional-seats.md": "63bcb58376d712130b075b6708b7e585412cbd9469418362af6665dec8801b0f",
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "786f39496cd2d40499089e33386104aa4eba26c5f7c9f0fd9b3578406579b18b"
       },
-      "note": "not run; input changed from plan to specification and approval commit, success conditions in convergence, look-here-first, merge setting, fixer returns out-of-scope problems; cy-001 prompt and one non-critical expectation realigned to the new inputs, its critical security-relay expectations unchanged",
+      "note": "not run; input is specification paths and the approval commit, scope, plan written on demand, success conditions in convergence, unverified remaining, new terminal report, merge setting with no push on secret or security items; cy-001 expectations rewritten to the new input and never run",
       "result": "accepted-without-run",
       "scenarios": {
         "cy-001": {
@@ -57,10 +58,11 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "5455a89acba555bab9d5875afe01e5ab8cedd98b415ea972f1f46dba1da48d33",
+        "skills/ba0918-cycle/SKILL.md": "8437b5526b33a8891e4b4e443f68e7adaf4f6e130a977c70a8dd10a389d4e6dd",
         "skills/ba0918-cycle/references/assumption-check.md": "cb3da45355074c2c3556039e9ce22c98b706f10d76033b5ff15cd046c131616f",
-        "skills/ba0918-cycle/references/merge.md": "6b8cc9480c2721be58df38ddf8d36ef6a8503cb7c234a2138ab177cf9ec14bd5",
-        "skills/ba0918-review/SKILL.md": "d42306a5cfbc8cc06fede1b23f2bc0435463d69e6f1049bc4de677a12523d683",
+        "skills/ba0918-cycle/references/merge.md": "5aa118444674675d744aa5b050f089aff91338bf66606450bf605a989ffe2d11",
+        "skills/ba0918-review/SKILL.md": "21012fdeac5b12c0604dd1000dfc4326eda1e3c2f2c171f8bb942aacc7f1df38",
+        "skills/ba0918-review/references/direct-call.md": "6562b5ee615874e105a49f77263b5cbd7f953bf0603831cf85ca037601e717eb",
         "skills/ba0918-review/references/finding-schema.md": "45652f5cfd1754c0e7b5af0b413e225f9ca771670b767bf7e161ce9361053258",
         "skills/ba0918-review/references/optional-seats.md": "38d6cbd64ee0ef280a826fcb1c223317fa0bd56f20395b83b90e4dc2ec71ddb7",
         "skills/ba0918-review/references/oracle-evidence.md": "bee01b1b9f70426b62e10f42ce74cdc5b9db202564a87ce3cf95f4f4347b7b29",
@@ -71,13 +73,14 @@
         "skills/ba0918-cycle/references/assumption-check.md",
         "skills/ba0918-cycle/references/merge.md",
         "skills/ba0918-review/SKILL.md",
+        "skills/ba0918-review/references/direct-call.md",
         "skills/ba0918-review/references/finding-schema.md",
         "skills/ba0918-review/references/optional-seats.md",
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "e4412478d2c5a10b3f662e5da8adac3960341fa3801b8a8894e2aa031a2306fc",
-      "verified": "2026-11-26"
+      "surface_sha256": "ada7e283ffa09605980e8974bad1c0a7c9c58e42fab2dd2714250702f510eea5",
+      "verified": "2026-11-27"
     },
     "ba0918-implement": {
       "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
@@ -111,11 +114,11 @@
       "verified": "2026-09-03"
     },
     "ba0918-investigate": {
-      "carried_note": "spec残件の改訂+敵対レビュー反映: 推奨表の brainstorm 行の係りを正本に揃え、修正案は問題ごと（5 節も問題ごとに分ける）、委譲の写しにテストの条件。iv scenario の期待と両立する追記のみで再実走なし",
+      "carried_note": "not run; recommended-action rows now brainstorm / cycle instead of plan; iv-001 non-critical wording realigned, critical expectations untouched",
       "file_sha256": {
-        "skills/ba0918-investigate/SKILL.md": "28c421bad8e0130e0c2c978973d1921330681fdcec8d91f76b59e03d78000c19"
+        "skills/ba0918-investigate/SKILL.md": "94badc4af2bf832bcfc97da9b89923721d541423b2a8fd255dc71f95d48b1566"
       },
-      "note": "not run; recommended-action rows now brainstorm / cycle instead of plan; iv-001 non-critical wording realigned, critical expectations untouched",
+      "note": "not run; recommended next action table follows the new entry rules and the cycle invocation adds the approval commit; iv-001 wording aligned, expectations unchanged",
       "result": "accepted-without-run",
       "scenarios": {
         "iv-001": {
@@ -130,23 +133,23 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-investigate/SKILL.md": "02858f10d6b36fc0242223f4233184cf135fc6f634da53260615dab023e29032"
+        "skills/ba0918-investigate/SKILL.md": "093473633085d2f3dca9d9705d3bb295e604ec8b3f4b70da75550038823c3b90"
       },
       "surface": [
         "skills/ba0918-investigate/SKILL.md"
       ],
-      "surface_sha256": "1bf1764a3b383d540da4ca3808609012cf83616e22e44a92a8dbeab474981b9f",
-      "verified": "2026-11-26"
+      "surface_sha256": "e865c66ff14cb2fcbdf122ef0c4ed5953303c675377e7b7c1076060906933353",
+      "verified": "2026-11-27"
     },
     "ba0918-iterate": {
-      "carried_note": "not run; it-002 reason text aligned with the guidance table and iterate implementer return items; it-001/it-002 expectations unchanged",
+      "carried_note": "not run; it-002 reason text aligned with the guidance table, iterate implementer return items, and cycle merge wording it reads; it-001/it-002 expectations unchanged",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "777d4ff9ec5429da27f4937e28ad35653e584c2a984c401f62a81b3f62ac2330",
+        "skills/ba0918-cycle/SKILL.md": "d4d1dbe5bc0776ab172ea5bf6dfebdb840ab9ab668886ef454779fe8aa51f248",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
-        "skills/ba0918-cycle/references/merge.md": "464d80bf68240df606d1de57de1bf22d7d4664a5ce8a44427b0bd970099636cc",
+        "skills/ba0918-cycle/references/merge.md": "9742a23e6b4f078fbd27a9906694422821e9563f1a7cfff27c65cbf1f70e38da",
         "skills/ba0918-iterate/SKILL.md": "5ee3871293d3638a66610bf3c4f220d64f0ea0966f9bc3d115040e09efd9ea36"
       },
-      "note": "not run; it-002 reason text aligned with the guidance table, iterate implementer return items, and cycle merge wording it reads; it-001/it-002 expectations unchanged",
+      "note": "not run; follows the cycle body and merge reference changes; it-001/it-002 expectations unchanged",
       "result": "accepted-without-run",
       "scenarios": {
         "it-001": {
@@ -161,9 +164,9 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "b080ec8b2954dc48bee87a93eaa60cebf67210c3836dd12de802db4bbb3e4b0d",
+        "skills/ba0918-cycle/SKILL.md": "8437b5526b33a8891e4b4e443f68e7adaf4f6e130a977c70a8dd10a389d4e6dd",
         "skills/ba0918-cycle/references/assumption-check.md": "cb3da45355074c2c3556039e9ce22c98b706f10d76033b5ff15cd046c131616f",
-        "skills/ba0918-cycle/references/merge.md": "9e38f221086078183a5372dfa97fcef7fd5c656c4e7b985747d140524847a578",
+        "skills/ba0918-cycle/references/merge.md": "5aa118444674675d744aa5b050f089aff91338bf66606450bf605a989ffe2d11",
         "skills/ba0918-iterate/SKILL.md": "312f7a4fc8010b27a984ca1ffa46a0e32d366352a5378739e6cd10d5b2713b9b"
       },
       "surface": [
@@ -172,16 +175,16 @@
         "skills/ba0918-cycle/references/merge.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "64d132d7d06f229252653f5e4a761a988ac2f3e4edf120a4e21aad8cf9bdcf86",
+      "surface_sha256": "9674bff63be7acfb9282531bb7300620e0efcb0cb3d828ee1daaec99211ecc0a",
       "verified": "2026-11-27"
     },
     "ba0918-plan": {
-      "carried_note": "not run; plan is committed on the work branch without approval; pl-001 realigned from 'not committed' to 'committed alone on the branch', pl-002 unchanged",
+      "carried_note": "not run; plan is committed on the work branch without approval, description names its callers; pl-001 realigned from 'not committed' to 'committed alone on the branch', pl-002 unchanged",
       "file_sha256": {
-        "skills/ba0918-plan/SKILL.md": "b508266ca66152bf71500e89acd8878da3ba7f4f3f68935f33cdab90d5a9f229",
+        "skills/ba0918-plan/SKILL.md": "a0a6070814b765c184db880c962ea5914e66507f3a81ad04557a7375de7c104d",
         "skills/ba0918-plan/references/step-template.md": "f495826be8b5ba8d93f192efd0fd890a1f8d003969e20eb6e8100844921777bd"
       },
-      "note": "not run; plan is committed on the work branch without approval, description names its callers; pl-001 realigned from 'not committed' to 'committed alone on the branch', pl-002 unchanged",
+      "note": "not run; no approval by the person, inputs add scope, worktree path and rewrite inputs, unverified requirements returned; pl-001 expectation rewritten and never run",
       "result": "accepted-without-run",
       "scenarios": {
         "pl-001": {
@@ -196,26 +199,27 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-plan/SKILL.md": "eef7dac11079307b0ee6df60dc16c83ffc97bf6782b941d84d09096668aaedef",
+        "skills/ba0918-plan/SKILL.md": "fe0ac17cba65d4f284cbb5f7f868ad19dace4ac2139d9d73825c15df7e1e5a3e",
         "skills/ba0918-plan/references/step-template.md": "fd1bcc35d18a76b5926f510be47b7d53ea40d225cc24afb217ed0d1a4aa3cdaf"
       },
       "surface": [
         "skills/ba0918-plan/SKILL.md",
         "skills/ba0918-plan/references/step-template.md"
       ],
-      "surface_sha256": "c956ee9784aa0f5699c15fff0ab7f94b1e29498766b4cfea233e72645c575c83",
-      "verified": "2026-11-26"
+      "surface_sha256": "c7c78a8f84b3e9db843bb9727eb91dde879a2f49b5a374a5cb856b612b57487a",
+      "verified": "2026-11-27"
     },
     "ba0918-review": {
-      "carried_note": "実走なし。工程を既定で足さない改訂。既存 scenario の期待は reviewer の体数と 2 回目のフルレビューに触れない（rg で確認）。実走は ROADMAP の次の効果測定と同時に取る",
+      "carried_note": "not run; direct-call fixing is the main session's, reviewer behavior unchanged; rv-001/rv-002 untouched",
       "file_sha256": {
-        "skills/ba0918-review/SKILL.md": "3196c5461512c6cd802d9f1d99d6256a3102996f8a1d52663ce0618de1c3fc5b",
+        "skills/ba0918-review/SKILL.md": "9ebe60da8d496202e029f70e9faa9466aabfb65d88e3d7d58e979a71cd7cd576",
+        "skills/ba0918-review/references/direct-call.md": "4633f60886c61084bd859795e9c81a8c7addee95a733c7256b346a8bc2db28e4",
         "skills/ba0918-review/references/finding-schema.md": "58a5e23dee44e408b7f1648962ee5a6f0abc99dd5392e481dca77caae7fd347e",
         "skills/ba0918-review/references/optional-seats.md": "63bcb58376d712130b075b6708b7e585412cbd9469418362af6665dec8801b0f",
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "786f39496cd2d40499089e33386104aa4eba26c5f7c9f0fd9b3578406579b18b"
       },
-      "note": "not run; direct-call fixing is the main session's, reviewer behavior unchanged; rv-001/rv-002 untouched",
+      "note": "not run; direct-call fix rule moved to references/direct-call.md, reviewers given a scope check only its requirements; rv-001/rv-002 expectations do not touch either",
       "result": "accepted-without-run",
       "scenarios": {
         "rv-001": {
@@ -230,7 +234,8 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-review/SKILL.md": "d42306a5cfbc8cc06fede1b23f2bc0435463d69e6f1049bc4de677a12523d683",
+        "skills/ba0918-review/SKILL.md": "21012fdeac5b12c0604dd1000dfc4326eda1e3c2f2c171f8bb942aacc7f1df38",
+        "skills/ba0918-review/references/direct-call.md": "6562b5ee615874e105a49f77263b5cbd7f953bf0603831cf85ca037601e717eb",
         "skills/ba0918-review/references/finding-schema.md": "45652f5cfd1754c0e7b5af0b413e225f9ca771670b767bf7e161ce9361053258",
         "skills/ba0918-review/references/optional-seats.md": "38d6cbd64ee0ef280a826fcb1c223317fa0bd56f20395b83b90e4dc2ec71ddb7",
         "skills/ba0918-review/references/oracle-evidence.md": "bee01b1b9f70426b62e10f42ce74cdc5b9db202564a87ce3cf95f4f4347b7b29",
@@ -238,13 +243,14 @@
       },
       "surface": [
         "skills/ba0918-review/SKILL.md",
+        "skills/ba0918-review/references/direct-call.md",
         "skills/ba0918-review/references/finding-schema.md",
         "skills/ba0918-review/references/optional-seats.md",
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "c7b09655418debe19e4772a33a2ef976425bd8b5a561a902aa94063cd737710f",
-      "verified": "2026-11-26"
+      "surface_sha256": "3a1d641b10d9923992a2b99f870209b199478a41ae014df27a514da283727e16",
+      "verified": "2026-11-27"
     }
   },
   "version": 1
