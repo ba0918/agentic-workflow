@@ -50,9 +50,10 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   specification goes back to brainstorm. It adds no check, approval or review of its own.
 - **BREAKING** `ba0918-plan` — no longer asks the person to approve the plan. Cycle calls it only
   when the work is too large for one implementer or a person will take over midway, and a person
-  may still call it directly. It takes the specification paths and the work branch, commits the
-  plan on that branch under the branch's name, and returns the path with its provisional answers,
-  each with where its evidence is. A requirement with no qualifying test and no declared human or
+  may still call it directly. It takes the specification paths, the scope when there is one, the
+  work branch and its worktree path (plus the hand-back reason and the existing plan on a
+  rewrite), commits the plan on that branch under the branch's name, and returns the path with its
+  provisional answers, each with where its evidence is. A requirement with no qualifying test and no declared human or
   platform check no longer goes back to brainstorm: it is returned as unverified, with a proposed
   verification to add to the specification.
 - **BREAKING** `ba0918-iterate` — a request whose impact cannot be read (condition 4) is now
