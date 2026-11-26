@@ -8,8 +8,8 @@ Development workflow skills for AI coding agents, packaged as
 Five skills form one workflow. The agent interviews the person until both agree on a
 specification. Once the person approves it, the agent repeats implementation, adversarial
 review and fixing until the specification's success conditions are confirmed and the findings
-converge. Only work too large for one implementer gets a plan first, and nobody approves the
-plan. The person receives the result once, at the end.
+converge. Only work too large for one implementer, or work a person is known to take over
+midway, gets a plan first, and nobody approves the plan. The person receives the result once, at the end.
 
 Three more skills sit beside the workflow:
 
@@ -24,11 +24,11 @@ There is no runtime, no state store and no script.
 
 | Skill | Role |
 |---|---|
-| `ba0918-brainstorm` | Asks the person numbered rounds of questions, each with a recommended answer, until both sides understand the request the same way. Then writes the specification |
-| `ba0918-plan` | Turns an approved specification into one Markdown plan when cycle finds the work too large for one implementer. The plan links to sections of the specification instead of copying them, gives each step its completion evidence and stop conditions, and is committed on the work branch without approval |
+| `ba0918-brainstorm` | Asks the person numbered rounds of questions, each with a recommended answer, until both sides understand the request the same way. Then writes the specification, and once the person approves it, starts cycle without waiting. Say "specification only" to stop at the specification |
+| `ba0918-plan` | Turns an approved specification into one Markdown plan when cycle finds the work too large for one implementer or knows a person will take over midway. A person can also call it directly. The plan links to sections of the specification instead of copying them, gives each step its completion evidence and stop conditions, and is committed on the work branch without approval |
 | `ba0918-cycle` | A small orchestrator. Takes an approved specification, its approval commit and a branch, hands implementation, review and fixing to agents with separate contexts, and repeats until the success conditions are confirmed and the findings converge. The report ends with what to look at first |
 | `ba0918-implement` | Builds the requirements of the specification, following a plan when there is one. Writes tests first for code and makes one commit per concern. When nothing approved settles a decision, it picks a provisional answer and reports where its evidence is and what would overturn it |
-| `ba0918-review` | Reviews a diff or a set of documents adversarially. The reviewers run in separate contexts, return findings and never edit. A person can also call it directly to diagnose a codebase |
+| `ba0918-review` | Reviews a diff or a set of documents adversarially. The reviewers run in separate contexts, return findings and never edit. A person can also call it directly to diagnose a codebase; the confirmed findings are then fixed without asking |
 | `ba0918-iterate` | Entry point for a small task. Checks that the request is small, then runs cycle's loop on the request without a specification |
 | `ba0918-investigate` | Investigates a symptom or a question without changing any file, and reports the direct cause, the root cause, the impact and the fix options |
 | `ba0918-using-workflow` | Decides which skill a new request starts from: a small task, a medium or larger change, an approved specification with work left, an unexplained defect, or a question that needs reading files. Answers questions and chat directly instead of routing them. Limits what the agent asks the person in every kind of work |
