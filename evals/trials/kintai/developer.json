@@ -1,0 +1,13 @@
+{
+  "argv": ["kakoi", "--workspace", "{{trial_root}}",
+           "--hide", "{{kit}}", "--hide", "{{kit_main}}", "--hide", "{{hidden_records}}",
+           "--rw", "{{records}}/person", "--",
+           "claude", "-p", "--model", "{{model}}", "--setting-sources", "project",
+           "--append-system-prompt-file", "{{instructions}}",
+           "--dangerously-skip-permissions",
+           "--output-format", "stream-json", "--verbose", "--forward-subagent-text",
+           "--session-id", "{{session}}"],
+  "stdin": true,
+  "cwd": "{{workdir}}",
+  "vars": {}
+}

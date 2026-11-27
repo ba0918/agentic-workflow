@@ -1,39 +1,53 @@
 #!/bin/sh
-# setup.sh [--root DIR] [--records DIR] [--run-id ID] <skills-commit>
+# setup.sh --skill DIR --records DIR --person-model MODEL [--root DIR] <skills-commit>
 #
-# Build one trial: a trial root holding a local bare origin and the trial repository, the
-# workflow skills of <skills-commit> under the repository's .claude/skills/ (kept out of its
-# history), the worker's instructions, and a record directory with the person role's files.
+# Build one trial of this kit: a trial root holding a local bare origin and the trial
+# repository, the workflow skills of <skills-commit> under the repository's .claude/skills/
+# (kept out of its history), the developer instruction file beside the repository, and the
+# person role installed into <records>/person with the skill's ask_person.py.
 #
-# Defaults: run id = current time; root = ${TMPDIR:-/tmp}/aw-trial-kintai-<run-id>;
-# records = <main checkout of this repository>/.agents/trials/kintai/<run-id>.
-# Prints the record directory; run.sh and test-quality.sh read <records>/trial.env.
+# --skill   the ba0918-workflow-trial skill directory (its scripts/ask_person.py is used)
+# --records the run's record directory, .agents/trials/kintai/<run-id>/ in the host's
+#           repository; its name is the run id. It must be ignored by git and empty.
+# --root    default ${TMPDIR:-/tmp}/aw-trial-kintai-<run-id>
+#
+# Writes <records>/trial.env (the values the host passes to the launcher) and
+# <records>/setup.txt (commits and tool versions), and prints the record directory.
 set -eu
 
 KIT=$(cd "$(dirname "$0")" && pwd)
 SRC=$(git -C "$KIT" rev-parse --show-toplevel)
 MAIN=$(dirname "$(git -C "$KIT" rev-parse --path-format=absolute --git-common-dir)")
 
-root='' records='' run_id=''
+skill='' records='' person_model='' root=''
 while [ $# -gt 1 ]; do
   case $1 in
-    --root) root=$2; shift 2 ;;
+    --skill) skill=$2; shift 2 ;;
     --records) records=$2; shift 2 ;;
-    --run-id) run_id=$2; shift 2 ;;
+    --person-model) person_model=$2; shift 2 ;;
+    --root) root=$2; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
-[ $# -eq 1 ] || { sed -n '2,11p' "$0" >&2; exit 2; }
+if [ $# -ne 1 ] || [ -z "$skill" ] || [ -z "$records" ] || [ -z "$person_model" ]; then
+  sed -n '2,15p' "$0" >&2; exit 2
+fi
+[ -f "$skill/scripts/ask_person.py" ] || { echo "no scripts/ask_person.py in $skill" >&2; exit 2; }
+skill=$(cd "$skill" && pwd)
 commit=$(git -C "$SRC" rev-parse --verify "$1^{commit}")
-run_id=${run_id:-$(date +%Y%m%d-%H%M%S)}
+run_id=$(basename "$records")
 root=${root:-${TMPDIR:-/tmp}/aw-trial-kintai-$run_id}
-records=${records:-$MAIN/.agents/trials/kintai/$run_id}
 
 for d in "$root" "$records"; do
   if [ -e "$d" ] && [ -n "$(ls -A "$d")" ]; then echo "not empty: $d" >&2; exit 1; fi
 done
 mkdir -p "$root" "$records/person"
 root=$(cd "$root" && pwd); records=$(cd "$records" && pwd)
+# The records hold the person-role exchange and absolute paths of this machine.
+if git -C "$records" rev-parse --is-inside-work-tree > /dev/null 2>&1 \
+    && ! git -C "$records" check-ignore -q "$records"; then
+  echo "not ignored by git: $records" >&2; exit 1
+fi
 repo=$root/repo
 
 # Origin and repository with the sample input only.
@@ -58,25 +72,35 @@ rm -rf "$tmp"
 mkdir -p "$repo/.git/info"
 printf '/.claude/skills/\n' >> "$repo/.git/info/exclude"
 
-# Worker instructions: outside the repository, appended to the worker's system prompt.
+# Developer instruction file: outside the repository, appended to the system prompt. The kit
+# is hidden from the developer, so the file is copied where the developer can read it.
 cp "$KIT/worker-instructions.md" "$root/worker-instructions.md"
 
-# Person role. Everything the worker may touch in the record directory lives in person/.
+# Person role. Its instructions sit in its workspace, the one part of the records the
+# developer can reach, because the person role runs from the developer's shell.
 cp "$KIT/person.md" "$records/person/person.md"
-cp "$KIT/ask-person" "$records/person/ask-person.sh"
-cat > "$records/person/ask-person" <<EOF
-#!/bin/sh
-ASK_PERSON_HOME='$records/person' ASK_PERSON_REPO='$repo' ASK_PERSON_ADD_DIR='$root' \\
-  exec sh '$records/person/ask-person.sh' "\$@"
-EOF
-chmod +x "$records/person/ask-person" "$records/person/ask-person.sh"
+python3 -I "$skill/scripts/ask_person.py" install --home "$records/person" \
+  --config "$KIT/person.json" --var model="$person_model" --var repo="$repo" \
+  --var instructions="$records/person/person.md" --var trial_root="$root" > /dev/null
+
+# What the isolation hides: the kit, the main checkout's copy of it, and the records (all
+# past runs too, unless the trial root lies under the same parent).
+kit_main=$MAIN/evals/trials/kintai
+[ -d "$kit_main" ] || kit_main=$KIT
+records_parent=$(dirname "$records")
+case $root/ in
+  "$records_parent"/*) hidden_records=$records ;;
+  *) hidden_records=$records_parent ;;
+esac
 
 cat > "$records/trial.env" <<EOF
 TRIAL_KIT='$KIT'
-TRIAL_MAIN_CHECKOUT='$MAIN'
+TRIAL_KIT_MAIN='$kit_main'
 TRIAL_ROOT='$root'
 TRIAL_REPO='$repo'
 TRIAL_RECORDS='$records'
+TRIAL_HIDDEN_RECORDS='$hidden_records'
+TRIAL_INSTRUCTIONS='$root/worker-instructions.md'
 TRIAL_SKILLS_COMMIT='$commit'
 TRIAL_RUN_ID='$run_id'
 EOF
@@ -85,6 +109,7 @@ EOF
   echo "skills commit: $commit"
   echo "kit commit: $(git -C "$SRC" rev-parse HEAD) (dirty: $(git -C "$SRC" status --porcelain -- "$KIT" | wc -l) files)"
   echo "skills: $(cd "$repo/.claude/skills" && printf "%s " ba0918-*)"
+  echo "person model: $person_model"
   echo "claude: $(claude --version 2>/dev/null || echo unknown)"
   echo "kakoi: $(kakoi --version 2>/dev/null || echo unknown)"
 } > "$records/setup.txt"
