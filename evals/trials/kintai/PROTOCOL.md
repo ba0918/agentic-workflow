@@ -268,14 +268,15 @@ kakoi --workspace {{trial_root}} --hide {{kit}} --hide {{kit_main}} --hide {{hid
    3. 人の役の事前確認: 本番のセッションを汚さないよう、別の作業場所に入れて 3 問聞く。
 
       ```sh
-      python3 -I S/scripts/ask_person.py install --home "$R/pilot" --config KIT/person.json \
+      python3 -I S/scripts/ask_person.py install --home "$TRIAL_RECORDS/pilot" --config KIT/person.json \
         --var model=<人の役のモデル> --var repo="$TRIAL_REPO" \
-        --var instructions="$R/person/person.md" --var trial_root="$TRIAL_ROOT"
-      "$R/pilot/ask-person" <<'EOF'
+        --var instructions="$TRIAL_RECORDS/person/person.md" --var trial_root="$TRIAL_ROOT"
+      "$TRIAL_RECORDS/pilot/ask-person" <<'EOF'
       日をまたぐ勤務はありますか
       EOF
       ```
 
+      パスは `trial.env` の絶対パス（`$TRIAL_RECORDS`）で渡す。人の役は試行用リポジトリを作業ディレクトリにして動くので、相対パスの指示のファイルは見つからない。
       「日をまたぐ勤務はありますか」には夜勤の決まりが、「エラーメッセージは英語と日本語のどちらがいいですか」には「任せる」が、「ほかに気になる決まりはありますか」には決まりが 1 つだけ返ることを確認する。違ったら試行を止め、`person.md` を直す（キットの変更になる）。
 4. **R1**: 起動し、終わるまで口を出さない。終わったら記録を変換する。
 
