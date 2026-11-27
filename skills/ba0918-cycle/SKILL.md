@@ -264,8 +264,9 @@ history keeps it. Other endings keep it for the next run.
 
 Endings 2–4 add to the terminal report the choice "run more or accept the rest and finish" and
 any hand-back reason. "Run more" continues the same run (streaks kept), findings still open, at
-step 1 if requirements or plan steps remain unimplemented, else at step 3; a new limit, if any, is
-the person's to set. "Accept the rest" leaves deleting a remaining plan to the main session.
+step 1 if requirements or plan steps remain unimplemented, else at step 3 — or, in a run with no
+review, by sending the unmet conditions to a fixer again, still without a review; a new limit, if
+any, is the person's to set. "Accept the rest" leaves deleting a remaining plan to the main session.
 
 ## Terminal report
 
