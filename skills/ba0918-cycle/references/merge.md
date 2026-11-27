@@ -12,11 +12,12 @@ Have the branch merged only when all four hold:
 3. The checks pass (see **Checks**).
 4. The change touches no path a person must see (see below).
 
-Judge 1 and 2 over everything left in the branch's findings file, and 4 over the whole diff the
-pull request merges (against the merge target), never against cycle's or iterate's comparison
-base: a new iterate start on the same branch resets that base and would drop earlier changes from
-the judgment. Condition 4 covers paths and what cycle reads in the diff; when in doubt, it is
-touched. Add no agent to judge any of them.
+Judge 1 and 2 over everything left in the branch's findings file when there is one (a run with no
+review has none: judge them from **look here first** and the success-condition results alone),
+and 4 over the whole diff the pull request merges (against the merge target), never against
+cycle's or iterate's comparison base: a new iterate start on the same branch resets that base and
+would drop earlier changes from the judgment. Condition 4 covers paths and what cycle reads in
+the diff; when in doubt, it is touched. Add no agent to judge any of them.
 
 When any is missing, leave the pull request and end with the terminal report, naming which
 conditions are missing. Merging with a condition missing, or leaving something off **look here

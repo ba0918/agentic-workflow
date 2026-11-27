@@ -5,10 +5,10 @@ description: "Entry point beside the ba0918 workflow for a task too small to nee
 
 # Iterate
 
-Run cycle's loop on a **request** instead of a specification, once judged small. Delegate only what the
-caller's reason named: review always in separate contexts, judgment and implementation only when
-named. A person starts this skill from the conversation; cycle never calls it and hands nothing over
-— what the main session learned there goes into the request; a findings file on the branch is
+Run cycle's loop on a **request** instead of a specification, once judged small. Review and
+fixing always go to separate contexts; the judgment and implementation are delegated only when
+their conditions below hold. A person starts this skill from the conversation; cycle never calls
+it and hands nothing over — what the main session learned there goes into the request; a findings file on the branch is
 inherited state (see the loop). Required: the request, and the branch with its worktree path;
 missing either, stop: the main session prepares them beforehand — never create a branch or a
 worktree here. The branch name is short, for the request (no fixed prefix). Optional: cycle's optional
@@ -77,7 +77,9 @@ offering "continue here anyway" is a counter-example.
 ## The loop
 
 Read the ba0918-cycle skill body and run all of it as written, its Inputs included (the review skill
-read before the first review); "cycle" there means this run. Only these substitutions apply:
+read before the first review); "cycle" there means this run. Cycle's path for a reason that added
+no review never applies: this skill runs only when the caller's reason adds review. Only these
+substitutions apply:
 
 | In cycle's body | Read here as |
 |---|---|
@@ -127,4 +129,7 @@ Cycle's terminal report, its merging (the setting works here under the same cond
 "never" list apply — two requests at once in place of two branches — verification results from
 the implementer's evidence, plus the guidance when not small or handed back. "Look into this" belongs to the investigate skill,
 "check that it works" and "verify this" to review's diagnosis; implementing from them is a boundary
-breach. "Fix it" or "add it" alone never starts this skill; ask for a reviewed loop.
+breach. "Fix it" or "add it" alone never starts this skill; ask for a reviewed loop. A small task
+enters here only when the caller's reason adds review (several interdependent change sites, or the
+person asked for review); one needing no review is edited directly by the main session, implementation
+delegated only for volume.

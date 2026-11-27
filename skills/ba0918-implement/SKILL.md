@@ -24,13 +24,12 @@ reported as provisional answers.
 
 ## Stop only for these
 
-Stop and ask the person only in these three cases, then continue with the answer:
+Stop and ask the person only in these two cases, then continue with the answer:
 
 - just before an irreversible operation, a privileged operation, or a dangerous target (production
-  data, configuration, external effects);
-- continuing would spread damage (secret exposure, unintended publication, data loss);
-- a probe that is itself irreversible, privileged, or touches a dangerous target (reaching the
-  network, installing something) — ask before it runs.
+  data, configuration, external effects) — a probe that is itself one of these (reaching the
+  network, installing something) included: ask before it runs;
+- continuing would spread damage (secret exposure, unintended publication, data loss).
 
 Hand back, ending this run, only in these two cases:
 

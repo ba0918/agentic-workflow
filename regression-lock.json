@@ -2,24 +2,24 @@
   "coverage_exempt": {},
   "skills": {
     "ba0918-brainstorm": {
-      "carried_note": "not run; rounds limited to direction/preference/trade-off questions, decided-without-asking recorded as delegated, cycle started after approval; bs-001/bs-002 expectations (numbered questions with recommendations, progress file, no re-asking) still hold",
+      "carried_note": "not run; rounds limited to questions reading and trying cannot settle, goes on to cycle after approval; bs-001/bs-002 expectations do not touch either",
       "file_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "8a50e5b3b52895ea985e7ed27846608c585745009ca3dbb863b1c7d5435c4f63",
+        "skills/ba0918-brainstorm/SKILL.md": "d9543cbf43466e1cc704ae35b4b7f729db2c74da9cbaab92f6ae6c425a3849f1",
         "skills/ba0918-brainstorm/references/records.md": "b07357a7a8bccc4a74bfb900a5ae5cf01c30e8e67e968d3d3b5ad818d5f472d8",
         "skills/ba0918-brainstorm/references/spec-documents.md": "884e8fda9229f19ee0db055987975a1bcff4440b689ea74d87b049cb24efcbb2"
       },
-      "note": "not run; rounds limited to questions reading and trying cannot settle, goes on to cycle after approval; bs-001/bs-002 expectations do not touch either",
-      "result": "accepted-without-run",
+      "note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答。bs-001 は 1 回目に報告ファイルを書かずに終わり、走らせ直して通った",
+      "result": "pass",
       "scenarios": {
         "bs-001": {
-          "result": "accepted-without-run",
+          "result": "pass",
           "scenario_sha256": "e809eab9e6bc09e83083c29ba9e4e97c6e260240db6a38d460c10b97286d4db7",
-          "verified": "2026-08-30"
+          "verified": "2026-11-27"
         },
         "bs-002": {
-          "result": "accepted-without-run",
+          "result": "pass",
           "scenario_sha256": "26aa311021ee0af4118adf0221b00e74cbaddc78b0a80ba8b49f75e34c41bc4c",
-          "verified": "2026-08-30"
+          "verified": "2026-11-27"
         }
       },
       "structural_sha256": {
@@ -32,15 +32,15 @@
         "skills/ba0918-brainstorm/references/records.md",
         "skills/ba0918-brainstorm/references/spec-documents.md"
       ],
-      "surface_sha256": "c27f3c61e292824b83b73d9387d7a3b871acbe3b1680d3751609e3052ac200ed",
+      "surface_sha256": "9a981e1eb8d4e6a98adc18348fff60c9a8c138266864cf37638e27e469b77973",
       "verified": "2026-11-27"
     },
     "ba0918-cycle": {
-      "carried_note": "cy-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走し、成果物（git log、unittest の実走、指摘 JSON、git status）で判定した",
+      "carried_note": "cy-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、指摘 JSON、報告の中継文",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "d4d1dbe5bc0776ab172ea5bf6dfebdb840ab9ab668886ef454779fe8aa51f248",
+        "skills/ba0918-cycle/SKILL.md": "02ba9f281c0e2ebb454d6e1a28c3a7ee9214c11a9deb3d888d5ca72c289696e1",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
-        "skills/ba0918-cycle/references/merge.md": "9742a23e6b4f078fbd27a9906694422821e9563f1a7cfff27c65cbf1f70e38da",
+        "skills/ba0918-cycle/references/merge.md": "d543036917f01df85c0752a2f365ad12449bb80c68c270e8fe9b763e7ec870cd",
         "skills/ba0918-review/SKILL.md": "9ebe60da8d496202e029f70e9faa9466aabfb65d88e3d7d58e979a71cd7cd576",
         "skills/ba0918-review/references/direct-call.md": "4633f60886c61084bd859795e9c81a8c7addee95a733c7256b346a8bc2db28e4",
         "skills/ba0918-review/references/finding-schema.md": "58a5e23dee44e408b7f1648962ee5a6f0abc99dd5392e481dca77caae7fd347e",
@@ -48,19 +48,19 @@
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "786f39496cd2d40499089e33386104aa4eba26c5f7c9f0fd9b3578406579b18b"
       },
-      "note": "cy-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、指摘 JSON、報告の中継文",
+      "note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
       "result": "pass",
       "scenarios": {
         "cy-001": {
           "result": "pass",
-          "scenario_sha256": "c7605c6f73ed2c1e98d5f9197376d8e4382d2fec783e38073d2960f8b8a12a17",
+          "scenario_sha256": "aee1953f92095d82165331944d581a0521979a320560997d136d47b70474d64d",
           "verified": "2026-11-27"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "8437b5526b33a8891e4b4e443f68e7adaf4f6e130a977c70a8dd10a389d4e6dd",
+        "skills/ba0918-cycle/SKILL.md": "25523977fe1c272bbf4e436f548c8a1eb5f516725550d53e8beb959001b1a8b1",
         "skills/ba0918-cycle/references/assumption-check.md": "cb3da45355074c2c3556039e9ce22c98b706f10d76033b5ff15cd046c131616f",
-        "skills/ba0918-cycle/references/merge.md": "5aa118444674675d744aa5b050f089aff91338bf66606450bf605a989ffe2d11",
+        "skills/ba0918-cycle/references/merge.md": "30a2db2313422a72b52361a13ded88f0c70fd370688bda56bcd424128eb2be74",
         "skills/ba0918-review/SKILL.md": "21012fdeac5b12c0604dd1000dfc4326eda1e3c2f2c171f8bb942aacc7f1df38",
         "skills/ba0918-review/references/direct-call.md": "6562b5ee615874e105a49f77263b5cbd7f953bf0603831cf85ca037601e717eb",
         "skills/ba0918-review/references/finding-schema.md": "45652f5cfd1754c0e7b5af0b413e225f9ca771670b767bf7e161ce9361053258",
@@ -79,16 +79,16 @@
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "ada7e283ffa09605980e8974bad1c0a7c9c58e42fab2dd2714250702f510eea5",
+      "surface_sha256": "01ed5405ecb97b767eb2c214b967ee4fafb8647dd4e1f87d2dd101ca126ba663",
       "verified": "2026-11-27"
     },
     "ba0918-implement": {
-      "carried_note": "im-001 と im-002 を今の入力と暫定の答えの流れに書き換えた後、opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走し、成果物（git log、unittest の実走、指摘 JSON、git status）で判定した",
+      "carried_note": "im-001 と im-002 を今の入力と暫定の答えの流れに書き換えた後、opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、unittest の実走、実行ログの RED の記録、報告の暫定の答え",
       "file_sha256": {
-        "skills/ba0918-implement/SKILL.md": "89316bd9171985930a0d4832a897938ab72437cca29a63093f148d6003fd9c8c",
+        "skills/ba0918-implement/SKILL.md": "8b08a10ee088c72e4507ea73234869a1cbdb585f20b59af6bfe342fa1dd425a4",
         "skills/ba0918-implement/references/completion.md": "9e53b606cc54bc02af529d1447ab6a94da344fbb7b88044194a85e3972390266"
       },
-      "note": "im-001 と im-002 を今の入力と暫定の答えの流れに書き換えた後、opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、unittest の実走、実行ログの RED の記録、報告の暫定の答え",
+      "note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
       "result": "pass",
       "scenarios": {
         "im-001": {
@@ -103,71 +103,71 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-implement/SKILL.md": "3f631f55df84b216a478c94bbcb953e8b19d90df95298bb8e0e7fff4e7df4b88",
+        "skills/ba0918-implement/SKILL.md": "40ae78f8cad0c595bb03aa2b31632874fae3c3f930f316fe24a828da22fa5948",
         "skills/ba0918-implement/references/completion.md": "b7982f8e2e47b1ad06b41461640935e73a541a9e8b6697a4e6daf151e63ddf5e"
       },
       "surface": [
         "skills/ba0918-implement/SKILL.md",
         "skills/ba0918-implement/references/completion.md"
       ],
-      "surface_sha256": "65f3669cbc323ad0ecd5e34accefa283ad3da8a696e5c93401de7aeb801980f4",
+      "surface_sha256": "259dfb6a661ccd285a0ac8bfedeaf3752a0ef984feb8aefcc2a33ee07f9ffdc9",
       "verified": "2026-11-27"
     },
     "ba0918-investigate": {
-      "carried_note": "not run; recommended-action rows now brainstorm / cycle instead of plan; iv-001 non-critical wording realigned, critical expectations untouched",
+      "carried_note": "not run; recommended next action table follows the new entry rules and the cycle invocation adds the approval commit; iv-001 wording aligned, expectations unchanged",
       "file_sha256": {
-        "skills/ba0918-investigate/SKILL.md": "94badc4af2bf832bcfc97da9b89923721d541423b2a8fd255dc71f95d48b1566"
+        "skills/ba0918-investigate/SKILL.md": "7b66e50f237ada6f31621e18e6a1363c5d1a7cc458b71e0550db92e432037519"
       },
-      "note": "not run; recommended next action table follows the new entry rules and the cycle invocation adds the approval commit; iv-001 wording aligned, expectations unchanged",
-      "result": "accepted-without-run",
+      "note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
+      "result": "pass",
       "scenarios": {
         "iv-001": {
-          "result": "accepted-without-run",
+          "result": "pass",
           "scenario_sha256": "9853da124d792ec02376c7165520d8b33128d7905a9fb382529ea547c426a61f",
-          "verified": "2026-08-31"
+          "verified": "2026-11-27"
         },
         "iv-002": {
-          "result": "accepted-without-run",
+          "result": "pass",
           "scenario_sha256": "1bc2a525b18d394e63f7f93b0fa961160df4a760b31482f743e0868012e645d8",
-          "verified": "2026-08-31"
+          "verified": "2026-11-27"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-investigate/SKILL.md": "093473633085d2f3dca9d9705d3bb295e604ec8b3f4b70da75550038823c3b90"
+        "skills/ba0918-investigate/SKILL.md": "0ccb69d3755046a8c54ea118d2bc225ac82f77e6210ea8853388838ddfede6cb"
       },
       "surface": [
         "skills/ba0918-investigate/SKILL.md"
       ],
-      "surface_sha256": "e865c66ff14cb2fcbdf122ef0c4ed5953303c675377e7b7c1076060906933353",
+      "surface_sha256": "08d5480c13c883cb6bb544528daa916dd75f97292d18ba181293142bf251edce",
       "verified": "2026-11-27"
     },
     "ba0918-iterate": {
-      "carried_note": "not run; it-002 reason text aligned with the guidance table, iterate implementer return items, and cycle merge wording it reads; it-001/it-002 expectations unchanged",
+      "carried_note": "not run; follows the cycle body and merge reference changes; it-001/it-002 expectations unchanged",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "d4d1dbe5bc0776ab172ea5bf6dfebdb840ab9ab668886ef454779fe8aa51f248",
+        "skills/ba0918-cycle/SKILL.md": "02ba9f281c0e2ebb454d6e1a28c3a7ee9214c11a9deb3d888d5ca72c289696e1",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
-        "skills/ba0918-cycle/references/merge.md": "9742a23e6b4f078fbd27a9906694422821e9563f1a7cfff27c65cbf1f70e38da",
-        "skills/ba0918-iterate/SKILL.md": "5ee3871293d3638a66610bf3c4f220d64f0ea0966f9bc3d115040e09efd9ea36"
+        "skills/ba0918-cycle/references/merge.md": "d543036917f01df85c0752a2f365ad12449bb80c68c270e8fe9b763e7ec870cd",
+        "skills/ba0918-iterate/SKILL.md": "e43d65a98b60e3bfa9bac1f4279a994e422df47a45ece67e12b3ddeebb00b9f0"
       },
-      "note": "not run; follows the cycle body and merge reference changes; it-001/it-002 expectations unchanged",
-      "result": "accepted-without-run",
+      "note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
+      "result": "pass",
       "scenarios": {
         "it-001": {
-          "result": "accepted-without-run",
+          "result": "pass",
           "scenario_sha256": "c36d8122542755d4a2b8f5c856c07f0fb56007b62c55bc6f4c4d4a6903214de7",
-          "verified": "2026-09-01"
+          "verified": "2026-11-27"
         },
         "it-002": {
-          "result": "accepted-without-run",
+          "result": "pass",
           "scenario_sha256": "42ab67f98bdccc8d527d6e000d67a95bc1c0d7142669bd485692388d0f018c84",
-          "verified": "2026-08-31"
+          "verified": "2026-11-27"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "8437b5526b33a8891e4b4e443f68e7adaf4f6e130a977c70a8dd10a389d4e6dd",
+        "skills/ba0918-cycle/SKILL.md": "25523977fe1c272bbf4e436f548c8a1eb5f516725550d53e8beb959001b1a8b1",
         "skills/ba0918-cycle/references/assumption-check.md": "cb3da45355074c2c3556039e9ce22c98b706f10d76033b5ff15cd046c131616f",
-        "skills/ba0918-cycle/references/merge.md": "5aa118444674675d744aa5b050f089aff91338bf66606450bf605a989ffe2d11",
-        "skills/ba0918-iterate/SKILL.md": "312f7a4fc8010b27a984ca1ffa46a0e32d366352a5378739e6cd10d5b2713b9b"
+        "skills/ba0918-cycle/references/merge.md": "30a2db2313422a72b52361a13ded88f0c70fd370688bda56bcd424128eb2be74",
+        "skills/ba0918-iterate/SKILL.md": "ae5ce52804174830c8f2fb995d4715379aa5db1c60d164d70d5eca4f79dd698b"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md",
@@ -175,7 +175,7 @@
         "skills/ba0918-cycle/references/merge.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "9674bff63be7acfb9282531bb7300620e0efcb0cb3d828ee1daaec99211ecc0a",
+      "surface_sha256": "403e7923a1016500ee4672d873dec0a28c6c414cfb692078bfdc5f1ee6a27d53",
       "verified": "2026-11-27"
     },
     "ba0918-plan": {
@@ -253,11 +253,11 @@
       "verified": "2026-11-27"
     },
     "ba0918-using-workflow": {
-      "carried_note": "uw-001 と uw-002 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走し、成果物（git log、unittest の実走、指摘 JSON、git status）で判定した。応答は実行ログで確認した",
+      "carried_note": "uw-001 と uw-002 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は実行ログに残った応答と git status",
       "file_sha256": {
-        "skills/ba0918-using-workflow/SKILL.md": "8a01270ae5890f84181feaaabdfb564e1349f70bb7cf91777460b8238648a1f8"
+        "skills/ba0918-using-workflow/SKILL.md": "65d507803cf60b7f71b689d5123cbeb1479d51ed84e4bb4d4efadcde029184c2"
       },
-      "note": "uw-001 と uw-002 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は実行ログに残った応答と git status",
+      "note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
       "result": "pass",
       "scenarios": {
         "uw-001": {
@@ -272,12 +272,12 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-using-workflow/SKILL.md": "9771c44bfcc84e65a19549cced44d95f46ae74eb91fbcb197d5fae31723eaf05"
+        "skills/ba0918-using-workflow/SKILL.md": "b936d1f45db50623b668e5b2523e60a5fc06722fd0d49b87f95c056caab5c597"
       },
       "surface": [
         "skills/ba0918-using-workflow/SKILL.md"
       ],
-      "surface_sha256": "1fb58a4a984f2cb0f12bc7f98308f7be1eb670f164d8ddc374644e34cfef2e36",
+      "surface_sha256": "55d2fbf3425dc07bb0db0d307b2cb12593c2ffa80708b335b33ffea530eec594",
       "verified": "2026-11-27"
     }
   },
