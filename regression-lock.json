@@ -36,9 +36,9 @@
       "verified": "2026-11-27"
     },
     "ba0918-cycle": {
-      "carried_note": "cy-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、指摘 JSON、報告の中継文",
+      "carried_note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "02ba9f281c0e2ebb454d6e1a28c3a7ee9214c11a9deb3d888d5ca72c289696e1",
+        "skills/ba0918-cycle/SKILL.md": "42e922d43bf95a9de9b17a0a68f3d53d8a82fdabbeb2d496869b47861733116a",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
         "skills/ba0918-cycle/references/merge.md": "d543036917f01df85c0752a2f365ad12449bb80c68c270e8fe9b763e7ec870cd",
         "skills/ba0918-review/SKILL.md": "9ebe60da8d496202e029f70e9faa9466aabfb65d88e3d7d58e979a71cd7cd576",
@@ -48,13 +48,13 @@
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "786f39496cd2d40499089e33386104aa4eba26c5f7c9f0fd9b3578406579b18b"
       },
-      "note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
+      "note": "opencode-economy (deepseek-v4.1-flash) で cy-001 を実走、全項目 yes",
       "result": "pass",
       "scenarios": {
         "cy-001": {
           "result": "pass",
           "scenario_sha256": "aee1953f92095d82165331944d581a0521979a320560997d136d47b70474d64d",
-          "verified": "2026-11-27"
+          "verified": "2026-11-28"
         }
       },
       "structural_sha256": {
@@ -79,8 +79,8 @@
         "skills/ba0918-review/references/oracle-evidence.md",
         "skills/ba0918-review/references/profiles.md"
       ],
-      "surface_sha256": "01ed5405ecb97b767eb2c214b967ee4fafb8647dd4e1f87d2dd101ca126ba663",
-      "verified": "2026-11-27"
+      "surface_sha256": "a7cd0edb0efe390581cf935b6e41d1c0fe9913e03380e38966010f8d6e68279e",
+      "verified": "2026-11-28"
     },
     "ba0918-implement": {
       "carried_note": "im-001 と im-002 を今の入力と暫定の答えの流れに書き換えた後、opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、unittest の実走、実行ログの RED の記録、報告の暫定の答え",
@@ -142,25 +142,25 @@
       "verified": "2026-11-27"
     },
     "ba0918-iterate": {
-      "carried_note": "not run; follows the cycle body and merge reference changes; it-001/it-002 expectations unchanged",
+      "carried_note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
       "file_sha256": {
-        "skills/ba0918-cycle/SKILL.md": "02ba9f281c0e2ebb454d6e1a28c3a7ee9214c11a9deb3d888d5ca72c289696e1",
+        "skills/ba0918-cycle/SKILL.md": "42e922d43bf95a9de9b17a0a68f3d53d8a82fdabbeb2d496869b47861733116a",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
         "skills/ba0918-cycle/references/merge.md": "d543036917f01df85c0752a2f365ad12449bb80c68c270e8fe9b763e7ec870cd",
         "skills/ba0918-iterate/SKILL.md": "e43d65a98b60e3bfa9bac1f4279a994e422df47a45ece67e12b3ddeebb00b9f0"
       },
-      "note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
+      "note": "opencode-economy (deepseek-v4.1-flash) で it-001 it-002 を実走、全項目 yes",
       "result": "pass",
       "scenarios": {
         "it-001": {
           "result": "pass",
           "scenario_sha256": "c36d8122542755d4a2b8f5c856c07f0fb56007b62c55bc6f4c4d4a6903214de7",
-          "verified": "2026-11-27"
+          "verified": "2026-11-28"
         },
         "it-002": {
           "result": "pass",
           "scenario_sha256": "42ab67f98bdccc8d527d6e000d67a95bc1c0d7142669bd485692388d0f018c84",
-          "verified": "2026-11-27"
+          "verified": "2026-11-28"
         }
       },
       "structural_sha256": {
@@ -175,8 +175,8 @@
         "skills/ba0918-cycle/references/merge.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "403e7923a1016500ee4672d873dec0a28c6c414cfb692078bfdc5f1ee6a27d53",
-      "verified": "2026-11-27"
+      "surface_sha256": "f11010169c53ff02fe7c22da6e0ddcbec753885548888c76cc6388e0ca65c7b6",
+      "verified": "2026-11-28"
     },
     "ba0918-plan": {
       "carried_note": "pl-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走し、成果物（git log、unittest の実走、指摘 JSON、git status）で判定した。pl-002 は持ち越し",
