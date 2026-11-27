@@ -199,8 +199,9 @@ privileged operation, or a dangerous target (production data, configuration, ext
 and a spreading accident (secret exposure, unintended publication, data loss).
 
 - A finding stating that a secret is exposed, even one not yet outside, is the second case: pause
-  before delegating anything, hand its content to the person unchanged, and continue with their
-  answer — revoking is theirs to decide. Passing it to a fixer without stopping is a
+  before delegating anything, hand its content to the person unchanged, ask about revoking and
+  handling it (not whether to fix it now or leave it open), and continue with their answer —
+  revoking is theirs to decide. Passing it to a fixer without stopping is a
   counter-example. A finding whose fix needs an operation of the first case stops the same way.
   Every other `security` finding that is visible is fixed in the loop.
 - A delegate stops on either case: relay the question verbatim, then resume or re-delegate with
