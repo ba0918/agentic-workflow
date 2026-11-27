@@ -36,7 +36,7 @@
       "verified": "2026-11-27"
     },
     "ba0918-cycle": {
-      "carried_note": "not run; input changed from plan to specification and approval commit, success conditions in convergence, look-here-first, merge setting, fixer returns out-of-scope problems; cy-001 prompt and one non-critical expectation realigned to the new inputs, its critical security-relay expectations unchanged",
+      "carried_note": "cy-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走し、成果物（git log、unittest の実走、指摘 JSON、git status）で判定した",
       "file_sha256": {
         "skills/ba0918-cycle/SKILL.md": "d4d1dbe5bc0776ab172ea5bf6dfebdb840ab9ab668886ef454779fe8aa51f248",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
@@ -48,13 +48,13 @@
         "skills/ba0918-review/references/oracle-evidence.md": "b5e146faf2f2ad781a5ab70f377a10603d60544fa858c1499caae753978681b8",
         "skills/ba0918-review/references/profiles.md": "786f39496cd2d40499089e33386104aa4eba26c5f7c9f0fd9b3578406579b18b"
       },
-      "note": "not run; input is specification paths and the approval commit, scope, plan written on demand, success conditions in convergence, unverified remaining, new terminal report, merge setting with no push on secret or security items; cy-001 expectations rewritten to the new input and never run",
-      "result": "accepted-without-run",
+      "note": "cy-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、指摘 JSON、報告の中継文",
+      "result": "pass",
       "scenarios": {
         "cy-001": {
-          "result": "accepted-without-run",
+          "result": "pass",
           "scenario_sha256": "c7605c6f73ed2c1e98d5f9197376d8e4382d2fec783e38073d2960f8b8a12a17",
-          "verified": "2026-08-30"
+          "verified": "2026-11-27"
         }
       },
       "structural_sha256": {
@@ -83,35 +83,35 @@
       "verified": "2026-11-27"
     },
     "ba0918-implement": {
-      "carried_note": "実走なし。この改訂で変えた規則に既存 scenario は触れない。",
+      "carried_note": "im-001 と im-002 を今の入力と暫定の答えの流れに書き換えた後、opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走し、成果物（git log、unittest の実走、指摘 JSON、git status）で判定した",
       "file_sha256": {
-        "skills/ba0918-implement/SKILL.md": "ff0b9398113c721a966b8b4e82c007e2f77c59f1c524e54e4c770e4f84b4fde5",
-        "skills/ba0918-implement/references/completion.md": "6499e7d056405b4ae1fcde3fb1d70167bed8adb6ebe73a03fcf69164b2d99cbf"
+        "skills/ba0918-implement/SKILL.md": "89316bd9171985930a0d4832a897938ab72437cca29a63093f148d6003fd9c8c",
+        "skills/ba0918-implement/references/completion.md": "9e53b606cc54bc02af529d1447ab6a94da344fbb7b88044194a85e3972390266"
       },
-      "note": "実走なし。修正は文言の整理で、既存 scenario が確かめる規則に触れない。",
-      "result": "accepted-without-run",
+      "note": "im-001 と im-002 を今の入力と暫定の答えの流れに書き換えた後、opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、unittest の実走、実行ログの RED の記録、報告の暫定の答え",
+      "result": "pass",
       "scenarios": {
         "im-001": {
-          "result": "accepted-without-run",
-          "scenario_sha256": "e7d822279e1bba976c61bd56b4e1aba988c51eed6e2df19a330bdc39be0e9f17",
-          "verified": "2026-08-30"
+          "result": "pass",
+          "scenario_sha256": "cd7b9fdacb7835c24d009e7faf69884609aa0a7b6cb064596e2b49c4351d8ea3",
+          "verified": "2026-11-27"
         },
         "im-002": {
-          "result": "accepted-without-run",
-          "scenario_sha256": "17b814fa13023906843721eb72841ae3a1520c0d83dcce49f3292d318ef896c0",
-          "verified": "2026-08-30"
+          "result": "pass",
+          "scenario_sha256": "4063d442fd199b1ab91d2dfaa459853e10e7c44d4e44c31caca1f8d831c752fe",
+          "verified": "2026-11-27"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-implement/SKILL.md": "299bea19e0ced9a5cc1ee65d7ae32dded4e30ccfedb57b6cbc690aeb7533d1cc",
+        "skills/ba0918-implement/SKILL.md": "3f631f55df84b216a478c94bbcb953e8b19d90df95298bb8e0e7fff4e7df4b88",
         "skills/ba0918-implement/references/completion.md": "b7982f8e2e47b1ad06b41461640935e73a541a9e8b6697a4e6daf151e63ddf5e"
       },
       "surface": [
         "skills/ba0918-implement/SKILL.md",
         "skills/ba0918-implement/references/completion.md"
       ],
-      "surface_sha256": "49a55ed527f76377a9352aabd21531ef045b7bc8ee3639153aaf57fc7098e59b",
-      "verified": "2026-09-03"
+      "surface_sha256": "65f3669cbc323ad0ecd5e34accefa283ad3da8a696e5c93401de7aeb801980f4",
+      "verified": "2026-11-27"
     },
     "ba0918-investigate": {
       "carried_note": "not run; recommended-action rows now brainstorm / cycle instead of plan; iv-001 non-critical wording realigned, critical expectations untouched",
@@ -179,18 +179,18 @@
       "verified": "2026-11-27"
     },
     "ba0918-plan": {
-      "carried_note": "not run; plan is committed on the work branch without approval, description names its callers; pl-001 realigned from 'not committed' to 'committed alone on the branch', pl-002 unchanged",
+      "carried_note": "pl-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走し、成果物（git log、unittest の実走、指摘 JSON、git status）で判定した。pl-002 は持ち越し",
       "file_sha256": {
         "skills/ba0918-plan/SKILL.md": "a0a6070814b765c184db880c962ea5914e66507f3a81ad04557a7375de7c104d",
         "skills/ba0918-plan/references/step-template.md": "f495826be8b5ba8d93f192efd0fd890a1f8d003969e20eb6e8100844921777bd"
       },
-      "note": "not run; no approval by the person, inputs add scope, worktree path and rewrite inputs, unverified requirements returned; pl-001 expectation rewritten and never run",
+      "note": "pl-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は手順書の本文、git log、仕様書との文の突き合わせ。pl-002 は持ち越し",
       "result": "accepted-without-run",
       "scenarios": {
         "pl-001": {
-          "result": "accepted-without-run",
+          "result": "pass",
           "scenario_sha256": "7f633c1809a2c81208ec2a9a6101eef73b257cfe6220b322d29a22de8dcbe589",
-          "verified": "2026-08-30"
+          "verified": "2026-11-27"
         },
         "pl-002": {
           "result": "accepted-without-run",
@@ -250,6 +250,34 @@
         "skills/ba0918-review/references/profiles.md"
       ],
       "surface_sha256": "3a1d641b10d9923992a2b99f870209b199478a41ae014df27a514da283727e16",
+      "verified": "2026-11-27"
+    },
+    "ba0918-using-workflow": {
+      "carried_note": "uw-001 と uw-002 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走し、成果物（git log、unittest の実走、指摘 JSON、git status）で判定した。応答は実行ログで確認した",
+      "file_sha256": {
+        "skills/ba0918-using-workflow/SKILL.md": "8a01270ae5890f84181feaaabdfb564e1349f70bb7cf91777460b8238648a1f8"
+      },
+      "note": "uw-001 と uw-002 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は実行ログに残った応答と git status",
+      "result": "pass",
+      "scenarios": {
+        "uw-001": {
+          "result": "pass",
+          "scenario_sha256": "4cc9211473b239807ba82fe2935fd04d8ed815ff1f53c4a688679b8d318308d4",
+          "verified": "2026-11-27"
+        },
+        "uw-002": {
+          "result": "pass",
+          "scenario_sha256": "b4f8c2d5b0c7ec817ba6d16c5f43678d0f310fdb855c75ef0b03750d4b982471",
+          "verified": "2026-11-27"
+        }
+      },
+      "structural_sha256": {
+        "skills/ba0918-using-workflow/SKILL.md": "9771c44bfcc84e65a19549cced44d95f46ae74eb91fbcb197d5fae31723eaf05"
+      },
+      "surface": [
+        "skills/ba0918-using-workflow/SKILL.md"
+      ],
+      "surface_sha256": "1fb58a4a984f2cb0f12bc7f98308f7be1eb670f164d8ddc374644e34cfef2e36",
       "verified": "2026-11-27"
     }
   },
