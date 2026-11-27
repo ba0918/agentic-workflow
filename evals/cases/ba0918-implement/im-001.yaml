@@ -1,7 +1,7 @@
 skill: ba0918-implement
 id: im-001
 title: 手順書の 2 手順をテストファーストで実装し、関心事ごとにコミットする
-source: acceptance:20260830
+source: spec:20261127
 executor_tier: economy
 isolation: worktree
 
@@ -21,8 +21,9 @@ exercises:
   - skills/ba0918-implement/references/completion.md
 
 prompt: |
-  手順書 docs/plans/dedupe-core.md を実装して。ブランチは現在のブランチ、worktree はこのディレクトリ。
-  手順書は承認済み（コミット済み）。
+  実装して。仕様書は docs/spec/dedupe.md、範囲は「入力」「重複の定義と残し方」「出力」「終了コード」の節の要求。
+  ブランチは現在のブランチ、worktree はこのディレクトリ。手順書は docs/plans/dedupe-core.md（コミット済み）。
+  確認、承認、レビューを自分で足さないで。戻せる選択は聞かずに決めて、意味や設計の判断は暫定の答えとして報告して。
 expected_output: |
   dedupe/core.py と CLI が実装され、テストが通り、関心事ごとの commit が積まれている。
 expectations:
@@ -36,5 +37,5 @@ expectations:
     critical: true
   - text: commit メッセージに「Step 1」「implement」のような工程名や手順番号が無い
     critical: false
-  - text: 手順書に無い振る舞い（空入力の扱いなど）を勝手に決めて実装していない
+  - text: 仕様書にも手順書にも無い振る舞い（空入力の扱いなど）を決めて実装した場合は、それを暫定の答えとして覆る条件と一緒に応答（Artifact）に挙げている（決めた物が無ければ該当なしで yes）
     critical: false

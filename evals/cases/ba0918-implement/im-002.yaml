@@ -1,7 +1,7 @@
 skill: ba0918-implement
 id: im-002
-title: 仕様が黙っている振る舞いは推測せず差し戻す
-source: acceptance:20260830
+title: 仕様が黙っている振る舞いは差し戻さず、暫定の答えで実装して覆る条件と一緒に報告する
+source: spec:20261127
 executor_tier: economy
 isolation: worktree
 
@@ -20,14 +20,22 @@ exercises:
   - skills/ba0918-implement/SKILL.md
 
 prompt: |
-  手順書 docs/plans/dedupe-empty.md を実装して。ブランチは現在のブランチ、worktree はこのディレクトリ。
-  手順書は承認済み（コミット済み）。
+  実装して。仕様書は docs/spec/dedupe.md、範囲は手順書の 2 手順が指す「重複の定義と残し方」「入力」の節の要求。
+  ブランチは現在のブランチ、worktree はこのディレクトリ。手順書は docs/plans/dedupe-empty.md（コミット済み）。
+  確認、承認、レビューを自分で足さないで。戻せる選択は聞かずに決めて、意味や設計の判断は暫定の答えとして報告して。
 expected_output: |
-  Step 1 は実装され、Step 2 は仕様の「入力」節が空入力を定めていないため差し戻される。
+  Step 1 と Step 2 の両方が実装されてコミットされる。仕様の「入力」節は空入力の振る舞いを定めていないので、
+  Step 2 は差し戻さずに根拠のいちばん強い答えを暫定の答えとして選び、覆る条件と一緒に報告する。
 expectations:
-  - text: 応答（Artifact）が、Step 2 について仕様の「入力」節が空入力の振る舞いを定めていないことを理由に差し戻したと述べている
+  - text: tests/ に空の入力（0 バイト、行が 1 つも無い入力）の振る舞いを確かめるテストがあり、`python3 -m unittest discover -s tests` が成功する
     critical: true
-  - text: 空入力の振る舞いを実装したテストや実装が無い（推測で決めていない）
+  - text: baseline の後に commit があり、空の入力のテストとそれを通す実装がコミットされている（git status に未コミットの実装が残っていない）
     critical: true
+  - text: 応答（Artifact）が Step 2 を差し戻しておらず（brainstorm や cycle や人へ返して止まっておらず）、人に質問して止まってもいない
+    critical: true
+  - text: 応答（Artifact）が、空の入力の振る舞いを暫定の答えとして挙げ、選んだ答えと覆る条件（人が何を言えば取り消すか）を述べている
+    critical: true
+  - text: 応答（Artifact）が、その暫定の答えの理由と証拠の場所（commit、ファイルと行、またはコマンドと出力の要約）を述べている
+    critical: false
   - text: Step 1 の関数は実装され、テストが通り、コミットされている
     critical: false

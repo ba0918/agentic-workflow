@@ -7,7 +7,7 @@ Scope of change: dedepe/ 配下と tests/ 配下だけ。
 Step order and prerequisites: Step 1 の関数が Step 2 の CLI の前提。
 Verification map: Step 1 が「重複の定義と残し方」、Step 2 が「入力」「出力」「終了コード」を確かめる。
 Left to the implementer: 関数の内部構造と名前。テストの分け方。
-Stop conditions: 仕様に無い振る舞いを決める必要が出たら止めて brainstorm へ返す。
+Stop conditions: 仕様書か手順書に反する変更が要るとき。
 Test command: `python3 -m unittest discover -s tests`
 Out of scope: in-place 編集、複数ファイル、正規化。
 
@@ -19,7 +19,7 @@ May change: dedupe/core.py, tests/test_core.py
 Done when: `dedupe_lines(["a", "b", "a"])` が `["a", "b"]` を返し、順序が保たれ、`"a"` と `"A"` が別の行として扱われる。
 Shown by: test — tests/test_core.py に振る舞いごとのテスト。
 Left to the implementer: 内部で使うデータ構造。
-Stop and hand back if: 仕様に無い入力の種類（バイト列か文字列か以外）を決める必要が出たとき。
+Stop and hand back if: 無し。
 
 ## Step 2 — CLI
 
@@ -29,4 +29,4 @@ May change: dedupe/__main__.py, dedupe/cli.py, tests/test_cli.py
 Done when: `printf 'a\nb\na\n' | python3 -m dedupe` が `a\nb\n` を出して 0 で終わり、存在しないファイルを渡すと標準エラーに理由が出て 1 で終わる。
 Shown by: test — tests/test_cli.py で subprocess を使って確かめる。
 Left to the implementer: エラーメッセージの文言（仕様の委任のとおり）。
-Stop and hand back if: 仕様の「入力」節に無い振る舞いを決める必要が出たとき。
+Stop and hand back if: 無し。

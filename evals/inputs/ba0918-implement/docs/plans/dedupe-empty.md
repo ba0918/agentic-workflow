@@ -7,7 +7,7 @@ Scope of change: dedepe/ 配下と tests/ 配下だけ。
 Step order and prerequisites: Step 1 の関数が Step 2 の CLI の前提。
 Verification map: Step 1 が「重複の定義と残し方」、Step 2 が「入力」「出力」「終了コード」を確かめる。
 Left to the implementer: 関数の内部構造と名前。テストの分け方。
-Stop conditions: 仕様に無い振る舞いを決める必要が出たら止めて brainstorm へ返す。
+Stop conditions: 仕様書か手順書に反する変更が要るとき。
 Test command: `python3 -m unittest discover -s tests`
 Out of scope: in-place 編集、複数ファイル、正規化。
 
@@ -29,4 +29,4 @@ May change: dedupe/core.py, tests/test_core.py
 Done when: 仕様の「入力」節が定める空入力の結果（出力と終了コード）をテストが確かめている。
 Shown by: test — tests/test_core.py。
 Left to the implementer: 無し。
-Stop and hand back if: 仕様の「入力」節が空入力の振る舞いを定めていないとき。
+Stop and hand back if: 無し。
