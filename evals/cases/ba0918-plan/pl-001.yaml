@@ -39,5 +39,5 @@ expectations:
     critical: false
   - text: 手順書の冒頭に Goal と Specification（仕様書のパス）と Test command（python3 -m unittest ...）がある
     critical: false
-  - text: 仕様が黙っていること（例: 空の入力）を手順書が勝手に決めていない
+  - text: 仕様が黙っていること（例: 空の入力）を手順書が決めた場合は、それを暫定の答えとして覆る条件と一緒に手順書の中に並べている（決めた物が無ければ該当なしで yes）
     critical: false

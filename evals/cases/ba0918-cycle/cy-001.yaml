@@ -19,6 +19,7 @@ files:
     to: .agents/artifacts/reviews/feat/dedupe-core.json
 git:
   init: true
+  branch: feat/dedupe-core
   commit:
     - README.md
     - docs/spec/dedupe.md

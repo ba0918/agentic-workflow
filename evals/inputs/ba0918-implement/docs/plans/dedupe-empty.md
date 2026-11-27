@@ -25,8 +25,8 @@ Stop and hand back if: 無し。
 
 Purpose: 入力が 0 バイトのときの振る舞いを、仕様の「入力」節に従って実装する。Specification: docs/spec/dedupe.md#入力
 Prerequisites: Step 1。
-May change: dedupe/core.py, tests/test_core.py
+May change: dedupe/core.py, dedupe/cli.py, dedupe/__main__.py, tests/test_core.py, tests/test_cli.py
 Done when: 仕様の「入力」節が定める空入力の結果（出力と終了コード）をテストが確かめている。
-Shown by: test — tests/test_core.py。
+Shown by: test — tests/test_core.py か tests/test_cli.py。
 Left to the implementer: 無し。
 Stop and hand back if: 無し。
