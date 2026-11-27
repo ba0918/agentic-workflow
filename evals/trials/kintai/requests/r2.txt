@@ -1,0 +1,1 @@
+README に使い方の例を 1 つ足して。`kintai summary --month 2026-10 sample/punches.csv` の 1 行と、その下に『結果は標準出力に CSV で出る』の 1 文。

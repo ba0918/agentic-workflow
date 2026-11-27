@@ -1,0 +1,37 @@
+#!/bin/sh
+# ask-person "<message>": send a message to the person who asked for the work, print their reply.
+# One person session spans every request of a run: the first call starts it, later calls resume it.
+#
+# Environment (setup.sh writes a wrapper that sets these):
+#   ASK_PERSON_HOME  directory holding person.md; session, lock, transcript and error log go here
+#   ASK_PERSON_REPO  the trial repository; the person role runs there and can read its files
+#   ASK_PERSON_ADD_DIR  optional extra readable directory (the trial root, for worktrees)
+#   PERSON_MODEL     default claude-sonnet-5-5
+set -eu
+: "${ASK_PERSON_HOME:?}" "${ASK_PERSON_REPO:?}"
+D=$ASK_PERSON_HOME
+model=${PERSON_MODEL:-claude-sonnet-5-5}
+msg="$*"
+[ -n "$msg" ] || msg=$(cat)
+exec 9>"$D/person.lock"
+flock 9
+if [ -f "$D/person.session" ]; then
+  sid=$(cat "$D/person.session"); how=--resume
+else
+  sid=$(python3 -c 'import uuid; print(uuid.uuid4())'); how=--session-id
+fi
+set -- --restricted --safe-mode --model "$model" --tools "Read,Grep,Glob" \
+  --system-prompt-file "$D/person.md" --output-format json "$how" "$sid"
+if [ -n "${ASK_PERSON_ADD_DIR:-}" ]; then set -- "$@" --add-dir "$ASK_PERSON_ADD_DIR"; fi
+out=$(cd "$ASK_PERSON_REPO" && printf '%s' "$msg" | claude -p "$@" 2>>"$D/person.err") || {
+  echo "ask-person: 返事を受け取れなかった。少し待ってもう一度送って。" >&2; exit 1; }
+[ -f "$D/person.session" ] || echo "$sid" > "$D/person.session"
+printf '%s' "$out" | MSG="$msg" python3 -c '
+import json, os, sys, time
+o = json.load(sys.stdin)
+rec = {"t": time.strftime("%Y-%m-%dT%H:%M:%S"), "ask": os.environ["MSG"], "reply": o.get("result", ""),
+       "cost": o.get("total_cost_usd"), "usage": o.get("usage"), "session": o.get("session_id"),
+       "models": sorted((o.get("modelUsage") or {}).keys())}
+with open(sys.argv[1], "a", encoding="utf-8") as f:
+    f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+print(o.get("result", ""))' "$D/person.transcript.jsonl"
