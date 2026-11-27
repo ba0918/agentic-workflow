@@ -28,7 +28,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   as a reviewed run whatever the declaration says. With no findings file, the merge conditions on
   "look here first" and the success conditions are judged from the report alone. Before starting
   cycle, after an approval or when the person calls it directly, the main session states the
-  one-line declaration from the approval commit's scope.
+  one-line declaration from the approval commit's scope; cycle takes it as an input and, when the
+  conversation holds none as it starts, states it in the same form before its first step.
 - `ba0918-cycle` — when it stops on an exposed secret, it asks the person how to revoke and
   handle it, not whether to fix it now or leave it open.
 

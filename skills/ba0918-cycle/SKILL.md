@@ -28,6 +28,10 @@ optional seats (the person's word, such as "one seat this time"; default: the li
 user-scope instructions, as the review skill's **Optional seats** says), review items (what the
 person or caller wants every review to check besides the profiles; default none).
 
+The caller's one-line reason, in ba0918-using-workflow's form, is an input too. When the
+conversation holds none as cycle starts, state it now in that form, from the approval commit's
+scope, before step 1; never start the loop without it.
+
 Cycle runs only what the caller's one-line reason named: how many reviewer perspectives a review
 launches is the review skill's gate, and a second full review happens only under step 4's
 condition. Optional seats are the person's own standing choice (their list, or their word for this
