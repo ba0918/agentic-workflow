@@ -40,9 +40,11 @@ it looks unimplemented is a counter-example. The received specifications, and on
 review's counterpart — never an index or an unrelated specification. A plan, when one exists, goes
 to implement uninterpreted.
 The findings file is `.agents/artifacts/reviews/<branch>.json` (a `/` in the branch name is a
-directory). If it already exists this is a resume: keep its findings and continue round numbers
-from the inherited maximum. Ending 3's three streaks — `still_present` two rounds running, the
-count comparison twice, new findings near a fix twice — count from this start only, never from
+directory). If it already exists this is a resume, run with review whatever this start's reason
+says: keep its findings and continue round numbers from the inherited maximum; leaving inherited
+visible findings unevaluated as a run without review is a counter-example. Ending 3's three
+streaks — `still_present` two rounds running, the count comparison twice, new findings near a fix
+twice — count from this start only, never from
 inherited evaluations; a returning closed cause and the attempts record of the assumption check
 count across starts. Before delegating anything on a resume, read the inherited open findings: one
 that stops the person (an exposed secret, a fix needing an irreversible operation) stops first, as
@@ -76,9 +78,10 @@ report states the rewrite.
 
 1. Delegate the specification paths, the scope, the branch, and the worktree path (and the plan
    path when there is one) to an implement agent, all remaining work in one delegation.
-2. Full review: base..head, profiles, strength, the specification paths and scope, the review
-   items, the provisional answers received so far, plus the **known findings** (open
-   `record_only`, closed `accepted`), never visible or fixed ones; a match is not raised again.
+2. Full review, only when the caller's one-line reason added review: base..head, profiles,
+   strength, the specification paths and scope, the review items, the provisional answers received
+   so far, plus the **known findings** (open `record_only`, closed `accepted`), never visible or
+   fixed ones; a match is not raised again.
    Cycle itself, as the caller, then launches the optional seats as the review skill's **Optional
    seats** says, using the seat choice the person gave at the start of the run; no review
    delegation carries the seat choice or that section.
@@ -91,6 +94,12 @@ report states the rewrite.
    before running it; it gets the optional seats as in step 2. Its visible findings → one more
    diff loop until none remain; then converged.
    With no such reason, the diff loop clearing every visible finding is convergence.
+
+When the caller's one-line reason added no review, skip steps 2–4: no review runs and no findings
+file is created. Convergence is judged from the per-condition verification results alone; a
+checkable condition unmet or not checked goes to a fixer, and is confirmed again from the results
+the fixer returns. The same condition unmet twice ends the run as no progress (ending 3); never
+add a review to break it.
 
 Visible findings = open findings whose final action is `auto_fix` or `fix_and_verify`. Findings with
 `record_only` are never delegated; they stay open for the terminal report. When it runs, the second
@@ -122,17 +131,17 @@ to tell a reported rule from one the diff added silently.
 - **optional seats (full reviews only):** not a delegation. Hand each seat's launch means the
   quality reviewer's prompt rewritten for the seat's copy. It returns findings JSON, or the seat
   is absent with its reason.
-- **fixer:** carry visible findings with their provisional answers, specification paths and scope
-  (and the plan path when there is one), branch, worktree path, and the contract below; from the
-  assumption check, also the stack and the replacement. It returns commits and which finding each
-  addresses, the verification results of the success conditions those findings touch,
-  out-of-scope problems it found, and provisional answers (the four items), or a hand-back. For a finding
-  `still_present` after a fix, also carry that fix's commits; before changing code the fixer
-  states in one sentence the assumption that fix rested on, tests it with a command, and its
-  return adds the assumption with the command and output. The next fix starts from that result; a
-  broken assumption is what a changed approach rests on. This does not change how ending 3 counts
-  two rounds. The fixer has no assumption check of its own: the assumption check below covers
-  fixes, so one run never tries twice.
+- **fixer:** carry visible findings (with no review, the unmet conditions) with their provisional
+  answers, specification paths and scope (and the plan path when there is one), branch, worktree
+  path, and the contract below; from the assumption check, also the stack and the replacement. It
+  returns commits and which finding each addresses, the verification results of the success
+  conditions those findings or conditions touch, out-of-scope problems it found, and provisional
+  answers (the four items), or a hand-back. For a finding `still_present` after a fix, also carry
+  that fix's commits; before changing code the fixer states in one sentence the assumption that
+  fix rested on, tests it with a command, and its return adds the assumption with the command and
+  output. The next fix starts from that result; a broken assumption is what a changed approach
+  rests on. This does not change how ending 3 counts two rounds. The fixer has no assumption check
+  of its own: the assumption check below covers fixes, so one run never tries twice.
 
 The two sentences, in implement's and the fixer's prompts: "The criteria in this request are all
 there is; add no check, approval, or review of your own. Decide reversible choices without asking;
@@ -200,8 +209,9 @@ and a spreading accident (secret exposure, unintended publication, data loss).
 
 ## Endings
 
-1. Converged: every success condition is confirmed, and the last review returned no visible
-   finding, or the diff loop after it cleared them.
+1. Converged: every success condition is confirmed, and, when reviews ran, the last review
+   returned no visible finding, or the diff loop after it cleared them. With no review,
+   confirming every condition is convergence.
 2. The person's round-trip limit was reached.
 3. No progress, when any of these holds:
    - a visible finding is `still_present` in two consecutive rounds that evaluated it (the second
@@ -211,6 +221,7 @@ and a spreading accident (secret exposure, unintended publication, data loss).
      visible findings marked `no_longer_visible` (full reviews are excluded from this comparison);
    - in the review right after a fix, a new visible finding appears near where that fix went in,
      twice in a row across fixes;
+   - in a run with no review, the same success condition is unmet twice with a fixer between;
    - a review still cannot succeed after one re-delegation (an absent optional seat is not a failed
      review);
    - implement returns its assumption stack because swapping its own assumption did not help;
@@ -219,9 +230,10 @@ and a spreading accident (secret exposure, unintended publication, data loss).
 
    The first four, decided by review results, go through the assumption check before ending: read
    `references/assumption-check.md` when one holds, and end here only when the check says so. A
-   failed review is a tool failure, not a wrong assumption; implement has already tried once; a
-   rewrite has already answered that reason — so the last three end at once; the terminal report
-   carries implement's stack.
+   run with no review has no findings file or record of review's assumptions; a failed review is a
+   tool failure, not a wrong assumption; implement has already tried once; a rewrite has already
+   answered that reason — so the last four end at once; the terminal report carries implement's
+   stack.
 4. A delegate (implement, fixer, plan) handed back to brainstorm, or the assumption check ended on
    a contradiction with the approved specification. A hand-back to brainstorm has only two valid
    reasons: a contradiction with the approved specification; a file outside iterate's enumeration.
@@ -230,14 +242,14 @@ and a spreading accident (secret exposure, unintended publication, data loss).
 
 **Checking the success conditions.** They are the specification's own observable conditions, so
 they are the ending condition; never write one of your own. Confirm each from implement's and the
-fixers' per-condition results and from the reviews — a condition no reviewer contradicts is
-confirmed by those results; add no agent to check. A checkable condition not met becomes a
-finding: give it an ID and send it to a fixer with the visible findings. A condition left
-unverified because nothing can check it makes the end **unverified remaining**: one the
-specification names no verification for, or one whose verification could not be run. A condition
-that can be checked but was not goes to a fixer to get its result. It is a variant of ending 1; the report says which conditions and why,
-with a proposed verification to add to the specification where it names none. Reading a
-condition loosely to clear it is a counter-example.
+fixers' per-condition results — alone in a run with no review; with reviews, a condition no
+reviewer contradicts is confirmed by those results; add no agent to check. A checkable condition
+not met goes to a fixer; with reviews, as a finding with an ID, beside the visible findings. A
+condition left unverified because nothing can check it makes the end **unverified remaining**: one
+the specification names no verification for, or one whose verification could not be run. A
+condition that can be checked but was not goes to a fixer to get its result. It is a variant of
+ending 1; the report says which conditions and why, with a proposed verification to add to the
+specification where it names none. Reading a condition loosely to clear it is a counter-example.
 
 "Near where a fix went in" is cycle's judgment, not a computation: compare the new finding's
 evidence location (file and lines) with the evidence of the findings that fix addressed and with
@@ -264,7 +276,10 @@ absent from the specification, and rules added by a provisional answer, each wit
 add it there; why a plan was written, and that it was rewritten; for each assumption-check
 attempt, its stack, plus the proposed change to the specification when it ended on a
 contradiction. When a full review ran optional seats: which attended and which were absent, each
-absence with its reason.
+absence with its reason. When no review ran: "no review was run" and, in one line, why the
+caller's one-line reason added none — in the body, never under **look here first**: that reason
+lives only in the conversation, and the report becomes the pull request's body. Omitting it is a
+counter-example.
 
 Each provisional answer carries four items: what was chosen, why, where the evidence is (a
 commit, a file and line, or a command run with a summary of its output), and its overturn

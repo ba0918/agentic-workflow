@@ -19,6 +19,16 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   recommends that instead of iterate. A defect whose place and change are clear from the start
   skips investigate. In iterate, review and fixing always run in separate contexts, while the
   judgment and implementation are delegated only when their own conditions hold.
+- **BREAKING** `ba0918-cycle`, `ba0918-brainstorm`, `ba0918-using-workflow` — cycle runs no
+  review when the caller's one-line declaration adds none. Such a run converges on the
+  per-condition verification results alone, sends an unmet or unchecked success condition to a
+  fixer, ends as no progress at once (without the assumption check) when the same condition stays
+  unmet twice, and creates no findings file. Its terminal report says in the body, never under
+  "look here first", that no review was run and why. A resume that finds a findings file continues
+  as a reviewed run whatever the declaration says. With no findings file, the merge conditions on
+  "look here first" and the success conditions are judged from the report alone. Before starting
+  cycle, after an approval or when the person calls it directly, the main session states the
+  one-line declaration from the approval commit's scope.
 
 ## [0.10.0] - 2026-11-27
 

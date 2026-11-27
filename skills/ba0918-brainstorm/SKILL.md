@@ -123,6 +123,7 @@ expensive model-running verification only when the person asks.
    commits or says to. Then delete the progress file.
 4. Unless the person said "specification only", the main session creates the implementation
    branch and its worktree (the branch named for the specification, or for the topic when several
-   changed) and starts ba0918-cycle with the specification paths and the approval commit, without
-   waiting for "implement it". With
+   changed), states the one-line declaration in ba0918-using-workflow's form from the approval
+   commit's scope, and starts ba0918-cycle with the specification paths and the approval commit,
+   without waiting for "implement it"; starting cycle without it is a counter-example. With
    "specification only", return the specification paths and end.
