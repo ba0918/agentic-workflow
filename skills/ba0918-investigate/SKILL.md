@@ -133,7 +133,8 @@ Show invocations in a form that can be used as is.
 
 | Situation | Recommendation | Ready-to-use form |
 |---|---|---|
-| Small task | iterate | `/ba0918-iterate <request>`; the request names the place and the change |
+| Small task with several interdependent change sites | iterate | `/ba0918-iterate <request>`; the request names the place and the change |
+| Small task, otherwise | have the main session fix it directly | one line naming the place and the change |
 | Medium or larger, no basis for a decision, or two readings | brainstorm | `/ba0918-brainstorm <topic>`, with the existing specification path if any |
 | An approved specification has requirements not yet implemented | cycle | `/ba0918-cycle <specification path>`, with the approval commit |
 | Deferred | the person notes it down | one line to note |
@@ -143,8 +144,9 @@ Show invocations in a form that can be used as is.
 A small task is one the four conditions in the ba0918-iterate skill's
 **Small task and its judgment** accept; file count does not matter. A change whose impact cannot be
 read, or which needs a specification decision, is medium or larger, and sending it to iterate as
-"small" is a counter-example. There is no issue management here, so "deferred" is the
-person's own note.
+"small" is a counter-example. Iterate is the entry that runs with review, so sending it a small
+task with no interdependent change sites is also a counter-example. There is no issue
+management here, so "deferred" is the person's own note.
 
 ## When something goes wrong
 

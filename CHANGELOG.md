@@ -10,6 +10,16 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `ba0918-iterate`, `ba0918-using-workflow`, `ba0918-investigate` — iterate is now
+  only the entry for a small task whose one-line declaration adds review (several interdependent
+  change sites, or the person asked for review). A small task that needs no review is edited
+  directly by the main session, with implementation delegated only for volume, and investigate
+  recommends that instead of iterate. A defect whose place and change are clear from the start
+  skips investigate. In iterate, review and fixing always run in separate contexts, while the
+  judgment and implementation are delegated only when their own conditions hold.
+
 ## [0.10.0] - 2026-11-27
 
 ### Added
