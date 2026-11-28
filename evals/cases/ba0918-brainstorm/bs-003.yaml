@@ -1,0 +1,36 @@
+skill: ba0918-brainstorm
+id: bs-003
+title: 人が触れていない端の振る舞いは聞かずに決めて委任に書き、手がかりのある問いは聞く
+source: spec:20261128
+executor_tier: economy
+isolation: worktree
+
+files:
+  - from: readme-dedupe-logs.md
+    to: README.md
+  - from: progress-dedupe-edges.md
+    to: .agents/tmp/brainstorm-dedupe.md
+git:
+  init: true
+  commit:
+    - README.md
+  message: baseline
+
+exercises:
+  - skills/ba0918-brainstorm/SKILL.md
+  - skills/ba0918-brainstorm/references/records.md
+
+prompt: |
+  dedupe の壁打ちの続きをやろう。前回の答えは記録してあるはず。次のラウンドを出して。
+expected_output: |
+  途中経過ファイルから再開した次のラウンド。人が触れていない端の振る舞いは質問にせず、
+  決めた内容と根拠を委任に書く。README に手がかりがある大きな入力のメモリは質問にする。
+expectations:
+  - text: 応答（Artifact）のラウンドに、最終行に改行が無いときの扱い、空の入力の扱い、複数のファイルのうち一部が読めないときの扱いを問う質問が 1 つも無い
+    critical: true
+  - text: .agents/tmp/brainstorm-dedupe.md の Delegated に、最終行に改行が無いとき、空の入力、一部のファイルが読めないときの 3 つが 1 件 1 行で記録され、各行に決めた内容と空でない根拠がある。この 3 つは Agreements に入っていない
+    critical: true
+  - text: 応答のラウンドに、数 GB の入力を処理するときのメモリの扱い（README の手がかり）を問う質問が、通し番号と推奨回答付きで出ている
+    critical: true
+  - text: 途中経過の Agreements に A1〜A6 が残っており、Position が次のラウンドを指すように更新されている
+    critical: false

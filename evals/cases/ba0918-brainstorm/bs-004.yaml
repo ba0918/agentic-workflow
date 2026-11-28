@@ -1,0 +1,37 @@
+skill: ba0918-brainstorm
+id: bs-004
+title: 聞かずに決めたコマンドの形は、承認の前の最後のラウンドで使用例を見せて聞く
+source: spec:20261128
+executor_tier: economy
+isolation: worktree
+
+files:
+  - README.md
+  - from: progress-dedupe-cli.md
+    to: .agents/tmp/brainstorm-dedupe.md
+git:
+  init: true
+  commit:
+    - README.md
+  message: baseline
+
+exercises:
+  - skills/ba0918-brainstorm/SKILL.md
+  - skills/ba0918-brainstorm/references/records.md
+
+prompt: |
+  dedupe の壁打ちの続きをやろう。前回の答えは記録してあるはず。次のラウンドを出して。
+expected_output: |
+  承認の前の最後のラウンド。聞かずに決めたコマンドの形を、委任の一覧の 1 行で済ませず、
+  普段の使い方 1 つの使用例で見せて、これでよいかを聞く。
+expectations:
+  - text: 応答（Artifact）に使用例が 1 つあり、コマンドそのもの（例 `dedupe access.log`）、出力の最初の数行、終了コード、書き出すファイル（dedupe.removed.txt）の 4 つが全部見え、これでよいかを聞いている
+    critical: true
+  - text: 応答は承認を求めておらず、使用例への答えを待っている。聞かずに決めたコマンドの形を委任の一覧として並べるだけで承認へ進んでいない
+    critical: true
+  - text: 使用例についての質問に通し番号と推奨回答が付いている
+    critical: false
+  - text: 読めないファイルと引数の誤りが重なったときの終了コード（D5）を質問にしていない
+    critical: false
+  - text: .agents/tmp/brainstorm-dedupe.md の Position が、使用例を見せて答えを待っていることを示すように更新されており、D1〜D4 は人が答える前に Agreements へ移されていない
+    critical: false

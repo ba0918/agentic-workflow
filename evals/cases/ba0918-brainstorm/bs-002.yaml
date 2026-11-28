@@ -1,7 +1,7 @@
 skill: ba0918-brainstorm
 id: bs-002
 title: 途中経過から再開し、決まったことを聞き直さない
-source: acceptance:20260830
+source: spec:20261128
 executor_tier: economy
 isolation: worktree
 
@@ -24,11 +24,11 @@ prompt: |
 expected_output: |
   途中経過ファイルを読んで現在地から再開した次のラウンド。決まったことは聞き直さない。
 expectations:
-  - text: 応答（Artifact）に、入出力の形や終了コードなど、前提（A1〜A3）が揃った枝の質問が通し番号と推奨回答付きで出ている
+  - text: 応答（Artifact）に、前提（A1〜A3）が揃った枝（入出力の形など）の質問が少なくとも 1 つ、通し番号と推奨回答付きで出ている
     critical: true
   - text: 「重複」の定義、検出範囲、残す出現と順序（A1〜A3 で決まったこと）を聞き直す質問が無い
     critical: true
   - text: .agents/tmp/brainstorm-dedupe.md の Agreements に A1〜A3 が残っており、Position が次のラウンドを指すように更新されている
     critical: true
-  - text: 新しい質問は Undecided の U1 と U2 に対応している
-    critical: false
+  - text: 新しい質問は Undecided の U1 と U2 の枝に対応しており、U1 と U2 のうち質問にしなかった部分は、聞かずに決めた物として Delegated に根拠付きで記録されている
+    critical: true
