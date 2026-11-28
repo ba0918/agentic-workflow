@@ -1,6 +1,6 @@
 ---
 name: ba0918-iterate
-description: "Entry point beside the ba0918 workflow for a task too small to need a specification or a plan: runs cycle's implementation, review, and fixing loop on a request judged small, and turns anything bigger away with the next skill to call. Use when asked to iterate, for one more fix, to fix this bit, to add this too, or to polish it a little more. 日本語キーワード: iterate ちょっと直して これも足して もう少し磨いて 小さいタスク"
+description: "Entry point beside the ba0918 workflow for a small task that should still be reviewed: runs cycle's implementation, review, and fixing loop on a request judged small, and turns anything bigger away with the next skill to call. Use when asked to iterate, or to run a reviewed loop on a small fix or addition; a bare request to fix or add something is edited directly instead. 日本語キーワード: iterate レビュー付きで直して レビューを回して 小さいタスク"
 ---
 
 # Iterate

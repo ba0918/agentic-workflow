@@ -12,6 +12,10 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
+- `ba0918-iterate` — the description no longer triggers on a bare request to fix or add
+  something ("one more fix", "add this too", 「ちょっと直して」「これも足して」). It now names a
+  reviewed loop on a small fix or addition, matching the body, which already sent a bare "fix
+  it" to a direct edit.
 - `ba0918-using-workflow` — the opening no longer states that the skill is resident and read
   every turn. It applies to each new request once loaded, so it reads correctly both where it
   is kept resident and where it is loaded on demand.
