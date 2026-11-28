@@ -12,23 +12,23 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
-- **BREAKING** `ba0918-brainstorm`, `ba0918-plan`, `ba0918-implement` — a round now asks only three kinds of question: product
-  direction, preference or a trade-off that reading and trying cannot settle; a decision whose
-  later change means rebuilding what was built or the data accumulated; and a point where the
-  request, a sample or the records show the person cares. Whether a requirement belongs in the
-  specification is still always asked, and a question that cannot be classified is asked.
-  Everything else, including edge behavior the person never mentioned (boundary values, where
-  combined rules split the result, rare inputs), is decided without asking and recorded under
-  Delegated, one line each with what was decided and its grounds. This applies to ordinary
-  rounds, ambiguous terms, scenarios, and the findings of the finishing review. When an external
-  interface (command form, output, exit codes, files written) was decided without asking, the last
-  round before approval shows one usage example and asks whether it is right. They are written only in the Delegated section, and
-  the approval request shows every one of them. Delegated items
-  decided this way start with `決定:` (`Decided:` in an English specification) and are approved
-  behavior: `ba0918-plan` plans them like requirements and `ba0918-implement` builds them as
-  written instead of choosing again. After upgrading,
-  expect fewer questions per brainstorm and a longer Delegated section to read at approval; the
-  previous version asked about every point that shaped behavior.
+- **BREAKING** `ba0918-brainstorm`, `ba0918-plan`, `ba0918-implement` — a brainstorm round now
+  asks only three kinds of question: product direction, preference or a trade-off that reading
+  and trying cannot settle; a decision whose later change means rebuilding what was built or the
+  data accumulated; and a point where the request, a sample or the records show the person cares.
+  Whether a requirement belongs in the specification is still always asked, and a question that
+  cannot be classified is asked. Everything else, including edge behavior the person never
+  mentioned (boundary values, where combined rules split the result, rare inputs), is decided
+  without asking. This applies to ordinary rounds, ambiguous terms, scenarios, and the findings
+  of the finishing review. What was decided without asking is written only in the
+  specification's Delegated section, one line each with what was decided and its grounds,
+  starting with `決定:` (`Decided:` in an English specification), and the approval request shows
+  every such line. These lines are approved behavior: `ba0918-plan` plans them like requirements
+  and `ba0918-implement` builds them as written instead of choosing again. When an external
+  interface (command form, output format, exit codes, files written) was decided without asking,
+  the last round before approval shows one usage example and asks whether it is right. After
+  upgrading, expect fewer questions per brainstorm and a longer Delegated section to read at
+  approval; the previous version asked about every point that shaped behavior.
 
 ## [0.11.0] - 2026-11-28
 
