@@ -2,29 +2,39 @@
   "coverage_exempt": {},
   "skills": {
     "ba0918-brainstorm": {
-      "carried_note": "not run; rounds limited to questions reading and trying cannot settle, goes on to cycle after approval; bs-001/bs-002 expectations do not touch either",
+      "carried_note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答。bs-001 は 1 回目に報告ファイルを書かずに終わり、走らせ直して通った",
       "file_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "d9543cbf43466e1cc704ae35b4b7f729db2c74da9cbaab92f6ae6c425a3849f1",
-        "skills/ba0918-brainstorm/references/records.md": "b07357a7a8bccc4a74bfb900a5ae5cf01c30e8e67e968d3d3b5ad818d5f472d8",
+        "skills/ba0918-brainstorm/SKILL.md": "903f041b984dbf8c1b043e548eb8a3f5cf0a1f4fd04bbb2e1aafeaf2a23680f5",
+        "skills/ba0918-brainstorm/references/records.md": "7afc6b389ebdc3251f78c010a4337532ecb0f122f39628a12c4b12c948e85b99",
         "skills/ba0918-brainstorm/references/spec-documents.md": "884e8fda9229f19ee0db055987975a1bcff4440b689ea74d87b049cb24efcbb2"
       },
-      "note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答。bs-001 は 1 回目に報告ファイルを書かずに終わり、走らせ直して通った",
+      "note": "opencode-economy (deepseek) で 4 本を実走。新しい 2 本と bs-002 は成果物（ラウンドと途中経過の Delegated）を確認して通過",
       "result": "pass",
       "scenarios": {
         "bs-001": {
           "result": "pass",
           "scenario_sha256": "e809eab9e6bc09e83083c29ba9e4e97c6e260240db6a38d460c10b97286d4db7",
-          "verified": "2026-11-27"
+          "verified": "2026-11-28"
         },
         "bs-002": {
           "result": "pass",
-          "scenario_sha256": "26aa311021ee0af4118adf0221b00e74cbaddc78b0a80ba8b49f75e34c41bc4c",
-          "verified": "2026-11-27"
+          "scenario_sha256": "75a5060696d1bdae5baeaea45efc1f5ff0f81d316073c2b9d78a342ed935230d",
+          "verified": "2026-11-28"
+        },
+        "bs-003": {
+          "result": "pass",
+          "scenario_sha256": "e503a38cdd5144204f68832870c61971a084b2356cde0177a65b731a8e88192a",
+          "verified": "2026-11-28"
+        },
+        "bs-004": {
+          "result": "pass",
+          "scenario_sha256": "c0b34924d013ce211560d21164da55107afe685b3a65cf742067dee66bdd9721",
+          "verified": "2026-11-28"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "9a6cdc98832ca21b3980b14b7a2f7b79cdee684502da43bcf178cec33b4064b9",
-        "skills/ba0918-brainstorm/references/records.md": "97efc242cf01bbea6faa010674df3ebf4b0babcbb773b84e64646277f4db4cec",
+        "skills/ba0918-brainstorm/SKILL.md": "a2a9751eedf8b54693f5dafbfcca715e6ae4dfc5998d3432382ece6fff62bd59",
+        "skills/ba0918-brainstorm/references/records.md": "e59e4fbb388701c4fc5960d91e37fef5ff6cbb5b47c5e47d342e83876f16329a",
         "skills/ba0918-brainstorm/references/spec-documents.md": "e69c8780a7c715837f91862726e7dd9dc84490a70cbfb624ec263dc5cd7094bf"
       },
       "surface": [
@@ -32,8 +42,8 @@
         "skills/ba0918-brainstorm/references/records.md",
         "skills/ba0918-brainstorm/references/spec-documents.md"
       ],
-      "surface_sha256": "9a981e1eb8d4e6a98adc18348fff60c9a8c138266864cf37638e27e469b77973",
-      "verified": "2026-11-27"
+      "surface_sha256": "9e88084f5c3abbc7a172e6077abb063219f7dd4001a7e0ad5e29897da390e2dc",
+      "verified": "2026-11-28"
     },
     "ba0918-cycle": {
       "carried_note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
@@ -83,35 +93,35 @@
       "verified": "2026-11-28"
     },
     "ba0918-implement": {
-      "carried_note": "im-001 と im-002 を今の入力と暫定の答えの流れに書き換えた後、opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、unittest の実走、実行ログの RED の記録、報告の暫定の答え",
+      "carried_note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
       "file_sha256": {
-        "skills/ba0918-implement/SKILL.md": "8b08a10ee088c72e4507ea73234869a1cbdb585f20b59af6bfe342fa1dd425a4",
+        "skills/ba0918-implement/SKILL.md": "97c04ca2e3406f070825ef9c68d0b3ed0698ac652db2a9ae2f1b9192ca0d4d7f",
         "skills/ba0918-implement/references/completion.md": "9e53b606cc54bc02af529d1447ab6a94da344fbb7b88044194a85e3972390266"
       },
-      "note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
+      "note": "opencode-economy (deepseek) で 2 本を実走し、コミットを確認して通過",
       "result": "pass",
       "scenarios": {
         "im-001": {
           "result": "pass",
           "scenario_sha256": "cd7b9fdacb7835c24d009e7faf69884609aa0a7b6cb064596e2b49c4351d8ea3",
-          "verified": "2026-11-27"
+          "verified": "2026-11-28"
         },
         "im-002": {
           "result": "pass",
           "scenario_sha256": "4063d442fd199b1ab91d2dfaa459853e10e7c44d4e44c31caca1f8d831c752fe",
-          "verified": "2026-11-27"
+          "verified": "2026-11-28"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-implement/SKILL.md": "40ae78f8cad0c595bb03aa2b31632874fae3c3f930f316fe24a828da22fa5948",
+        "skills/ba0918-implement/SKILL.md": "b9df778b9814ddc8e67f60db72595e158b60218aae5b78bba62d77e95acd2229",
         "skills/ba0918-implement/references/completion.md": "b7982f8e2e47b1ad06b41461640935e73a541a9e8b6697a4e6daf151e63ddf5e"
       },
       "surface": [
         "skills/ba0918-implement/SKILL.md",
         "skills/ba0918-implement/references/completion.md"
       ],
-      "surface_sha256": "259dfb6a661ccd285a0ac8bfedeaf3752a0ef984feb8aefcc2a33ee07f9ffdc9",
-      "verified": "2026-11-27"
+      "surface_sha256": "826008659dd30f76dce86f56e41628dbbc5a1ad81d284910d652d0d203b0ddc0",
+      "verified": "2026-11-28"
     },
     "ba0918-investigate": {
       "carried_note": "not run; recommended next action table follows the new entry rules and the cycle invocation adds the approval commit; iv-001 wording aligned, expectations unchanged",
@@ -179,35 +189,35 @@
       "verified": "2026-11-28"
     },
     "ba0918-plan": {
-      "carried_note": "pl-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走し、成果物（git log、unittest の実走、指摘 JSON、git status）で判定した。pl-002 は持ち越し",
+      "carried_note": "pl-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は手順書の本文、git log、仕様書との文の突き合わせ。pl-002 は持ち越し",
       "file_sha256": {
-        "skills/ba0918-plan/SKILL.md": "a0a6070814b765c184db880c962ea5914e66507f3a81ad04557a7375de7c104d",
+        "skills/ba0918-plan/SKILL.md": "54f1921a9ba507390161ac686e39bea5a3b8719056e36f5981bf7fecffbb68c6",
         "skills/ba0918-plan/references/step-template.md": "f495826be8b5ba8d93f192efd0fd890a1f8d003969e20eb6e8100844921777bd"
       },
-      "note": "pl-001 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は手順書の本文、git log、仕様書との文の突き合わせ。pl-002 は持ち越し",
-      "result": "accepted-without-run",
+      "note": "opencode-economy (deepseek) で 2 本を実走し、手順書とコミットを確認して通過",
+      "result": "pass",
       "scenarios": {
         "pl-001": {
           "result": "pass",
-          "scenario_sha256": "7f633c1809a2c81208ec2a9a6101eef73b257cfe6220b322d29a22de8dcbe589",
-          "verified": "2026-11-27"
+          "scenario_sha256": "7a5cc16592f3e0e5594148f75bc58eae5d59c711cfd2dde1853228c9cf7700a4",
+          "verified": "2026-11-28"
         },
         "pl-002": {
-          "result": "accepted-without-run",
+          "result": "pass",
           "scenario_sha256": "48b841cbb4aaa33105e03025be85199c6eaea3b6d9b843c5389f5b2266c2dacf",
-          "verified": "2026-08-30"
+          "verified": "2026-11-28"
         }
       },
       "structural_sha256": {
-        "skills/ba0918-plan/SKILL.md": "fe0ac17cba65d4f284cbb5f7f868ad19dace4ac2139d9d73825c15df7e1e5a3e",
+        "skills/ba0918-plan/SKILL.md": "cd41cc51a1e17f0ecf5700764f8401b91b2ec747475d8a3facadd82b15d1aab1",
         "skills/ba0918-plan/references/step-template.md": "fd1bcc35d18a76b5926f510be47b7d53ea40d225cc24afb217ed0d1a4aa3cdaf"
       },
       "surface": [
         "skills/ba0918-plan/SKILL.md",
         "skills/ba0918-plan/references/step-template.md"
       ],
-      "surface_sha256": "c7c78a8f84b3e9db843bb9727eb91dde879a2f49b5a374a5cb856b612b57487a",
-      "verified": "2026-11-27"
+      "surface_sha256": "2ffad9a0dd2ec70f0592a8b24559b5c1bc36ebbc886bdcab876c944908075ae2",
+      "verified": "2026-11-28"
     },
     "ba0918-review": {
       "carried_note": "not run; direct-call fixing is the main session's, reviewer behavior unchanged; rv-001/rv-002 untouched",
