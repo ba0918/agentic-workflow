@@ -10,6 +10,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-28
+
 ### Changed
 
 - **BREAKING** `ba0918-brainstorm`, `ba0918-plan`, `ba0918-implement` — a brainstorm round now
@@ -357,7 +359,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 - Install routes for Claude Code and Codex CLI (plugin marketplace), OpenCode (plugin), APM
   (package manager), and `gh skill` / `npx skills` (copy).
 
-[Unreleased]: https://github.com/ba0918/agentic-workflow/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/ba0918/agentic-workflow/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/ba0918/agentic-workflow/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/ba0918/agentic-workflow/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/ba0918/agentic-workflow/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/ba0918/agentic-workflow/compare/v0.8.0...v0.9.0
