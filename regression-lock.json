@@ -2,13 +2,13 @@
   "coverage_exempt": {},
   "skills": {
     "ba0918-brainstorm": {
-      "carried_note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答。bs-001 は 1 回目に報告ファイルを書かずに終わり、走らせ直して通った",
+      "carried_note": "opencode-economy (deepseek) で 4 本を実走。新しい 2 本と bs-002 は成果物（ラウンドと途中経過の Delegated）を確認して通過",
       "file_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "903f041b984dbf8c1b043e548eb8a3f5cf0a1f4fd04bbb2e1aafeaf2a23680f5",
-        "skills/ba0918-brainstorm/references/records.md": "7afc6b389ebdc3251f78c010a4337532ecb0f122f39628a12c4b12c948e85b99",
+        "skills/ba0918-brainstorm/SKILL.md": "e11e23497edccf1ee6ca7c709ea33836b5b7fe7b588ab281d57abde76448e12d",
+        "skills/ba0918-brainstorm/references/records.md": "b97c88c70bfb0ad8fd19836877e170c268eac4ae515bd2a71d1ef6ac732e51e3",
         "skills/ba0918-brainstorm/references/spec-documents.md": "884e8fda9229f19ee0db055987975a1bcff4440b689ea74d87b049cb24efcbb2"
       },
-      "note": "opencode-economy (deepseek) で 4 本を実走。新しい 2 本と bs-002 は成果物（ラウンドと途中経過の Delegated）を確認して通過",
+      "note": "opencode-economy (deepseek) で 4 本を実走。端の問いを聞かずに Delegated へ書く場面と使用例の場面は、ラウンドと途中経過を確認して通過",
       "result": "pass",
       "scenarios": {
         "bs-001": {
@@ -33,7 +33,7 @@
         }
       },
       "structural_sha256": {
-        "skills/ba0918-brainstorm/SKILL.md": "a2a9751eedf8b54693f5dafbfcca715e6ae4dfc5998d3432382ece6fff62bd59",
+        "skills/ba0918-brainstorm/SKILL.md": "1de69b99776e355579330f2c214315162212bd1467ff347c3dc68ce695aa75c9",
         "skills/ba0918-brainstorm/references/records.md": "e59e4fbb388701c4fc5960d91e37fef5ff6cbb5b47c5e47d342e83876f16329a",
         "skills/ba0918-brainstorm/references/spec-documents.md": "e69c8780a7c715837f91862726e7dd9dc84490a70cbfb624ec263dc5cd7094bf"
       },
@@ -42,7 +42,7 @@
         "skills/ba0918-brainstorm/references/records.md",
         "skills/ba0918-brainstorm/references/spec-documents.md"
       ],
-      "surface_sha256": "9e88084f5c3abbc7a172e6077abb063219f7dd4001a7e0ad5e29897da390e2dc",
+      "surface_sha256": "821e1531117d7ca3f2bfeaaa6c96e240b816bcc1e387dd287618a21eabd583a1",
       "verified": "2026-11-28"
     },
     "ba0918-cycle": {
