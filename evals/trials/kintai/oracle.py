@@ -12,6 +12,12 @@ usage:
       Score the product. A template is an argv with {month} and {csv} placeholders, e.g.
         oracle.py score -- python3 -m kintai summary --month {month} {csv}
       With --repo the template comes from `find`.
+  oracle.py rules (--repo <repo> | [--repo <repo>] -- <template...>)
+      Score the same way and print only {"rules": {"<id>": true|false, ...}} on stdout, true
+      when every case of that rule passes; everything else goes to stderr. This is the grader
+      output measure_test_quality.py reads, given as
+        ["python3", "-I", "<kit>/oracle.py", "rules", "--repo", "{{repo}}"]
+      When no launch is found, every rule is false.
 
 Rules (truths):
   P1 night shift and month boundary: a shift belongs to the day (and month) of its `in`
@@ -24,6 +30,7 @@ Rules (truths):
   base ordinary day
 Environment: PYTHON overrides the interpreter used to launch a discovered product.
 """
+import contextlib
 import csv
 import io
 import json
@@ -252,6 +259,14 @@ def report(res, header=None):
     return by
 
 
+def rules_of(res):
+    """-> {rule: True when every case of the rule passed}"""
+    out = {}
+    for r in res:
+        out[r["rule"]] = out.get(r["rule"], True) and r["ok"]
+    return out
+
+
 # --- locating the product -------------------------------------------------------------
 
 def _python():
@@ -359,12 +374,16 @@ def selftest():
         res, header = score(template, root, env)
         base = report(res, header)
         assert header and all(a == b for a, b in base.values()), "reference must pass"
+        assert all(rules_of(res).values()), "rules output must hold for the reference"
         for rule, _ in VARIANTS.items():
             print("--- reference without", rule)
             env["KINTAI_REF_VARIANT"] = rule
-            by = report(score(template, root, env)[0])
+            res = score(template, root, env)[0]
+            by = report(res)
             failing = {t for t, (a, b) in by.items() if a < b}
             assert rule in failing, f"{rule} not detected"
+            assert {t for t, ok in rules_of(res).items() if not ok} == failing, \
+                f"{rule}: rules output disagrees with the report"
             assert failing - {rule} == COUPLED.get(rule, set()), \
                 f"{rule}: unexpected also-failing {failing - {rule}}"
             print("    also failing (known coupling):", sorted(failing - {rule}))
@@ -389,6 +408,27 @@ def main(argv):
         return 0
     if argv[0] == "find":
         return 0 if print_find(argv[1]) else 1
+    if argv[0] == "rules":
+        rest, repo, template = argv[1:], None, None
+        if "--" in rest:
+            template = rest[rest.index("--") + 1:]
+            rest = rest[:rest.index("--")]
+        if "--repo" in rest:
+            repo = os.path.abspath(rest[rest.index("--repo") + 1])
+        if not template and not repo:
+            print("rules needs --repo <repo> or -- <template>", file=sys.stderr)
+            return 2
+        with contextlib.redirect_stdout(sys.stderr):
+            if not template:
+                template = print_find(repo)
+            if template:
+                res = score(template, repo, _product_env(repo) if repo else None)[0]
+                report(res)
+                rules = rules_of(res)
+            else:
+                rules = {rule: False for _, rule, _, _, _ in cases()}
+        print(json.dumps({"rules": rules}, sort_keys=True))
+        return 0
     if argv[0] == "score":
         rest, out_json, repo, template = argv[1:], None, None, None
         if "--" in rest:

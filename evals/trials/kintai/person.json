@@ -1,0 +1,14 @@
+{
+  "parse": "claude-json",
+  "first": ["claude", "-p", "--restricted", "--safe-mode", "--model", "{{model}}",
+            "--tools", "Read,Grep,Glob", "--system-prompt-file", "{{instructions}}",
+            "--add-dir", "{{trial_root}}",
+            "--output-format", "json", "--session-id", "{{session}}"],
+  "resume": ["claude", "-p", "--restricted", "--safe-mode", "--model", "{{model}}",
+             "--tools", "Read,Grep,Glob", "--system-prompt-file", "{{instructions}}",
+             "--add-dir", "{{trial_root}}",
+             "--output-format", "json", "--resume", "{{session}}"],
+  "stdin": true,
+  "cwd": "{{repo}}",
+  "vars": {}
+}
