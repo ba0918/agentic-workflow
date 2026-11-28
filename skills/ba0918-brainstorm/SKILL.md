@@ -153,8 +153,10 @@ expensive model-running verification only when the person asks.
    built and unbuilt scope; stored state and its lifetime decided or confirmed absent; external
    dependencies accepted or rejected; human decision points and what they see; headings to
    requirements.
-3. Stage the specifications and the glossary change, give the paths, the diff command, and the
-   judgment points — never the full text, and never a summary as the thing approved. The person
+3. Stage the specifications and the glossary change, give the paths, the diff command, the
+   judgment points, and every Delegated line decided without asking, not a selection of them —
+   the person cannot overturn a line they were not shown. Never give the full text, and never a
+   summary as the thing approved. The person
    commits or says to. Then delete the progress file.
 4. Unless the person said "specification only", the main session creates the implementation
    branch and its worktree (the branch named for the specification, or for the topic when several

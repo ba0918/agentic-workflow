@@ -17,7 +17,8 @@ Undecided has no answer yet. Delegated has an answerer chosen. Never file one as
 What was decided here without asking is part of the approved behavior: the implementer builds it
 as written and does not choose again. Start those lines with `decided:` in the progress file, and in
 the specification with `決定:` (`Decided:` when it is written in English), so they read apart
-from choices left to implementation.
+from choices left to implementation. Write them only in the Delegated section, never beside a
+requirement in the body: the person reads them there as one list.
 
 Recommended answers that the person did not answer are not agreements; keep them as undecided
 until answered.

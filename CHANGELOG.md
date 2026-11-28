@@ -22,7 +22,8 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   Delegated, one line each with what was decided and its grounds. This applies to ordinary
   rounds, ambiguous terms, scenarios, and the findings of the finishing review. When an external
   interface (command form, output, exit codes, files written) was decided without asking, the last
-  round before approval shows one usage example and asks whether it is right. Delegated items
+  round before approval shows one usage example and asks whether it is right. They are written only in the Delegated section, and
+  the approval request shows every one of them. Delegated items
   decided this way start with `決定:` (`Decided:` in an English specification) and are approved
   behavior: `ba0918-plan` plans them like requirements and `ba0918-implement` builds them as
   written instead of choosing again. After upgrading,
