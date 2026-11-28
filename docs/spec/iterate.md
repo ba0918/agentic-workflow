@@ -262,8 +262,9 @@ iterate だけに加わるのは、収まらないと判定して止まったと
 
 ## 起動する言葉と境界
 
-起動する言葉は「iterate」「ちょっと直して」「これも足して」「もう少し磨いて」「小さいタスク」である。
-英語では "iterate" "one more fix" "fix this bit" "add this too" "polish it a little more" である。
+起動する言葉は「iterate」「レビュー付きで直して」「レビューを回して」「小さいタスク」である。
+英語では "iterate" と "run a reviewed loop on a small fix or addition" である。
+description には、裸の「直して」「足して」は直接の編集になることも書く。
 「直して」「足して」だけでは起動しない。
 人がメインセッションに直接直させる道は残り、iterate の値打ちは review が付くことなので、review 付きで回したい意思が読める言葉に限る。
 iterate に入るのは、小さいタスクの 4 条件を満たし、かつ宣言がレビューを足すとき（依存し合う変更箇所が複数、または人がレビュー付きを明示したとき）に限る。
