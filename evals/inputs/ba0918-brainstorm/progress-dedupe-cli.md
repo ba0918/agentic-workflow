@@ -19,7 +19,7 @@ Glossary updates pending: 重複 = バイト単位の完全一致（A1）
 ## Delegated
 - D1 decided: コマンドの形式は `dedupe [FILE...]`。FILE が無ければ標準入力を読む (grounds: sort や uniq と揃う)
 - D2 decided: 重複を除いた行は標準出力へ書き、最後に標準エラーへ `removed: <N> lines` を 1 行書く (grounds: 標準出力をそのままパイプに使える)
-- D3 decided: 取り除いた行は、カレントディレクトリの `dedupe.removed.txt` に、取り除いた順で書き、毎回上書きする (grounds: A4。置き場所の手がかりは無く、上書きの方が失う物が少ない)
+- D3 decided: 取り除いた行は、カレントディレクトリの `dedupe.removed.txt` に、取り除いた順で書き、毎回上書きする (grounds: 置き場所の手がかりは無く、上書きなら前の回の行と混ざらない)
 - D4 decided: 終了コードは成功 0、読めないファイルがあれば 1、引数の誤りは 2 (grounds: 一般的な CLI と揃う)
 - D5 decided: 読めないファイルと引数の誤りが重なったときは 2 を返す (grounds: 引数の誤りでは何も読まない)
 
