@@ -5,7 +5,7 @@ description: "Entry decider beside the ba0918 workflow: names the skill a new re
 
 # Using the workflow
 
-You are resident and read every turn; apply this to each new request before any other move.
+Apply this to each new request once it is loaded, before starting the work.
 Decide the entry and how much of the workflow runs. Do not start the work itself.
 
 ## What gets routed
