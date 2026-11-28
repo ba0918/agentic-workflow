@@ -54,9 +54,8 @@ question whose every option keeps the agreed behavior and that is cheap to chang
 a small default). The person overturns these at approval. When you cannot tell whether a question
 is one of the three kinds, ask. This applies wherever brainstorm raises a question: ordinary
 rounds, terms and scenarios, and after the finishing review. Counter-examples: putting edge
-behavior the person has no answer to in a round with recommendations (the answer comes back
-"up to you" and only costs them the reply); deciding without asking where a clue says the person
-cares; deciding without asking and not recording it as delegated.
+behavior the person has no answer to in a round with recommendations; deciding without asking
+where a clue says the person cares; deciding without asking and not recording it as delegated.
 
 ## Conduct
 
@@ -86,10 +85,10 @@ When a requirement does not change observable product behavior (release automati
 CI), ask whether it belongs here, in a separate specification, or is not built. Never add it silently.
 
 Before approval, whoever notices an ambiguous term or a boundary that disagrees with the code asks
-it there (in brainstorm, only when it is one of the three kinds) and records what becomes clear. A
-drift a station finds after approval is not asked there: that station goes on with a provisional
-answer and reports it, and fixing the glossary and specification goes to the next brainstorm. Only
-brainstorm changes them, after the person decides.
+it there (in brainstorm, only when it is one of the three kinds) and records what becomes clear.
+A drift a station finds after approval is not asked there: that station goes on with a provisional
+answer and reports it, and fixing the glossary and specification goes to the next brainstorm.
+Only brainstorm changes them, after the person decides.
 
 ### External interfaces
 
@@ -114,39 +113,41 @@ delegated (with reason), rejected (with reason), revision (what replaced what). 
 
 ## Writing the specification
 
-Before writing, read `references/spec-documents.md`: whether to add to an existing specification or
-start a new one, where a fact already lives, links, and when to split. Check for drafts,
+Before writing, read `references/spec-documents.md`: whether to add to an existing specification
+or start a new one, where a fact already lives, links, and when to split. Check for drafts,
 contradictions, vague words, missing scope boundaries, related undecided items, and anything decided
 without recording it; any of these sends you back to the dialogue. Text-search the specifications
 for links to every heading you change and reread each one that links there for contradictions —
 every time, whether or not Finishing adds a review; left to a review, it goes unread when none is
-added. Specification silence never means "implementer decides": write every silent point out before
+added.
+Specification silence never means "implementer decides": write every silent point out before
 approval. A station after approval that meets a silent point takes a provisional answer, which is
 why one left here reaches the person only in a terminal report.
 
-Each heading-addressable requirement has an observable success condition and a counter-example. Test
-its verification against the Evidence conditions in the ba0918-review skill's
+Each heading-addressable requirement has an observable success condition and a counter-example.
+Test its verification against the Evidence conditions in the ba0918-review skill's
 `references/oracle-evidence.md`; a delegated line that fixes an external interface counts as the
 specification declaring it a contract. On failure, express a non-code requirement as human or
-platform inspection; drop a code behavior into an already reachable generic error path, recording it
-as rejected with its missing conditions. Put agreements in the body, prohibitions in what is not
-built, and rejected / undecided / delegated items in their own sections. Require expensive
-model-running verification only when the person asks.
+platform inspection; drop a code behavior into an already reachable generic error path,
+recording it as rejected with its missing conditions. Put agreements in the body, prohibitions in
+what is not built, and rejected / undecided / delegated items in their own sections. Require
+expensive model-running verification only when the person asks.
 
 ## Finishing
 
 1. Adversarial review, only when the specification's own requirements can contradict each other —
-   several interdependent requirements, or one the record and the principles could pull apart. Say
-   that reason, then launch one separate-context agent on the specification's own quality, and a
-   second on conformance to the brainstorm record plus the repository's principles document when it
-   keeps one (`docs/principles.md` by convention) — that second one only when the record is long
-   enough that reading it back here would not catch the drift. A specification of a few standalone
-   requirements gets none. Give reviewers only the specifications changed and those one link away,
-   linking to them or linked from them — never the whole specification home: in a large context,
-   reviewers miss contradictions too. New findings become branches: ask those of the three kinds,
-   decide the others and record them as delegated. Putting a split the review found between combined
-   rules to the person as it stands is a counter-example. Then, when an external interface was
-   decided without asking, ask its usage example (External interfaces).
+   several interdependent requirements, or one the record and the principles could pull apart.
+   Say that reason, then launch one separate-context agent on the specification's own quality,
+   and a second on conformance to the brainstorm record plus the repository's principles document
+   when it keeps one (`docs/principles.md` by convention) — that second one only when the record
+   is long enough that reading it back here would not catch the drift. A specification of a few
+   standalone requirements gets none. Give reviewers only the specifications changed and those
+   one link away, linking to them or linked from them — never the whole specification home: in a
+   large context, reviewers miss contradictions too. New findings become branches: ask those of
+   the three kinds, decide the others and record them as delegated. Putting a split the review
+   found between combined rules to the person as it stands is a counter-example. Then ask the
+   usage example (External interfaces) when an interface decided without asking has not been
+   shown in one, or more was decided after it was shown.
 2. Check the conditions for handing to cycle: one deliverable (one branch); result in one sentence;
    built and unbuilt scope; stored state and its lifetime decided or confirmed absent; external
    dependencies accepted or rejected; human decision points and what they see; headings to
