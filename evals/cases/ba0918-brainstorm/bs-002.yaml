@@ -31,4 +31,4 @@ expectations:
   - text: .agents/tmp/brainstorm-dedupe.md の Agreements に A1〜A3 が残っており、Position が次のラウンドを指すように更新されている
     critical: true
   - text: 新しい質問は Undecided の U1 と U2 の枝に対応しており、U1 と U2 のうち質問にしなかった部分は、聞かずに決めた物として Delegated に根拠付きで記録されている
-    critical: false
+    critical: true
