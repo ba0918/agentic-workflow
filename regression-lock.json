@@ -142,14 +142,14 @@
       "verified": "2026-11-27"
     },
     "ba0918-iterate": {
-      "carried_note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
+      "carried_note": "opencode-economy (deepseek-v4.1-flash) で it-001 it-002 を実走、全項目 yes",
       "file_sha256": {
         "skills/ba0918-cycle/SKILL.md": "42e922d43bf95a9de9b17a0a68f3d53d8a82fdabbeb2d496869b47861733116a",
         "skills/ba0918-cycle/references/assumption-check.md": "b556e706714e6339b1b41ada2ba5a7c99ae1246bd195ce57a20eef35c25a69a2",
         "skills/ba0918-cycle/references/merge.md": "d543036917f01df85c0752a2f365ad12449bb80c68c270e8fe9b763e7ec870cd",
-        "skills/ba0918-iterate/SKILL.md": "e43d65a98b60e3bfa9bac1f4279a994e422df47a45ece67e12b3ddeebb00b9f0"
+        "skills/ba0918-iterate/SKILL.md": "9b4f3705a99e84ab66e34c73d3e45b1dde9895ca9deaa143e8e9f1cc1caf257d"
       },
-      "note": "opencode-economy (deepseek-v4.1-flash) で it-001 it-002 を実走、全項目 yes",
+      "note": "opencode-economy (deepseek) で 2 本を実走し、成果物を確認して通過",
       "result": "pass",
       "scenarios": {
         "it-001": {
@@ -167,7 +167,7 @@
         "skills/ba0918-cycle/SKILL.md": "25523977fe1c272bbf4e436f548c8a1eb5f516725550d53e8beb959001b1a8b1",
         "skills/ba0918-cycle/references/assumption-check.md": "cb3da45355074c2c3556039e9ce22c98b706f10d76033b5ff15cd046c131616f",
         "skills/ba0918-cycle/references/merge.md": "30a2db2313422a72b52361a13ded88f0c70fd370688bda56bcd424128eb2be74",
-        "skills/ba0918-iterate/SKILL.md": "ae5ce52804174830c8f2fb995d4715379aa5db1c60d164d70d5eca4f79dd698b"
+        "skills/ba0918-iterate/SKILL.md": "dda578a4ef2cfff0b9693c7df959e92c48ad4ce13d1b976c5c14072bef31ed44"
       },
       "surface": [
         "skills/ba0918-cycle/SKILL.md",
@@ -175,7 +175,7 @@
         "skills/ba0918-cycle/references/merge.md",
         "skills/ba0918-iterate/SKILL.md"
       ],
-      "surface_sha256": "f11010169c53ff02fe7c22da6e0ddcbec753885548888c76cc6388e0ca65c7b6",
+      "surface_sha256": "502b533005be4089d3c7401657de0340d79d3735acd813555347bb82d166e18d",
       "verified": "2026-11-28"
     },
     "ba0918-plan": {
@@ -253,22 +253,22 @@
       "verified": "2026-11-27"
     },
     "ba0918-using-workflow": {
-      "carried_note": "uw-001 と uw-002 をopencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は実行ログに残った応答と git status",
+      "carried_note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
       "file_sha256": {
-        "skills/ba0918-using-workflow/SKILL.md": "65d507803cf60b7f71b689d5123cbeb1479d51ed84e4bb4d4efadcde029184c2"
+        "skills/ba0918-using-workflow/SKILL.md": "5614f4ce3b269ad4b542bf7573d100ad259e4a5e0c2bc4f3e1fbb64c8e1c76dd"
       },
-      "note": "opencode-go/deepseek-v4.1-flash（opencode v2.4.2、process 経路、並列 1）で実走。判定は git log、テストの実走、指摘 JSON、進捗ファイル、実行ログの応答",
+      "note": "opencode-economy (deepseek) で 2 本を実走。1 回目は uw-001 が成果物なしで終わり、流し直しで 2 本とも通過",
       "result": "pass",
       "scenarios": {
         "uw-001": {
           "result": "pass",
           "scenario_sha256": "4cc9211473b239807ba82fe2935fd04d8ed815ff1f53c4a688679b8d318308d4",
-          "verified": "2026-11-27"
+          "verified": "2026-11-28"
         },
         "uw-002": {
           "result": "pass",
           "scenario_sha256": "b4f8c2d5b0c7ec817ba6d16c5f43678d0f310fdb855c75ef0b03750d4b982471",
-          "verified": "2026-11-27"
+          "verified": "2026-11-28"
         }
       },
       "structural_sha256": {
@@ -277,8 +277,8 @@
       "surface": [
         "skills/ba0918-using-workflow/SKILL.md"
       ],
-      "surface_sha256": "55d2fbf3425dc07bb0db0d307b2cb12593c2ffa80708b335b33ffea530eec594",
-      "verified": "2026-11-27"
+      "surface_sha256": "8282768e3cb1433421cb3475fdac8ed98656b84dcba78781c3d928cb6e02dd40",
+      "verified": "2026-11-28"
     }
   },
   "version": 1
