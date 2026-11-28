@@ -49,9 +49,10 @@ Check a fact that reading or running answers before the round, and put the resul
 question's background; asking the person what the repository already says is a counter-example.
 Anything else is decided without asking, with its grounds, and recorded as delegated. That is
 **edge behavior** — behavior the person never touched, with no clue, and no rebuild to change
-later: boundary values, where combined rules split the result, inputs that rarely occur — and a
+later: boundary values, where combined rules split the result, inputs that rarely occur — a
 question whose every option keeps the agreed behavior and that is cheap to change later (a name,
-a small default). The person overturns these at approval. When you cannot tell whether a question
+a small default), and the parts of an external interface that are none of the three kinds, which
+are then asked as a usage example (External interfaces). The person overturns these at approval. When you cannot tell whether a question
 is one of the three kinds, ask. This applies wherever brainstorm raises a question: ordinary
 rounds, terms and scenarios, and after the finishing review. Counter-examples: putting edge
 behavior the person has no answer to in a round with recommendations; deciding without asking
@@ -76,7 +77,7 @@ repository's `CONTEXT.md`): what the term *is*, and the words not to use for it.
 read two ways whose meaning here is this project's — no general vocabulary in its general sense.
 
 When deciding how concepts relate, walk concrete scenarios — normal and edge cases — so no
-boundary the person would care about is missed. Only a scenario whose prerequisites are settled
+boundary is missed. Only a scenario whose prerequisites are settled
 and that is one of the three kinds becomes a "what happens here?" question; for the others,
 decide what happens and record it as delegated. Counter-examples found this way become the
 counter-examples attached to requirements.
@@ -145,10 +146,10 @@ expensive model-running verification only when the person asks.
    one link away, linking to them or linked from them — never the whole specification home: in a
    large context, reviewers miss contradictions too. New findings become branches: ask those of
    the three kinds, decide the others and record them as delegated. Putting a split the review
-   found between combined rules to the person as it stands is a counter-example. Then ask the
-   usage example (External interfaces) when an interface decided without asking has not been
-   shown in one, or more was decided after it was shown.
-2. Check the conditions for handing to cycle: one deliverable (one branch); result in one sentence;
+   found between combined rules to the person as it stands is a counter-example.
+2. Ask the usage example (External interfaces) when an interface decided without asking has not
+   been shown in one, or more was decided after it was shown. Then check the conditions for
+   handing to cycle: one deliverable (one branch); result in one sentence;
    built and unbuilt scope; stored state and its lifetime decided or confirmed absent; external
    dependencies accepted or rejected; human decision points and what they see; headings to
    requirements.

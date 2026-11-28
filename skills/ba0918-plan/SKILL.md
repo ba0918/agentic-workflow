@@ -38,7 +38,9 @@ read it before writing.
 ## Boundaries
 
 - A choice may be left to the implementer only if every option leaves the approved behavior
-  unchanged. When a step needs a judgment the specification does not make — a new input kind, an
+  unchanged. A line in the specification's Delegated section that starts with `決定:` or
+  `Decided:` is behavior brainstorm decided without asking, never such a choice: plan it like a
+  requirement. When a step needs a judgment the specification does not make — a new input kind, an
   acceptance boundary, error handling — write the answer with the strongest grounds into the plan
   as a provisional answer, list it with its overturn condition (what the person would say to
   overturn it) in the plan's list of provisional answers, and return it to the caller: cycle puts

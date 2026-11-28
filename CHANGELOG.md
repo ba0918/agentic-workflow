@@ -12,7 +12,7 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ### Changed
 
-- **BREAKING** `ba0918-brainstorm` — a round now asks only three kinds of question: product
+- **BREAKING** `ba0918-brainstorm`, `ba0918-plan`, `ba0918-implement` — a round now asks only three kinds of question: product
   direction, preference or a trade-off that reading and trying cannot settle; a decision whose
   later change means rebuilding what was built or the data accumulated; and a point where the
   request, a sample or the records show the person cares. Whether a requirement belongs in the
@@ -23,7 +23,9 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
   rounds, ambiguous terms, scenarios, and the findings of the finishing review. When an external
   interface (command form, output, exit codes, files written) was decided without asking, the last
   round before approval shows one usage example and asks whether it is right. Delegated items
-  decided this way are approved behavior that the implementer builds as written. After upgrading,
+  decided this way start with `決定:` (`Decided:` in an English specification) and are approved
+  behavior: `ba0918-plan` plans them like requirements and `ba0918-implement` builds them as
+  written instead of choosing again. After upgrading,
   expect fewer questions per brainstorm and a longer Delegated section to read at approval; the
   previous version asked about every point that shaped behavior.
 

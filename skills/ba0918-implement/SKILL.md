@@ -20,7 +20,9 @@ Out: commits on that branch and the verification result of each success conditio
 
 The criteria in your request are all there is: add no check, approval, or review of your own.
 Decide reversible choices without asking; those that are judgments of meaning or design are
-reported as provisional answers.
+reported as provisional answers. A line in a specification's Delegated section that starts with
+`決定:` or `Decided:` is not a choice: it is behavior brainstorm decided without asking. Build it
+as written; one the approval diff added or changed is in the scope.
 
 ## Stop only for these
 
