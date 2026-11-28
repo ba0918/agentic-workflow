@@ -8,11 +8,15 @@ and the items below. Overwrite it when meaning changes; do not append a log.
 | agreement | what was decided, in the person's words when possible | specification body |
 | prohibition | what will not be built | the specification's "not built" section |
 | undecided | the open question and **who decides it** (person, or a later brainstorm — never the implementer: that is delegated) | "Undecided" section |
-| delegated | a choice the person agreed to leave to implementation, or one decided here without asking (see SKILL.md's rounds), and **why** every option keeps approved behavior — a choice put to the person is never filed before they answer | "Delegated" section |
+| delegated | a choice the person agreed to leave to implementation, or one decided here without asking (see SKILL.md's rounds); one line each — for edge behavior, what was decided and its **grounds** ("the sample does this", "matches the other rules", "loses less"); for any other choice, **why** every option keeps approved behavior; no alternatives passed over — a choice put to the person is never filed before they answer | "Delegated" section |
 | rejected | the alternative and **why** it lost | "Rejected" section, one line each, no mechanism description |
 | revision | what replaced what, and why | progress file only; git history carries it after approval |
 
 Undecided has no answer yet. Delegated has an answerer chosen. Never file one as the other.
+
+What was decided here without asking is part of the approved behavior: the implementer builds it
+as written and does not choose again. Mark those lines "decided" in the progress file and the
+specification so they read apart from choices left to implementation.
 
 Recommended answers that the person did not answer are not agreements; keep them as undecided
 until answered.
@@ -33,6 +37,7 @@ Glossary updates pending: <terms and readings>
 - U1 ... (decides: person)
 ## Delegated
 - D1 ... (why: ...)
+- D2 decided: ... (grounds: ...)
 ## Rejected
 - R1 ... (why: ...)
 ## Revisions

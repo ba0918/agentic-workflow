@@ -10,6 +10,23 @@ examples — is a breaking change and is listed under `Changed` with a **BREAKIN
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING** `ba0918-brainstorm` — a round now asks only three kinds of question: product
+  direction, preference or a trade-off that reading and trying cannot settle; a decision whose
+  later change means rebuilding what was built or the data accumulated; and a point where the
+  request, a sample or the records show the person cares. Whether a requirement belongs in the
+  specification is still always asked, and a question that cannot be classified is asked.
+  Everything else, including edge behavior the person never mentioned (boundary values, where
+  combined rules split the result, rare inputs), is decided without asking and recorded under
+  Delegated, one line each with what was decided and its grounds. This applies to ordinary
+  rounds, ambiguous terms, scenarios, and the findings of the finishing review. When an external
+  interface (command form, output, exit codes, files written) was decided without asking, the last
+  round before approval shows one usage example and asks whether it is right. Delegated items
+  decided this way are approved behavior that the implementer builds as written. After upgrading,
+  expect fewer questions per brainstorm and a longer Delegated section to read at approval; the
+  previous version asked about every point that shaped behavior.
+
 ## [0.11.0] - 2026-11-28
 
 ### Changed
